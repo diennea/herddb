@@ -661,11 +661,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 transactionContext = new TransactionContext(result.transactionId);
                 return CompletableFuture
                         .completedFuture(executeDataScannerPlan(plan, result, context, transactionContext));
+
             } else {
-                return CompletableFuture
-                        .completedFuture(executeStatement(plan.mainStatement, context, transactionContext));
+                return executeStatementAsync(plan.mainStatement, context, transactionContext);
             }
-        } catch (StatementExecutionException err) {
+        } catch (Throwable err) {
+            LOGGER.log(Level.SEVERE, "uncaught error", err);
             return FutureUtils.exception(err);
         }
     }

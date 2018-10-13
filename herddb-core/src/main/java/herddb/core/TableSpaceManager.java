@@ -1055,9 +1055,9 @@ public class TableSpaceManager {
                 if (error != null && txId > 0) {
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
-                                .get();                        
+                                .get();
                     } catch (InterruptedException ex) {
-                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);                        
+                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);
                         Thread.currentThread().interrupt();
                         error.addSuppressed(ex);
                     } catch (ExecutionException ex) {
@@ -1188,13 +1188,12 @@ public class TableSpaceManager {
                 && (transaction == null || transaction.transactionId != manager.getCreatedInTransaction())) {
             res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
         } else {
-            res = manager.executeStatementAsync(statement, transaction, context);
+            res = manager.executeStatementAsync(statement, transaction, context);            
         }
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
-                    .thenApply(s -> {
+                    .whenComplete((s, err) -> {
                         context.setTableSpaceLock(0);
-                        return s;
                     });
         }
         return res;
@@ -1598,6 +1597,9 @@ public class TableSpaceManager {
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
             CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
         return promise.whenComplete((r, error) -> {
+            if (error != null) {
+                LOGGER.log(Level.SEVERE, "release ts lock for ", error);
+            }
             releaseReadLock(lockStamp, description);
         });
     }

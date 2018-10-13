@@ -81,6 +81,7 @@ import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Handles a client Connection
@@ -139,7 +140,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
-                    handleExecuteStatement(message, _channel);
+                    releaseMessageSync = false;                    
+                    handleExecuteStatement(message, messageWrapper, _channel);
                 }
                 break;
                 case MessageType.TYPE_TX_COMMAND: {
@@ -534,7 +536,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     private void handleExecuteStatements(Request message, Channel _channel) {
         long txId = message.tx();
-        long transactionId = txId;        
+        long transactionId = txId;
         ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
@@ -609,7 +611,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleExecuteStatement(Request message, Channel _channel) {
+    private void handleExecuteStatement(Request message, MessageWrapper messageWrapper, Channel _channel) {
         long txId = message.tx();
         ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
@@ -630,81 +632,90 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         String _query = query.toString();
         String _tablespace = tableSpace.toString();
         RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
-        try {
-            TransactionContext transactionContext = new TransactionContext(txId);
-            TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(_tablespace,
-                    _query, parameters, false, true, returnValues, -1);
-            Statement statement = translatedQuery.plan.mainStatement;
+        TransactionContext transactionContext = new TransactionContext(txId);
+        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(_tablespace,
+                _query, parameters, false, true, returnValues, -1);
+        Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-            server.getManager().registerRunningStatement(statementInfo);
-            StatementExecutionResult result = server
-                    .getManager()
-                    .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+        server.getManager().registerRunningStatement(statementInfo);
+        CompletableFuture<StatementExecutionResult> res = server
+                .getManager()
+                .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
-            if (result instanceof DMLStatementExecutionResult) {
-                DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                Map<String, Object> newRecord = null;
+        res.whenComplete((result, err) -> {
+            try {
+                server.getManager().unregisterRunningStatement(statementInfo);
+                if (err != null) {
+                    while (err instanceof CompletionException) {
+                        err = err.getCause();
+                    }
+                    if (err instanceof DuplicatePrimaryKeyException) {
+                        ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
+                        _channel.sendReplyMessage(message.id(), error);
+                    } else if (err instanceof NotLeaderException) {
+                        ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
+                        _channel.sendReplyMessage(message.id(), error);
+                    } else if (err instanceof StatementExecutionException) {
+                        ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+                        _channel.sendReplyMessage(message.id(), error);
+                    } else {
+                        LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
+                        ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+                        _channel.sendReplyMessage(message.id(), error);
+                    }
+                    return;
+                }
+                if (result instanceof DMLStatementExecutionResult) {
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                    Map<String, Object> newRecord = null;
 
-                if (returnValues && dml.getKey() != null) {
-                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
-                    Table table = server
-                            .getManager()
-                            .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-                    newRecord = new HashMap<>();
-                    Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
-                    newRecord.put("_key", newKey);
-                    if (dml.getNewvalue() != null) {
-                        newRecord.putAll(RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table));
+                    if (returnValues && dml.getKey() != null) {
+                        TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
+                        Table table = server
+                                .getManager()
+                                .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                        newRecord = new HashMap<>();
+                        Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                        newRecord.put("_key", newKey);
+                        if (dml.getNewvalue() != null) {
+                            newRecord.putAll(RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table));
+                        }
                     }
-                }
-                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(
-                        message.id(), dml.getUpdateCount(), newRecord, dml.transactionId));
-            } else if (result instanceof GetResult) {
-                GetResult get = (GetResult) result;
-                if (!get.found()) {
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 0, null, get.transactionId));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(
+                            message.id(), dml.getUpdateCount(), newRecord, dml.transactionId));
+                } else if (result instanceof GetResult) {
+                    GetResult get = (GetResult) result;
+                    if (!get.found()) {
+                        _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 0, null, get.transactionId));
+                    } else {
+                        Map<String, Object> record = get.getRecord().toBean(get.getTable());
+                        _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, record, get.transactionId));
+                    }
+                } else if (result instanceof TransactionResult) {
+                    TransactionResult txresult = (TransactionResult) result;
+                    Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
+                            RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
+                    switch (txresult.getOutcome()) {
+                        case BEGIN: {
+                            transactionsForTableSpace.add(txresult.getTransactionId());
+                            break;
+                        }
+                        case COMMIT:
+                        case ROLLBACK:
+                            transactionsForTableSpace.remove(txresult.getTransactionId());
+                            break;
+                    }
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
+                } else if (result instanceof DDLStatementExecutionResult) {
+                    DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, ddl.transactionId));
                 } else {
-                    Map<String, Object> record = get.getRecord().toBean(get.getTable());
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, record, get.transactionId));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                 }
-            } else if (result instanceof TransactionResult) {
-                TransactionResult txresult = (TransactionResult) result;
-                Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
-                        RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
-                switch (txresult.getOutcome()) {
-                    case BEGIN: {
-                        transactionsForTableSpace.add(txresult.getTransactionId());
-                        break;
-                    }
-                    case COMMIT:
-                    case ROLLBACK:
-                        transactionsForTableSpace.remove(txresult.getTransactionId());
-                        break;
-                }
-                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
-            } else if (result instanceof DDLStatementExecutionResult) {
-                DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, ddl.transactionId));
-            } else {
-                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+            } finally {
+                messageWrapper.close();
             }
-        } catch (DuplicatePrimaryKeyException err) {
-            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
-            _channel.sendReplyMessage(message.id(), error);
-        } catch (NotLeaderException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", true);
-            _channel.sendReplyMessage(message.id(), error);
-        } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
-            _channel.sendReplyMessage(message.id(), error);
-        } catch (RuntimeException err) {
-            LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
-            _channel.sendReplyMessage(message.id(), error);
-        } finally {
-            server.getManager().unregisterRunningStatement(statementInfo);
-        }
+        });
     }
 
     private void handleTxCommand(Request message, MessageWrapper messageWrapper, Channel _channel) {
@@ -743,8 +754,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             res.whenComplete((result, err) -> {
                 try {
-                    LOGGER.log(Level.SEVERE, "statement " + statement + " complete " + err + " " + result);
-
                     if (err != null) {
                         if (err instanceof NotLeaderException) {
                             ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);

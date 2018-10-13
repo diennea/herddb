@@ -38,10 +38,14 @@ import herddb.client.DMLResult;
 import herddb.client.GetResult;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
+import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
 import herddb.utils.RawString;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Basic server/client boot test
@@ -159,6 +163,14 @@ public class SimpleClientServerTest {
                 assertEquals(1, executeUpdatesWithoutParams.size());
                 assertEquals(1, executeUpdatesWithoutParams.get(0).updateCount);
 
+                // missing JDBC parameter
+                try {
+                    connection.executeUpdate(TableSpace.DEFAULT,
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.NOTRANSACTION_ID, false, Arrays.asList("test"));
+                    fail("cannot issue a query without setting each parameter");
+                } catch (HDBException ok) {
+                    assertTrue(ok.getMessage().contains(MissingJDBCParameterException.class.getName()));
+                }
             }
         }
     }

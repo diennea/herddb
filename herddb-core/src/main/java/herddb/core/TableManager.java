@@ -525,15 +525,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         } else {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
-        }
-
+        }        
         res = res.whenComplete((r, error) -> {
-//            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
+            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
             res = res.whenComplete((r, error) -> {
-                LOGGER.log(Level.SEVERE, "Handling " + statement, error);
                 if (error == null) {
                     try {
                         flush();
@@ -862,8 +860,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
          locks: the insert uses global 'insert' lock on the table
          the insert will update the 'maxKey' for auto_increment primary keys
          */
-        Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
-        byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
+        Bytes key;
+        byte[] value;
+        try {
+            key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
+            value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
+        } catch (StatementExecutionException validationError) {
+            return FutureUtils.exception(validationError);
+        }
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             try {
@@ -878,7 +882,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         final long size = DataPage.estimateEntrySize(key, value);
         if (size > maxLogicalPageSize) {
-            throw new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize);
+            return FutureUtils
+                    .exception(new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize));
         }
 
         LockHandle lock = lockForWrite(key, transaction);
@@ -1670,7 +1675,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private CompletableFuture<StatementExecutionResult> executeGetAsync(GetStatement get, Transaction transaction,
             StatementEvaluationContext context) {
-        Bytes key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
+        Bytes key;
+        try {
+            key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
+        } catch (StatementExecutionException validationError) {
+            return FutureUtils.exception(validationError);
+        }
         Predicate predicate = get.getPredicate();
         boolean requireLock = get.isRequireLock();
         long transactionId = transaction != null ? transaction.transactionId : 0;
@@ -2489,7 +2499,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     // now the consumer is the owner of the lock on the record
                                     record_discarded = false;
-                                    consumer.accept(record,  null /* transaction holds the lock */);
+                                    consumer.accept(record, null /* transaction holds the lock */);
 
                                 }
                                 continue;
