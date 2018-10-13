@@ -92,7 +92,6 @@ public class InsertOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                LOG.severe("transactionIdFromScanner:" + transactionIdFromScanner + "," + transactionId);
                 int index = 0;
                 List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
                 List<String> keyExpressionToColumn = new ArrayList<>();

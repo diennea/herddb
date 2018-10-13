@@ -1002,14 +1002,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
                         .thenApplyAsync((lsn) -> {
-                            LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " LOGGED!");
                             apply(pos, entry, false);
-                            LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " APPLIED!");
                             return lsn;
                         });
                 if (lockHandle != null) {
                     promise.whenComplete((lns, error) -> {
-                        LOGGER.log(Level.SEVERE, "UPDATE, release lock " + lockHandle);
                         locksManager.releaseLock(lockHandle);
                     });
                 }
@@ -1052,32 +1049,26 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                try {
-                    LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
-                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                            .thenApplyAsync((lsn) -> {
-                                LOGGER.log(Level.SEVERE, "LOGGED " + delete + " to log");
-                                apply(pos, entry, false);
-                                LOGGER.log(Level.SEVERE, "APPLIED " + delete);
-                                return lsn;
-                            });
+                LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
+                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
+                        .thenApplyAsync((lsn) -> {
+                            apply(pos, entry, false);
+                            return lsn;
+                        });
+                if (lockHandle != null) {
                     promise.whenComplete((lns, error) -> {
-                        LOGGER.log(Level.SEVERE, "DELETE, release lock " + lockHandle);
                         try {
                             locksManager.releaseLock(lockHandle);
                         } catch (Throwable t) {
                             LOGGER.log(Level.SEVERE, "DELETE, release lock " + lockHandle, t);
                         }
                     });
-                    writes.add(promise);
-                    lastKey.value = actual.key;
-                    lastValue.value = actual.value.data;
-                    updateCount.incrementAndGet();
-
-                } finally {
-                    locksManager.releaseLock(lockHandle);
                 }
+                writes.add(promise);
+                lastKey.value = actual.key;
+                lastValue.value = actual.value.data;
+                updateCount.incrementAndGet();
             }
         }, transaction, true, true);
         if (writes.isEmpty()) {

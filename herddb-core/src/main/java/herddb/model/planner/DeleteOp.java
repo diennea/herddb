@@ -21,7 +21,6 @@ package herddb.model.planner;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
-import herddb.model.Column;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -35,13 +34,15 @@ import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.predicates.RawKeyEquals;
-import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 public class DeleteOp implements PlannerOp {
 
@@ -61,37 +62,88 @@ public class DeleteOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
             boolean lockRequired, boolean forWrite) {
+        final boolean returnValues = false; // not supported for deletes
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        int updateCount = 0;
-        Bytes key = null;
+
+        List<DMLStatement> statements = new ArrayList<>();
+
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
+
                 DataAccessor row = inputScanner.next();
                 long transactionIdFromScanner = inputScanner.getTransactionId();
                 if (transactionIdFromScanner > 0 && transactionIdFromScanner != transactionId) {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
+                Bytes key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
                 DMLStatement deleteStatement = new DeleteStatement(tableSpace, tableName,
                         null, new RawKeyEquals(key));
 
-                DMLStatementExecutionResult _result
-                        = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(deleteStatement, context, transactionContext);
-                updateCount += _result.getUpdateCount();
-                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
-                    transactionId = _result.transactionId;
-                    transactionContext = new TransactionContext(transactionId);
-                }
-                key = _result.getKey();
+                statements.add(deleteStatement);
+
             }
-            return new DMLStatementExecutionResult(transactionId, updateCount, key, null);
+            if (statements.isEmpty()) {
+                return CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+            }
+            if (statements.size() == 1) {
+                return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
+            }
+
+            CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
+
+            AtomicInteger updateCounts = new AtomicInteger();
+            AtomicReference<Bytes> lastKey = new AtomicReference<>();
+            AtomicReference<Bytes> lastNewValue = new AtomicReference<>();
+
+            class ComputeNext implements BiConsumer<StatementExecutionResult, Throwable> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
+                }
+
+                @Override
+                public void accept(StatementExecutionResult res, Throwable error) {
+                    if (error != null) {
+                        finalResult.completeExceptionally(error);
+                        return;
+                    }
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) res;
+                    updateCounts.addAndGet(dml.getUpdateCount());
+                    if (returnValues) {
+                        lastKey.set(dml.getKey());
+                        lastNewValue.set(dml.getNewvalue());
+                    }
+                    long newTransactionId = res.transactionId;
+                    if (current == statements.size()) {
+                        DMLStatementExecutionResult finalDMLResult
+                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                                        lastKey.get(), lastNewValue.get());
+                        finalResult.complete(finalDMLResult);
+                        return;
+                    }
+
+                    DMLStatement nextStatement = statements.get(current);
+                    TransactionContext transactionContext = new TransactionContext(newTransactionId);
+                    CompletableFuture<StatementExecutionResult> nextPromise
+                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    nextPromise.whenComplete(new ComputeNext(current + 1));
+                }
+            }
+
+            DMLStatement firstStatement = statements.get(0);
+            tableSpaceManager.executeStatementAsync(firstStatement, context, transactionContext)
+                    .whenComplete(new ComputeNext(1));
+
+            return finalResult;
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }

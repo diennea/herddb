@@ -142,7 +142,6 @@ public class UpdateOp implements PlannerOp {
                     }
 
                     DMLStatement nextStatement = statements.get(current);
-                    LOG.log(Level.SEVERE, "executing # " + current + " " + nextStatement);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
                     CompletableFuture<StatementExecutionResult> nextPromise
                             = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
@@ -151,7 +150,6 @@ public class UpdateOp implements PlannerOp {
             }
 
             DMLStatement firstStatement = statements.get(0);
-            LOG.log(Level.SEVERE, "executing first " + firstStatement);
             tableSpaceManager.executeStatementAsync(firstStatement, context, transactionContext)
                     .whenComplete(new ComputeNext(1));
 
