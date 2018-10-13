@@ -528,7 +528,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         res = res.whenComplete((r, error) -> {
-            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
+//            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
@@ -814,7 +814,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
-        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
+//        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
         if (transaction != null) {
             LockHandle lock = transaction.lookupLock(table.name, key);
             if (lock != null) {
@@ -953,7 +953,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private CompletableFuture<StatementExecutionResult> executeUpdateAsync(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "executeUpdateAsync, " + update + ", transaction " + transaction);
+//        LOGGER.log(Level.SEVERE, "executeUpdateAsync, " + update + ", transaction " + transaction);
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
         Holder<byte[]> lastValue = new Holder<>();
@@ -2487,7 +2487,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
-                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock + " for " + key);
+//                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock + " for " + key);
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {

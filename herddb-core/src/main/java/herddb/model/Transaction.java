@@ -171,7 +171,6 @@ public class Transaction {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
             for (LockHandle l : ll.values()) {
-                LOG.log(Level.SEVERE, "TX " + transactionId + " releasing lock " + l);
                 lockManager.releaseLock(l);
             }
         }
@@ -263,7 +262,12 @@ public class Transaction {
 
     @Override
     public String toString() {
-        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
+        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace
+                + ", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
+                + ", newRecords=" + newRecords.size()
+                + ", deletedRecords=" + deletedRecords.size()
+                + ", newTables=" + newTables
+                + ", newIndexes=" + newIndexes + '}';
     }
 
     public synchronized void registerDropTable(String tableName, CommitLogResult writeResult) {

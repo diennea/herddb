@@ -573,7 +573,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         context.setDefaultTablespace(statement.getTableSpace());
         context.setManager(this);
         context.setTransactionContext(transactionContext);
-        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
+//        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             return FutureUtils.exception(new StatementExecutionException("invalid null tableSpace"));
@@ -613,9 +613,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             });
             planner.clearCache();
         }
-        res.whenComplete((s, err) -> {
-            LOGGER.log(Level.SEVERE, "completed " + statement + ": " + s, err);
-        });
+//        res.whenComplete((s, err) -> {
+//            LOGGER.log(Level.SEVERE, "completed " + statement + ": " + s, err);
+//        });
         return res;
     }
 

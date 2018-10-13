@@ -652,7 +652,6 @@ public class TableSpaceManager {
     }
 
     private void releaseWriteLock(long lockStamp, Object description) {
-        System.out.println("RELEASE WRITE LOCK " + lockStamp + " for " + description);
         generalLock.unlockWrite(lockStamp);
     }
 
@@ -1052,16 +1051,11 @@ public class TableSpaceManager {
                         return executeStatementAsyncInternal(statement, context, newtransactionContext, true);
                     });
             finalResult.whenComplete((xx, error) -> {
-                if (xx != null) {
-                    LOGGER.severe("wrapped statement finished with " + xx.transactionId + " txid");
-                }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
-                    LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
-                                .get();
-                        LOGGER.log(Level.SEVERE, "tx " + txId + " rolled back with success");
+                                .get();                        
                     } catch (InterruptedException ex) {
                         LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);                        
                         Thread.currentThread().interrupt();
@@ -1163,9 +1157,9 @@ public class TableSpaceManager {
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
         CompletableFuture<StatementExecutionResult> res
                 = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
-        res.whenComplete((ee, err) -> {
-            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
-        });
+//        res.whenComplete((ee, err) -> {
+//            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
+//        });
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
@@ -1173,7 +1167,6 @@ public class TableSpaceManager {
                         return s;
                     });
         }
-        LOGGER.log(Level.SEVERE, "CREATED " + res);
         return res;
     }
 
@@ -1210,13 +1203,13 @@ public class TableSpaceManager {
 
     private long acquireReadLock(Object statement) {
         long lockStamp = generalLock.readLock();
-        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
+//        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
     private long acquireWriteLock(Object statement) {
         long lockStamp = generalLock.writeLock();
-        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
+//        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
@@ -1610,7 +1603,7 @@ public class TableSpaceManager {
     }
 
     private void releaseReadLock(long lockStamp, Object description) {
-        System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
+//        System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
         generalLock.unlockRead(lockStamp);
     }
 
