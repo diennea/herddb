@@ -280,7 +280,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                         )
                 );
                 ExecutionPlan executionPlan = ExecutionPlan.simple(
-                        new SQLPlannedOperationStatement(values)
+                        new SQLPlannedOperationStatement(values),
+                        values
                 );
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
 
@@ -323,9 +324,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             PlannerOp rootOp = sqlPlannedOperationStatement.getRootOp();
             ExecutionPlan executionPlan;
             if (rootOp.isSimpleStatementWrapper()) {
-                executionPlan = ExecutionPlan.simple(rootOp.unwrap(herddb.model.Statement.class));            
+                executionPlan = ExecutionPlan.simple(rootOp.unwrap(herddb.model.Statement.class), rootOp);            
             } else {
-                executionPlan = ExecutionPlan.simple(sqlPlannedOperationStatement);
+                executionPlan = ExecutionPlan.simple(sqlPlannedOperationStatement, rootOp);
             }
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);

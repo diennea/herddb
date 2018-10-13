@@ -19,9 +19,7 @@
  */
 package herddb.model;
 
-import herddb.model.commands.InsertStatement;
-import herddb.model.commands.ScanStatement;
-import java.util.List;
+import herddb.model.planner.PlannerOp;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -37,24 +35,27 @@ public class ExecutionPlan {
     public final Aggregator mainAggregator;
     public final ScanLimits limits;
     public final TupleComparator comparator;
+    // this is actually only for tests and debug
+    public final PlannerOp originalRoot;
 
     private ExecutionPlan(Statement mainStatement,
             Aggregator mainAggregator,
             ScanLimits limits,
-            TupleComparator comparator) {
+            TupleComparator comparator,
+            PlannerOp originalRoot) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
         this.comparator = comparator;
-
+        this.originalRoot = originalRoot;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null);
     }
 
-    public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator);
+    public static ExecutionPlan simple(Statement statement, PlannerOp root) {
+        return new ExecutionPlan(statement, null, null, null, root);
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
