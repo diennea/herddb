@@ -973,7 +973,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle);
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
                 if (indexes != null) {
@@ -989,7 +988,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
                 }
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
-                LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " size " + size);
                 if (size > maxLogicalPageSize) {
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
