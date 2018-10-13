@@ -510,16 +510,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             InsertStatement insert = (InsertStatement) statement;
             res = executeInsertAsync(insert, transaction, context);
         } else if (statement instanceof GetStatement) {
-            try {
-                GetStatement get = (GetStatement) statement;
-                res = CompletableFuture.completedFuture(executeGet(get, transaction, context));
-            } catch (StatementExecutionException err) {
-                res = FutureUtils.exception(err);
-            }
+            GetStatement get = (GetStatement) statement;
+            res = executeGetAsync(get, transaction, context);
         } else if (statement instanceof DeleteStatement) {
             DeleteStatement delete = (DeleteStatement) statement;
             res = executeDeleteAsync(delete, transaction, context);
-            LOGGER.log(Level.SEVERE, "COMPLETABLE FUTURE FOR DELETE is " + res);
         } else if (statement instanceof TruncateTableStatement) {
             try {
                 TruncateTableStatement truncate = (TruncateTableStatement) statement;
@@ -819,7 +814,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
-        LOGGER.log(Level.SEVERE, "lockForWrite for "+key+" tx "+transaction);
+        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
         if (transaction != null) {
             LockHandle lock = transaction.lookupLock(table.name, key);
             if (lock != null) {
@@ -958,7 +953,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private CompletableFuture<StatementExecutionResult> executeUpdateAsync(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "executeUpdateAsync, "+update+", transaction "+transaction);
+        LOGGER.log(Level.SEVERE, "executeUpdateAsync, " + update + ", transaction " + transaction);
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
         Holder<byte[]> lastValue = new Holder<>();
@@ -1684,49 +1679,57 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.uuid, keyToPage);
     }
 
-    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction,
-            StatementEvaluationContext context)
-            throws StatementExecutionException, DataStorageManagerException {
+    private CompletableFuture<StatementExecutionResult> executeGetAsync(GetStatement get, Transaction transaction,
+            StatementEvaluationContext context) {
         Bytes key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
         Predicate predicate = get.getPredicate();
         boolean requireLock = get.isRequireLock();
         long transactionId = transaction != null ? transaction.transactionId : 0;
         LockHandle lock = (transaction != null || requireLock) ? lockForRead(key, transaction) : null;
-        try {
-            if (transaction != null) {
-                if (transaction.recordDeleted(table.name, key)) {
-                    return GetResult.NOT_FOUND(transactionId);
-                }
+        CompletableFuture<StatementExecutionResult> res = null;
+        if (transaction != null) {
+            if (transaction.recordDeleted(table.name, key)) {
+                res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+            } else {
                 Record loadedInTransaction = transaction.recordUpdated(table.name, key);
                 if (loadedInTransaction != null) {
                     if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
-                        return GetResult.NOT_FOUND(transactionId);
+                        res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+                    } else {
+                        res = CompletableFuture.completedFuture(new GetResult(transactionId, loadedInTransaction, table));
                     }
-                    return new GetResult(transactionId, loadedInTransaction, table);
-                }
-                loadedInTransaction = transaction.recordInserted(table.name, key);
-                if (loadedInTransaction != null) {
-                    if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
-                        return GetResult.NOT_FOUND(transactionId);
+                } else {
+                    loadedInTransaction = transaction.recordInserted(table.name, key);
+                    if (loadedInTransaction != null) {
+                        if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
+                            res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+                        } else {
+                            res = CompletableFuture.completedFuture(new GetResult(transactionId, loadedInTransaction, table));
+                        }
                     }
-                    return new GetResult(transactionId, loadedInTransaction, table);
                 }
-            }
-            Long pageId = keyToPage.get(key);
-            if (pageId == null) {
-                return GetResult.NOT_FOUND(transactionId);
-            }
-            Record loaded = fetchRecord(key, pageId, null);
-            if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
-                return GetResult.NOT_FOUND(transactionId);
-            }
-            return new GetResult(transactionId, loaded, table);
-
-        } finally {
-            if (transaction == null && lock != null) {
-                locksManager.releaseReadLock(lock);
             }
         }
+        if (res == null) {
+            Long pageId = keyToPage.get(key);
+            if (pageId == null) {
+                res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+            } else {
+                Record loaded = fetchRecord(key, pageId, null);
+                if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
+                    res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+                } else {
+                    res = CompletableFuture.completedFuture(new GetResult(transactionId, loaded, table));
+                }
+            }
+        }
+        if (transaction == null && lock != null) {
+            res.whenComplete((r, e) -> {
+                locksManager.releaseReadLock(lock);
+            });
+        }
+        return res;
+
     }
 
     private DataPage temporaryLoadPageToMemory(Long pageId) throws DataStorageManagerException {
@@ -2484,7 +2487,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
-                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock+" for "+key);
+                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock + " for " + key);
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
@@ -2519,7 +2522,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 // now the consumer is the owner of the lock on the record
                                 record_discarded = false;
-                                LOGGER.log(Level.SEVERE, "QUI "+lock+", tx "+transaction);
+                                LOGGER.log(Level.SEVERE, "QUI " + lock + ", tx " + transaction);
                                 consumer.accept(record, transaction == null ? lock : null);
                             }
                         }
@@ -2528,7 +2531,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (record_discarded) {
                             if (transaction == null) {
                                 locksManager.releaseLock(lock);
-                            } else if (!already_locked) {                                
+                            } else if (!already_locked) {
                                 transaction.releaseLockOnKey(table.name, key, locksManager);
                             }
                         }

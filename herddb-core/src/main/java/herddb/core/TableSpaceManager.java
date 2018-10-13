@@ -1061,13 +1061,18 @@ public class TableSpaceManager {
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
                                 .get();
+                        LOGGER.log(Level.SEVERE, "tx " + txId + " rolled back with success");
                     } catch (InterruptedException ex) {
+                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);                        
                         Thread.currentThread().interrupt();
                         error.addSuppressed(ex);
                     } catch (ExecutionException ex) {
+                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex.getCause());
                         error.addSuppressed(ex.getCause());
+                    } catch (Throwable t) {
+                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, t);
+                        error.addSuppressed(t);
                     }
-                    throw new HerdDBInternalException(error);
                 }
             });
             return finalResult;
@@ -1571,15 +1576,17 @@ public class TableSpaceManager {
         long txId = statement.getTransactionId();
         LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
         final long lockStamp = acquireReadLock(statement);
+        CompletableFuture<StatementExecutionResult> res;
         Transaction tx = transactions.get(txId);
         if (tx == null) {
-            throw new StatementExecutionException("no such transaction " + statement.getTransactionId());
+            res = FutureUtils.exception(new StatementExecutionException("no such transaction " + statement.getTransactionId()));
+        } else {
+            CommitLogResult pos = log.log(entry, true);
+            res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
+                apply(pos, entry, false);
+                return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
+            });
         }
-        CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
-            apply(pos, entry, false);
-            return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
-        });
         return releaseReadLock(res, lockStamp, statement);
     }
 
