@@ -45,6 +45,7 @@ import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
@@ -455,15 +456,14 @@ public class FileCommitLog extends CommitLog {
                 return new CommitLogResult(
                         CompletableFuture.<LogSequenceNumber>completedFuture(null), true, false);
             } else {
-                LogSequenceNumber res = future.ack.get();
-                notifyListeners(res, edit);
-                return new CommitLogResult(res, false, true);
+                future.ack.thenAccept((pos) -> {
+                    notifyListeners(pos, edit);
+                });
+                return new CommitLogResult(future.ack, false, true);
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
-        } catch (ExecutionException err) {
-            throw new LogNotAvailableException(err.getCause());
         }
 
     }
