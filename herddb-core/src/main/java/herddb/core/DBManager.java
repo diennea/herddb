@@ -96,8 +96,10 @@ import herddb.sql.DDLSQLPlanner;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
+import io.netty.util.concurrent.FastThreadLocalThread;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadFactory;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
@@ -118,7 +120,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final Thread activator;
     private final Activator activatorJ;
     private final AtomicBoolean stopped = new AtomicBoolean();
-
+    private final ExecutorService callbacksExecutor;
     private final AbstractSQLPlanner planner;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
@@ -142,9 +144,16 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 
     private final ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
+    private static final ThreadFactory threadFactory = new ThreadFactory() {
+        private final AtomicLong count = new AtomicLong();
 
-    private final ExecutorService threadPool = Executors.newCachedThreadPool((Runnable r) -> {
-        Thread t = new Thread(r, r + "");
+        @Override
+        public Thread newThread(Runnable r) {
+            return new FastThreadLocalThread(r, "db-dmlcall-" + count.incrementAndGet());
+        }
+    };
+    private final ExecutorService followersThreadPool = Executors.newCachedThreadPool((Runnable r) -> {
+        Thread t = new FastThreadLocalThread(r, r + "");
         t.setDaemon(true);
         return t;
     });
@@ -158,6 +167,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
+        this.callbacksExecutor = Executors.newWorkStealingPool(16);
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
@@ -803,11 +813,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } catch (InterruptedException ignore) {
             ignore.printStackTrace();
         }
-        threadPool.shutdown();
+        followersThreadPool.shutdown();
 
         if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.unregisterDBManagerStatsMXBean();
         }
+        callbacksExecutor.shutdown();
     }
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
@@ -830,7 +841,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     void submit(Runnable runnable) {
         try {
-            threadPool.submit(runnable);
+            followersThreadPool.submit(runnable);
         } catch (RejectedExecutionException err) {
             LOGGER.log(Level.SEVERE, "rejected " + runnable, err);
         }
@@ -1274,4 +1285,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public ConcurrentHashMap<Long, RunningStatementInfo> getRunningStatements() {
         return runningStatements;
     }
+
+    public ExecutorService getCallbacksExecutor() {
+        return callbacksExecutor;
+    }
+    
 }

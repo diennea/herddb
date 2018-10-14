@@ -122,6 +122,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.StampedLock;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
@@ -147,6 +148,7 @@ public class TableSpaceManager {
     private final StampedLock generalLock = new StampedLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
+    private final ExecutorService callbacksExecutor;
     private final boolean virtual;
 
     private volatile boolean leader;
@@ -176,6 +178,7 @@ public class TableSpaceManager {
     public TableSpaceManager(String nodeId, String tableSpaceName, String tableSpaceUUID, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
         this.dbmanager = manager;
+        this.callbacksExecutor = dbmanager.getCallbacksExecutor();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
@@ -1555,10 +1558,10 @@ public class TableSpaceManager {
         CommitLogResult pos;
         long lockStamp = acquireReadLock(new BeginTransactionStatement(tableSpaceName));
         pos = log.log(entry, false);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApply((lsn) -> {
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
-        });
+        }, callbacksExecutor);
         releaseReadLock(res, lockStamp, "begin transaction " + id);
         return res;
 
@@ -1577,7 +1580,7 @@ public class TableSpaceManager {
             res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
                 apply(pos, entry, false);
                 return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
-            });
+            }, callbacksExecutor);
         }
         return releaseReadLock(res, lockStamp, statement);
     }
@@ -1587,10 +1590,10 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
         final long lockStamp = acquireReadLock(statement);
         CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApply((lsn) -> {
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
-        });
+        }, callbacksExecutor);
         return releaseReadLock(res, lockStamp, statement);
     }
 
@@ -1750,6 +1753,10 @@ public class TableSpaceManager {
     public CommitLog getLog() {
         return log;
     }
+
+    public ExecutorService getCallbacksExecutor() {
+        return callbacksExecutor;
+    }        
 
     @Override
     public String toString() {

@@ -905,7 +905,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(entry.transactionId, 1, key,
                     insert.isReturnValues() ? Bytes.from_array(value) : null);
-        });
+        }, tableSpaceManager.getCallbacksExecutor());
         if (transaction == null) {
             res = releaseWriteLock(res, lock);
         }
@@ -1007,7 +1007,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         .thenApplyAsync((lsn) -> {
                             apply(pos, entry, false);
                             return lsn;
-                        });
+                        }, tableSpaceManager.getCallbacksExecutor());
                 if (lockHandle != null) {
                     promise.whenComplete((lns, error) -> {
                         locksManager.releaseLock(lockHandle);
@@ -1058,7 +1058,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         .thenApplyAsync((lsn) -> {
                             apply(pos, entry, false);
                             return lsn;
-                        });
+                        }, tableSpaceManager.getCallbacksExecutor());
                 if (lockHandle != null) {
                     promise.whenComplete((lns, error) -> {
                         try {
