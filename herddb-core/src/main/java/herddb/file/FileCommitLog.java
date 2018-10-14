@@ -435,6 +435,10 @@ public class FileCommitLog extends CommitLog {
         _writer.sync();
     }
 
+    public Counter getQueueSize() {
+        return queueSize;
+    }
+
     @Override
     public CommitLogResult log(LogEntry edit, boolean sync) throws LogNotAvailableException {
         if (failed) {
