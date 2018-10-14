@@ -525,7 +525,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         } else {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
-        }        
+        }
         res = res.whenComplete((r, error) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
             checkpointLock.unlockRead(lockStamp);
@@ -887,25 +887,28 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         LockHandle lock = lockForWrite(key, transaction);
+        CompletableFuture<StatementExecutionResult> res = null;
         if (transaction != null) {
             if (transaction.recordDeleted(table.name, key)) {
                 // OK, INSERT on a DELETED record inside this transaction
             } else if (transaction.recordInserted(table.name, key) != null) {
                 // ERROR, INSERT on a INSERTED record inside this transaction
-                return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
             }
         } else if (keyToPage.containsKey(key)) {
-            return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name));
+            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name));
         }
-        LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
-        CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
-            apply(pos, entry, false);
-            return new DMLStatementExecutionResult(entry.transactionId, 1, key,
-                    insert.isReturnValues() ? Bytes.from_array(value) : null);
-        }, tableSpaceManager.getCallbacksExecutor());
+        if (res == null) {
+            LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+            res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
+                apply(pos, entry, false);
+                return new DMLStatementExecutionResult(entry.transactionId, 1, key,
+                        insert.isReturnValues() ? Bytes.from_array(value) : null);
+            }, tableSpaceManager.getCallbacksExecutor());
+        }
         if (transaction == null) {
             res = releaseWriteLock(res, lock);
         }
@@ -2471,7 +2474,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Predicate predicate = statement.getPredicate();
         long _start = System.currentTimeMillis();
         boolean acquireLock = transaction != null || forWrite || lockRequired;
-
         LocalScanPageCache lastPageRead = acquireLock ? null : new LocalScanPageCache();
 
         try {
@@ -2480,8 +2482,18 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean primaryIndexSeek = indexOperation instanceof PrimaryIndexSeek;
             AbstractIndexManager useIndex = getIndexForTbleAccess(indexOperation);
 
-            BatchOrderedExecutor.Executor<Map.Entry<Bytes, Long>> scanExecutor = (List<Map.Entry<Bytes, Long>> batch) -> {
-                for (Map.Entry<Bytes, Long> entry : batch) {
+            class RecordProcessor implements BatchOrderedExecutor.Executor<Entry<Bytes, Long>>,
+                    Consumer<Map.Entry<Bytes, Long>> {
+
+                @Override
+                public void execute(List<Map.Entry<Bytes, Long>> batch) throws HerdDBInternalException {
+                    batch.forEach((entry) -> {
+                        accept(entry);
+                    });
+                }
+
+                @Override
+                public void accept(Entry<Bytes, Long> entry) throws DataStorageManagerException, StatementExecutionException, LogNotAvailableException {
                     Bytes key = entry.getKey();
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
@@ -2491,7 +2503,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
                                 // skip this record. inside current transaction it has been deleted
-                                continue;
+                                return;
                             }
                             Record record = transaction.recordUpdated(table.name, key);
                             if (record != null) {
@@ -2502,7 +2514,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     consumer.accept(record, null /* transaction holds the lock */);
 
                                 }
-                                continue;
+                                return;
                             }
                         }
                         Long pageId = entry.getValue();
@@ -2512,7 +2524,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 Predicate.PrimaryKeyMatchOutcome outcome
                                         = predicate.matchesRawPrimaryKey(key, context);
                                 if (outcome == Predicate.PrimaryKeyMatchOutcome.FAILED) {
-                                    continue;
+                                    return;
                                 } else if (outcome == Predicate.PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED) {
                                     pkFilterCompleteMatch = true;
                                 }
@@ -2535,14 +2547,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     }
                 }
-            };
-            BatchOrderedExecutor<Map.Entry<Bytes, Long>> executor = new BatchOrderedExecutor<>(SORTED_PAGE_ACCESS_WINDOW_SIZE,
-                    scanExecutor, SORTED_PAGE_ACCESS_COMPARATOR);
+            }
+
+            RecordProcessor scanExecutor = new RecordProcessor();
             Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
             boolean exit = false;
             try {
-                scanner.forEach(executor);
-                executor.finish();
+                if (primaryIndexSeek) {
+                    // we are expecting at most one record, no need for BatchOrderedExecutor
+                    // this is the most common case for UPDATE-BY-PK and SELECT-BY-PK
+                    scanner.forEach(scanExecutor);
+                } else {
+                    BatchOrderedExecutor<Map.Entry<Bytes, Long>> executor = new BatchOrderedExecutor<>(SORTED_PAGE_ACCESS_WINDOW_SIZE,
+                            scanExecutor, SORTED_PAGE_ACCESS_COMPARATOR);
+                    scanner.forEach(executor);
+                    executor.finish();
+                }
             } catch (ExitLoop exitLoop) {
                 exit = !exitLoop.continueWithTransactionData;
                 if (LOGGER.isLoggable(Level.FINEST)) {
