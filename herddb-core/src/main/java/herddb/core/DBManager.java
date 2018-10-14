@@ -167,7 +167,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
-        this.callbacksExecutor = Executors.newWorkStealingPool(64);
+        this.callbacksExecutor = Executors.newFixedThreadPool(64, threadFactory);
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
