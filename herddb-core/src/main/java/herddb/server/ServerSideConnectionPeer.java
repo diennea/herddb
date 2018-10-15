@@ -140,7 +140,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
-                    releaseMessageSync = false;                    
+                    releaseMessageSync = false;
                     handleExecuteStatement(message, messageWrapper, _channel);
                 }
                 break;
@@ -562,17 +562,24 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             List<Long> updateCounts = new ArrayList<>(numStatements);
             List<Map<String, Object>> otherDatas = new ArrayList<>(numStatements);
+            List<TranslatedQuery> queries = new ArrayList<>();
             for (int i = 0; i < numStatements; i++) {
                 List<Object> parameters = batch.get(i);
-
-                TransactionContext transactionContext = new TransactionContext(transactionId);
                 TranslatedQuery translatedQuery = server
                         .getManager()
                         .getPlanner().translate(_tablespace, _query,
                                 parameters, false, true, returnValues, -1);
+                queries.add(translatedQuery);
+            }
+
+            for (int i = 0; i < queries.size(); i++) {
+                TranslatedQuery translatedQuery = queries.get(i);
                 Statement statement = translatedQuery.plan.mainStatement;
                 server.getManager().registerRunningStatement(statementInfo);
-                StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                TransactionContext transactionContext = new TransactionContext(transactionId);
+                CompletableFuture<StatementExecutionResult> result =
+                        server.getManager().executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
+                
                 if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
                     throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
                 }
