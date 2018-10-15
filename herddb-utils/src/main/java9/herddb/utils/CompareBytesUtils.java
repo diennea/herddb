@@ -38,6 +38,6 @@ public final class CompareBytesUtils {
     }
 
     public static int compare(byte[] left, byte[] right) {
-        return Arrays.compare(left, right);
+        return Arrays.compareUnsigned(left, right);
     }
 }
