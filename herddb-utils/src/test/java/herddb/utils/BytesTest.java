@@ -19,7 +19,6 @@
  */
 package herddb.utils;
 
-import herddb.utils.Bytes;
 import static org.junit.Assert.assertArrayEquals;
 
 import java.nio.charset.StandardCharsets;
@@ -44,6 +43,10 @@ public class BytesTest {
         System.out.println("a:"+bytes1.to_string());
         System.out.println("b:"+next.to_string());
         assertArrayEquals(array2, next.data);
+    }
+
+    public void testLenPreservation() {
+
     }
 
 }
