@@ -19,13 +19,12 @@
  */
 package herddb.utils;
 
-import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.internal.PlatformDependent;
-import java.nio.ByteOrder;
 
 /**
  * A wrapper for byte[], in order to use it as keys on HashMaps
@@ -82,7 +81,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         putLong(res, 0, value);
         return res;
     }
-    
+
     public static byte[] doubleToByteArray(double value) {
         byte[] res = new byte[8];
         putLong(res, 0, Double.doubleToLongBits(value));
@@ -271,13 +270,13 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             return BIG_ENDIAN_NATIVE_ORDER ? v : Integer.reverseBytes(v);
         }
 
-        return ((int) array[index] & 0xff) << 24
+        return (array[index] & 0xff) << 24
                 | //
-                ((int) array[index + 1] & 0xff) << 16
+                (array[index + 1] & 0xff) << 16
                 | //
-                ((int) array[index + 2] & 0xff) << 8
+                (array[index + 2] & 0xff) << 8
                 | //
-                (int) array[index + 3] & 0xff;
+                array[index + 3] & 0xff;
     }
 
     public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset) {
@@ -295,7 +294,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     public static double toDouble(byte[] bytes, int offset) {
         return Double.longBitsToDouble(toLong(bytes, offset));
     }
-    
+
     public static int compare(byte[] left, byte[] right) {
         return CompareBytesUtils.compare(left, right);
     }
@@ -338,10 +337,42 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return string.toString();
     }
 
+    /**
+     * Returns the next {@code Bytes} instance.
+     * <p>
+     * Depending on current instance it couldn't be possible to evaluate the next one: if every bit in current byte
+     * array is already 1 next would generate an overflow and isn't permitted.
+     * </p>
+     *
+     * @return the next Bytes instance
+     *
+     * @throws IllegalStateException if cannot evaluate a next value.
+     */
     public Bytes next() {
-        BigInteger i = new BigInteger(this.data);
-        i = i.add(BigInteger.ONE);
-        return Bytes.from_array(i.toByteArray());
+
+        final byte[] dst = new byte[data.length];
+        System.arraycopy(data, 0, dst, 0, data.length);
+
+
+        int idx = data.length - 1;
+
+        /*
+         * We alter bytes from last in a backward fashion. We could have done directly a manual copy with
+         * increment when needed but System.arraycopy is really faster than manual for loop copy and in
+         * standard cases we just need to very fiew bytes (normally just one)
+         */
+        while(idx > -1 && ++dst[idx] == 0) {
+            --idx;
+        }
+
+        /* If addition gone up to the byte array end then there isn't any more space */
+        if (idx == -1) {
+            throw new IllegalStateException(
+                    "Cannot generate a next value for a full 1 byte array, no space for another element");
+        }
+
+        return new Bytes(dst);
+
     }
 
 }

@@ -19,16 +19,18 @@
  */
 package herddb.utils;
 
-import herddb.utils.Bytes;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import java.nio.charset.StandardCharsets;
 
 import org.junit.Test;
 
 /**
+ * Test on {@link Bytes} facility
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public class BytesTest {
 
@@ -41,9 +43,96 @@ public class BytesTest {
         Bytes bytes1 = Bytes.from_array(array1);
         Bytes next = bytes1.next();
         byte[] array2 = "tesu".getBytes(StandardCharsets.UTF_8);
-        System.out.println("a:"+bytes1.to_string());
-        System.out.println("b:"+next.to_string());
+        System.out.println("a:" + bytes1.to_string());
+        System.out.println("b:" + next.to_string());
         assertArrayEquals(array2, next.data);
+    }
+
+    @Test
+    public void testNextSameByte() {
+
+        byte[] array = new byte[]{0, 1};
+        byte[] nextExpected = new byte[]{0, 2};
+
+        Bytes bytes = Bytes.from_array(array);
+        Bytes next = bytes.next();
+
+        assertArrayEquals(nextExpected, next.data);
+    }
+
+    /**
+     * Check that the change propagate to next byte if 255 (-1)
+     */
+    @Test
+    public void testNextChangeByte() {
+
+        byte[] array = new byte[]{0, -1};
+        byte[] nextExpected = new byte[]{1, 0};
+
+        Bytes bytes = Bytes.from_array(array);
+        Bytes next = bytes.next();
+
+        assertArrayEquals(nextExpected, next.data);
+    }
+
+    /**
+     * Check that more than one byte is changed if needed
+     */
+    @Test
+    public void testNextChangeByteMoreTimes() {
+
+        byte[] array = new byte[]{0, -1, -1};
+        byte[] nextExpected = new byte[]{1, 0, 0};
+
+        Bytes bytes = Bytes.from_array(array);
+        Bytes next = bytes.next();
+
+        assertArrayEquals(nextExpected, next.data);
+    }
+
+    /**
+     * Checks that prefix bytes aren't touched
+     */
+    @Test
+    public void testNextChangeByteMoreTimesWithPrefix() {
+
+        byte[] array = new byte[]{1, 0, -1, -1};
+        byte[] nextExpected = new byte[]{1, 1, 0, 0};
+
+        Bytes bytes = Bytes.from_array(array);
+        Bytes next = bytes.next();
+
+        assertArrayEquals(nextExpected, next.data);
+    }
+
+    /**
+     * Checks that next fails if there is no more space
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testNextNoMoreSpace() {
+
+        byte[] array = new byte[]{-1, -1};
+
+        Bytes bytes = Bytes.from_array(array);
+        bytes.next();
+    }
+
+    /**
+     * Check that leading zeros are preserved
+     */
+    @Test
+    public void testNextLenPreservation() {
+
+        byte[] src = new byte[]{0, 0, 0, -1};
+
+        Bytes bytes = Bytes.from_array(src);
+
+        assertArrayEquals(src, bytes.data);
+
+        Bytes next = bytes.next();
+
+        assertEquals(bytes.data.length, next.data.length);
+
     }
 
 }
