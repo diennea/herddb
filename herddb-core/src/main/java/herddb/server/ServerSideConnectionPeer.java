@@ -82,6 +82,10 @@ import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
  * Handles a client Connection
@@ -158,7 +162,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
-                    handleExecuteStatements(message, _channel);
+                    releaseMessageSync = false;
+                    handleExecuteStatements(message, messageWrapper, _channel);
                 }
                 break;
                 case MessageType.TYPE_REQUEST_TABLESPACE_DUMP: {
@@ -534,7 +539,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         server.getManager().dumpTableSpace(tableSpace.toString(), dumpId.toString(), message, _channel, fetchSize, includeTransactionLog);
     }
 
-    private void handleExecuteStatements(Request message, Channel _channel) {
+    private void handleExecuteStatements(Request message, MessageWrapper messageWrapper, Channel _channel) {
         long txId = message.tx();
         long transactionId = txId;
         ByteBuffer byteBuffer = message.getByteBuffer();
@@ -560,8 +565,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, "batch of " + numStatements);
         try {
 
-            List<Long> updateCounts = new ArrayList<>(numStatements);
-            List<Map<String, Object>> otherDatas = new ArrayList<>(numStatements);
             List<TranslatedQuery> queries = new ArrayList<>();
             for (int i = 0; i < numStatements; i++) {
                 List<Object> parameters = batch.get(i);
@@ -572,48 +575,83 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 queries.add(translatedQuery);
             }
 
-            for (int i = 0; i < queries.size(); i++) {
-                TranslatedQuery translatedQuery = queries.get(i);
-                Statement statement = translatedQuery.plan.mainStatement;
-                server.getManager().registerRunningStatement(statementInfo);
-                TransactionContext transactionContext = new TransactionContext(transactionId);
-                CompletableFuture<StatementExecutionResult> result =
-                        server.getManager().executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
-                
-                if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
-                    throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
-                }
-                transactionId = result.transactionId;
+            List<Long> updateCounts = new CopyOnWriteArrayList();
+            List<Map<String, Object>> otherDatas = new CopyOnWriteArrayList<>();
 
-                if (result instanceof DMLStatementExecutionResult) {
-                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                    Map<String, Object> otherData = Collections.emptyMap();
-                    if (returnValues && dml.getKey() != null) {
-                        TableAwareStatement tableStatement = (TableAwareStatement) statement;
-                        Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-                        Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
-                        otherData = new HashMap<>();
-                        otherData.put("_key", key);
-                        if (dml.getNewvalue() != null) {
-                            Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
-                            otherData.putAll(newvalue);
-                        }
+            class ComputeNext implements BiConsumer<StatementExecutionResult, Throwable> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
+                }
+
+                @Override
+                public void accept(StatementExecutionResult result, Throwable error) {
+                    if (error != null) {
+                        ByteBuf errorMsg = MessageBuilder.ERROR(message.id(), error,
+                                " query was '" + _query + "', with values " + batch, error instanceof NotLeaderException);
+                        _channel.sendReplyMessage(message.id(), errorMsg);
+                        messageWrapper.close();
+                        server.getManager().unregisterRunningStatement(statementInfo);
+                        return;
                     }
-                    updateCounts.add(Long.valueOf(dml.getUpdateCount()));
-                    otherDatas.add(otherData);
-                } else if (result instanceof DDLStatementExecutionResult) {
-                    Map<String, Object> otherData = Collections.emptyMap();
-                    updateCounts.add(Long.valueOf(1));
-                    otherDatas.add(otherData);
-                } else {
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("bad result type " + result.getClass() + " (" + result + ")")));
+                    if (result instanceof DMLStatementExecutionResult) {
+                        DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                        Map<String, Object> otherData = Collections.emptyMap();
+                        if (returnValues && dml.getKey() != null) {
+                            TranslatedQuery translatedQuery = queries.get(current - 1);
+                            Statement statement = translatedQuery.plan.mainStatement;
+                            TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                            Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                            otherData = new HashMap<>();
+                            otherData.put("_key", key);
+                            if (dml.getNewvalue() != null) {
+                                Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                                otherData.putAll(newvalue);
+                            }
+                        }
+                        updateCounts.add(Long.valueOf(dml.getUpdateCount()));
+                        otherDatas.add(otherData);
+                    } else if (result instanceof DDLStatementExecutionResult) {
+                        Map<String, Object> otherData = Collections.emptyMap();
+                        updateCounts.add(Long.valueOf(1));
+                        otherDatas.add(otherData);
+                    } else {
+                        _channel
+                                .sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("bad result type " + result.getClass() + " (" + result + ")")));
+                        messageWrapper.close();
+                        server.getManager().unregisterRunningStatement(statementInfo);
+                        return;
+                    }
+
+                    long newTransactionId = result.transactionId;
+                    if (current == queries.size()) {
+                        _channel.sendReplyMessage(message.id(),
+                                MessageBuilder.EXECUTE_STATEMENT_RESULTS(message.id(), updateCounts, otherDatas, newTransactionId));
+                        messageWrapper.close();
+                        server.getManager().unregisterRunningStatement(statementInfo);
+                        return;
+                    }
+
+                    TranslatedQuery nextPlannedQuery = queries.get(current);
+                    TransactionContext transactionContext = new TransactionContext(newTransactionId);
+                    CompletableFuture<StatementExecutionResult> nextPromise
+                            = server.getManager().executePlanAsync(nextPlannedQuery.plan, nextPlannedQuery.context, transactionContext);
+                    nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }
-            _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULTS(message.id(), updateCounts, otherDatas, transactionId));
+
+            TransactionContext transactionContext = new TransactionContext(transactionId);
+            TranslatedQuery firstTranslatedQuery = queries.get(0);
+            server.getManager().executePlanAsync(firstTranslatedQuery.plan, firstTranslatedQuery.context, transactionContext)
+                    .whenComplete(new ComputeNext(1));
+
         } catch (HerdDBInternalException err) {
             ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "', with values " + batch, err instanceof NotLeaderException);
             _channel.sendReplyMessage(message.id(), error);
-        } finally {
+            messageWrapper.close();
             server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
