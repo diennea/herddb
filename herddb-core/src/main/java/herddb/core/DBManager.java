@@ -144,7 +144,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 
     private final ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
-    private static final ThreadFactory threadFactory = new ThreadFactory() {
+    private static final ThreadFactory ASYNC_WORKERS_THREAD_FACTORY = new ThreadFactory() {
         private final AtomicLong count = new AtomicLong();
 
         @Override
@@ -167,7 +167,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
-        this.callbacksExecutor = Executors.newFixedThreadPool(64, threadFactory);
+        int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
+                ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS_DEFAULT);
+        this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, ASYNC_WORKERS_THREAD_FACTORY);
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
