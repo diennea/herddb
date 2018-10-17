@@ -19,13 +19,11 @@
  */
 package herddb.cluster;
 
-import herddb.core.HerdDBInternalException;
 import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -50,8 +48,6 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletionException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 
 /**
@@ -272,9 +268,9 @@ public class BookkeeperCommitLog extends CommitLog {
             // client is not really interested to the result of the write
             // sending a fake completed result
             return new CommitLogResult(
-                    CompletableFuture.<LogSequenceNumber>completedFuture(null), true, false);
+                    CompletableFuture.<LogSequenceNumber>completedFuture(null), true /* deferred */, false);
         } else {
-            return new CommitLogResult(res, false, true);
+            return new CommitLogResult(res, false /* deferred */, true);
         }
     }
 

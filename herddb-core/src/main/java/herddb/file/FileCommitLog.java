@@ -455,15 +455,12 @@ public class FileCommitLog extends CommitLog {
             queueSize.inc();
             writeQueue.put(future);
             if (!sync) {
-                // client is not really interested to the result of the write
-                // sending a fake completed result
-                return new CommitLogResult(
-                        CompletableFuture.<LogSequenceNumber>completedFuture(null), true, false);
+                return new CommitLogResult(future.ack, false /* deferred */, false);
             } else {
                 future.ack.thenAccept((pos) -> {
                     notifyListeners(pos, edit);
                 });
-                return new CommitLogResult(future.ack, false, true);
+                return new CommitLogResult(future.ack, false /* deferred */, true);
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
