@@ -656,6 +656,9 @@ public class TableSpaceManager {
 
     private void releaseWriteLock(long lockStamp, Object description) {
         generalLock.unlockWrite(lockStamp);
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "RELEASE TS WRITELOCK for " + description);
+        }
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -1129,7 +1132,6 @@ public class TableSpaceManager {
             if (txId > 0) {
                 res = res.whenComplete((xx, error) -> {
                     if (error != null) {
-                        LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
                         try {
                             rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
                                     .get();
@@ -1191,7 +1193,7 @@ public class TableSpaceManager {
                 && (transaction == null || transaction.transactionId != manager.getCreatedInTransaction())) {
             res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
         } else {
-            res = manager.executeStatementAsync(statement, transaction, context);            
+            res = manager.executeStatementAsync(statement, transaction, context);
         }
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
@@ -1204,14 +1206,19 @@ public class TableSpaceManager {
     }
 
     private long acquireReadLock(Object statement) {
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "ACQUIRE TS READLOCK for " + statement);
+        }
         long lockStamp = generalLock.readLock();
-//        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
     private long acquireWriteLock(Object statement) {
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "ACQUIRE TS WRITELOCK for " + statement);
+        }
+
         long lockStamp = generalLock.writeLock();
-//        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
@@ -1556,13 +1563,13 @@ public class TableSpaceManager {
 
         LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
-        long lockStamp = acquireReadLock(new BeginTransactionStatement(tableSpaceName));
+        long lockStamp = acquireReadLock("begin transaction");
         pos = log.log(entry, false);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
         }, callbacksExecutor);
-        releaseReadLock(res, lockStamp, "begin transaction " + id);
+        releaseReadLock(res, lockStamp, "begin transaction");
         return res;
 
     }
@@ -1600,15 +1607,14 @@ public class TableSpaceManager {
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
             CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
         return promise.whenComplete((r, error) -> {
-            if (error != null) {
-                LOGGER.log(Level.SEVERE, "release ts lock for ", error);
-            }
             releaseReadLock(lockStamp, description);
         });
     }
 
     private void releaseReadLock(long lockStamp, Object description) {
-//        System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);
+        }
         generalLock.unlockRead(lockStamp);
     }
 
@@ -1756,7 +1762,7 @@ public class TableSpaceManager {
 
     public ExecutorService getCallbacksExecutor() {
         return callbacksExecutor;
-    }        
+    }
 
     @Override
     public String toString() {
