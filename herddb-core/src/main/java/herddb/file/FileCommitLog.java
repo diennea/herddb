@@ -45,6 +45,7 @@ import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
@@ -171,7 +172,7 @@ public class FileCommitLog extends CommitLog {
                     // we are closing this writer, every write has been fsync'd so
                     // new fsyncs in another thread may ignore errors
                     writerClosed = true;
-                    
+
                     out.close();
                     channel.close();
                 } catch (IOException err) {
@@ -434,6 +435,10 @@ public class FileCommitLog extends CommitLog {
         _writer.sync();
     }
 
+    public Counter getQueueSize() {
+        return queueSize;
+    }
+
     @Override
     public CommitLogResult log(LogEntry edit, boolean sync) throws LogNotAvailableException {
         if (failed) {
@@ -449,14 +454,17 @@ public class FileCommitLog extends CommitLog {
         try {
             queueSize.inc();
             writeQueue.put(future);
-            LogSequenceNumber logPos = future.ack.get();
-            notifyListeners(logPos, edit);
-            return new CommitLogResult(logPos, !sync);
+            if (!sync) {
+                return new CommitLogResult(future.ack, false /* deferred */, false);
+            } else {
+                future.ack.thenAccept((pos) -> {
+                    notifyListeners(pos, edit);
+                });
+                return new CommitLogResult(future.ack, false /* deferred */, true);
+            }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
-        } catch (ExecutionException err) {
-            throw new LogNotAvailableException(err.getCause());
         }
 
     }

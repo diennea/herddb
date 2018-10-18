@@ -43,6 +43,8 @@ import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.util.Collection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -173,6 +175,7 @@ public class Transaction {
             }
         }
     }
+    private static final Logger LOG = Logger.getLogger(Transaction.class.getName());
 
     public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
@@ -259,7 +262,12 @@ public class Transaction {
 
     @Override
     public String toString() {
-        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
+        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace
+                + ", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
+                + ", newRecords=" + newRecords.size()
+                + ", deletedRecords=" + deletedRecords.size()
+                + ", newTables=" + newTables
+                + ", newIndexes=" + newIndexes + '}';
     }
 
     public synchronized void registerDropTable(String tableName, CommitLogResult writeResult) {
@@ -398,7 +406,7 @@ public class Transaction {
         long ledgerId = in.readZLong();
         long offset = in.readZLong();
         LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
-        Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false));
+        Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false, true));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();

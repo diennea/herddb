@@ -40,6 +40,14 @@ import herddb.model.predicates.RawKeyEquals;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class UpdateOp implements PlannerOp {
 
@@ -64,15 +72,15 @@ public class UpdateOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        int updateCount = 0;
-        Bytes key = null;
-        Bytes newValue = null;
+
+        List<DMLStatement> statements = new ArrayList<>();
+
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
 
@@ -82,28 +90,76 @@ public class UpdateOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
+                Bytes key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
                 Predicate pred = new RawKeyEquals(key);
                 DMLStatement updateStatement = new UpdateStatement(tableSpace, tableName,
                         null, this.recordFunction, pred)
                         .setReturnValues(returnValues);
-                
-                DMLStatementExecutionResult _result
-                        = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(updateStatement, context, transactionContext);
-                updateCount += _result.getUpdateCount();
-                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
-                    transactionId = _result.transactionId;
-                    transactionContext = new TransactionContext(transactionId);
-                }
-                key = _result.getKey();
-                newValue = _result.getNewvalue();
+
+                statements.add(updateStatement);
+
             }
-            return new DMLStatementExecutionResult(transactionId, updateCount, key, newValue);
+            if (statements.isEmpty()) {
+                return CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+            }
+            if (statements.size() == 1) {
+                return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
+            }
+
+            CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
+
+            AtomicInteger updateCounts = new AtomicInteger();
+            AtomicReference<Bytes> lastKey = new AtomicReference<>();
+            AtomicReference<Bytes> lastNewValue = new AtomicReference<>();
+
+            class ComputeNext implements BiConsumer<StatementExecutionResult, Throwable> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
+                }
+
+                @Override
+                public void accept(StatementExecutionResult res, Throwable error) {
+                    if (error != null) {
+                        finalResult.completeExceptionally(error);
+                        return;
+                    }
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) res;
+                    updateCounts.addAndGet(dml.getUpdateCount());
+                    if (returnValues) {
+                        lastKey.set(dml.getKey());
+                        lastNewValue.set(dml.getNewvalue());
+                    }
+                    long newTransactionId = res.transactionId;
+                    if (current == statements.size()) {
+                        DMLStatementExecutionResult finalDMLResult
+                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                                        lastKey.get(), lastNewValue.get());
+                        finalResult.complete(finalDMLResult);
+                        return;
+                    }
+
+                    DMLStatement nextStatement = statements.get(current);
+                    TransactionContext transactionContext = new TransactionContext(newTransactionId);
+                    CompletableFuture<StatementExecutionResult> nextPromise
+                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    nextPromise.whenComplete(new ComputeNext(current + 1));
+                }
+            }
+
+            DMLStatement firstStatement = statements.get(0);
+            tableSpaceManager.executeStatementAsync(firstStatement, context, transactionContext)
+                    .whenComplete(new ComputeNext(1));
+
+            return finalResult;
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }
 
     }
+    private static final Logger LOG = Logger.getLogger(UpdateOp.class.getName());
 
     @Override
     public <T> T unwrap(Class<T> clazz) {

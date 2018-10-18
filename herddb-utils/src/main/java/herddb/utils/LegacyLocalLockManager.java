@@ -201,6 +201,9 @@ public class LegacyLocalLockManager implements ILocalLockManager {
 
     @Override
     public void releaseLock(LockHandle handle) {
+        if (handle == null) {
+            return;
+        }
         if (handle.write) {
             releaseWriteLock(handle);
         } else {

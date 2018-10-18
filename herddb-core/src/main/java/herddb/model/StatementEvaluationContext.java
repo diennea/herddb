@@ -38,6 +38,7 @@ public class StatementEvaluationContext {
     private DBManager manager;
     private TransactionContext transactionContext;
     private String defaultTablespace = TableSpace.DEFAULT;
+    private volatile long tableSpaceLock;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
         return new StatementEvaluationContext();
@@ -78,7 +79,7 @@ public class StatementEvaluationContext {
             throw new MissingJDBCParameterException(index + 1);
         }
     }
-   
+
     private java.sql.Timestamp currentTimestamp;
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
@@ -87,6 +88,14 @@ public class StatementEvaluationContext {
             currentTimestamp = new java.sql.Timestamp(System.currentTimeMillis());
         }
         return currentTimestamp;
+    }
+
+    public long getTableSpaceLock() {
+        return tableSpaceLock;
+    }
+
+    public void setTableSpaceLock(long tableSpaceLock) {
+        this.tableSpaceLock = tableSpaceLock;
     }
 
 }

@@ -70,12 +70,15 @@ public final class ServerConfiguration {
     public static final String PROPERTY_NETWORK_ENABLED = "server.network.enabled";
     public static final boolean PROPERTY_NETWORK_ENABLED_DEFAULT = true;
 
-    public static final String PROPERTY_NETWORK_CALLBACK_THREADS = "server.network.thread.callback";
+    public static final String PROPERTY_NETWORK_CALLBACK_THREADS = "server.network.thread.callback.workers";
     public static final int PROPERTY_NETWORK_CALLBACK_THREADS_DEFAULT = 64;
 
-    public static final String PROPERTY_NETWORK_WORKER_THREADS = "server.network.thread.worker";
+    public static final String PROPERTY_NETWORK_WORKER_THREADS = "server.network.thread.workers";
     public static final int PROPERTY_NETWORK_WORKER_THREADS_DEFAULT = 16;
 
+    public static final String PROPERTY_ASYNC_WORKER_THREADS = "server.async.thread.workers";
+    public static final int PROPERTY_ASYNC_WORKER_THREADS_DEFAULT = 64;
+    
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";

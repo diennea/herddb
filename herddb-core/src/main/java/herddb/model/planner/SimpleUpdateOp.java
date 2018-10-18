@@ -22,10 +22,10 @@ package herddb.model.planner;
 import herddb.core.TableSpaceManager;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.Wrapper;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * UPDATE
@@ -46,12 +46,14 @@ public class SimpleUpdateOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transaction, StatementEvaluationContext context, boolean lockRequired, boolean forWrite)
-            throws StatementExecutionException {
-        return tableSpaceManager.executeStatement(statement, context, transaction);
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context,
+            boolean lockRequired, boolean forWrite) {
+
+        return tableSpaceManager
+                .executeStatementAsync(statement, context, transactionContext);
     }
-    
+
     @Override
     public <T> T unwrap(Class<T> clazz) {
         T unwrapped = statement.unwrap(clazz);
@@ -59,5 +61,10 @@ public class SimpleUpdateOp implements PlannerOp {
             return unwrapped;
         }
         return Wrapper.unwrap(this, clazz);
+    }        
+
+    @Override
+    public boolean isSimpleStatementWrapper() {
+        return true;
     }
 }

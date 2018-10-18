@@ -33,6 +33,7 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.TestUtils;
 
 /**
  * Basic Tests on FileCommitLog
@@ -83,7 +84,7 @@ public class FileCommitLogTest {
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.startWriting();
                 for (int i = 0; i < 100; i++) {
-                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
                     writeCount++;
                 }
                 FileCommitLog fileCommitLog = (FileCommitLog) log;
@@ -137,7 +138,7 @@ public class FileCommitLogTest {
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.startWriting();
                 for (int i = 0; i < 100; i++) {
-                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
                     writeCount++;
                 }
                 FileCommitLog fileCommitLog = (FileCommitLog) log;
@@ -225,6 +226,10 @@ public class FileCommitLogTest {
                     log.log(LogEntryFactory.beginTransaction(0), false);
                     writeCount++;
                 }
+                TestUtils.waitForCondition(() -> {
+                    Long qsize = log.getQueueSize().get();
+                    return qsize != null && qsize == 0;
+                }, TestUtils.NOOP, 100);
             }
             final long _endWrite = System.currentTimeMillis();
             AtomicInteger readCount = new AtomicInteger();

@@ -44,6 +44,13 @@ import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
 
@@ -65,7 +72,7 @@ public class InsertOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
             boolean lockRequired, boolean forWrite) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager,
@@ -73,9 +80,9 @@ public class InsertOp implements PlannerOp {
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        int updateCount = 0;
-        Bytes key = null;
-        Bytes newValue = null;
+
+        List<DMLStatement> statements = new ArrayList<>();
+
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
 
@@ -117,30 +124,74 @@ public class InsertOp implements PlannerOp {
                 RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                statements.add(insertStatement);
+            }
+            if (statements.isEmpty()) {
+                return CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+            }
+            if (statements.size() == 1) {
+                return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
+            }
+            if (returnValues) {
+                return FutureUtils.exception(new StatementExecutionException("cannot 'return values' on multi-values insert"));
+            }
+            CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
 
-                DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
-                updateCount += _result.getUpdateCount();
-                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
-                    transactionId = _result.transactionId;
-                    transactionContext = new TransactionContext(transactionId);
+            AtomicInteger updateCounts = new AtomicInteger();
+            AtomicReference<Bytes> lastKey = new AtomicReference<>();
+            AtomicReference<Bytes> lastNewValue = new AtomicReference<>();
+
+            class ComputeNext implements BiConsumer<StatementExecutionResult, Throwable> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
                 }
-                key = _result.getKey();
-                newValue = _result.getNewvalue();
-            }
-            if (updateCount > 1 && returnValues) {
-                if (transactionId > 0) {
-                    // usually the first record will be rolledback with transaction failure
-                    throw new StatementExecutionException("cannot 'return values' on multi-values insert");
-                } else {
-                    throw new StatementExecutionException("cannot 'return values' on multi-values insert, at least record could have been written because autocommit=true");
+
+                @Override
+                public void accept(StatementExecutionResult res, Throwable error) {
+                    if (error != null) {
+                        finalResult.completeExceptionally(error);
+                        return;
+                    }
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) res;
+                    updateCounts.addAndGet(dml.getUpdateCount());
+                    if (returnValues) {
+                        lastKey.set(dml.getKey());
+                        lastNewValue.set(dml.getNewvalue());
+                    }
+                    long newTransactionId = res.transactionId;
+                    if (current == statements.size()) {
+                        LOG.severe("multiinsert finished with tx " + newTransactionId + " and " + updateCounts + " recods");
+                        DMLStatementExecutionResult finalDMLResult
+                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                                        lastKey.get(), lastNewValue.get());
+                        finalResult.complete(finalDMLResult);
+                        return;
+                    }
+
+                    DMLStatement nextStatement = statements.get(current);
+                    LOG.log(Level.SEVERE, "executing # " + current + " newTx " + newTransactionId + " -" + nextStatement);
+                    TransactionContext transactionContext = new TransactionContext(newTransactionId);
+                    CompletableFuture<StatementExecutionResult> nextPromise
+                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }
-            return new DMLStatementExecutionResult(transactionId, updateCount, key, newValue);
+
+            DMLStatement firstStatement = statements.get(0);
+            LOG.log(Level.SEVERE, "executing first " + firstStatement);
+            tableSpaceManager.executeStatementAsync(firstStatement, context, transactionContext)
+                    .whenComplete(new ComputeNext(1));
+
+            return finalResult;
+
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }
-
     }
+    private static final Logger LOG = Logger.getLogger(InsertOp.class.getName());
 
     @Override
     public <T> T unwrap(Class<T> clazz) {

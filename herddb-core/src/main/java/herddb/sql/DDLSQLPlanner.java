@@ -240,7 +240,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
-        boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
+            boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -253,10 +253,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
         query = rewriteExecuteSyntax(query);
         String cacheKey = "scan:" + scan
-            + ",defaultTableSpace:" + defaultTableSpace
-            + ",query:" + query
-            + ",returnValues:" + returnValues
-            + ",maxRows:" + maxRows;
+                + ",defaultTableSpace:" + defaultTableSpace
+                + ",query:" + query
+                + ",returnValues:" + returnValues
+                + ",maxRows:" + maxRows;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
@@ -287,21 +287,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     @Override
     public ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
-        boolean scan, boolean returnValues, int maxRows) {
+            boolean scan, boolean returnValues, int maxRows) {
         verifyJdbcParametersIndexes(stmt);
         ExecutionPlan result;
         if (stmt instanceof CreateTable) {
             result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
         } else if (stmt instanceof CreateIndex) {
             result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
-        } else if (stmt instanceof Insert) {
-            result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
-        } else if (stmt instanceof Delete) {
-            result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
-        } else if (stmt instanceof Update) {
-            result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
-        } else if (stmt instanceof Select) {
-            result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
         } else if (stmt instanceof Execute) {
             result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
         } else if (stmt instanceof Alter) {
@@ -338,9 +330,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         try {
             boolean foundPk = false;
             Table.Builder tablebuilder = Table.builder()
-                .uuid(UUID.randomUUID().toString())
-                .name(tableName)
-                .tablespace(tableSpace);
+                    .uuid(UUID.randomUUID().toString())
+                    .name(tableName)
+                    .tablespace(tableSpace);
             Set<String> primaryKey = new HashSet<>();
 
             if (s.getIndexes() != null) {
@@ -393,12 +385,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         String indexType = convertIndexType(null);
 
                         herddb.model.Index.Builder builder = herddb.model.Index
-                            .builder()
-                            .name(indexName)
-                            .type(indexType)
-                            .uuid(UUID.randomUUID().toString())
-                            .table(tableName)
-                            .tablespace(tableSpace);
+                                .builder()
+                                .name(indexName)
+                                .type(indexType)
+                                .uuid(UUID.randomUUID().toString())
+                                .table(tableName)
+                                .tablespace(tableSpace);
 
                         for (String columnName : index.getColumnsNames()) {
                             columnName = columnName.toLowerCase();
@@ -460,12 +452,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String indexType = convertIndexType(s.getIndex().getType());
 
             herddb.model.Index.Builder builder = herddb.model.Index
-                .builder()
-                .name(indexName)
-                .uuid(UUID.randomUUID().toString())
-                .type(indexType)
-                .table(tableName)
-                .tablespace(tableSpace);
+                    .builder()
+                    .name(indexName)
+                    .uuid(UUID.randomUUID().toString())
+                    .type(indexType)
+                    .table(tableName)
+                    .tablespace(tableSpace);
 
             AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
             if (tableDefinition == null) {
@@ -574,421 +566,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return type;
     }
 
-    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues) throws StatementExecutionException {
-        String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
-        }
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
-        }
-        Table table = tableManager.getTable();
-
-        ItemsList itemlist = s.getItemsList();
-        if (itemlist instanceof ExpressionList) {
-            int index = 0;
-            List<Expression> keyValueExpression = new ArrayList<>();
-            List<String> keyExpressionToColumn = new ArrayList<>();
-
-            List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-            List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
-
-            ExpressionList list = (ExpressionList) itemlist;
-            if (s.getColumns() != null) {
-                for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-                    Column column = table.getColumn(c.getColumnName());
-                    if (column == null) {
-                        throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
-                    }
-                    Expression expression;
-                    try {
-                        expression = list.getExpressions().get(index++);
-                    } catch (IndexOutOfBoundsException badQuery) {
-                        throw new StatementExecutionException("bad number of VALUES in INSERT clause");
-                    }
-
-                    if (table.isPrimaryKeyColumn(column.name)) {
-                        keyExpressionToColumn.add(column.name);
-                        keyValueExpression.add(expression);
-
-                    }
-                    valuesColumns.add(c);
-                    valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
-                }
-            } else {
-                for (Column column : table.columns) {
-
-                    Expression expression = list.getExpressions().get(index++);
-                    if (table.isPrimaryKeyColumn(column.name)) {
-                        keyExpressionToColumn.add(column.name);
-                        keyValueExpression.add(expression);
-                    }
-                    valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
-                    valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
-                }
-            }
-
-            RecordFunction keyfunction;
-            if (keyValueExpression.isEmpty() && table.auto_increment) {
-                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-            } else {
-                if (keyValueExpression.size() != table.primaryKey.length) {
-                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-                }
-                keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
-            }
-            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
-
-            try {
-                return ExecutionPlan.simple(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
-            }
-        } else if (itemlist instanceof MultiExpressionList) {
-            if (returnValues) {
-                throw new StatementExecutionException("cannot 'return values' on multi-values insert");
-            }
-            MultiExpressionList multilist = (MultiExpressionList) itemlist;
-
-            List<InsertStatement> inserts = new ArrayList<>();
-            for (ExpressionList list : multilist.getExprList()) {
-                List<Expression> keyValueExpression = new ArrayList<>();
-                List<String> keyExpressionToColumn = new ArrayList<>();
-
-                List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-                List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
-
-                int index = 0;
-                if (s.getColumns() != null) {
-                    for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-                        Column column = table.getColumn(c.getColumnName());
-                        if (column == null) {
-                            throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
-                        }
-                        Expression expression;
-                        try {
-                            expression = list.getExpressions().get(index++);
-                        } catch (IndexOutOfBoundsException badQuery) {
-                            throw new StatementExecutionException("bad number of VALUES in INSERT clause");
-                        }
-
-                        if (table.isPrimaryKeyColumn(column.name)) {
-                            keyExpressionToColumn.add(column.name);
-                            keyValueExpression.add(expression);
-
-                        }
-                        valuesColumns.add(c);
-                        valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
-                    }
-                } else {
-                    for (Column column : table.columns) {
-
-                        Expression expression = list.getExpressions().get(index++);
-                        if (table.isPrimaryKeyColumn(column.name)) {
-                            keyExpressionToColumn.add(column.name);
-                            keyValueExpression.add(expression);
-                        }
-                        valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
-                        valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
-                    }
-                }
-
-                RecordFunction keyfunction;
-                if (keyValueExpression.isEmpty() && table.auto_increment) {
-                    keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-                } else {
-                    if (keyValueExpression.size() != table.primaryKey.length) {
-                        throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-                    }
-                    keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
-                }
-                RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
-                InsertStatement insert = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction);
-                inserts.add(insert);
-            }
-            try {
-                return ExecutionPlan.multiInsert(inserts);
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
-            }
-        } else {
-            List<Expression> keyValueExpression = new ArrayList<>();
-            List<String> keyExpressionToColumn = new ArrayList<>();
-
-            List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-            List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
-
-            Select select = s.getSelect();
-            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1);
-            if (s.getColumns() == null) {
-                throw new StatementExecutionException("for INSERT ... SELECT you have to declare the columns to be filled in (use INSERT INTO TABLE(c,c,c,) SELECT .....)");
-            }
-            IntHolder holder = new IntHolder(1);
-            for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-                Column column = table.getColumn(c.getColumnName());
-                if (column == null) {
-                    throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
-                }
-                JdbcParameter readFromResultSetAsJdbcParameter = new JdbcParameter();
-                readFromResultSetAsJdbcParameter.setIndex(holder.value++);
-
-                if (table.isPrimaryKeyColumn(column.name)) {
-                    keyExpressionToColumn.add(column.name);
-                    keyValueExpression.add(readFromResultSetAsJdbcParameter);
-                }
-                valuesColumns.add(c);
-                valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, readFromResultSetAsJdbcParameter));
-            }
-
-            RecordFunction keyfunction;
-            if (keyValueExpression.isEmpty() && table.auto_increment) {
-                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-            } else {
-                if (keyValueExpression.size() != table.primaryKey.length) {
-                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-                }
-                keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
-            }
-            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
-
-            try {
-                return ExecutionPlan.dataManipulationFromSelect(
-                    new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction)
-                        .setReturnValues(returnValues),
-                    datasource);
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
-            }
-        }
-    }
-
-    private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s, boolean returnValues) throws StatementExecutionException {
-        net.sf.jsqlparser.schema.Table fromTable = s.getTable();
-        String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
-        }
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
-        }
-        Table table = tableManager.getTable();
-
-        // Perform a scan and then delete each row
-        SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
-        if (where != null) {
-            Expression expressionWhere = s.getWhere();
-            discoverIndexOperations(expressionWhere, table, table.name, where, tableSpaceManager);
-        }
-
-        DMLStatement st = new DeleteStatement(tableSpace, tableName, null, where).setReturnValues(returnValues);
-        return ExecutionPlan.simple(st);
-
-    }
-
-    private void discoverIndexOperations(Expression expressionWhere, Table table, String mainTableAlias, SQLRecordPredicate where, TableSpaceManager tableSpaceManager) throws StatementExecutionException {
-        SQLRecordKeyFunction keyFunction = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, EqualsTo.class);
-        IndexOperation result = null;
-        if (keyFunction != null) {
-            if (keyFunction.isFullPrimaryKey()) {
-                result = new PrimaryIndexSeek(keyFunction);
-            } else {
-                result = new PrimaryIndexPrefixScan(keyFunction);
-            }
-        } else {
-            SQLRecordKeyFunction rangeMin = findIndexAccess(expressionWhere, table.primaryKey,
-                table, mainTableAlias, GreaterThanEquals.class
-            );
-            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                rangeMin = null;
-            }
-            if (rangeMin == null) {
-                rangeMin = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, GreaterThan.class);
-                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                    rangeMin = null;
-                }
-            }
-
-            SQLRecordKeyFunction rangeMax = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, MinorThanEquals.class
-            );
-            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                rangeMax = null;
-
-            }
-            if (rangeMax == null) {
-                rangeMax = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, MinorThan.class
-                );
-                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                    rangeMax = null;
-                }
-            }
-            if (rangeMin != null || rangeMax != null) {
-                result = new PrimaryIndexRangeScan(table.primaryKey, rangeMin, rangeMax);
-            }
-        }
-
-        if (result == null) {
-            Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-            if (indexes != null) {
-                // TODO: use some kind of statistics, maybe using an index is more expensive than a full table scan
-                for (AbstractIndexManager index : indexes.values()) {
-                    if (!index.isAvailable()) {
-                        continue;
-                    }
-                    IndexOperation secondaryIndexOperation = findSecondaryIndexOperation(index, expressionWhere, table);
-                    if (secondaryIndexOperation != null) {
-                        result = secondaryIndexOperation;
-                        break;
-                    }
-                }
-            }
-        }
-        where.setIndexOperation(result);
-        Expression filterPk = findFiltersOnPrimaryKey(table, table.name, expressionWhere);
-        where.setPrimaryKeyFilter(filterPk);
-    }
-
-    private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s,
-        boolean returnValues) throws StatementExecutionException {
-        if (s.getTables().size() != 1) {
-            throw new StatementExecutionException("unsupported multi-table update " + s);
-        }
-        net.sf.jsqlparser.schema.Table fromTable = s.getTables().get(0);
-        String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
-        }
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
-        }
-        Table table = tableManager.getTable();
-        for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-            Column column = table.getColumn(c.getColumnName());
-            if (column == null) {
-                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
-            }
-            if (table.isPrimaryKeyColumn(c.getColumnName())) {
-                throw new StatementExecutionException("updates of fields on the PK (" + Arrays.toString(table.primaryKey) + ") are not supported. Please perform a DELETE and than an INSERT");
-            }
-        }
-
-        List<CompiledSQLExpression> compiledSQLExpressions = new ArrayList<>();
-        for (Expression e : s.getExpressions()) {
-            compiledSQLExpressions.add(SQLExpressionCompiler.compileExpression(null, e));
-        }
-        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), compiledSQLExpressions);
-
-        // Perform a scan and then update each row
-        SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
-        if (where != null) {
-            Expression expressionWhere = s.getWhere();
-            discoverIndexOperations(expressionWhere, table, table.name, where, tableSpaceManager);
-        }
-        DMLStatement st = new UpdateStatement(tableSpace, tableName, null, function, where)
-            .setReturnValues(returnValues);
-        return ExecutionPlan.simple(st);
-
-    }
-
-    private Predicate buildSimplePredicate(Expression where, Table table, String tableAlias) {
-        if (where instanceof EqualsTo || where == null) {
-            // surely this is the only predicate on the PK, we can skip it
-            return null;
-        }
-        return new SQLRecordPredicate(table, tableAlias, where);
-
-    }
-
-    private static Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
-        if (where instanceof AndExpression) {
-            AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = findConstraintOnColumn(and.getLeftExpression(), columnName, tableAlias, expressionType);
-            if (keyOnLeft != null) {
-                return keyOnLeft;
-            }
-
-            Expression keyOnRight = findConstraintOnColumn(and.getRightExpression(), columnName, tableAlias,
-                expressionType);
-            if (keyOnRight != null) {
-                return keyOnRight;
-            }
-        } else if (expressionType.isAssignableFrom(where.getClass())) {
-            Expression keyDirect = validateColumnConstaintToExpression(where, columnName, tableAlias, expressionType);
-            if (keyDirect != null) {
-                return keyDirect;
-            }
-        }
-
-        return null;
-
-    }
-
-    private Expression findConstraintExpressionOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
-        if (where instanceof AndExpression) {
-            AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = findConstraintExpressionOnColumn(and.getLeftExpression(), columnName, tableAlias, expressionType);
-            if (keyOnLeft != null) {
-                return keyOnLeft;
-            }
-
-            Expression keyOnRight = findConstraintExpressionOnColumn(and.getRightExpression(), columnName, tableAlias,
-                expressionType);
-            if (keyOnRight != null) {
-                return keyOnRight;
-            }
-        } else if (expressionType.isAssignableFrom(where.getClass())) {
-            Expression keyDirect = validateColumnConstaintExpressionToExpression(where, columnName, tableAlias, expressionType);
-            if (keyDirect != null) {
-                return keyDirect;
-            }
-        }
-
-        return null;
-
-    }
-
-    private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias) throws StatementExecutionException {
-        return findIndexAccess(where, table.primaryKey, table, tableAlias, EqualsTo.class
-        );
-    }
-
-    private static SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
-        List<Expression> expressions = new ArrayList<>();
-        List<String> columns = new ArrayList<>();
-
-        for (String pk : columnsToMatch) {
-            Expression condition = findConstraintOnColumn(where, pk, tableAlias, expressionType);
-            if (condition == null) {
-                break;
-            }
-            columns.add(pk);
-            expressions.add(condition);
-
-        }
-        if (expressions.isEmpty()) {
-            // no match at all, there is no direct constraint on PK
-            return null;
-        }
-        return new SQLRecordKeyFunction(table, columns, expressions);
-    }
-
     private static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
@@ -1029,64 +606,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
-    private static Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
-        Expression result = null;
-        if (expressionType.isAssignableFrom(testExpression.getClass())) {
-            BinaryExpression e = (BinaryExpression) testExpression;
-            if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
-                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-                boolean okAlias = true;
-                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
-                    okAlias = false;
-                }
-                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())
-                    && SQLRecordPredicate.isConstant(e.getRightExpression())) {
-                    return e.getRightExpression();
-                }
-            } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn(e.getLeftExpression(), columnName, tableAlias, expressionType);
-                if (result != null) {
-                    return result;
-                }
-            } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn(e.getRightExpression(), columnName, tableAlias, expressionType);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        return result;
-    }
-
-    private Expression validateColumnConstaintExpressionToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
-        Expression result = null;
-        if (expressionType.isAssignableFrom(testExpression.getClass())) {
-            BinaryExpression e = (BinaryExpression) testExpression;
-            if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
-                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-                boolean okAlias = true;
-                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
-                    okAlias = false;
-                }
-                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())
-                    && SQLRecordPredicate.isConstant(e.getRightExpression())) {
-                    return e;
-                }
-            } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintExpressionOnColumn(e.getLeftExpression(), columnName, tableAlias, expressionType);
-                if (result != null) {
-                    return result;
-                }
-            } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintExpressionOnColumn(e.getRightExpression(), columnName, tableAlias, expressionType);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        return result;
-    }
-
     private ColumnReferencesDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
         ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(expression);
         expression.accept(discovery);
@@ -1094,7 +613,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     private Expression collectConditionsForAlias(String alias, Expression expression,
-        List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
+            List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
         if (expression == null) {
             // no constraint on table
             return null;
@@ -1107,11 +626,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             AndExpression be = (AndExpression) expression;
             ColumnReferencesDiscovery discoveredMainAliasLeft = discoverMainTableAlias(be.getLeftExpression());
             String mainAliasLeft = discoveredMainAliasLeft.isContainsMixedAliases()
-                ? null : discoveredMainAliasLeft.getMainTableAlias();
+                    ? null : discoveredMainAliasLeft.getMainTableAlias();
 
             ColumnReferencesDiscovery discoveredMainAliasright = discoverMainTableAlias(be.getRightExpression());
             String mainAliasRight = discoveredMainAliasright.isContainsMixedAliases()
-                ? null : discoveredMainAliasright.getMainTableAlias();
+                    ? null : discoveredMainAliasright.getMainTableAlias();
             if (alias.equals(mainAliasLeft)) {
                 if (alias.equals(mainAliasRight)) {
                     return expression;
@@ -1135,7 +654,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return conditionsOnJoinedResult.get(0).getExpression();
         }
         AndExpression result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
-            conditionsOnJoinedResult.get(1).getExpression());
+                conditionsOnJoinedResult.get(1).getExpression());
         for (int i = 2; i < conditionsOnJoinedResult.size(); i++) {
             result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());
         }
@@ -1147,438 +666,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return expressions.get(0);
         }
         AndExpression result = new AndExpression(expressions.get(0),
-            expressions.get(1));
+                expressions.get(1));
         for (int i = 2; i < expressions.size(); i++) {
             result = new AndExpression(result, expressions.get(i));
         }
         return result;
     }
 
-    private Expression findFiltersOnPrimaryKey(Table table, String tableAlias, Expression where) throws StatementExecutionException {
-        List<Expression> expressions = new ArrayList<>();
-        for (String pk : table.primaryKey) {
-            Expression condition = findConstraintExpressionOnColumn(where, pk, tableAlias, BinaryExpression.class);
-            if (condition == null) {
-                break;
-            }
-            expressions.add(condition);
-        }
-        if (expressions.isEmpty()) {
-            // no match at all, there is no direct constraint on PK
-            return null;
-        } else {
-            return composeSimpleAndExpressions(expressions);
-        }
-    }
-
-    private static class JoinSupport {
-
-        final TableRef tableRef;
-        final AbstractTableManager tableManager;
-        final Table table;
-        Projection projection;
-        List<SelectItem> selectItems = new ArrayList<>();
-        boolean allColumns;
-        Predicate predicate;
-
-        public JoinSupport(TableRef tableRef, AbstractTableManager tableManager) {
-            this.tableRef = tableRef;
-            this.tableManager = tableManager;
-            this.table = tableManager.getTable();
-        }
-
-    }
-
-    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows) throws StatementExecutionException {
-        PlainSelect selectBody = (PlainSelect) s.getSelectBody();
-        net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
-
-        TableRef mainTable = TableRef.buildFrom(fromTable, defaultTableSpace);
-        String mainTableAlias = mainTable.tableAlias;
-        String tableSpace = mainTable.tableSpace;
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new TableSpaceDoesNotExistException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
-        }
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(mainTable.tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no such table " + mainTable.tableName + " in tablespace " + tableSpace);
-        }
-
-        // linked hash map retains the order of insertions
-        LinkedHashMap<String, JoinSupport> joins = new LinkedHashMap<>();
-        boolean joinPresent = false;
-        joins.put(mainTable.tableAlias, new JoinSupport(mainTable, tableManager));
-
-        if (selectBody.getJoins() != null) {
-            for (Join join : selectBody.getJoins()) {
-                joinPresent = true;
-                if (join.isLeft()
-                    || join.isCross()
-                    || join.isRight()
-                    || join.isOuter()
-                    || join.isSimple()) {
-                    throw new StatementExecutionException("unsupported JOIN type: " + join);
-                }
-                net.sf.jsqlparser.schema.Table joinedTable = (net.sf.jsqlparser.schema.Table) join.getRightItem();
-                TableRef joinedTableRef = TableRef.buildFrom(joinedTable, defaultTableSpace);
-                if (!joinedTableRef.tableSpace.equalsIgnoreCase(mainTable.tableSpace)) {
-                    throw new TableDoesNotExistException("unsupported cross-tablespace JOIN "
-                        + "between" + mainTable.tableSpace + "." + mainTable.tableName
-                        + " and " + joinedTableRef.tableSpace + "." + joinedTableRef.tableName);
-                }
-                AbstractTableManager joinedTableManager = tableSpaceManager.getTableManager(joinedTableRef.tableName);
-                if (joinedTableManager == null) {
-                    throw new TableDoesNotExistException("no such table " + joinedTableRef.tableName + " in tablespace " + tableSpace);
-                }
-                JoinSupport joinSupport = new JoinSupport(joinedTableRef, joinedTableManager);
-                joins.put(joinedTableRef.tableAlias, joinSupport);
-            }
-        }
-
-        Projection mainTableProjection;
-        Table table = tableManager.getTable();
-        boolean allColumns = false;
-        boolean containsAggregateFunctions = false;
-        for (SelectItem c : selectBody.getSelectItems()) {
-            if (c instanceof AllColumns) {
-                allColumns = true;
-                break;
-            } else if (c instanceof AllTableColumns) {
-                AllTableColumns allTableColumns = (AllTableColumns) c;
-                TableRef ref = TableRef.buildFrom(allTableColumns.getTable(), defaultTableSpace);
-                if (!joinPresent && ref.tableAlias.equals(mainTable.tableAlias)) {
-                    // select a.*  FROM table a
-                    allColumns = true;
-                } else {
-                    // select a.*, b.* FROM table a JOIN table b
-                    joins.get(ref.tableAlias).allColumns = true;
-                }
-            } else if (c instanceof SelectExpressionItem) {
-                SelectExpressionItem se = (SelectExpressionItem) c;
-                if (isAggregateFunction(se.getExpression())) {
-                    containsAggregateFunctions = true;
-                }
-                if (!joinPresent) {
-                    joins.get(mainTable.tableAlias).selectItems.add(c);
-                } else {
-                    ColumnReferencesDiscovery discoverMainTableAlias = discoverMainTableAlias(se.getExpression());
-                    String mainTableAliasForItem = discoverMainTableAlias.getMainTableAlias();
-                    if (discoverMainTableAlias.isContainsMixedAliases()) {
-                        throw new StatementExecutionException("unsupported single SELECT ITEM with mixed aliases: " + c);
-                    }
-                    if (mainTableAliasForItem == null) {
-                        mainTableAliasForItem = mainTable.tableAlias;
-                    }
-                    joins.get(mainTableAliasForItem).selectItems.add(c);
-                }
-            } else {
-                throw new StatementExecutionException("unsupported SELECT ITEM type: " + c);
-            }
-        }
-
-        if (allColumns) {
-            mainTableProjection = Projection.IDENTITY(table.columnNames, table.columns);
-            for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
-                JoinSupport support = join.getValue();
-                support.projection = Projection.IDENTITY(support.table.columnNames, support.table.columns);
-                support.allColumns = true;
-            }
-        } else {
-            if (!joinPresent) {
-                mainTableProjection = new SQLProjection(table, mainTableAlias, selectBody.getSelectItems());
-            } else {
-                for (JoinSupport support : joins.values()) {
-                    if (support.allColumns) {
-                        support.projection = Projection.IDENTITY(support.table.columnNames, support.table.columns);
-                    } else {
-                        support.projection = new SQLProjection(support.table, support.tableRef.tableAlias, support.selectItems);
-                    }
-                }
-                mainTableProjection = joins.get(mainTableAlias).projection;
-            }
-        }
-        if (scan) {
-            if (!joinPresent) {
-                SQLRecordPredicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, mainTableAlias, selectBody.getWhere()) : null;
-                if (where != null) {
-                    discoverIndexOperations(selectBody.getWhere(), table, mainTableAlias, where, tableSpaceManager);
-                }
-
-                Aggregator aggregator = null;
-                ScanLimitsImpl scanLimits = null;
-                if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
-                    aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences(), manager.getRecordSetFactory());
-                }
-
-                TupleComparator comparatorOnScan = null;
-                TupleComparator comparatorOnPlan = null;
-                if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
-                    if (aggregator != null) {
-                        comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias,
-                            selectBody.getOrderByElements(), null);
-                    } else {
-                        comparatorOnScan = SingleColumnSQLTupleComparator.make(mainTableAlias,
-                            selectBody.getOrderByElements(),
-                            table.primaryKey);
-                    }
-                }
-
-                Limit limit = selectBody.getLimit();
-                Top top = selectBody.getTop();
-                if (limit != null && top != null) {
-                    throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
-                }
-                if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.getOffset() instanceof JdbcParameter) {
-                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
-                    }
-                    if (maxRows > 0 && limit.getRowCount() instanceof JdbcParameter) {
-                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
-                    }
-                    int rowCount;
-                    int rowCountJdbcParameter = -1;
-                    if (limit.getRowCount() instanceof JdbcParameter) {
-                        rowCount = -1;
-                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
-                    } else {
-                        rowCount = ((Number) resolveValue(limit.getRowCount(), false)).intValue();
-                    }
-                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset(), false)).intValue() : 0;
-                    scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
-                } else if (top != null) {
-                    if (top.isPercentage() || top.getExpression() == null) {
-                        throw new StatementExecutionException("Invalid TOP clause (top=" + top + ")");
-                    }
-                    try {
-                        int rowCount = Integer.parseInt(resolveValue(top.getExpression(), false) + "");
-                        scanLimits = new ScanLimitsImpl(rowCount, 0);
-                    } catch (NumberFormatException error) {
-                        throw new StatementExecutionException("Invalid TOP clause: " + error, error);
-                    }
-                }
-                if (maxRows > 0) {
-                    if (scanLimits == null) {
-                        scanLimits = new ScanLimitsImpl(maxRows, 0);
-                    } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
-                        scanLimits = new ScanLimitsImpl(maxRows, scanLimits.getOffset());
-                    }
-                }
-
-                ScanLimitsImpl limitsOnScan = null;
-                ScanLimitsImpl limitsOnPlan = null;
-                if (aggregator != null) {
-                    limitsOnPlan = scanLimits;
-                } else {
-                    limitsOnScan = scanLimits;
-                }
-                try {
-                    ScanStatement statement = new ScanStatement(tableSpace, mainTable.tableName, mainTableProjection, where, comparatorOnScan, limitsOnScan);
-                    return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
-                } catch (IllegalArgumentException err) {
-                    throw new StatementExecutionException(err);
-                }
-            } else {
-                if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
-                    throw new StatementExecutionException("AGGREGATEs are not yet supported with JOIN");
-                }
-                Limit limit = selectBody.getLimit();
-                Top top = selectBody.getTop();
-                if (limit != null && top != null) {
-                    throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
-                }
-                ScanLimitsImpl scanLimits = null;
-                if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.getOffset() instanceof JdbcParameter) {
-                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
-                    }
-                    if (maxRows > 0 && limit.getRowCount() instanceof JdbcParameter) {
-                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
-                    }
-                    int rowCount;
-                    int rowCountJdbcParameter = -1;
-                    if (limit.getRowCount() instanceof JdbcParameter) {
-                        rowCount = -1;
-                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
-                    } else {
-                        rowCount = ((Number) resolveValue(limit.getRowCount(), false)).intValue();
-                    }
-                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset(), false)).intValue() : 0;
-                    scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
-
-                } else if (top != null) {
-                    if (top.isPercentage() || top.getExpression() == null) {
-                        throw new StatementExecutionException("Invalid TOP clause");
-                    }
-                    try {
-                        int rowCount = Integer.parseInt(resolveValue(top.getExpression(), false) + "");
-                        scanLimits = new ScanLimitsImpl(rowCount, 0);
-                    } catch (NumberFormatException error) {
-                        throw new StatementExecutionException("Invalid TOP clause: " + error, error);
-                    }
-                }
-                if (maxRows > 0) {
-                    if (scanLimits == null) {
-                        scanLimits = new ScanLimitsImpl(maxRows, 0);
-                    } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
-                        scanLimits = new ScanLimitsImpl(maxRows, scanLimits.getOffset());
-                    }
-                }
-
-                List<ColumnReferencesDiscovery> conditionsOnJoinedResult = new ArrayList<>();
-                List<ScanStatement> scans = new ArrayList<>();
-                for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
-                    String alias = join.getKey();
-                    JoinSupport joinSupport = join.getValue();
-                    Expression collectedConditionsForAlias = collectConditionsForAlias(alias, selectBody.getWhere(),
-                        conditionsOnJoinedResult, mainTableAlias);
-                    LOG.severe("Collected WHERE for alias " + alias + ": " + collectedConditionsForAlias);
-
-                    if (collectedConditionsForAlias == null) {
-                        joinSupport.predicate = null;
-                    } else {
-                        joinSupport.predicate = new SQLRecordPredicate(
-                            join.getValue().table, alias, collectedConditionsForAlias);
-                    }
-
-                }
-                for (Join join : selectBody.getJoins()) {
-                    if (join.getOnExpression() != null) {
-                        ColumnReferencesDiscovery discoverMainTableAliasForJoinCondition
-                            = discoverMainTableAlias(join.getOnExpression());
-                        conditionsOnJoinedResult.add(discoverMainTableAliasForJoinCondition);
-                        LOG.severe("Collected ON-condition on final JOIN result: " + join.getOnExpression());
-                    }
-                }
-                for (ColumnReferencesDiscovery e : conditionsOnJoinedResult) {
-                    LOG.severe("Collected WHERE on final JOIN result: " + e.getExpression());
-                    for (Map.Entry<String, List<net.sf.jsqlparser.schema.Column>> entry : e.getColumnsByTable().entrySet()) {
-                        String tableAlias = entry.getKey();
-                        List<net.sf.jsqlparser.schema.Column> filteredColumnsOnJoin = entry.getValue();
-                        LOG.severe("for  TABLE " + tableAlias + " we need to load " + filteredColumnsOnJoin);
-                        JoinSupport support = joins.get(tableAlias);
-                        if (support == null) {
-                            throw new StatementExecutionException("invalid table alias " + tableAlias);
-                        }
-                        if (!support.allColumns) {
-                            for (net.sf.jsqlparser.schema.Column c : filteredColumnsOnJoin) {
-                                support.selectItems.add(new SelectExpressionItem(c));
-                            }
-                            support.projection = new SQLProjection(support.table, support.tableRef.tableAlias, support.selectItems);
-                        }
-                    }
-
-                }
-                Map<String, Table> tables = new HashMap<>();
-                for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
-                    JoinSupport joinSupport = join.getValue();
-                    tables.put(join.getKey(), joinSupport.table);
-                    ScanStatement statement = new ScanStatement(tableSpace,
-                        joinSupport.table.name,
-                        joinSupport.projection, joinSupport.predicate, null, null);
-                    scans.add(statement);
-                }
-                TuplePredicate joinFilter = null;
-                if (!conditionsOnJoinedResult.isEmpty()) {
-                    joinFilter = new SQLRecordPredicate(null, null, composeAndExpression(conditionsOnJoinedResult));
-                }
-                Projection joinProjection = null;
-                if (!allColumns) {
-                    joinProjection = new SQLProjection(tableSpace, tables, selectBody.getSelectItems());
-                }
-                TupleComparator comparatorOnPlan = null;
-                if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
-                    comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias,
-                        selectBody.getOrderByElements(), null);
-                }
-
-                try {
-                    return ExecutionPlan.joinedScan(scans, joinFilter, joinProjection, scanLimits, comparatorOnPlan);
-                } catch (IllegalArgumentException err) {
-                    throw new StatementExecutionException(err);
-                }
-
-            }
-        } else {
-            if (selectBody.getWhere() == null) {
-                throw new StatementExecutionException("unsupported GET without WHERE");
-            }
-            if (joinPresent) {
-                throw new StatementExecutionException("unsupported GET with JOIN");
-            }
-
-            // SELECT * FROM WHERE KEY=? AND ....
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, mainTableAlias);
-            if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
-                throw new StatementExecutionException("unsupported GET not on PK, bad where clause: " + selectBody.getWhere() + " (" + selectBody.getWhere().getClass() + ")");
-            }
-            Predicate where = buildSimplePredicate(selectBody.getWhere(), table, mainTableAlias);
-            try {
-                return ExecutionPlan.simple(new GetStatement(tableSpace, mainTable.tableName, keyFunction, where, false));
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
-            }
-        }
-    }
-
-    private static IndexOperation findSecondaryIndexOperation(AbstractIndexManager index, Expression where, Table table) throws StatementExecutionException {
-        IndexOperation secondaryIndexOperation = null;
-        String[] columnsToMatch = index.getColumnNames();
-        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(where, columnsToMatch,
-            index.getIndex(),
-            table.name,
-            EqualsTo.class
-        );
-        if (indexSeekFunction != null) {
-            if (indexSeekFunction.isFullPrimaryKey()) {
-                secondaryIndexOperation = new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction);
-            } else {
-                secondaryIndexOperation = new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction);
-            }
-        } else {
-            SQLRecordKeyFunction rangeMin = findIndexAccess(where, columnsToMatch,
-                index.getIndex(),
-                table.name, GreaterThanEquals.class
-            );
-            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                rangeMin = null;
-
-            }
-            if (rangeMin == null) {
-                rangeMin = findIndexAccess(where, columnsToMatch,
-                    index.getIndex(),
-                    table.name, GreaterThan.class
-                );
-                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                    rangeMin = null;
-
-                }
-            }
-
-            SQLRecordKeyFunction rangeMax = findIndexAccess(where, columnsToMatch,
-                index.getIndex(),
-                table.name, MinorThanEquals.class
-            );
-            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                rangeMax = null;
-
-            }
-            if (rangeMax == null) {
-                rangeMax = findIndexAccess(where, columnsToMatch,
-                    index.getIndex(),
-                    table.name, MinorThan.class
-                );
-                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                    rangeMax = null;
-                }
-            }
-            if (rangeMin != null || rangeMax != null) {
-                secondaryIndexOperation = new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax);
-            }
-
-        }
-        return secondaryIndexOperation;
-    }
     private static final Logger LOG = Logger.getLogger(DDLSQLPlanner.class.getName());
 
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
@@ -1776,8 +870,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         throw new TableSpaceDoesNotExistException(tableSpaceName);
                     }
                     return new AlterTableStatement(Collections.emptyList(),
-                        Collections.emptyList(), Collections.emptyList(),
-                        null, oldTableName, tableSpaceName, newTableName);
+                            Collections.emptyList(), Collections.emptyList(),
+                            null, oldTableName, tableSpaceName, newTableName);
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }
@@ -1810,8 +904,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
                     Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(
-                        cl.getColDataType().getDataType(),
-                        cl.getColDataType().getArgumentsStringList()
+                            cl.getColDataType().getDataType(),
+                            cl.getColDataType().getArgumentsStringList()
                     ));
                     addColumns.add(newColumn);
                 }
@@ -1843,27 +937,27 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             for (String indexedColumn : am.getColumnNames()) {
                                 if (indexedColumn.equalsIgnoreCase(oldColumn.name)) {
                                     throw new StatementExecutionException(
-                                        "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
-                                        + "index name is " + am.getIndexName());
+                                            "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
+                                            + "index name is " + am.getIndexName());
                                 }
                             }
                         }
                     }
                     int newType = sqlDataTypeToColumnType(
-                        cl.getColDataType().getDataType(),
-                        cl.getColDataType().getArgumentsStringList()
+                            cl.getColDataType().getDataType(),
+                            cl.getColDataType().getArgumentsStringList()
                     );
 
                     if (oldColumn.type != newType) {
                         throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().getDataType()
-                            + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                                + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
                     }
                     List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                     if (table.isPrimaryKeyColumn(columnName)) {
                         boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
                         if (new_auto_increment && table.primaryKey.length > 1) {
                             throw new StatementExecutionException("cannot add auto_increment flag to " + cl.getColDataType().getDataType()
-                                + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                                    + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
                         }
                         if (table.auto_increment != new_auto_increment) {
                             changeAutoIncrement = new_auto_increment;
@@ -1882,7 +976,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
-            changeAutoIncrement, tableName, tableSpace, null);
+                changeAutoIncrement, tableName, tableSpace, null);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {

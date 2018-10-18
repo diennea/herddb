@@ -76,10 +76,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -87,13 +87,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -101,22 +101,22 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             try {
@@ -138,10 +138,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -149,13 +149,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -163,22 +163,22 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             try {
@@ -203,10 +203,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -214,13 +214,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -231,10 +231,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -260,10 +260,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -271,13 +271,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -292,10 +292,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -322,10 +322,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -333,13 +333,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -360,10 +360,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -397,10 +397,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -408,17 +408,17 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
@@ -442,10 +442,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -479,10 +479,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -490,13 +490,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -513,10 +513,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -553,10 +553,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -564,13 +564,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -587,10 +587,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -620,10 +620,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -631,13 +631,13 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -654,10 +654,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -687,10 +687,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -698,26 +698,26 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.checkpoint();
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t2")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t2")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
@@ -736,10 +736,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -766,10 +766,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -777,12 +777,12 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .primaryKey("id", true)
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .primaryKey("id", true)
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -805,10 +805,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -839,10 +839,10 @@ public class SimpleRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -850,12 +850,12 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .primaryKey("id", true)
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .primaryKey("id", true)
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -876,10 +876,10 @@ public class SimpleRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);

@@ -2109,33 +2109,32 @@ public class RawSQLTest {
             try {
                 executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
                 fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok){
+            } catch (StatementExecutionException ok) {
             }
-            
+
             executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", 213));
             try {
                 executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey"));
                 fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok){
+            } catch (StatementExecutionException ok) {
             }
-            
-            
+
             long tx = beginTransaction(manager, "tblspace1");
             // now during a transaction
-            try {                
+            try {
                 executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", null), new TransactionContext(tx));
                 fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok){
+            } catch (StatementExecutionException ok) {
             }
-            
+
             executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", 213), new TransactionContext(tx));
             try {
                 executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey2"), new TransactionContext(tx));
                 fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok){
+            } catch (StatementExecutionException ok) {
             }
             commitTransaction(manager, "tblspace1", tx);
-            
+
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList());) {
                 assertEquals(2, scan.consume().size());
             }

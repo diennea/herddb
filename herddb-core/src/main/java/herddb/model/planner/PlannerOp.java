@@ -19,12 +19,16 @@
  */
 package herddb.model.planner;
 
+import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.Wrapper;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Generic step of planned operation
@@ -35,9 +39,39 @@ public interface PlannerOp extends Wrapper {
 
     public String getTablespace();
 
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public default StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException;
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        CompletableFuture<StatementExecutionResult> res = executeAsync(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
+        try {
+            return res.get();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new StatementExecutionException(err);
+        } catch (ExecutionException err) {
+            Throwable cause = err.getCause();
+            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
+            } else {
+                throw new StatementExecutionException(cause);
+            }
+        } catch (Throwable t) {
+            throw new StatementExecutionException(t);
+        }
+    }
+
+    public default CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) {
+        try {
+            return CompletableFuture.completedFuture(execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite));
+        } catch (StatementExecutionException err) {
+            return FutureUtils.exception(err);
+        }
+    }
 
     /**
      * Optimize this node, eventually merging this node with its inputs
@@ -46,5 +80,15 @@ public interface PlannerOp extends Wrapper {
      */
     public default PlannerOp optimize() {
         return this;
+    }
+    
+    /**
+     * This operation is barely a directly a wrapper for a low level Statement.
+     * It is expected that unwrap(Statement.class) will return the wrapped statement
+     * 
+     * @return true for simple DML operations
+     */
+    public default boolean isSimpleStatementWrapper() {
+        return false;
     }
 }

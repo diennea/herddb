@@ -31,8 +31,9 @@ public class ZKTestEnv implements AutoCloseable {
 
     static {
         System.setProperty("zookeeper.admin.enableServer", "false");
+        System.setProperty("zookeeper.forceSync", "no");
     }
-    
+
     TestingServer zkServer;
     BookieServer bookie;
     Path path;
@@ -64,6 +65,7 @@ public class ZKTestEnv implements AutoCloseable {
 //        conf.setJournalBufferedEntriesThreshold(1);
         conf.setAutoRecoveryDaemonEnabled(false);
         conf.setEnableLocalTransport(true);
+        conf.setJournalSyncData(false);
 
         conf.setAllowLoopback(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            

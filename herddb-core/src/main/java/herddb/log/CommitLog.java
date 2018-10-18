@@ -20,17 +20,20 @@
 package herddb.log;
 
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * This is the core write-ahead-log of the system. Every change to data is logged to the CommitLog before beeing applied
- * to memory/storage.
+ * This is the core write-ahead-log of the system. Every change to data is
+ * logged to the CommitLog before beeing applied to memory/storage.
  *
  * @author enrico.olivelli
  */
 public abstract class CommitLog implements AutoCloseable {
 
     /**
-     * Log a single entry and returns only when the entry has been safely written to the log
+     * Log a single entry and returns only when the entry has been safely
+     * written to the log
      *
      * @param entry
      * @param synch
@@ -67,10 +70,12 @@ public abstract class CommitLog implements AutoCloseable {
     protected synchronized void notifyListeners(LogSequenceNumber logPos, LogEntry edit) {
         if (listeners != null) {
             for (CommitLogListener l : listeners) {
+                LOG.log(Level.SEVERE, "notifyListeners {0}, {1}", new Object[]{logPos, edit});
                 l.logEntry(logPos, edit);
             }
         }
     }
+    private static final Logger LOG = Logger.getLogger(CommitLog.class.getName());
 
     public synchronized void attachCommitLogListener(CommitLogListener l) {
         if (listeners == null) {
