@@ -1007,15 +1007,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                        .thenApplyAsync((lsn) -> {
-                            apply(pos, entry, false);
-                            return lsn;
+                        .whenCompleteAsync((lsn, error) -> {
+                            try {
+                                if (error == null) {
+                                    apply(pos, entry, false);
+                                }
+                            } finally {
+                                if (lockHandle != null) {
+                                    locksManager.releaseLock(lockHandle);
+                                }
+                            }
                         }, tableSpaceManager.getCallbacksExecutor());
-                if (lockHandle != null) {
-                    promise.whenComplete((lns, error) -> {
-                        locksManager.releaseLock(lockHandle);
-                    });
-                }
                 writes.add(promise);
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
@@ -1058,19 +1060,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                        .thenApplyAsync((lsn) -> {
-                            apply(pos, entry, false);
-                            return lsn;
+                        .whenCompleteAsync((lsn, error) -> {
+                            try {
+                                if (error == null) {
+                                    apply(pos, entry, false);
+                                }
+                            } finally {
+                                if (lockHandle != null) {
+                                    locksManager.releaseLock(lockHandle);
+                                }
+                            }
                         }, tableSpaceManager.getCallbacksExecutor());
-                if (lockHandle != null) {
-                    promise.whenComplete((lns, error) -> {
-                        try {
-                            locksManager.releaseLock(lockHandle);
-                        } catch (Throwable t) {
-                            LOGGER.log(Level.SEVERE, "DELETE, release lock " + lockHandle, t);
-                        }
-                    });
-                }
                 writes.add(promise);
                 lastKey.value = actual.key;
                 lastValue.value = actual.value.data;
