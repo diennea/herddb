@@ -107,6 +107,7 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.util.AbstractMap;
 import java.util.concurrent.CompletableFuture;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
@@ -2398,10 +2399,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return tuple;
         };
 
-        Stream<DataAccessor> fromTransactionSorted
-                = streamTransactionData(transaction, statement.getPredicate(), context)
-                        .map(mapper);
-        if (comparator != null) {
+        Stream<Record> recordsFromTransactionSorted
+                = streamTransactionData(transaction, statement.getPredicate(), context);
+        Stream<DataAccessor> fromTransactionSorted = recordsFromTransactionSorted != null
+                ? recordsFromTransactionSorted.map(mapper) : null;
+        if (fromTransactionSorted != null && comparator != null) {
             fromTransactionSorted = fromTransactionSorted.sorted(comparator);
         }
 
@@ -2409,42 +2411,72 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 .map(mapper);
         if (maxRows > 0) {
             if (sortedByClusteredIndex) {
-                // already sorted from index
-                tableData = tableData.limit(maxRows + offset);
                 // already sorted if needed
-                fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
-                // we need to re-sort
-                result = Stream.concat(fromTransactionSorted, tableData)
-                        .sorted(comparator);
+                if (fromTransactionSorted != null) {
+                    // already sorted from index
+                    tableData = tableData.limit(maxRows + offset);
+
+                    fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
+
+                    // we need to re-sort after merging the data
+                    result = Stream.concat(fromTransactionSorted, tableData)
+                            .sorted(comparator);
+                } else {
+                    // already sorted from index
+                    tableData = tableData.limit(maxRows + offset);
+
+                    // no need to re-sort
+                    result = tableData;
+                }
             } else if (sorted) {
                 // need to sort
                 tableData = tableData.sorted(comparator);
-                tableData = tableData.limit(maxRows + offset);
                 // already sorted if needed
-                fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
-                // we need to re-sort
-                result = Stream.concat(fromTransactionSorted, tableData)
-                        .sorted(comparator);
+                if (fromTransactionSorted != null) {
+                    tableData = tableData.limit(maxRows + offset);
+
+                    fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
+                    // we need to re-sort after merging the data
+                    result = Stream.concat(fromTransactionSorted, tableData)
+                            .sorted(comparator);
+                } else {
+                    tableData = tableData.limit(maxRows + offset);
+                    // no need to sort again
+                    result = tableData;
+                }
+            } else if (fromTransactionSorted == null) {
+                result = tableData;
             } else {
                 result = Stream.concat(fromTransactionSorted, tableData);
             }
         } else {
             if (sortedByClusteredIndex) {
                 // already sorted from index
-                tableData = tableData.sorted(comparator);
-                // fromTransactionSorted is already sorted
-                // we need to re-sort
-                result = Stream.concat(fromTransactionSorted, tableData)
-                        .sorted(comparator);
+                if (fromTransactionSorted != null) {
+                    tableData = tableData.sorted(comparator);
+                    // fromTransactionSorted is already sorted
+                    // we need to re-sort
+                    result = Stream.concat(fromTransactionSorted, tableData)
+                            .sorted(comparator);
+                } else {
+                    result = tableData;
+                }
             } else if (sorted) {
                 // tableData already sorted from index
                 // fromTransactionSorted is already sorted
                 // we need to re-sort
-                result = Stream.concat(fromTransactionSorted, tableData)
-                        .sorted(comparator);
-            } else {
+                if (fromTransactionSorted != null) {
+                    result = Stream.concat(fromTransactionSorted, tableData)
+                            .sorted(comparator);
+                } else {
+                    result = tableData
+                            .sorted(comparator);
+                }
+            } else if (fromTransactionSorted != null) {
                 // no need to sort
                 result = Stream.concat(fromTransactionSorted, tableData);
+            } else {
+                result = tableData;
             }
         }
         if (offset > 0) {
@@ -2550,14 +2582,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             RecordProcessor scanExecutor = new RecordProcessor();
-            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
             boolean exit = false;
             try {
                 if (primaryIndexSeek) {
                     // we are expecting at most one record, no need for BatchOrderedExecutor
                     // this is the most common case for UPDATE-BY-PK and SELECT-BY-PK
-                    scanner.forEach(scanExecutor);
+                    // no need to craete and use Streams    
+                    PrimaryIndexSeek seek = (PrimaryIndexSeek) indexOperation;
+                    Bytes value = Bytes.from_array(seek.value.computeNewValue(null, context, tableContext));
+                    Long page = keyToPage.get(value);
+                    if (page != null) {
+                        Map.Entry<Bytes, Long> singleEntry
+                                = new AbstractMap.SimpleImmutableEntry<>(value, page);
+                        scanExecutor.accept(singleEntry);
+                    }
                 } else {
+                    Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
                     BatchOrderedExecutor<Map.Entry<Bytes, Long>> executor = new BatchOrderedExecutor<>(SORTED_PAGE_ACCESS_WINDOW_SIZE,
                             scanExecutor, SORTED_PAGE_ACCESS_COMPARATOR);
                     scanner.forEach(executor);
@@ -2586,11 +2626,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (!exit && transaction != null) {
                 consumer.beginNewRecordsInTransactionBlock();
                 Collection<Record> newRecordsForTable = transaction.getNewRecordsForTable(table.name);
-                for (Record record : newRecordsForTable) {
-                    if (!transaction.recordDeleted(table.name, record.key)
-                            && (predicate == null || predicate.evaluate(record, context))) {
-                        consumer.accept(record, null);
-                    }
+                if (newRecordsForTable != null) {
+                    newRecordsForTable.forEach(record -> {
+                        if (!transaction.recordDeleted(table.name, record.key)
+                                && (predicate == null || predicate.evaluate(record, context))) {
+                            consumer.accept(record, null);
+                        }
+                    });
                 }
             }
 
@@ -2626,9 +2668,21 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return resultFromTable;
     }
 
+    /**
+     * Data from new records INSERTed during current transaction
+     *
+     * @param transaction
+     * @param predicate
+     * @param context
+     * @return a stream over new records, which match the given predicate, null
+     * if no transaction or other simple empty cases
+     */
     private Stream<Record> streamTransactionData(Transaction transaction, Predicate predicate, StatementEvaluationContext context) {
         if (transaction != null) {
             Collection<Record> newRecordsForTable = transaction.getNewRecordsForTable(table.name);
+            if (newRecordsForTable == null || newRecordsForTable.isEmpty()) {
+                return null;
+            }
             return newRecordsForTable
                     .stream()
                     .map(record -> {
@@ -2640,7 +2694,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     }).filter(r -> r != null);
         } else {
-            return Stream.empty();
+            return null;
         }
     }
 

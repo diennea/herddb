@@ -253,8 +253,8 @@ public class Transaction {
 
     public Collection<Record> getNewRecordsForTable(String tableName) {
         Map<Bytes, Record> inserted = newRecords.get(tableName);
-        if (inserted == null) {
-            return Collections.emptyList();
+        if (inserted == null || inserted.isEmpty()) {
+            return null;
         } else {
             return inserted.values();
         }
