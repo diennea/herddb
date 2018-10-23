@@ -26,7 +26,6 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,6 +49,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Record conversion to byte[]
@@ -57,7 +57,7 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 public final class RecordSerializer {
-    
+
     private static final int INITIAL_BUFFER_SIZE = SystemProperties.getIntSystemProperty("herddb.serializer.initbufsize", 4 * 1024);
 
     public static Object deserialize(byte[] data, int type) {
@@ -525,10 +525,11 @@ public final class RecordSerializer {
         return toRecord(record, table);
     }
 
-    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {        
+    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {
         return new Bytes(serializePrimaryKeyRaw(record, table, columns));
     }
-    public static byte[] serializePrimaryKeyRaw(Map<String, Object> record, ColumnsList table, String[] columns) {        
+
+    public static byte[] serializePrimaryKeyRaw(Map<String, Object> record, ColumnsList table, String[] columns) {
         String[] primaryKey = table.getPrimaryKey();
         if (primaryKey.length == 1) {
             String pkColumn = primaryKey[0];
@@ -540,7 +541,7 @@ public final class RecordSerializer {
             if (v == null) {
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
-            return serialize(v, c.type);            
+            return serialize(v, c.type);
         } else {
             ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
@@ -566,7 +567,7 @@ public final class RecordSerializer {
         }
     }
 
-    public static Bytes serializePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {        
+    public static Bytes serializePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
         String[] primaryKey = table.getPrimaryKey();
         if (primaryKey.length == 1) {
             String pkColumn = primaryKey[0];
@@ -606,11 +607,12 @@ public final class RecordSerializer {
     }
 
     /**
-     * Like {@link #serializePrimaryKey(herddb.utils.DataAccessor, herddb.model.ColumnsList, java.lang.String[]) } but without
-     * return a value and/or creating temporary byte[]
+     * Like {@link #serializePrimaryKey(herddb.utils.DataAccessor, herddb.model.ColumnsList, java.lang.String[])
+     * } but without return a value and/or creating temporary byte[]
+     *
      * @param record
      * @param table
-     * @param columns 
+     * @param columns
      */
     public static void validatePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
         String[] primaryKey = table.getPrimaryKey();
@@ -672,17 +674,37 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
-        return new Bytes(serializeValueRaw(record, table));
+        return new Bytes(serializeValueRaw(record, table, 0));
     }
-        
-    public static byte[] serializeValueRaw(Map<String, Object> record, Table table) {
-        ByteArrayOutputStream value = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
+
+    public static byte[] serializeValueRaw(Map<String, Object> record, Table table, int expectedSize) {
+        ByteArrayOutputStream value = new ByteArrayOutputStream(expectedSize <= 0 ? INITIAL_BUFFER_SIZE : expectedSize);
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
                     doo.writeVInt(c.serialPosition);
                     serializeTypeAndValue(v, c.type, doo);
+                }
+            }
+        } catch (IOException err) {
+            throw new RuntimeException(err);
+        }
+
+        return value.toByteArray();
+    }
+
+    public static byte[] buildRecord(int expectedSize, Table table,
+            Function<String, Object> evaluator) {
+        ByteArrayOutputStream value = new ByteArrayOutputStream(expectedSize <= 0 ? INITIAL_BUFFER_SIZE : expectedSize);
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
+            for (Column c : table.columns) {
+                if (!table.isPrimaryKeyColumn(c.name)) {
+                    Object v = evaluator.apply(c.name);
+                    if (v != null) {
+                        doo.writeVInt(c.serialPosition);
+                        serializeTypeAndValue(v, c.type, doo);
+                    }
                 }
             }
         } catch (IOException err) {
