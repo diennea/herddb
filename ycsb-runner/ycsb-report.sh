@@ -1,4 +1,9 @@
 #/bin/bash
+
+echo -n "INSERT NUMBER OF ATTEMPTS[ENTER]: "
+read var
+
+
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
 YCSB_PATH=$1
@@ -9,6 +14,7 @@ I=2
 NARG=0 
 WORK=
 REPORT="FULL_TOTAL_REPORT.txt"
+L=0
 
 
 if [[ ! -d "$HERDDB_PATH" ]]; then
@@ -23,17 +29,24 @@ fi
 if [[ -e $REPORT ]]; then 
 rm -rf $REPORT
 fi 
-
+rm -rf file_temp
 mkdir file_temp
 argv=("$@");
 NARG=$#
-while [ $I -lt $NARG ]; do
-	WORK=${argv[$I]}
-	./full-ycsb.sh  $YCSB_PATH  $HERDDB_PATH $WORK > file_temp/$WORK.txt
-	./parse_report.sh $WORK.txt $WORK$I.txt $WORK
-	let I=I+1
+while [ $L -le $var ]; do 
+	while [ $I -lt $NARG ]; do
+ 		WORK=${argv[$I]}
+		rm -rf $REPORT
+		./full-ycsb.sh  $YCSB_PATH  $HERDDB_PATH $WORK > file_temp/$WORK.txt
+		./parse_report.sh $WORK.txt $WORK$I.txt $WORK $var
+		let I=I+1
+	done
+I=2
+let L=L+1
 done
 
+
+rm -rf file_temp
 
   
 

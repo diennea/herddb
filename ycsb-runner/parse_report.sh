@@ -24,16 +24,18 @@ else
         cut -f 3 -d, file_temp/$TEMP2  > file_temp/$TEMP3
         cat file_temp/$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > file_temp/$NAME$FILE_NAME     #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
 fi
-rm -rf file_temp/$SAVE_FILE_NAME
+#rm -rf file_temp/$SAVE_FILE_NAME
 rm -rf file_temp/$TEMP
 rm -rf file_temp/$NAME.txt
 rm -rf file_temp/$TEMP2
 rm -rf file_temp/$TEMP3
 
-NUMERO_TENTATIVI=$(cat file_temp/$NAME$FILE_NAME | wc -l)
+NUMERO_TENTATIVI=$4
+echo $NUMERO_TENTATIVI > tentativi.txt
 while read -r line   #scorro tutte le righe del file
 do
  let SUM=$SUM+$line  #calcolo della somma di tutte le righe presenti nel file
+echo $SUM > somma.txt
 done < file_temp/$NAME$FILE_NAME
 #echo $SUM
 MEDIA=$(($SUM/$NUMERO_TENTATIVI)) #calcolo della media
