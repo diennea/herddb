@@ -1,20 +1,20 @@
 #/bin/bash
 
-echo -n "INSERT NUMBER OF ATTEMPTS[ENTER]: "
-read var
 
-
+VAR=$3
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
 YCSB_PATH=$1
 HERDDB_PATH=$(realpath $2)
 WORKLOAD=$@
 JDBC_DRIVER=$(ls $HERDDB_PATH/*jdbc*.jar)
-I=2
+I=3
 NARG=0 
 WORK=
 REPORT="FULL_TOTAL_REPORT.txt"
 L=0
+FILE_TEMP="file_temp/"
+FINAL_REPORT="REPORT_FINAL/"
 
 
 if [[ ! -d "$HERDDB_PATH" ]]; then
@@ -29,24 +29,31 @@ fi
 if [[ -e $REPORT ]]; then 
 rm -rf $REPORT
 fi 
-rm -rf file_temp
-mkdir file_temp
+rm -rf $FILE_TEMP
+rm -rf $FINAL_REPORT
+mkdir $FILE_TEMP
+mkdir $FINAL_REPORT
 argv=("$@");
 NARG=$#
-while [ $L -le $var ]; do 
+while [ $L -lt $VAR ]; do 
 	while [ $I -lt $NARG ]; do
  		WORK=${argv[$I]}
+		echo $WORK
 		rm -rf $REPORT
-		./full-ycsb.sh  $YCSB_PATH  $HERDDB_PATH $WORK > file_temp/$WORK.txt
-		./parse_report.sh $WORK.txt $WORK$I.txt $WORK $var
+		./full-ycsb.sh  $YCSB_PATH  $HERDDB_PATH  $WORK > $FILE_TEMP$WORK.txt
+		./parse_report.sh $WORK.txt $WORK$I.txt $WORK $VAR $FILE_TEMP $FINAL_REPORT $HERDDB_PATH
 		let I=I+1
 	done
-I=2
+I=3
 let L=L+1
 done
 
 
-rm -rf file_temp
+cat  $FINAL_REPORT* > $REPORT
+
+
+rm -rf $FILE_TEMP
+rm -rf $FINAL_REPORT
 
   
 
