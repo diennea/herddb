@@ -11,40 +11,34 @@ MEDIA=0
 WORKLOAD=$3
 JAVA="java.txt"
 REPORT="FULL_TOTAL_REPORT.txt"
-grep -B50 END_FILE file_temp/$FILE_NAME > file_temp/$SAVE_FILE_NAME 
+FILE_TEMP=$5
+FINAL_REPORT=$6
+HERD_PATH=$7
+grep -B50 END_FILE $FILE_TEMP$FILE_NAME > $FILE_TEMP$SAVE_FILE_NAME 
 
-if [[ ! -e file_temp/$NAME$FILE_NAME ]]; then
-        grep "Throughput(ops/sec)" file_temp/$SAVE_FILE_NAME > file_temp/$TEMP2
-        cut -f 3 -d, file_temp/$TEMP2   > file_temp/$TEMP3
-        cat file_temp/$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > file_temp/$NAME$FILE_NAME  #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
+if [[ ! -e $FILE_TEMP$NAME$FILE_NAME ]]; then
+        grep "Throughput(ops/sec)" $FILE_TEMP$SAVE_FILE_NAME > $FILE_TEMP$TEMP2
+        cut -f 3 -d, $FILE_TEMP$TEMP2   > $FILE_TEMP$TEMP3
+        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME  #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
 else
-         grep "Throughput(ops/sec)" file_temp/$SAVE_FILE_NAME > file_temp/$TEMP
-        mv file_temp/$NAME$FILE_NAME file_temp/$NAME.txt
-        cat file_temp/$TEMP file_temp/$NAME.txt > file_temp/$TEMP2
-        cut -f 3 -d, file_temp/$TEMP2  > file_temp/$TEMP3
-        cat file_temp/$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > file_temp/$NAME$FILE_NAME     #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
+         grep "Throughput(ops/sec)" $FILE_TEMP$SAVE_FILE_NAME > $FILE_TEMP$TEMP
+        mv $FILE_TEMP$NAME$FILE_NAME $FILE_TEMP$NAME.txt
+        cat $FILE_TEMP$TEMP $FILE_TEMP$NAME.txt > $FILE_TEMP$TEMP2
+        cut -f 3 -d, $FILE_TEMP$TEMP2  > $FILE_TEMP$TEMP3
+        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME     #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
 fi
-#rm -rf file_temp/$SAVE_FILE_NAME
-rm -rf file_temp/$TEMP
-rm -rf file_temp/$NAME.txt
-rm -rf file_temp/$TEMP2
-rm -rf file_temp/$TEMP3
+rm -rf $FILE_TEMP$SAVE_FILE_NAME
+rm -rf $FILE_TEMP$TEMP
+rm -rf $FILE_TEMP$NAME.txt
+rm -rf $FILE_TEMP$TEMP2
+rm -rf $FILE_TEMP$TEMP3
 
 NUMERO_TENTATIVI=$4
-echo $NUMERO_TENTATIVI > tentativi.txt
 while read -r line   #scorro tutte le righe del file
 do
  let SUM=$SUM+$line  #calcolo della somma di tutte le righe presenti nel file
-echo $SUM > somma.txt
-done < file_temp/$NAME$FILE_NAME
-#echo $SUM
+done < $FILE_TEMP$NAME$FILE_NAME
 MEDIA=$(($SUM/$NUMERO_TENTATIVI)) #calcolo della media
-#echo $MEDIA
 
-#if [[ ! -e $REPORT ]]; then
-#touch $REPORT
-#fi
-
-
-./final_report.sh $WORKLOAD $MEDIA $NUMERO_TENTATIVI $REPORT 
+./final_report.sh $WORKLOAD $MEDIA $NUMERO_TENTATIVI $REPORT $FILE_TEMP $FINAL_REPORT $HERD_PATH
 

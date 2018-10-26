@@ -5,36 +5,38 @@ NAME="_final_report.txt"
 SYSTEM=$(uname -s -r)
 RAM=$(dmidecode -t 16 | grep "Maximum Capacity" | cut -d ':'  -f2)
 DATE=$(date)
-PROCESSOR=
+PROCESSOR=$(grep -m 1 'cpu cores' /proc/cpuinfo)
 THROUGHPUT=$2
 ATTEMPTS=$3
-REPORT="FULL_TOTAL_REPORT.txt"
+REPORT=$4
+FILE_TEMP=$5
+FINAL_REPORT=$6
+HERD_PATH=$7
+$JAVA_HOME/bin/java -version 2> $FILE_TEMPjavaversion.txt
 
-
-cat /proc/cpuinfo | grep "model name" > processor.txt
-PROCESSOR=$(tail -1 processor.txt | cut -d ':' -f2)
-echo $PROCESSOR
-
-if [[ ! -e $WORKLOAD$NAME ]]; then
-        touch $WORKLOAD$NAME
+if [[ ! -e  $FILE_TEMP$WORKLOAD$NAME ]]; then
+        touch  $FILE_TEMP$WORKLOAD$NAME
 else
-	rm -rf  $WORKLOAD$NAME
-	touch $WORKLOAD$NAME
+	rm -rf  $FILE_TEMP$WORKLOAD$NAME
+	touch $FILE_TEMP$WORKLOAD$NAME
 fi
 
-echo -e " " >> $WORKLOAD$NAME
-echo -e "------------------------------------------------------------------- " >> $WORKLOAD$NAME
-echo "WORKLOAD = $WORKLOAD" >> $WORKLOAD$NAME
-echo "SYSTEM= $SYSTEM" >> $WORKLOAD$NAME
-echo "RAM= $RAM" >> $WORKLOAD$NAME
-echo "PROCESSOR = $PROCESSOR" >> $WORKLOAD$NAME
-echo "JAVA_VERSION= $JAVA_HOME" >> $WORKLOAD$NAME
-echo "DATE= $DATE" >> $WORKLOAD$NAME
-echo "THROUGHPUT = $THROUGHPUT" >>$WORKLOAD$NAME
-echo "ATTEMPTS = $ATTEMPTS"  >> $WORKLOAD$NAME
+echo -e " " >> $FILE_TEMP$WORKLOAD$NAME
+echo -e "------------------------------------------------------------------- " >> $FILE_TEMP$WORKLOAD$NAME
+echo "$(grep "java version" $FILE_TEMPjavaversion.txt)" >> $FILE_TEMP$WORKLOAD$NAME
+echo -e "" >> $FILE_TEMP$WORKLOAD$NAME
+echo "Herddb=$HERD_PATH"  >> $FILE_TEMP$WORKLOAD$NAME
+echo "WORKLOAD=$WORKLOAD" >> $FILE_TEMP$WORKLOAD$NAME
+echo "SYSTEM=$SYSTEM" >> $FILE_TEMP$WORKLOAD$NAME
+echo "RAM=$RAM" >> $FILE_TEMP$WORKLOAD$NAME
+echo "$PROCESSOR" >> $FILE_TEMP$WORKLOAD$NAME
+echo "Date=$DATE" >> $FILE_TEMP$WORKLOAD$NAME
+echo "Throughput=$THROUGHPUT" >> $FILE_TEMP$WORKLOAD$NAME
+echo "Attempts=$ATTEMPTS"  >> $FILE_TEMP$WORKLOAD$NAME
+echo "Herddb=$HERD_PATH"  >> $FILE_TEMP$WORKLOAD$NAME
 
 
-cat $WORKLOAD$NAME >> $REPORT 
-rm -rf processor.txt
-rm -rf $WORKLOAD$NAME
+mv $FILE_TEMP$WORKLOAD$NAME $FINAL_REPORT
+ 
+#cat $FILE_TEMP$WORKLOAD$NAME > $REPORT
  
