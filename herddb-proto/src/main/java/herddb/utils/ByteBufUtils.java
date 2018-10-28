@@ -24,20 +24,20 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Utilities for write variable length values on {@link ByteBuf}.
- * 
+ *
  * @author diego.salvi
  */
 public class ByteBufUtils {
-    
+
     public static final void writeArray(ByteBuf buffer, byte[] array) {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
-    
+
     public static final void writeString(ByteBuf buffer, String string) {
         writeArray(buffer, string.getBytes(StandardCharsets.UTF_8));
     }
-    
+
     public static final byte[] readArray(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
@@ -45,7 +45,18 @@ public class ByteBufUtils {
         return array;
     }
     
-    
+    public static final String readString(ByteBuf buffer) {
+        final int len = readVInt(buffer);
+        final byte[] array = new byte[len];
+        buffer.readBytes(array);
+        return new String(array, StandardCharsets.UTF_8);
+    }    
+
+    public static final void skipArray(ByteBuf buffer) {
+        final int len = readVInt(buffer);
+        buffer.skipBytes(len);
+    }
+
     public static final void writeVInt(ByteBuf buffer, int i) {
         while ((i & ~0x7F) != 0) {
             buffer.writeByte((byte) ((i & 0x7F) | 0x80));
@@ -53,7 +64,7 @@ public class ByteBufUtils {
         }
         buffer.writeByte((byte) i);
     }
-    
+
     public static final int readVInt(ByteBuf buffer) {
         byte b = buffer.readByte();
         int i = b & 0x7F;
@@ -63,15 +74,15 @@ public class ByteBufUtils {
         }
         return i;
     }
-    
+
     public static final void writeZInt(ByteBuf buffer, int i) {
         writeVInt(buffer, zigZagEncode(i));
     }
-    
+
     public static final int readZInt(ByteBuf buffer) {
         return zigZagDecode(readVInt(buffer));
     }
-    
+
     public static final void writeVLong(ByteBuf buffer, long i) {
         if (i < 0) {
             throw new IllegalArgumentException("cannot write negative vLong (got: " + i + ")");
@@ -87,7 +98,7 @@ public class ByteBufUtils {
         }
         buffer.writeByte((byte) i);
     }
-    
+
     public static final long readVLong(ByteBuf buffer) {
         return readVLong(buffer, false);
     }
@@ -149,26 +160,28 @@ public class ByteBufUtils {
             throw new IllegalArgumentException("Invalid vLong detected (negative values disallowed)");
         }
     }
-    
+
     public static final void writeZLong(ByteBuf buffer, long i) {
         writeVLong(buffer, zigZagEncode(i));
     }
-    
+
     public static final long readZLong(ByteBuf buffer) {
         return zigZagDecode(readVLong(buffer));
     }
-    
+
     public static final void writeDouble(ByteBuf buffer, double i) {
         buffer.writeLong(Double.doubleToLongBits(i));
     }
-    
+
     public static final double readDouble(ByteBuf buffer) {
         return Double.longBitsToDouble(buffer.readLong());
     }
-    
-    /** Same as {@link #zigZagEncode(long)} but on integers. */
+
+    /**
+     * Same as {@link #zigZagEncode(long)} but on integers.
+     */
     private static final int zigZagEncode(int i) {
-      return (i >> 31) ^ (i << 1);
+        return (i >> 31) ^ (i << 1);
     }
 
     /**
@@ -178,17 +191,21 @@ public class ByteBufUtils {
      * be an unsigned long that can be stored on <tt>n+1</tt> bits.
      */
     private static final long zigZagEncode(long l) {
-      return (l >> 63) ^ (l << 1);
+        return (l >> 63) ^ (l << 1);
     }
 
-    /** Decode an int previously encoded with {@link #zigZagEncode(int)}. */
+    /**
+     * Decode an int previously encoded with {@link #zigZagEncode(int)}.
+     */
     private static final int zigZagDecode(int i) {
-      return ((i >>> 1) ^ -(i & 1));
+        return ((i >>> 1) ^ -(i & 1));
     }
 
-    /** Decode a long previously encoded with {@link #zigZagEncode(long)}. */
+    /**
+     * Decode a long previously encoded with {@link #zigZagEncode(long)}.
+     */
     private static final long zigZagDecode(long l) {
-      return ((l >>> 1) ^ -(l & 1));
+        return ((l >>> 1) ^ -(l & 1));
     }
-    
+
 }

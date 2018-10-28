@@ -19,6 +19,8 @@
  */
 package herddb.network;
 
+import herddb.proto.Pdu;
+
 /**
  * Receives inbound messages from the channel
  *
@@ -27,6 +29,9 @@ package herddb.network;
 public interface ChannelEventListener {
 
     public default void requestReceived(MessageWrapper message, Channel channel) {
+    }
+    
+    public default void requestReceived(Pdu pdu, Channel channel) {
     }
 
     public default void channelClosed(Channel channel) {

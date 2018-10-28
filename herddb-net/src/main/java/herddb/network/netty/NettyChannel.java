@@ -87,12 +87,27 @@ public class NettyChannel extends Channel {
     public void responseReceived(MessageWrapper message) {
         handleResponse(message);
     }
-    
+
     public void pduReceived(Pdu message) {
-        handlePduResponse(message);
+        if (message.isRequest()) {
+            handlePduRequest(message);
+        } else {
+            handlePduResponse(message);
+        }
     }
 
     public void requestReceived(MessageWrapper request) {
+        submitCallback(() -> {
+            try {
+                messagesReceiver.requestReceived(request, this);
+            } catch (Throwable t) {
+                LOGGER.log(Level.SEVERE, this + ": error " + t, t);
+                close();
+            }
+        });
+    }
+
+    private void handlePduRequest(Pdu request) {
         submitCallback(() -> {
             try {
                 messagesReceiver.requestReceived(request, this);
@@ -119,7 +134,7 @@ public class NettyChannel extends Channel {
             });
         }
     }
-    
+
     private void handlePduResponse(Pdu pdu) {
         long replyMessageId = pdu.messageId;
         if (replyMessageId < 0) {
@@ -353,6 +368,4 @@ public class NettyChannel extends Channel {
         this.name = name;
     }
 
-    
-    
 }

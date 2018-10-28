@@ -113,18 +113,19 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 byte[] responseToSendToServer;
                 switch (saslResponse.type) {
                     case MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE:
-                        byte[] token = (byte[]) MessageUtils.bufferToArray(response.tokenAsByteBuffer());
+                        byte[] token = PduCodec.SaslTokenServerResponse.readToken(saslResponse);
                         responseToSendToServer = saslNettyClient.evaluateChallenge(token);
                         requestId = _channel.generateRequestId();
                         saslResponse.close();
-                        saslResponse = _channel.sendMessageWithPduReply(requestId, MessageBuilder.SASL_TOKEN_MESSAGE_TOKEN(requestId, responseToSendToServer), timeout);
+                        saslResponse = _channel.sendMessageWithPduReply(requestId,
+                                PduCodec.SaslTokenMessageToken.write(requestId, responseToSendToServer, true), timeout);
                         if (saslNettyClient.isComplete()) {
                             LOGGER.finest("SASL auth completed with success");
                             return;
                         }
                         break;
                     case MessageType.TYPE_ERROR:
-                        throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + response.error() + ")");
+                        throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + PduCodec.ErrorResponse.readError(saslResponse) + ")");
                     default:
                         throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
                 }
@@ -309,6 +310,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     channel = _channel;
                     return channel;
                 } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE,"Error",err);
                     if (_channel != null) {
                         _channel.close();
                     }
