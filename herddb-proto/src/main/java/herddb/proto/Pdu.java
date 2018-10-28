@@ -52,6 +52,7 @@ public class Pdu implements AutoCloseable {
 
     public ByteBuf buffer;
     public byte type;
+    public long messageId;
 
     @Override
     public void close() {

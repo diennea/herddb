@@ -20,6 +20,7 @@
 package herddb.utils;
 
 import io.netty.buffer.ByteBuf;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Utilities for write variable length values on {@link ByteBuf}.
@@ -33,12 +34,17 @@ public class ByteBufUtils {
         buffer.writeBytes(array);
     }
     
+    public static final void writeString(ByteBuf buffer, String string) {
+        writeArray(buffer, string.getBytes(StandardCharsets.UTF_8));
+    }
+    
     public static final byte[] readArray(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return array;
     }
+    
     
     public static final void writeVInt(ByteBuf buffer, int i) {
         while ((i & ~0x7F) != 0) {

@@ -46,6 +46,8 @@ import herddb.utils.KeyValue;
 import herddb.network.MessageBuilder;
 import herddb.network.MessageWrapper;
 import herddb.network.ServerHostData;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
 import herddb.proto.flatbuf.MessageType;
 import herddb.proto.flatbuf.Request;
 import herddb.proto.flatbuf.Response;
@@ -104,19 +106,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         long requestId = _channel.generateRequestId();
-        MessageWrapper saslResponse = _channel.sendMessageWithReply(requestId,
-                MessageBuilder.SASL_TOKEN_MESSAGE_REQUEST(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
+        Pdu saslResponse = _channel.sendMessageWithPduReply(requestId,
+                PduCodec.SaslTokenMessageRequest.write(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
         try {
             for (int i = 0; i < 100; i++) {
                 byte[] responseToSendToServer;
-                Response response = saslResponse.getResponse();
-                switch (response.type()) {
+                switch (saslResponse.type) {
                     case MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE:
                         byte[] token = (byte[]) MessageUtils.bufferToArray(response.tokenAsByteBuffer());
                         responseToSendToServer = saslNettyClient.evaluateChallenge(token);
                         requestId = _channel.generateRequestId();
                         saslResponse.close();
-                        saslResponse = _channel.sendMessageWithReply(requestId, MessageBuilder.SASL_TOKEN_MESSAGE_TOKEN(requestId, responseToSendToServer), timeout);
+                        saslResponse = _channel.sendMessageWithPduReply(requestId, MessageBuilder.SASL_TOKEN_MESSAGE_TOKEN(requestId, responseToSendToServer), timeout);
                         if (saslNettyClient.isComplete()) {
                             LOGGER.finest("SASL auth completed with success");
                             return;

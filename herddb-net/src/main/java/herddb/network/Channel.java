@@ -19,7 +19,7 @@
  */
 package herddb.network;
 
-import herddb.proto.flatbuf.Response;
+import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +38,11 @@ public abstract class Channel implements AutoCloseable {
     protected interface ResponseCallback {
 
         public void responseReceived(MessageWrapper message, Throwable error);
+    }
+    
+    protected interface PduCallback {
+
+        public void responseReceived(Pdu message, Throwable error);
     }
 
     protected ChannelEventListener messagesReceiver;
@@ -60,6 +65,9 @@ public abstract class Channel implements AutoCloseable {
 
     protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, ResponseCallback callback);
 
+    protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback);
+
+    
     public abstract void channelIdle();
 
     public abstract String getRemoteAddress();
@@ -77,6 +85,33 @@ public abstract class Channel implements AutoCloseable {
         CompletableFuture<MessageWrapper> resp = new CompletableFuture<>();
         long _start = System.currentTimeMillis();
         sendRequestWithAsyncReply(id, request, timeout, (MessageWrapper message1, Throwable error) -> {
+            if (error != null) {
+                resp.completeExceptionally(error);
+            } else {
+                resp.complete(message1);
+            }
+        });
+        try {
+            return resp.get(timeout, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException err) {
+            if (err.getCause() instanceof IOException) {
+                TimeoutException te = new TimeoutException("io-error while waiting for reply: " + err.getCause());
+                te.initCause(err.getCause());
+                throw te;
+            }
+            throw new RuntimeException(err.getCause());
+        } catch (TimeoutException timeoutException) {
+            long _stop = System.currentTimeMillis();
+            TimeoutException err = new TimeoutException("Timed-out after waiting response for " + (_stop - _start) + " ms");
+            err.initCause(timeoutException);
+            throw err;
+        }
+    }
+    
+    public Pdu sendMessageWithPduReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
+        CompletableFuture<Pdu> resp = new CompletableFuture<>();
+        long _start = System.currentTimeMillis();
+        sendRequestWithAsyncReply(id, request, timeout, (Pdu message1, Throwable error) -> {
             if (error != null) {
                 resp.completeExceptionally(error);
             } else {
