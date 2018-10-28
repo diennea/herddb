@@ -69,11 +69,12 @@ public class SQLRecordFunction extends RecordFunction {
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         try {
             if (previous != null) {
+                Map<String, Object> asMap = previous.toBean(table);
                 DataAccessor bean = previous.getDataAccessor(table);
                 Function<String, Object> fieldValueComputer = (columnName) -> {
                     CompiledSQLExpression e = expressionsByColumnName.get(columnName);
                     if (e == null) {
-                        return bean.get(columnName);
+                        return asMap.get(columnName);
                     } else {
                         herddb.model.Column column = table.getColumn(columnName);
                         if (column == null) {
