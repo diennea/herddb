@@ -50,9 +50,21 @@ public class Pdu implements AutoCloseable {
     public static final byte TYPE_SASL_TOKEN_MESSAGE_TOKEN = 102;
     static final int OWN_SIZE = 1 + 1;
 
+    public static final byte FLAGS_ISREQUEST = 1;
+    public static final byte FLAGS_ISRESPONSE = 2;
+
     public ByteBuf buffer;
+    public byte flags;
     public byte type;
     public long messageId;
+
+    public boolean isRequest() {
+        return (flags | FLAGS_ISREQUEST) == FLAGS_ISREQUEST;
+    }
+
+    public boolean isResponse() {
+        return (flags | FLAGS_ISRESPONSE) == FLAGS_ISRESPONSE;
+    }
 
     @Override
     public void close() {

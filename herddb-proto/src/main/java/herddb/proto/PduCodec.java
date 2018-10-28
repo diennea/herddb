@@ -15,15 +15,12 @@
  */
 package herddb.proto;
 
-import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Request;
-import herddb.proto.flatbuf.Response;
 import herddb.utils.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -38,15 +35,16 @@ public abstract class PduCodec {
     public static Pdu decodePdu(ByteBuf in) throws IOException {
         byte version = in.getByte(0);
         if (version == VERSION_3) {
-            byte type = in.getByte(0);
-            long messageId = in.getLong(1);
+            byte flags = in.getByte(1);
+            byte type = in.getByte(2);
+            long messageId = in.getLong(3);
             Pdu pdu = new Pdu();
             pdu.buffer = in;
             pdu.type = type;
+            pdu.flags = flags;
             pdu.messageId = messageId;
             return pdu;
         } else {
-            ReferenceCountUtil.release(in);
             throw new IOException("Cannot decode version " + version);
         }
     }
@@ -55,13 +53,18 @@ public abstract class PduCodec {
     private static final int REPLYID_SIZE = 8;
     private static final int MSGID_SIZE = 8;
     private static final int TYPE_SIZE = 1;
+    private static final int FLAGS_SIZE = 1;
     private static final int VERSION_SIZE = 1;
+
+    private static final int NULLABLE_FIELD_PRESENT = 1;
+    private static final int NULLABLE_FIELD_ABSENT = 0;
 
     public static abstract class ExecuteStatementResult {
 
         public static long readUpdateCount(Pdu pdu) {
             return pdu.buffer.getLong(
                     VERSION_SIZE
+                    + FLAGS_SIZE
                     + TYPE_SIZE
                     + REPLYID_SIZE);
         }
@@ -69,6 +72,7 @@ public abstract class PduCodec {
         public static long readTx(Pdu pdu) {
             return pdu.buffer.getLong(
                     VERSION_SIZE
+                    + FLAGS_SIZE
                     + TYPE_SIZE
                     + REPLYID_SIZE
                     + ONE_LONG /* update count */);
@@ -79,6 +83,7 @@ public abstract class PduCodec {
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
+                            + FLAGS_SIZE
                             + TYPE_SIZE
                             + REPLYID_SIZE
                             + ONE_LONG
@@ -99,33 +104,77 @@ public abstract class PduCodec {
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
+                            + FLAGS_SIZE
                             + TYPE_SIZE
                             + MSGID_SIZE
                             + 64);
             byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
             byteBuf.writeByte(Pdu.TYPE_SASL_TOKEN_MESSAGE_REQUEST);
             byteBuf.writeLong(messageId);
             ByteBufUtils.writeString(byteBuf, saslMech);
             ByteBufUtils.writeArray(byteBuf, firstToken);
             return byteBuf;
         }
-        
+
         public static String readMech(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             buffer.readerIndex(0);
             buffer.skipBytes(VERSION_SIZE
+                    + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE);
             return new String(ByteBufUtils.readArray(buffer), StandardCharsets.UTF_8);
         }
-        
+
         public static byte[] readToken(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             buffer.readerIndex(0);
             buffer.skipBytes(VERSION_SIZE
+                    + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE);
+            ByteBufUtils.skipArray(buffer);
             return ByteBufUtils.readArray(buffer);
+        }
+    }
+
+    public static abstract class SaslTokenMessageToken {
+
+        public static ByteBuf write(long messageId, byte[] token, boolean request) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + 1 + (token != null ? token.length : 0));
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(request ? Pdu.FLAGS_ISREQUEST : Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_SASL_TOKEN_MESSAGE_TOKEN);
+            byteBuf.writeLong(messageId);
+            if (token == null) {
+                byteBuf.writeByte(NULLABLE_FIELD_ABSENT);
+            } else {
+                byteBuf.writeByte(NULLABLE_FIELD_PRESENT);
+                ByteBufUtils.writeArray(byteBuf, token);
+            }
+            return byteBuf;
+        }
+
+        public static byte[] readToken(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(0);
+            buffer.skipBytes(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+            byte tokenPresent = buffer.readByte();
+            if (tokenPresent == NULLABLE_FIELD_PRESENT) {
+                return ByteBufUtils.readArray(buffer);
+            } else {
+                return null;
+            }
         }
     }
 
@@ -135,10 +184,12 @@ public abstract class PduCodec {
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
+                            + FLAGS_SIZE
                             + TYPE_SIZE
                             + MSGID_SIZE
                             + 64);
             byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_SASL_TOKEN_SERVER_RESPONSE);
             byteBuf.writeLong(messageId);
             ByteBufUtils.writeArray(byteBuf, token);
@@ -149,6 +200,7 @@ public abstract class PduCodec {
             ByteBuf buffer = pdu.buffer;
             buffer.readerIndex(0);
             buffer.skipBytes(VERSION_SIZE
+                    + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE);
             return ByteBufUtils.readArray(buffer);
@@ -156,49 +208,40 @@ public abstract class PduCodec {
 
     }
 
-//    
-//    public static ByteBuf SASL_TOKEN_MESSAGE_REQUEST(long id, String saslMech, byte[] firstToken) {
-//        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
-//            int mechOffset = addString(builder, saslMech);
-//            int tokenOffset = builder.createByteVector(firstToken);
-//            Request.startRequest(builder);
-//            Request.addId(builder, id);
-//            Request.addMech(builder, mechOffset);
-//            Request.addToken(builder, tokenOffset);
-//            Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST);
-//            return finishAsRequest(builder);
-//        }
-//    }
-//
-//    public static ByteBuf SASL_TOKEN_SERVER_RESPONSE(long replyId, byte[] saslTokenChallenge) {
-//        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
-//            int tokenOffset = -1;
-//            if (saslTokenChallenge != null) {
-//                tokenOffset = builder.createByteVector(saslTokenChallenge);
-//            }
-//            Response.startResponse(builder);
-//            Response.addReplyMessageId(builder, replyId);
-//            if (tokenOffset >= 0) {
-//                Response.addToken(builder, tokenOffset);
-//            }
-//            Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
-//            return finishAsResponse(builder);
-//        }
-//    }
-//
-//    public static ByteBuf SASL_TOKEN_MESSAGE_TOKEN(long id, byte[] token) {
-//        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
-//            int tokenOffset = 0;
-//            if (token != null) {
-//                tokenOffset = builder.createByteVector(token);
-//            }
-//            Request.startRequest(builder);
-//            Request.addId(builder, id);
-//            if (token != null) {
-//                Request.addToken(builder, tokenOffset);
-//            }
-//            Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN);
-//            return finishAsRequest(builder);
-//        }
-//    }
+    public static class ErrorResponse {
+
+        public static ByteBuf write(long messageId, String error) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + 64);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_ERROR);
+            byteBuf.writeLong(messageId);
+            ByteBufUtils.writeString(byteBuf, error != null ? error : "");
+            return byteBuf;
+        }
+
+        public static ByteBuf write(long messageId, Throwable error) {
+            StringWriter writer = new StringWriter();
+            error.printStackTrace(new PrintWriter(writer));
+            return write(messageId, writer.toString());
+        }
+
+        public static String readError(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(0);
+            buffer.skipBytes(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+            return ByteBufUtils.readString(buffer);
+        }
+
+    }
+
 }

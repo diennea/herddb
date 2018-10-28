@@ -70,6 +70,8 @@ import herddb.network.ChannelEventListener;
 import herddb.network.MessageBuilder;
 import herddb.network.MessageWrapper;
 import herddb.network.ServerSideConnection;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
 import herddb.proto.flatbuf.MessageType;
 import herddb.proto.flatbuf.Request;
 import herddb.security.sasl.SaslNettyServer;
@@ -83,8 +85,6 @@ import io.netty.buffer.ByteBuf;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -131,14 +131,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
             switch (message.type()) {
-                case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
-                    handleSaslTokenMessageRequest(message, _channel);
-                    break;
-                }
-                case MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
-                    handleSaslTokenMessage(_channel, message);
-                    break;
-                }
                 case MessageType.TYPE_EXECUTE_STATEMENT: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
@@ -255,6 +247,35 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         } finally {
             if (releaseMessageSync) {
                 messageWrapper.close();
+            }
+        }
+    }
+
+    @Override
+    public void requestReceived(Pdu message, Channel _channel) {
+        // message is handled by current thread
+        boolean releaseMessageSync = true;
+        try {
+            LOGGER.log(Level.FINEST, "messageReceived {0}", message);
+
+            switch (message.type) {
+                case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
+                    handleSaslTokenMessageRequest(message, _channel);
+                    break;
+                }
+                case MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
+                    handleSaslTokenMessage(message, _channel);
+                    break;
+                }
+
+                default:
+                    _channel.sendReplyMessage(message.messageId,
+                            PduCodec.ErrorResponse.write(message.messageId,
+                                    new Exception("unsupported message type " + message.type)));
+            }
+        } finally {
+            if (releaseMessageSync) {
+                message.close();
             }
         }
     }
@@ -838,52 +859,52 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleSaslTokenMessage(Channel _channel, Request message) {
+    private void handleSaslTokenMessage(Pdu message, Channel _channel) {
         try {
             if (saslNettyServer == null) {
-                ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("Authentication failed (SASL protocol error)"));
-                _channel.sendReplyMessage(message.id(), error);
+                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "Authentication failed (SASL protocol error)");
+                _channel.sendReplyMessage(message.messageId, error);
                 return;
             }
-            byte[] token = MessageUtils.bufferToArray(message.tokenAsByteBuffer());
+            byte[] token = PduCodec.SaslTokenMessageToken.readToken(message);
             byte[] responseToken = saslNettyServer.response(token);
-            ByteBuf tokenChallenge = MessageBuilder.SASL_TOKEN_SERVER_RESPONSE(message.id(), responseToken);
+            ByteBuf tokenChallenge = PduCodec.SaslTokenServerResponse.write(message.messageId, responseToken);
             if (saslNettyServer.isComplete()) {
                 username = saslNettyServer.getUserName();
                 authenticated = true;
                 LOGGER.log(Level.INFO, "client {0} connected as {1}", new Object[]{channel.getRemoteAddress(), username});
                 saslNettyServer = null;
             }
-            _channel.sendReplyMessage(message.id(), tokenChallenge);
+            _channel.sendReplyMessage(message.messageId, tokenChallenge);
         } catch (Exception err) {
             if (err instanceof javax.security.sasl.SaslException) {
                 LOGGER.log(Level.SEVERE, "SASL error " + err, err);
-                ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("Authentication failed (SASL error)"));
-                _channel.sendReplyMessage(message.id(), error);
+                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "Authentication failed (SASL error)");
+                _channel.sendReplyMessage(message.messageId, error);
             } else {
                 LOGGER.log(Level.SEVERE, "Bad auth error " + err, err);
-                ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-                _channel.sendReplyMessage(message.id(), error);
+                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err);
+                _channel.sendReplyMessage(message.messageId, error);
             }
         }
     }
 
-    private void handleSaslTokenMessageRequest(Request message, Channel _channel) {
+    private void handleSaslTokenMessageRequest(Pdu message, Channel _channel) {
         try {
-            byte[] token = MessageUtils.bufferToArray(message.tokenAsByteBuffer());
+            String mech = PduCodec.SaslTokenMessageRequest.readMech(message);
+            byte[] token = PduCodec.SaslTokenMessageRequest.readToken(message);
             if (token == null) {
                 token = new byte[0];
             }
-            RawString mech = MessageUtils.readRawString(message.mechAsByteBuffer());
             if (saslNettyServer == null) {
                 saslNettyServer = new SaslNettyServer(server, mech.toString());
             }
             byte[] responseToken = saslNettyServer.response(token);
-            ByteBuf tokenChallenge = MessageBuilder.SASL_TOKEN_SERVER_RESPONSE(message.id(), responseToken);
-            _channel.sendReplyMessage(message.id(), tokenChallenge);
+            ByteBuf tokenChallenge = PduCodec.SaslTokenServerResponse.write(message.messageId, responseToken);
+            _channel.sendReplyMessage(message.messageId, tokenChallenge);
         } catch (Exception err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err);
+            _channel.sendReplyMessage(message.messageId, error);
         }
     }
 
