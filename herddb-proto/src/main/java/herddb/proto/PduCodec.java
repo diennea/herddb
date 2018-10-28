@@ -44,9 +44,8 @@ public abstract class PduCodec {
             pdu.flags = flags;
             pdu.messageId = messageId;
             return pdu;
-        } else {
-            throw new IOException("Cannot decode version " + version);
         }
+        throw new IOException("Cannot decode version " + version);
     }
 
     private static final int ONE_LONG = 8;

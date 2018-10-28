@@ -53,6 +53,7 @@ public class ProtocolMessageDecoder extends ChannelInboundHandlerAdapter {
             Pdu pdu = PduCodec.decodePdu(in);
             ctx.fireChannelRead(pdu);
         } catch (IOException fallback) {
+            LOGGER.log(Level.SEVERE, "Falling back", fallback);
             MessageWrapper pooled = MessageWrapper.newMessageWrapper(in);
             ctx.fireChannelRead(pooled);
         }
