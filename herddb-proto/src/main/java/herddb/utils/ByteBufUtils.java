@@ -38,19 +38,30 @@ public class ByteBufUtils {
         writeArray(buffer, string.getBytes(StandardCharsets.UTF_8));
     }
 
+    public static final void writeRawString(ByteBuf buffer, RawString string) {
+        writeArray(buffer, string.data);
+    }
+
     public static final byte[] readArray(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return array;
     }
-    
+
     public static final String readString(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return new String(array, StandardCharsets.UTF_8);
-    }    
+    }
+
+    public static final RawString readRawString(ByteBuf buffer) {
+        final int len = readVInt(buffer);
+        final byte[] array = new byte[len];
+        buffer.readBytes(array);
+        return new RawString(array);
+    }
 
     public static final void skipArray(ByteBuf buffer) {
         final int len = readVInt(buffer);

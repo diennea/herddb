@@ -60,6 +60,7 @@ import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
 import io.netty.buffer.ByteBuf;
+import java.io.IOException;
 import java.util.HashMap;
 
 /**
@@ -331,23 +332,31 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, returnValues, params);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, params);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
+                    throw new HDBException(reply);
                 }
-                long updateCount = (Long) reply.updateCount();
-                long transactionId = (Long) reply.tx();
-
+                long updateCount = PduCodec.ExecuteStatementResult.readUpdateCount(reply);
+                long transactionId = PduCodec.ExecuteStatementResult.readTx(reply);
+                boolean hasData = PduCodec.ExecuteStatementResult.hasRecord(reply);
                 Object key = null;
-                Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
-                if (newvalue != null) {
+                Map<RawString, Object> newvalue = null;
+                if (hasData) {
+                    PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
+                    newvalue = new HashMap<>();
+                    for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
+                        RawString _key = (RawString) parametersReader.nextObject();
+                        Object _value = parametersReader.nextObject();
+                        newvalue.put(_key, _value);
+                    }
                     key = newvalue.get(RAWSTRING_KEY);
                 }
                 return new DMLResult(updateCount, key, newvalue, transactionId);
@@ -368,7 +377,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     boolean notLeader = reply.notLeader();
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
                 }
@@ -401,26 +410,40 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, false, params);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, params);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
+                    throw new HDBException(reply);
                 }
-                long found = reply.updateCount();
-                long transactionId = reply.tx();
-                if (found <= 0) {
+                long updateCount = PduCodec.ExecuteStatementResult.readUpdateCount(reply);
+                long transactionId = PduCodec.ExecuteStatementResult.readTx(reply);
+                boolean hasData = PduCodec.ExecuteStatementResult.hasRecord(reply);
+
+                Map<RawString, Object> data = null;
+                if (hasData) {
+                    PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
+                    data = new HashMap<>();
+                    for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
+                        RawString _key = (RawString) parametersReader.nextObject();
+                        Object _value = parametersReader.nextObject();
+                        data.put(_key, _value);
+                    }
+                }
+
+                if (updateCount <= 0) {
                     return new GetResult(null, transactionId);
                 } else {
-                    Map<RawString, Object> data = MessageUtils.decodeMap(reply.newValue());
                     return new GetResult(data, transactionId);
                 }
             }
+
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -436,7 +459,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
                 } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
@@ -464,7 +487,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
                 } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
@@ -488,7 +511,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
                 } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
@@ -519,7 +542,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 if (notLeader) {
                     reply.close();
                     this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+                    throw new RetryRequestException("not leader");
                 }
                 try {
                     throw new HDBException(response);
@@ -556,7 +579,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     boolean notLeader = reply.notLeader();
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+                        throw new RetryRequestException("not leader");
                     }
                     throw new HDBException(reply);
                 }
