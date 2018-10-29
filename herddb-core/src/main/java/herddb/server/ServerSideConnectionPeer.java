@@ -914,7 +914,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 token = new byte[0];
             }
             if (saslNettyServer == null) {
-                saslNettyServer = new SaslNettyServer(server, mech.toString());
+                saslNettyServer = new SaslNettyServer(server, mech);
             }
             byte[] responseToken = saslNettyServer.response(token);
             ByteBuf tokenChallenge = PduCodec.SaslTokenServerResponse.write(message.messageId, responseToken);

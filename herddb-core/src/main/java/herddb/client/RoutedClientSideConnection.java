@@ -119,7 +119,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         requestId = _channel.generateRequestId();
                         saslResponse.close();
                         saslResponse = _channel.sendMessageWithPduReply(requestId,
-                                PduCodec.SaslTokenMessageToken.write(requestId, responseToSendToServer, true), timeout);
+                                PduCodec.SaslTokenMessageToken.write(requestId, responseToSendToServer), timeout);
                         if (saslNettyClient.isComplete()) {
                             LOGGER.finest("SASL auth completed with success");
                             return;
