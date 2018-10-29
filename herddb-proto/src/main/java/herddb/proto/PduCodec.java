@@ -187,7 +187,7 @@ public abstract class PduCodec {
 
     public static abstract class SaslTokenMessageToken {
 
-        public static ByteBuf write(long messageId, byte[] token, boolean request) {
+        public static ByteBuf write(long messageId, byte[] token) {
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
@@ -196,7 +196,7 @@ public abstract class PduCodec {
                             + MSGID_SIZE
                             + 1 + (token != null ? token.length : 0));
             byteBuf.writeByte(VERSION_3);
-            byteBuf.writeByte(request ? Pdu.FLAGS_ISREQUEST : Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
             byteBuf.writeByte(Pdu.TYPE_SASL_TOKEN_MESSAGE_TOKEN);
             byteBuf.writeLong(messageId);
             if (token == null) {
@@ -238,18 +238,27 @@ public abstract class PduCodec {
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_SASL_TOKEN_SERVER_RESPONSE);
             byteBuf.writeLong(messageId);
-            ByteBufUtils.writeArray(byteBuf, token);
+            if (token != null) {
+                ByteBufUtils.writeArray(byteBuf, token);
+            }
             return byteBuf;
         }
 
         public static byte[] readToken(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
-            buffer.readerIndex(0);
-            buffer.skipBytes(VERSION_SIZE
+            if (buffer.writerIndex() > VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
-                    + MSGID_SIZE);
-            return ByteBufUtils.readArray(buffer);
+                    + MSGID_SIZE) {
+                buffer.readerIndex(0);
+                buffer.skipBytes(VERSION_SIZE
+                        + FLAGS_SIZE
+                        + TYPE_SIZE
+                        + MSGID_SIZE);
+                return ByteBufUtils.readArray(buffer);
+            } else {
+                return null;
+            }
         }
 
     }
@@ -512,45 +521,45 @@ public abstract class PduCodec {
     }
 
     private static void writeObject(ByteBuf byteBuf, Object v) {
-        System.out.println("writing a " + v+" writeIndex "+byteBuf.writerIndex());
+        System.out.println("writing a " + v + " writeIndex " + byteBuf.writerIndex());
         try {
-        if (v == null) {
-            byteBuf.writeByte(TYPE_NULL);
-        } else if (v instanceof RawString) {
-            byteBuf.writeByte(TYPE_STRING);
-            ByteBufUtils.writeRawString(byteBuf, (RawString) v);
-        } else if (v instanceof String) {
-            byteBuf.writeByte(TYPE_STRING);
-            ByteBufUtils.writeString(byteBuf, (String) v);
-        } else if (v instanceof Long) {
-            byteBuf.writeByte(TYPE_LONG);
-            byteBuf.writeLong((Long) v);
-        } else if (v instanceof Integer) {
-            byteBuf.writeByte(TYPE_INTEGER);
-            byteBuf.writeInt((Integer) v);
-        } else if (v instanceof Boolean) {
-            byteBuf.writeByte(TYPE_BOOLEAN);
-            byteBuf.writeBoolean((Boolean) v);
-        } else if (v instanceof java.util.Date) {
-            byteBuf.writeByte(TYPE_TIMESTAMP);
-            byteBuf.writeLong(((java.util.Date) v).getTime());
-        } else if (v instanceof Double) {
-            byteBuf.writeByte(TYPE_DOUBLE);
-            byteBuf.writeDouble((Double) v);
-        } else if (v instanceof Float) {
-            byteBuf.writeByte(TYPE_DOUBLE);
-            byteBuf.writeDouble((Float) v);
-        } else if (v instanceof Short) {
-            byteBuf.writeByte(TYPE_SHORT);
-            byteBuf.writeLong((Integer) v);
-        } else if (v instanceof byte[]) {
-            byteBuf.writeByte(TYPE_BYTEARRAY);
-            ByteBufUtils.writeArray(byteBuf, (byte[]) v);
-        } else {
-            throw new IllegalArgumentException("bad data type " + v.getClass());
-        } 
-        }finally {
-            System.out.println("NOW WI "+byteBuf.writerIndex());
+            if (v == null) {
+                byteBuf.writeByte(TYPE_NULL);
+            } else if (v instanceof RawString) {
+                byteBuf.writeByte(TYPE_STRING);
+                ByteBufUtils.writeRawString(byteBuf, (RawString) v);
+            } else if (v instanceof String) {
+                byteBuf.writeByte(TYPE_STRING);
+                ByteBufUtils.writeString(byteBuf, (String) v);
+            } else if (v instanceof Long) {
+                byteBuf.writeByte(TYPE_LONG);
+                byteBuf.writeLong((Long) v);
+            } else if (v instanceof Integer) {
+                byteBuf.writeByte(TYPE_INTEGER);
+                byteBuf.writeInt((Integer) v);
+            } else if (v instanceof Boolean) {
+                byteBuf.writeByte(TYPE_BOOLEAN);
+                byteBuf.writeBoolean((Boolean) v);
+            } else if (v instanceof java.util.Date) {
+                byteBuf.writeByte(TYPE_TIMESTAMP);
+                byteBuf.writeLong(((java.util.Date) v).getTime());
+            } else if (v instanceof Double) {
+                byteBuf.writeByte(TYPE_DOUBLE);
+                byteBuf.writeDouble((Double) v);
+            } else if (v instanceof Float) {
+                byteBuf.writeByte(TYPE_DOUBLE);
+                byteBuf.writeDouble((Float) v);
+            } else if (v instanceof Short) {
+                byteBuf.writeByte(TYPE_SHORT);
+                byteBuf.writeLong((Integer) v);
+            } else if (v instanceof byte[]) {
+                byteBuf.writeByte(TYPE_BYTEARRAY);
+                ByteBufUtils.writeArray(byteBuf, (byte[]) v);
+            } else {
+                throw new IllegalArgumentException("bad data type " + v.getClass());
+            }
+        } finally {
+            System.out.println("NOW WI " + byteBuf.writerIndex());
         }
     }
 
