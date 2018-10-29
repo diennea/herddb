@@ -45,6 +45,7 @@ public class Pdu implements AutoCloseable {
     public static final byte TYPE_PUSH_TRANSACTIONSBLOCK = 20;
     public static final byte TYPE_RESTORE_FINISHED = 23;
     public static final byte TYPE_TX_COMMAND = 24;
+    public static final byte TYPE_TX_COMMAND_RESULT = 25;
     public static final byte TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final byte TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;
     public static final byte TYPE_SASL_TOKEN_MESSAGE_TOKEN = 102;

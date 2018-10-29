@@ -310,7 +310,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     channel = _channel;
                     return channel;
                 } catch (Exception err) {
-                    LOGGER.log(Level.SEVERE,"Error",err);
+                    LOGGER.log(Level.SEVERE, "Error", err);
                     if (_channel != null) {
                         _channel.close();
                     }
@@ -430,18 +430,24 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION, 0);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION, 0, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
                         throw new RetryRequestException(reply + "");
                     }
                     throw new HDBException(reply);
+                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
+                    long tx = PduCodec.TxCommandResult.readTx(reply);
+                    if (tx <= 0) {
+                        throw new HDBException("Server did not create a new transaction");
+                    }
+                    return tx;
+                } else {
+                    throw new HDBException(reply);
                 }
-                return reply.tx();
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -452,15 +458,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION, tx);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION, tx, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
                         throw new RetryRequestException(reply + "");
                     }
+                    throw new HDBException(reply);
+                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
+                    return;
+                } else {
                     throw new HDBException(reply);
                 }
             }
@@ -473,15 +482,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION, tx);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION, tx, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
                     if (notLeader) {
                         this.connection.requestMetadataRefresh();
                         throw new RetryRequestException(reply + "");
                     }
+                    throw new HDBException(reply);
+                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
+                    return;
+                } else {
                     throw new HDBException(reply);
                 }
             }
