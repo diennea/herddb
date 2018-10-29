@@ -429,7 +429,6 @@ public abstract class PduCodec {
             ByteBufUtils.writeString(byteBuf, query);
 
             ByteBufUtils.writeVInt(byteBuf, params.size());
-            System.out.println("ENCODE PARAMS: " + params);
             for (Object p : params) {
                 writeObject(byteBuf, p);
             }
@@ -492,8 +491,6 @@ public abstract class PduCodec {
             ByteBufUtils.skipArray(buffer); // tablespace
             ByteBufUtils.skipArray(buffer); // query
             int numParams = ByteBufUtils.readVInt(buffer);
-            System.out.println("NUM PARAMS: " + numParams);
-            System.out.println("INDEX: " + pdu.buffer.readerIndex());
             return new ObjectListReader(pdu, numParams);
         }
 
@@ -521,75 +518,67 @@ public abstract class PduCodec {
     }
 
     private static void writeObject(ByteBuf byteBuf, Object v) {
-        System.out.println("writing a " + v + " writeIndex " + byteBuf.writerIndex());
-        try {
-            if (v == null) {
-                byteBuf.writeByte(TYPE_NULL);
-            } else if (v instanceof RawString) {
-                byteBuf.writeByte(TYPE_STRING);
-                ByteBufUtils.writeRawString(byteBuf, (RawString) v);
-            } else if (v instanceof String) {
-                byteBuf.writeByte(TYPE_STRING);
-                ByteBufUtils.writeString(byteBuf, (String) v);
-            } else if (v instanceof Long) {
-                byteBuf.writeByte(TYPE_LONG);
-                byteBuf.writeLong((Long) v);
-            } else if (v instanceof Integer) {
-                byteBuf.writeByte(TYPE_INTEGER);
-                byteBuf.writeInt((Integer) v);
-            } else if (v instanceof Boolean) {
-                byteBuf.writeByte(TYPE_BOOLEAN);
-                byteBuf.writeBoolean((Boolean) v);
-            } else if (v instanceof java.util.Date) {
-                byteBuf.writeByte(TYPE_TIMESTAMP);
-                byteBuf.writeLong(((java.util.Date) v).getTime());
-            } else if (v instanceof Double) {
-                byteBuf.writeByte(TYPE_DOUBLE);
-                byteBuf.writeDouble((Double) v);
-            } else if (v instanceof Float) {
-                byteBuf.writeByte(TYPE_DOUBLE);
-                byteBuf.writeDouble((Float) v);
-            } else if (v instanceof Short) {
-                byteBuf.writeByte(TYPE_SHORT);
-                byteBuf.writeLong((Integer) v);
-            } else if (v instanceof byte[]) {
-                byteBuf.writeByte(TYPE_BYTEARRAY);
-                ByteBufUtils.writeArray(byteBuf, (byte[]) v);
-            } else {
-                throw new IllegalArgumentException("bad data type " + v.getClass());
-            }
-        } finally {
-            System.out.println("NOW WI " + byteBuf.writerIndex());
+        if (v == null) {
+            byteBuf.writeByte(TYPE_NULL);
+        } else if (v instanceof RawString) {
+            byteBuf.writeByte(TYPE_STRING);
+            ByteBufUtils.writeRawString(byteBuf, (RawString) v);
+        } else if (v instanceof String) {
+            byteBuf.writeByte(TYPE_STRING);
+            ByteBufUtils.writeString(byteBuf, (String) v);
+        } else if (v instanceof Long) {
+            byteBuf.writeByte(TYPE_LONG);
+            byteBuf.writeLong((Long) v);
+        } else if (v instanceof Integer) {
+            byteBuf.writeByte(TYPE_INTEGER);
+            byteBuf.writeInt((Integer) v);
+        } else if (v instanceof Boolean) {
+            byteBuf.writeByte(TYPE_BOOLEAN);
+            byteBuf.writeBoolean((Boolean) v);
+        } else if (v instanceof java.util.Date) {
+            byteBuf.writeByte(TYPE_TIMESTAMP);
+            byteBuf.writeLong(((java.util.Date) v).getTime());
+        } else if (v instanceof Double) {
+            byteBuf.writeByte(TYPE_DOUBLE);
+            byteBuf.writeDouble((Double) v);
+        } else if (v instanceof Float) {
+            byteBuf.writeByte(TYPE_DOUBLE);
+            byteBuf.writeDouble((Float) v);
+        } else if (v instanceof Short) {
+            byteBuf.writeByte(TYPE_SHORT);
+            byteBuf.writeLong((Integer) v);
+        } else if (v instanceof byte[]) {
+            byteBuf.writeByte(TYPE_BYTEARRAY);
+            ByteBufUtils.writeArray(byteBuf, (byte[]) v);
+        } else {
+            throw new IllegalArgumentException("bad data type " + v.getClass());
         }
+
     }
 
     public static Object readObject(ByteBuf dii) {
-        System.out.println("INDEX: " + dii.readerIndex());
+
         int type = ByteBufUtils.readVInt(dii);
-        System.out.println("READNING a " + type);
-        try {
-            switch (type) {
-                case TYPE_BYTEARRAY:
-                    return ByteBufUtils.readArray(dii);
-                case TYPE_INTEGER:
-                    return dii.readInt();
-                case TYPE_LONG:
-                    return dii.readLong();
-                case TYPE_STRING:
-                    return ByteBufUtils.readRawString(dii);
-                case TYPE_TIMESTAMP:
-                    return new java.sql.Timestamp(dii.readLong());
-                case TYPE_NULL:
-                    return null;
-                case TYPE_BOOLEAN:
-                    return dii.readBoolean();
-                case TYPE_DOUBLE:
-                    return dii.readDouble();
-                default:
-                    throw new IllegalArgumentException("bad column type " + type);
-            }
-        } finally {
-            System.out.println("NOW INDEX " + dii.readerIndex() + " WI " + dii.writerIndex());
+
+        switch (type) {
+            case TYPE_BYTEARRAY:
+                return ByteBufUtils.readArray(dii);
+            case TYPE_INTEGER:
+                return dii.readInt();
+            case TYPE_LONG:
+                return dii.readLong();
+            case TYPE_STRING:
+                return ByteBufUtils.readRawString(dii);
+            case TYPE_TIMESTAMP:
+                return new java.sql.Timestamp(dii.readLong());
+            case TYPE_NULL:
+                return null;
+            case TYPE_BOOLEAN:
+                return dii.readBoolean();
+            case TYPE_DOUBLE:
+                return dii.readDouble();
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
         }
     }
 
