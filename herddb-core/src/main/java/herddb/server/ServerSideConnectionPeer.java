@@ -131,15 +131,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
             switch (message.type()) {
-                case MessageType.TYPE_EXECUTE_STATEMENT: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    releaseMessageSync = false;
-                    handleExecuteStatement(message, messageWrapper, _channel);
-                }
-                break;
                 case MessageType.TYPE_EXECUTE_STATEMENTS: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
@@ -250,6 +241,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
             switch (message.type) {
+                case MessageType.TYPE_EXECUTE_STATEMENT: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    releaseMessageSync = false;
+                    handleExecuteStatement(message, _channel);
+                }
+                break;
                 case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
                     handleSaslTokenMessageRequest(message, _channel);
                     break;
@@ -682,30 +682,27 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleExecuteStatement(Request message, MessageWrapper messageWrapper, Channel _channel) {
-        long txId = message.tx();
-        ByteBuffer byteBuffer = message.getByteBuffer();
-        int position = byteBuffer.position();
-        int limit = byteBuffer.limit();
-        RawString query = MessageUtils.readRawString(message.queryInByteBuffer(byteBuffer));
-        ((Buffer) byteBuffer).position(position);
-        ((Buffer) byteBuffer).limit(limit);
+    private void handleExecuteStatement(Pdu message, Channel _channel) {
+        long txId = PduCodec.ExecuteStatement.readTx(message);
 
-        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        ((Buffer) byteBuffer).position(position);
-        ((Buffer) byteBuffer).limit(limit);
-        boolean returnValues = message.returnValues();
+        String query = PduCodec.ExecuteStatement.readQuery(message);
+        String tablespace = PduCodec.ExecuteStatement.readTablespace(message);
+        boolean returnValues = PduCodec.ExecuteStatement.readReturnValues(message);
 
-        List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());
+        PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatement.startReadParameters(message);
+        List<Object> parameters = new ArrayList<>(parametersReader.getNumParams());
+        for (int i = 0; i < parametersReader.getNumParams(); i++) {
+            parameters.add(parametersReader.nextObject());
+        }
+        System.out.println("PARAMS: "+parameters);
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "query {0} with {1}", new Object[]{query, parameters});
         }
-        String _query = query.toString();
-        String _tablespace = tableSpace.toString();
-        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
+
+        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
         TransactionContext transactionContext = new TransactionContext(txId);
-        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(_tablespace,
-                _query, parameters, false, true, returnValues, -1);
+        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tablespace,
+                query, parameters, false, true, returnValues, -1);
         Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
         server.getManager().registerRunningStatement(statementInfo);
@@ -721,18 +718,18 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         err = err.getCause();
                     }
                     if (err instanceof DuplicatePrimaryKeyException) {
-                        ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
-                        _channel.sendReplyMessage(message.id(), error);
+                        ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, false);
+                        _channel.sendReplyMessage(message.messageId, error);
                     } else if (err instanceof NotLeaderException) {
-                        ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
-                        _channel.sendReplyMessage(message.id(), error);
+                        ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, true);
+                        _channel.sendReplyMessage(message.messageId, error);
                     } else if (err instanceof StatementExecutionException) {
-                        ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-                        _channel.sendReplyMessage(message.id(), error);
+                        ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, false);
+                        _channel.sendReplyMessage(message.messageId, error);
                     } else {
                         LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
-                        ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-                        _channel.sendReplyMessage(message.id(), error);
+                        ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, false);
+                        _channel.sendReplyMessage(message.messageId, error);
                     }
                     return;
                 }
@@ -752,15 +749,20 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             newRecord.putAll(RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table));
                         }
                     }
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(
-                            message.id(), dml.getUpdateCount(), newRecord, dml.transactionId));
+                    _channel.sendReplyMessage(message.messageId,
+                            PduCodec.ExecuteStatementResult.write(
+                                    message.messageId, dml.getUpdateCount(), dml.transactionId, newRecord));
                 } else if (result instanceof GetResult) {
                     GetResult get = (GetResult) result;
                     if (!get.found()) {
-                        _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 0, null, get.transactionId));
+                        _channel.sendReplyMessage(message.messageId,
+                                PduCodec.ExecuteStatementResult.write(
+                                        message.messageId, 0, get.transactionId, null));
                     } else {
                         Map<String, Object> record = get.getRecord().toBean(get.getTable());
-                        _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, record, get.transactionId));
+                        _channel.sendReplyMessage(message.messageId,
+                                PduCodec.ExecuteStatementResult.write(
+                                        message.messageId, 1, get.transactionId, record));
                     }
                 } else if (result instanceof TransactionResult) {
                     TransactionResult txresult = (TransactionResult) result;
@@ -776,15 +778,22 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             transactionsForTableSpace.remove(txresult.getTransactionId());
                             break;
                     }
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
+                    _channel.sendReplyMessage(message.messageId,
+                            PduCodec.ExecuteStatementResult.write(
+                                    message.messageId, 1, txresult.getTransactionId(), null));
                 } else if (result instanceof DDLStatementExecutionResult) {
                     DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, ddl.transactionId));
+                    _channel.sendReplyMessage(message.messageId,
+                            PduCodec.ExecuteStatementResult.write(
+                                    message.messageId, 1, ddl.transactionId, null));
                 } else {
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                    ByteBuf error = PduCodec.ErrorResponse.write(message.messageId,
+                            new Exception("unknown result type:" + result)
+                                    .fillInStackTrace(), false);
+                    _channel.sendReplyMessage(message.messageId, error);
                 }
             } finally {
-                messageWrapper.close();
+                message.close();
             }
         });
     }

@@ -16,12 +16,15 @@
 package herddb.proto;
 
 import herddb.utils.ByteBufUtils;
+import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Codec for PDUs
@@ -51,7 +54,6 @@ public abstract class PduCodec {
     private static final int ONE_BYTE = 1;
     private static final int ONE_INT = 4;
     private static final int ONE_LONG = 8;
-    private static final int REPLYID_SIZE = 8;
     private static final int MSGID_SIZE = 8;
     private static final int TYPE_SIZE = 1;
     private static final int FLAGS_SIZE = 1;
@@ -60,14 +62,75 @@ public abstract class PduCodec {
     private static final int NULLABLE_FIELD_PRESENT = 1;
     private static final int NULLABLE_FIELD_ABSENT = 0;
 
+    public static final byte TYPE_STRING = 0;
+    public static final byte TYPE_LONG = 1;
+    public static final byte TYPE_INTEGER = 2;
+    public static final byte TYPE_BYTEARRAY = 3;
+    public static final byte TYPE_TIMESTAMP = 4;
+    public static final byte TYPE_NULL = 5;
+    public static final byte TYPE_DOUBLE = 6;
+    public static final byte TYPE_BOOLEAN = 7;
+    public static final byte TYPE_SHORT = 8;
+
     public static abstract class ExecuteStatementResult {
+
+        public static ByteBuf write(
+                long messageId, long updateCount, long tx, Map<String, Object> newRecord) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_LONG);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENT_RESULT);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(updateCount);
+            byteBuf.writeLong(tx);
+
+            // the Map is serialized as a list of objects (k1,v1,k2,v2...)
+            int size = newRecord != null ? newRecord.size() : 0;
+            ByteBufUtils.writeVInt(byteBuf, size * 2);
+            if (newRecord != null) {
+                for (Map.Entry<String, Object> entry : newRecord.entrySet()) {
+                    writeObject(byteBuf, entry.getKey());
+                    writeObject(byteBuf, entry.getValue());
+                }
+            }
+            return byteBuf;
+        }
+
+        public static boolean hasRecord(Pdu pdu) {
+            return pdu.buffer.writerIndex() > VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG;
+        }
+
+        public static ObjectListReader readRecord(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            int numParams = ByteBufUtils.readVInt(buffer);
+            return new ObjectListReader(pdu, numParams);
+        }
 
         public static long readUpdateCount(Pdu pdu) {
             return pdu.buffer.getLong(
                     VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
-                    + REPLYID_SIZE);
+                    + MSGID_SIZE);
         }
 
         public static long readTx(Pdu pdu) {
@@ -75,26 +138,8 @@ public abstract class PduCodec {
                     VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
-                    + REPLYID_SIZE
+                    + MSGID_SIZE
                     + ONE_LONG /* update count */);
-        }
-
-        public static ByteBuf write(
-                long replyId, long updateCount, long tx) {
-            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
-                    .directBuffer(
-                            VERSION_SIZE
-                            + FLAGS_SIZE
-                            + TYPE_SIZE
-                            + REPLYID_SIZE
-                            + ONE_LONG
-                            + ONE_LONG);
-            byteBuf.writeByte(VERSION_3);
-            byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENT_RESULT);
-            byteBuf.writeLong(replyId);
-            byteBuf.writeLong(updateCount);
-            byteBuf.writeLong(tx);
-            return byteBuf;
         }
 
     }
@@ -231,7 +276,7 @@ public abstract class PduCodec {
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_ERROR);
             byteBuf.writeLong(messageId);
-            byteBuf.writeByte(notLeader ? 0 : 1);
+            byteBuf.writeByte(notLeader ? 1 : 0);
             ByteBufUtils.writeString(byteBuf, error);
             return byteBuf;
         }
@@ -259,7 +304,6 @@ public abstract class PduCodec {
 
         public static boolean readIsNotLeader(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
-            buffer.readerIndex(0);
             return buffer.getByte(VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
@@ -351,6 +395,192 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE);
 
+        }
+    }
+
+    public static class ExecuteStatement {
+
+        public static ByteBuf write(long messageId, String tableSpace, String query, long tx,
+                boolean returnValues,
+                List<Object> params) {
+
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENT);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeByte(returnValues ? 1 : 0);
+            byteBuf.writeLong(tx);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, query);
+
+            ByteBufUtils.writeVInt(byteBuf, params.size());
+            System.out.println("ENCODE PARAMS: " + params);
+            for (Object p : params) {
+                writeObject(byteBuf, p);
+            }
+
+            return byteBuf;
+
+        }
+
+        public static boolean readReturnValues(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE) == 1;
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE);
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readQuery(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static ObjectListReader startReadParameters(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // query
+            int numParams = ByteBufUtils.readVInt(buffer);
+            System.out.println("NUM PARAMS: " + numParams);
+            System.out.println("INDEX: " + pdu.buffer.readerIndex());
+            return new ObjectListReader(pdu, numParams);
+        }
+
+    }
+
+    public static class ObjectListReader {
+
+        private final Pdu pdu;
+        private final int numParams;
+
+        public ObjectListReader(Pdu pdu, int numParams) {
+            this.pdu = pdu;
+            this.numParams = numParams;
+        }
+
+        public int getNumParams() {
+            return numParams;
+        }
+
+        public Object nextObject() {
+            // assuming that the readerIndex is not altered but other direct accesses to the ByteBuf
+            return readObject(pdu.buffer);
+        }
+
+    }
+
+    private static void writeObject(ByteBuf byteBuf, Object v) {
+        System.out.println("writing a " + v+" writeIndex "+byteBuf.writerIndex());
+        try {
+        if (v == null) {
+            byteBuf.writeByte(TYPE_NULL);
+        } else if (v instanceof RawString) {
+            byteBuf.writeByte(TYPE_STRING);
+            ByteBufUtils.writeRawString(byteBuf, (RawString) v);
+        } else if (v instanceof String) {
+            byteBuf.writeByte(TYPE_STRING);
+            ByteBufUtils.writeString(byteBuf, (String) v);
+        } else if (v instanceof Long) {
+            byteBuf.writeByte(TYPE_LONG);
+            byteBuf.writeLong((Long) v);
+        } else if (v instanceof Integer) {
+            byteBuf.writeByte(TYPE_INTEGER);
+            byteBuf.writeInt((Integer) v);
+        } else if (v instanceof Boolean) {
+            byteBuf.writeByte(TYPE_BOOLEAN);
+            byteBuf.writeBoolean((Boolean) v);
+        } else if (v instanceof java.util.Date) {
+            byteBuf.writeByte(TYPE_TIMESTAMP);
+            byteBuf.writeLong(((java.util.Date) v).getTime());
+        } else if (v instanceof Double) {
+            byteBuf.writeByte(TYPE_DOUBLE);
+            byteBuf.writeDouble((Double) v);
+        } else if (v instanceof Float) {
+            byteBuf.writeByte(TYPE_DOUBLE);
+            byteBuf.writeDouble((Float) v);
+        } else if (v instanceof Short) {
+            byteBuf.writeByte(TYPE_SHORT);
+            byteBuf.writeLong((Integer) v);
+        } else if (v instanceof byte[]) {
+            byteBuf.writeByte(TYPE_BYTEARRAY);
+            ByteBufUtils.writeArray(byteBuf, (byte[]) v);
+        } else {
+            throw new IllegalArgumentException("bad data type " + v.getClass());
+        } 
+        }finally {
+            System.out.println("NOW WI "+byteBuf.writerIndex());
+        }
+    }
+
+    public static Object readObject(ByteBuf dii) {
+        System.out.println("INDEX: " + dii.readerIndex());
+        int type = ByteBufUtils.readVInt(dii);
+        System.out.println("READNING a " + type);
+        try {
+            switch (type) {
+                case TYPE_BYTEARRAY:
+                    return ByteBufUtils.readArray(dii);
+                case TYPE_INTEGER:
+                    return dii.readInt();
+                case TYPE_LONG:
+                    return dii.readLong();
+                case TYPE_STRING:
+                    return ByteBufUtils.readRawString(dii);
+                case TYPE_TIMESTAMP:
+                    return new java.sql.Timestamp(dii.readLong());
+                case TYPE_NULL:
+                    return null;
+                case TYPE_BOOLEAN:
+                    return dii.readBoolean();
+                case TYPE_DOUBLE:
+                    return dii.readDouble();
+                default:
+                    throw new IllegalArgumentException("bad column type " + type);
+            }
+        } finally {
+            System.out.println("NOW INDEX " + dii.readerIndex() + " WI " + dii.writerIndex());
         }
     }
 

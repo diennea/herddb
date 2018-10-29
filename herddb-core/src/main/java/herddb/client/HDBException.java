@@ -44,8 +44,7 @@ public class HDBException extends Exception {
 
     public HDBException(Pdu reply) {
         super(reply.type == Pdu.TYPE_ERROR
-                ? PduCodec.ErrorResponse.readError(reply) : reply + "",
-                new Exception("server-side-error:" + reply));
+                ? PduCodec.ErrorResponse.readError(reply) : reply + "");
 
     }
 
