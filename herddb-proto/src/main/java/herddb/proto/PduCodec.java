@@ -48,6 +48,8 @@ public abstract class PduCodec {
         throw new IOException("Cannot decode version " + version);
     }
 
+    private static final int ONE_BYTE = 1;
+    private static final int ONE_INT = 4;
     private static final int ONE_LONG = 8;
     private static final int REPLYID_SIZE = 8;
     private static final int MSGID_SIZE = 8;
@@ -210,25 +212,38 @@ public abstract class PduCodec {
     public static class ErrorResponse {
 
         public static ByteBuf write(long messageId, String error) {
+            return write(messageId, error, false);
+        }
+
+        public static ByteBuf write(long messageId, String error, boolean notLeader) {
+            if (error == null) {
+                error = "";
+            }
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
                             + FLAGS_SIZE
                             + TYPE_SIZE
                             + MSGID_SIZE
-                            + 64);
+                            + ONE_BYTE
+                            + error.length());
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_ERROR);
             byteBuf.writeLong(messageId);
-            ByteBufUtils.writeString(byteBuf, error != null ? error : "");
+            byteBuf.writeByte(notLeader ? 0 : 1);
+            ByteBufUtils.writeString(byteBuf, error);
             return byteBuf;
         }
 
-        public static ByteBuf write(long messageId, Throwable error) {
+        public static ByteBuf write(long messageId, Throwable error, boolean notLeader) {
             StringWriter writer = new StringWriter();
             error.printStackTrace(new PrintWriter(writer));
-            return write(messageId, writer.toString());
+            return write(messageId, writer.toString(), notLeader);
+        }
+
+        public static ByteBuf write(long messageId, Throwable error) {
+            return write(messageId, error, false);
         }
 
         public static String readError(Pdu pdu) {
@@ -237,10 +252,106 @@ public abstract class PduCodec {
             buffer.skipBytes(VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
-                    + MSGID_SIZE);
+                    + MSGID_SIZE
+                    + ONE_BYTE);
             return ByteBufUtils.readString(buffer);
         }
 
+        public static boolean readIsNotLeader(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(0);
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE) == 1;
+        }
+
+    }
+
+    public static abstract class TxCommand {
+
+        public static final byte TX_COMMAND_ROLLBACK_TRANSACTION = 1;
+        public static final byte TX_COMMAND_COMMIT_TRANSACTION = 2;
+        public static final byte TX_COMMAND_BEGIN_TRANSACTION = 3;
+
+        public static ByteBuf write(long messageId, byte command, long tx, String tableSpace) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_BYTE
+                            + ONE_LONG
+                            + tableSpace.length());
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_TX_COMMAND);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeByte(command);
+            byteBuf.writeLong(tx);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            return byteBuf;
+        }
+
+        public static byte readCommand(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE);
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG);
+            return ByteBufUtils.readString(buffer);
+
+        }
+    }
+
+    public static abstract class TxCommandResult {
+
+        public static ByteBuf write(long messageId, long tx) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_TX_COMMAND_RESULT);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(tx);
+            return byteBuf;
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+
+        }
     }
 
 }

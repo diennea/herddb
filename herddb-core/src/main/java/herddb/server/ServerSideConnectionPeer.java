@@ -140,15 +140,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleExecuteStatement(message, messageWrapper, _channel);
                 }
                 break;
-                case MessageType.TYPE_TX_COMMAND: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    releaseMessageSync = false;
-                    handleTxCommand(message, messageWrapper, _channel);
-                }
-                break;
                 case MessageType.TYPE_EXECUTE_STATEMENTS: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
@@ -267,7 +258,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleSaslTokenMessage(message, _channel);
                     break;
                 }
-
+                case MessageType.TYPE_TX_COMMAND: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    releaseMessageSync = false;
+                    handleTxCommand(message, _channel);
+                }
+                break;
                 default:
                     _channel.sendReplyMessage(message.messageId,
                             PduCodec.ErrorResponse.write(message.messageId,
@@ -549,6 +548,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         _channel.sendReplyMessage(message.id(), error);
     }
 
+    private void sendAuthRequiredError(Channel _channel, Pdu message) {
+        ByteBuf error = PduCodec.ErrorResponse.write(message.messageId,
+                "autentication required (client " + channel + ")");
+        _channel.sendReplyMessage(message.messageId, error);
+    }
+
     private void handleRequestTablespaceDump(Request message, Channel _channel) {
         RawString dumpId = MessageUtils.readRawString(message.dumpIdAsByteBuffer());
         int fetchSize = message.fetchSize();
@@ -784,34 +789,32 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         });
     }
 
-    private void handleTxCommand(Request message, MessageWrapper messageWrapper, Channel _channel) {
-        long txId = message.tx();
-        int type = message.txCommand();
-        ByteBuffer byteBuffer = message.getByteBuffer();
-        int position = byteBuffer.position();
-        int limit = byteBuffer.limit();
-        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        ((Buffer) byteBuffer).position(position);
-        ((Buffer) byteBuffer).limit(limit);
+    private void handleTxCommand(Pdu message, Channel _channel) {
+        long txId = PduCodec.TxCommand.readTx(message);
+        int type = PduCodec.TxCommand.readCommand(message);
+        String tableSpace = PduCodec.TxCommand.readTablespace(message);
         TransactionContext transactionContext = new TransactionContext(txId);
         Statement statement;
         switch (type) {
             case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
-                statement = new CommitTransactionStatement(tableSpace.toString(), txId);
+                statement = new CommitTransactionStatement(tableSpace, txId);
                 break;
             case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
-                statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
+                statement = new RollbackTransactionStatement(tableSpace, txId);
                 break;
             case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
-                statement = new BeginTransactionStatement(tableSpace.toString());
+                statement = new BeginTransactionStatement(tableSpace);
                 break;
             default:
                 statement = null;
 
         }
         if (statement == null) {
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
-            messageWrapper.close();
+            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId,
+                    new Exception("unknown txcommand type:" + type)
+                            .fillInStackTrace(), false);
+            _channel.sendReplyMessage(message.messageId, error);
+            message.close();
         } else {
 //            LOGGER.log(Level.SEVERE, "statement " + statement);
             CompletableFuture<StatementExecutionResult> res = server
@@ -822,15 +825,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 try {
                     if (err != null) {
                         if (err instanceof NotLeaderException) {
-                            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
-                            _channel.sendReplyMessage(message.id(), error);
+                            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, true);
+                            _channel.sendReplyMessage(message.messageId, error);
                         } else if (err instanceof StatementExecutionException) {
-                            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-                            _channel.sendReplyMessage(message.id(), error);
+                            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, false);
+                            _channel.sendReplyMessage(message.messageId, error);
                         } else {
                             LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
-                            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-                            _channel.sendReplyMessage(message.id(), error);
+                            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, err, false);
+                            _channel.sendReplyMessage(message.messageId, error);
                         }
                     } else {
                         if (result instanceof TransactionResult) {
@@ -847,13 +850,18 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                                     transactionsForTableSpace.remove(txresult.getTransactionId());
                                     break;
                             }
-                            _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
+                            ByteBuf response = PduCodec.TxCommandResult.write(message.messageId, txresult.transactionId);
+                            _channel.sendReplyMessage(message.messageId, response);
                         } else {
-                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId,
+                                    new Exception("unknown result type:" + result)
+                                            .fillInStackTrace(), false);
+                            _channel.sendReplyMessage(message.messageId, error);
+
                         }
                     }
                 } finally {
-                    messageWrapper.close();
+                    message.close();
                 }
             });
         }
