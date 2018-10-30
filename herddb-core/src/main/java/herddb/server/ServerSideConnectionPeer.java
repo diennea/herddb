@@ -131,15 +131,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
             switch (message.type()) {
-                case MessageType.TYPE_EXECUTE_STATEMENTS: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    releaseMessageSync = false;
-                    handleExecuteStatements(message, messageWrapper, _channel);
-                }
-                break;
+
                 case MessageType.TYPE_REQUEST_TABLESPACE_DUMP: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
@@ -222,6 +214,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     }
                     releaseMessageSync = false;
                     handleExecuteStatement(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_EXECUTE_STATEMENTS: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    releaseMessageSync = false;
+                    handleExecuteStatements(message, _channel);
                 }
                 break;
                 case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
@@ -464,7 +465,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 TuplesList tuplesList = new TuplesList(columns, records);
                 boolean last = dataScanner.isFinished();
                 if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{records.size(), scannerId, query});                
+                    LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{records.size(), scannerId, query});
                 }
                 if (!last) {
                     scanners.put(scannerId, scanner);
@@ -557,30 +558,26 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         server.getManager().dumpTableSpace(tableSpace.toString(), dumpId.toString(), message, _channel, fetchSize, includeTransactionLog);
     }
 
-    private void handleExecuteStatements(Request message, MessageWrapper messageWrapper, Channel _channel) {
-        long txId = message.tx();
+    private void handleExecuteStatements(Pdu message, Channel _channel) {
+        long txId = PduCodec.ExecuteStatements.readTx(message);
         long transactionId = txId;
-        ByteBuffer byteBuffer = message.getByteBuffer();
-        int position = byteBuffer.position();
-        int limit = byteBuffer.limit();
-        RawString query = MessageUtils.readRawString(message.queryInByteBuffer(byteBuffer));
-        ((Buffer) byteBuffer).position(position);
-        ((Buffer) byteBuffer).limit(limit);
-
-        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        ((Buffer) byteBuffer).position(position);
-        ((Buffer) byteBuffer).limit(limit);
-        boolean returnValues = message.returnValues();
-
-        int numStatements = message.batchParamsLength();
+        String query = PduCodec.ExecuteStatements.readQuery(message);
+        String tableSpace = PduCodec.ExecuteStatements.readTablespace(message);
+        boolean returnValues = PduCodec.ExecuteStatements.readReturnValues(message);
+        PduCodec.ListOfListsReader statementParameters = PduCodec.ExecuteStatements.startReadStatementsParameters(message);
+        int numStatements = statementParameters.getNumLists();
         List<List<Object>> batch = new ArrayList<>(numStatements);
         for (int i = 0; i < numStatements; i++) {
-            List<Object> batchParams = MessageUtils.decodeAnyValueList(message.batchParams(i));
+            PduCodec.ObjectListReader parametersReader = statementParameters.nextList();
+            List<Object> batchParams = new ArrayList<>(parametersReader.getNumParams());
+            for (int j = 0; j < parametersReader.getNumParams(); j++) {
+                batchParams.add(parametersReader.nextObject());
+            }
             batch.add(batchParams);
         }
-        String _query = query.toString();
-        String _tablespace = tableSpace.toString();
-        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, "batch of " + numStatements);
+        System.out.println("EXECUTING QUERY: " + query);
+        System.out.println("EXECUTING QUERY: " + batch);
+        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tableSpace, "batch of " + numStatements);
         try {
 
             List<TranslatedQuery> queries = new ArrayList<>();
@@ -588,7 +585,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<Object> parameters = batch.get(i);
                 TranslatedQuery translatedQuery = server
                         .getManager()
-                        .getPlanner().translate(_tablespace, _query,
+                        .getPlanner().translate(tableSpace, query,
                                 parameters, false, true, returnValues, -1);
                 queries.add(translatedQuery);
             }
@@ -607,10 +604,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 @Override
                 public void accept(StatementExecutionResult result, Throwable error) {
                     if (error != null) {
-                        ByteBuf errorMsg = MessageBuilder.ERROR(message.id(), error,
-                                " query was '" + _query + "', with values " + batch, error instanceof NotLeaderException);
-                        _channel.sendReplyMessage(message.id(), errorMsg);
-                        messageWrapper.close();
+                        ByteBuf errorMsg = PduCodec.ErrorResponse.write(message.messageId, error, error instanceof NotLeaderException);
+                        _channel.sendReplyMessage(message.messageId, errorMsg);
+                        message.close();
                         server.getManager().unregisterRunningStatement(statementInfo);
                         return;
                     }
@@ -637,19 +633,25 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         updateCounts.add(Long.valueOf(1));
                         otherDatas.add(otherData);
                     } else {
-                        _channel
-                                .sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("bad result type " + result.getClass() + " (" + result + ")")));
-                        messageWrapper.close();
+                        ByteBuf response = PduCodec.ErrorResponse.write(message.messageId, new Exception("bad result type " + result.getClass() + " (" + result + ")"));
+                        _channel.sendReplyMessage(message.messageId, response);
+                        message.close();
                         server.getManager().unregisterRunningStatement(statementInfo);
                         return;
                     }
 
                     long newTransactionId = result.transactionId;
                     if (current == queries.size()) {
-                        _channel.sendReplyMessage(message.id(),
-                                MessageBuilder.EXECUTE_STATEMENT_RESULTS(message.id(), updateCounts, otherDatas, newTransactionId));
-                        messageWrapper.close();
+                        try {
+                        System.out.println("FINISHED !! " + updateCounts + " " + otherDatas+" repy tp "+message.messageId);
+                        ByteBuf response = PduCodec.ExecuteStatementsResult.write(message.messageId, updateCounts, otherDatas, newTransactionId);
+                        _channel.sendReplyMessage(message.messageId, response);
+                        System.out.println("SEND !! " + updateCounts + " " + otherDatas);
+                        message.close();
                         server.getManager().unregisterRunningStatement(statementInfo);
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
                         return;
                     }
 
@@ -667,9 +669,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     .whenComplete(new ComputeNext(1));
 
         } catch (HerdDBInternalException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "', with values " + batch, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
-            messageWrapper.close();
+            ByteBuf response = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, response);
+            message.close();
             server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
