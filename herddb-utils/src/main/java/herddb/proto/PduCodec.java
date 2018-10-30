@@ -91,7 +91,7 @@ public abstract class PduCodec {
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENTS_RESULT);
-
+            byteBuf.writeLong(replyId);
             byteBuf.writeLong(tx);
             byteBuf.writeInt(updateCounts.size());
             for (Long updateCount : updateCounts) {
