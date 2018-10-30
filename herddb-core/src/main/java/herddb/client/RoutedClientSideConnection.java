@@ -378,12 +378,15 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
                 PduCodec.ListOfListsReader resultRecords = PduCodec.ExecuteStatementsResult.startResultRecords(reply);
                 int numResultRecords = resultRecords.getNumLists();
-                for (int i = 0; i < numResultRecords; i++) {
-                    PduCodec.ObjectListReader list = resultRecords.nextList();
+                for (int i = 0; i < numResults; i++) {
+                    Map<RawString, Object> newvalue = null;
                     Object key = null;
-                    Map<RawString, Object> newvalue = readParametersListAsMap(list);
-                    if (newvalue != null) {
-                        key = newvalue.get(RAWSTRING_KEY);
+                    if (numResultRecords > 0) {
+                        PduCodec.ObjectListReader list = resultRecords.nextList();                        
+                        newvalue = readParametersListAsMap(list);
+                        if (newvalue != null) {
+                            key = newvalue.get(RAWSTRING_KEY);
+                        }
                     }
                     long updateCount = updateCounts.get(i);
                     DMLResult res = new DMLResult(updateCount, key, newvalue, transactionId);

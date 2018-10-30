@@ -574,9 +574,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 batchParams.add(parametersReader.nextObject());
             }
             batch.add(batchParams);
-        }
-        System.out.println("EXECUTING QUERY: " + query);
-        System.out.println("EXECUTING QUERY: " + batch);
+        }        
         RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tableSpace, "batch of " + numStatements);
         try {
 
@@ -642,11 +640,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                     long newTransactionId = result.transactionId;
                     if (current == queries.size()) {
-                        try {
-                        System.out.println("FINISHED !! " + updateCounts + " " + otherDatas+" repy tp "+message.messageId);
+                        try {                        
                         ByteBuf response = PduCodec.ExecuteStatementsResult.write(message.messageId, updateCounts, otherDatas, newTransactionId);
-                        _channel.sendReplyMessage(message.messageId, response);
-                        System.out.println("SEND !! " + updateCounts + " " + otherDatas);
+                        _channel.sendReplyMessage(message.messageId, response);                        
                         message.close();
                         server.getManager().unregisterRunningStatement(statementInfo);
                         } catch (Throwable t) {

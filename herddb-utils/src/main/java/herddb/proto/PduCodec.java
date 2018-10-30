@@ -654,7 +654,6 @@ public abstract class PduCodec {
 
             // num records
             byteBuf.writeInt(tuplesList.tuples.size());
-            System.out.println("WRITING a BATCH of " + tuplesList.tuples.size() + " records");
             for (DataAccessor da : tuplesList.tuples) {
                 IntHolder currentColumn = new IntHolder();
                 da.forEach((String key, Object value) -> {
