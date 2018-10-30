@@ -347,12 +347,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 Map<RawString, Object> newvalue = null;
                 if (hasData) {
                     PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
-                    newvalue = new HashMap<>();
-                    for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
-                        RawString _key = (RawString) parametersReader.nextObject();
-                        Object _value = parametersReader.nextObject();
-                        newvalue.put(_key, _value);
-                    }
+                    newvalue = readParametersListAsMap(parametersReader);
                     key = newvalue.get(RAWSTRING_KEY);
                 }
                 return new DMLResult(updateCount, key, newvalue, transactionId);
@@ -366,32 +361,32 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENTS(requestId, tableSpace, query, tx, returnValues, batch);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
+            ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, batch);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+
+                if (reply.type == MessageType.TYPE_ERROR) {
+                    handleGenericError(reply);
+                    return null; // not possible
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
                     throw new HDBException(reply);
                 }
 
-                long transactionId = reply.tx();
-                int numResults = reply.batchResultsLength();
+                long transactionId = PduCodec.ExecuteStatementsResult.readTx(reply);
+                List<Long> updateCounts = PduCodec.ExecuteStatementsResult.readUpdateCounts(reply);
+                int numResults = updateCounts.size();
 
                 List<DMLResult> results = new ArrayList<>(numResults);
 
-                for (int i = 0; i < numResults; i++) {
-                    herddb.proto.flatbuf.DMLResult result = reply.batchResults(i);
-                    long updateCount = result.updateCount();
+                PduCodec.ListOfListsReader resultRecords = PduCodec.ExecuteStatementsResult.startResultRecords(reply);
+                int numResultRecords = resultRecords.getNumLists();
+                for (int i = 0; i < numResultRecords; i++) {
+                    PduCodec.ObjectListReader list = resultRecords.nextList();
                     Object key = null;
-                    Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
+                    Map<RawString, Object> newvalue = readParametersListAsMap(list);
                     if (newvalue != null) {
                         key = newvalue.get(RAWSTRING_KEY);
                     }
-
+                    long updateCount = updateCounts.get(i);
                     DMLResult res = new DMLResult(updateCount, key, newvalue, transactionId);
                     results.add(res);
                 }
@@ -420,12 +415,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 Map<RawString, Object> data = null;
                 if (hasData) {
                     PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
-                    data = new HashMap<>();
-                    for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
-                        RawString _key = (RawString) parametersReader.nextObject();
-                        Object _value = parametersReader.nextObject();
-                        data.put(_key, _value);
-                    }
+                    data = readParametersListAsMap(parametersReader);
                 }
 
                 if (updateCount <= 0) {
@@ -438,6 +428,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
+    }
+
+    Map<RawString, Object> readParametersListAsMap(PduCodec.ObjectListReader parametersReader) {
+        Map<RawString, Object> data = new HashMap<>();
+        for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
+            RawString _key = (RawString) parametersReader.nextObject();
+            Object _value = parametersReader.nextObject();
+            data.put(_key, _value);
+        }
+        return data;
     }
 
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -76,10 +77,84 @@ public abstract class PduCodec {
     public static final byte TYPE_BOOLEAN = 7;
     public static final byte TYPE_SHORT = 8;
 
+    public static abstract class ExecuteStatementsResult {
+
+        public static ByteBuf write(long replyId, List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_LONG);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENTS_RESULT);
+
+            byteBuf.writeLong(tx);
+            byteBuf.writeInt(updateCounts.size());
+            for (Long updateCount : updateCounts) {
+                byteBuf.writeLong(updateCount);
+            }
+            byteBuf.writeInt(otherdata.size());
+            for (Map<String, Object> record : otherdata) {
+                // the Map is serialized as a list of objects (k1,v1,k2,v2...)
+                int size = record != null ? record.size() : 0;
+                ByteBufUtils.writeVInt(byteBuf, size * 2);
+                if (record != null) {
+                    for (Map.Entry<String, Object> entry : record.entrySet()) {
+                        writeObject(byteBuf, entry.getKey());
+                        writeObject(byteBuf, entry.getValue());
+                    }
+                }
+            }
+
+            return byteBuf;
+        }
+
+        public static long readTx(Pdu pdu) {
+            return pdu.buffer.getLong(
+                    VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static List<Long> readUpdateCounts(Pdu pdu) {
+            pdu.buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG);
+            int numStatements = pdu.buffer.readInt();
+            List<Long> res = new ArrayList<>(numStatements);
+            for (int i = 0; i < numStatements; i++) {
+                res.add(pdu.buffer.readLong());
+            }
+            return res;
+        }
+
+        public static ListOfListsReader startResultRecords(Pdu pdu) {
+            final ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG);
+            int numStatements = buffer.readInt();
+            for (int i = 0; i < numStatements; i++) {
+                buffer.skipBytes(ONE_LONG);
+            }
+            int numLists = ByteBufUtils.readVInt(buffer);
+            return new ListOfListsReader(pdu, numLists);
+        }
+    }
+
     public static abstract class ExecuteStatementResult {
 
         public static ByteBuf write(
-                long messageId, long updateCount, long tx, Map<String, Object> newRecord) {
+                long messageId, long updateCount, long tx, Map<String, Object> record) {
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
@@ -96,10 +171,10 @@ public abstract class PduCodec {
             byteBuf.writeLong(tx);
 
             // the Map is serialized as a list of objects (k1,v1,k2,v2...)
-            int size = newRecord != null ? newRecord.size() : 0;
+            int size = record != null ? record.size() : 0;
             ByteBufUtils.writeVInt(byteBuf, size * 2);
-            if (newRecord != null) {
-                for (Map.Entry<String, Object> entry : newRecord.entrySet()) {
+            if (record != null) {
+                for (Map.Entry<String, Object> entry : record.entrySet()) {
                     writeObject(byteBuf, entry.getKey());
                     writeObject(byteBuf, entry.getValue());
                 }
@@ -544,7 +619,7 @@ public abstract class PduCodec {
                     + ONE_INT
                     + ONE_LONG
             );
-            
+
             ByteBufUtils.skipArray(buffer); // tablespace
             ByteBufUtils.skipArray(buffer); // query
             int numParams = ByteBufUtils.readVInt(buffer);
@@ -700,6 +775,100 @@ public abstract class PduCodec {
         }
     }
 
+    public static class ExecuteStatements {
+
+        public static ByteBuf write(long messageId, String tableSpace, String query,
+                long tx, boolean returnValues, List<List<Object>> statements) {
+
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENTS);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeByte(returnValues ? 1 : 0);
+            byteBuf.writeLong(tx);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, query);
+
+            // number of statements
+            ByteBufUtils.writeVInt(byteBuf, statements.size());
+            for (List<Object> list : statements) {
+
+                // number of params
+                ByteBufUtils.writeVInt(byteBuf, list.size());
+                for (Object param : list) {
+                    writeObject(byteBuf, param);
+                }
+            }
+
+            return byteBuf;
+
+        }
+
+        public static boolean readReturnValues(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE) == 1;
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE);
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readQuery(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static ListOfListsReader startReadStatementsParameters(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // query
+            int numLists = ByteBufUtils.readVInt(buffer);
+            return new ListOfListsReader(pdu, numLists);
+        }
+
+    }
+
     public static class ExecuteStatement {
 
         public static ByteBuf write(long messageId, String tableSpace, String query, long tx,
@@ -785,6 +954,28 @@ public abstract class PduCodec {
             ByteBufUtils.skipArray(buffer); // query
             int numParams = ByteBufUtils.readVInt(buffer);
             return new ObjectListReader(pdu, numParams);
+        }
+
+    }
+
+    public static class ListOfListsReader {
+
+        private final Pdu pdu;
+        private final int numLists;
+
+        public ListOfListsReader(Pdu pdu, int numLists) {
+            this.pdu = pdu;
+            this.numLists = numLists;
+        }
+
+        public int getNumLists() {
+            return numLists;
+        }
+
+        public ObjectListReader nextList() {
+            // assuming that the readerIndex is not altered but other direct accesses to the ByteBuf
+            int numValues = ByteBufUtils.readVInt(pdu.buffer);
+            return new ObjectListReader(pdu, numValues);
         }
 
     }
