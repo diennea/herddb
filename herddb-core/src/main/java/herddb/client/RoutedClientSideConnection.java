@@ -80,6 +80,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
+    private final AtomicLong scannerIdGenerator = new AtomicLong();
 
     private final Map<RawString, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
@@ -335,12 +336,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
-                    throw new HDBException(reply);
+                    handleGenericError(reply);
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -413,12 +409,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
-                    throw new HDBException(reply);
+                    handleGenericError(reply);
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -456,12 +447,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION, 0, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
-                    throw new HDBException(reply);
+                    handleGenericError(reply);
+                    return -1; // not possible
                 } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
                     long tx = PduCodec.TxCommandResult.readTx(reply);
                     if (tx <= 0) {
@@ -484,15 +471,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION, tx, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
-                    throw new HDBException(reply);
-                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
-                    return;
-                } else {
+                    handleGenericError(reply);
+                    return; // not possible
+                } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
                 }
             }
@@ -508,15 +489,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION, tx, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException("not leader");
-                    }
-                    throw new HDBException(reply);
-                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
-                    return;
-                } else {
+                    handleGenericError(reply);
+                    return; // not possible
+                } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
                 }
             }
@@ -525,34 +500,40 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
+    void handleGenericError(final Pdu reply) throws HDBException, ClientSideMetadataProviderException {
+        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
+        String msg = PduCodec.ErrorResponse.readError(reply);
+        reply.close();
+        if (notLeader) {
+            this.connection.requestMetadataRefresh();
+            throw new RetryRequestException(msg);
+        } else {
+            throw new HDBException(msg);
+        }
+    }
 
     ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
-        MessageWrapper reply = null;
+        Pdu reply = null;
         try {
-            String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
+            long scannerId = scannerIdGenerator.incrementAndGet();
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.OPEN_SCANNER(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
+            ByteBuf message = PduCodec.OpenScanner.write(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
             LOGGER.log(Level.FINEST, "open scanner {0} for query {1}, params {2}", new Object[]{scannerId, query, params});
-            reply = _channel.sendMessageWithReply(requestId, message, timeout);
-            Response response = reply.getResponse();
-            if (response.type() == MessageType.TYPE_ERROR) {
-                boolean notLeader = response.notLeader();
-                if (notLeader) {
-                    reply.close();
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException("not leader");
-                }
-                try {
-                    throw new HDBException(response);
-                } finally {
-                    reply.close();
-                }
+            reply = _channel.sendMessageWithPduReply(requestId, message, timeout);
+
+            if (reply.type == Pdu.TYPE_ERROR) {
+                handleGenericError(reply);
+                return null; // not possible
+            } else if (reply.type != Pdu.TYPE_RESULTSET_CHUNK) {
+                HDBException err = new HDBException(reply);
+                reply.close();
+                throw err;
             }
-            RecordsBatch data = new RecordsBatch(reply);
-            boolean last = (Boolean) response.last();
-            long transactionId = (Long) response.tx();
+
+            boolean last = PduCodec.ResultSetChunk.readIsLast(reply);
+            long transactionId = PduCodec.ResultSetChunk.readTx(reply);
+            RecordsBatch data = PduCodec.ResultSetChunk.startReadingData(reply);
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
             return impl;
@@ -567,7 +548,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
+            String dumpId = this.clientId + ":" + scannerIdGenerator.incrementAndGet();
             long requestId = _channel.generateRequestId();
             ByteBuf message = MessageBuilder.REQUEST_TABLESPACE_DUMP(requestId, tableSpace, dumpId, fetchSize, includeTransactionLog);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}", new Object[]{dumpId, tableSpace});
@@ -677,7 +658,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     private class ScanResultSetImpl extends ScanResultSet {
 
-        private final String scannerId;
+        private final long scannerId;
         private final ScanResultSetMetadata metadata;
 
         RecordsBatch fetchBuffer;
@@ -687,7 +668,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         int fetchSize;
         boolean lastChunk;
 
-        private ScanResultSetImpl(String scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+        private ScanResultSetImpl(long scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
             super(tx);
 
             this.scannerId = scannerId;
@@ -737,26 +718,31 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 return;
             }
             Channel _channel = ensureOpen();
-            MessageWrapper result = null;
+            Pdu result = null;
             try {
                 long requestId = _channel.generateRequestId();
-                ByteBuf message = MessageBuilder.FETCH_SCANNER_DATA(requestId, scannerId, fetchSize);
-                result = _channel.sendMessageWithReply(requestId, message, 10000);
-                Response response = result.getResponse();
+                ByteBuf message = PduCodec.FetchScannerData.write(requestId, scannerId, fetchSize);
+                result = _channel.sendMessageWithPduReply(requestId, message, 10000);
+
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
-                if (response.type() == MessageType.TYPE_ERROR) {
+                if (result.type == MessageType.TYPE_ERROR) {
                     try {
-                        throw new HDBException(result.getResponse());
+                        throw new HDBException(result);
                     } finally {
                         result.close();
                     }
                 }
-                if (response.type() != MessageType.TYPE_RESULTSET_CHUNK) {
+                if (result.type != MessageType.TYPE_RESULTSET_CHUNK) {
                     finished = true;
-                    throw new HDBException("protocol error: " + result);
+                    try {
+                        throw new HDBException("protocol error: " + result);
+                    } finally {
+                        result.close();
+                    }
                 }
-                fetchBuffer = new RecordsBatch(result);
-                lastChunk = response.last();
+                lastChunk = PduCodec.ResultSetChunk.readIsLast(result);
+                fetchBuffer = PduCodec.ResultSetChunk.startReadingData(result);
+
                 if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }

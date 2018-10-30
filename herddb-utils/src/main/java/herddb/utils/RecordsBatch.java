@@ -19,13 +19,10 @@
  */
 package herddb.utils;
 
-import herddb.network.MessageWrapper;
-import herddb.proto.flatbuf.AnyValueWrapper;
-import herddb.proto.flatbuf.ColumnDefinition;
-import herddb.proto.flatbuf.Response;
-import herddb.proto.flatbuf.Row;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
+import io.netty.buffer.ByteBuf;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,18 +37,24 @@ public class RecordsBatch {
 
     public final int numRecords;
     private int currentRecordIndex;
-    public MessageWrapper message;
-    public Response response;
+    public Pdu message;
+    public ByteBuf buffer;
+
     private DataAccessor next;
     private boolean finished;
     public Map<String, Integer> columnNameToPosition;
 
-    public RecordsBatch(MessageWrapper replyWrapper) {
-        this.response = replyWrapper.getResponse();
-        this.numRecords = response.rowsLength();
-        this.columnNames = response.columnNames().split(",");
-        this.message = replyWrapper;
+    public RecordsBatch(Pdu message) {
+        this.buffer = message.buffer;
+        this.message = message;
+        this.buffer = message.buffer;
         this.currentRecordIndex = -1;
+        int numColumns = buffer.readInt();
+        this.columnNames = new String[numColumns];
+        for (int i = 0; i < numColumns; i++) {
+            this.columnNames[i] = ByteBufUtils.readString(buffer);
+        }
+        this.numRecords = buffer.readInt();
         if (numRecords == 0) {
             finished = true;
         }
@@ -73,16 +76,15 @@ public class RecordsBatch {
 
     private final class RowDataAccessor implements DataAccessor {
 
-        private final Row row;
+        private final Object[] row;
 
-        public RowDataAccessor(Row row) {
+        public RowDataAccessor(Object[] row) {
             this.row = row;
         }
 
         @Override
         public Object get(int index) {
-            AnyValueWrapper cell = row.cells(index);
-            return MessageUtils.decodeObject(cell);
+            return row[index];
         }
 
         @Override
@@ -108,8 +110,11 @@ public class RecordsBatch {
     }
 
     private DataAccessor readRecordAtCurrentPosition() {
-        Row row = response.rows(currentRecordIndex);
-        return new RowDataAccessor(row);
+        Object[] values = new Object[columnNames.length];
+        for (int i = 0; i < columnNames.length; i++) {
+            values[i] = PduCodec.readObject(buffer);
+        }
+        return new RowDataAccessor(values);
     }
 
     public boolean hasNext() {
@@ -147,7 +152,6 @@ public class RecordsBatch {
     public void release() {
         message.close();
         message = null;
-        response = null;
         next = null;
     }
 

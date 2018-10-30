@@ -16,7 +16,11 @@
 package herddb.proto;
 
 import herddb.utils.ByteBufUtils;
+import herddb.utils.DataAccessor;
+import herddb.utils.IntHolder;
 import herddb.utils.RawString;
+import herddb.utils.RecordsBatch;
+import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import java.io.IOException;
@@ -263,6 +267,23 @@ public abstract class PduCodec {
 
     }
 
+    public static class AckResponse {
+
+        public static ByteBuf write(long messageId) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_ERROR);
+            byteBuf.writeLong(messageId);
+            return byteBuf;
+        }
+    }
+
     public static class ErrorResponse {
 
         public static ByteBuf write(long messageId, String error) {
@@ -404,6 +425,278 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE);
 
+        }
+    }
+
+    public static class OpenScanner {
+
+        public static ByteBuf write(long messageId, String tableSpace, String query,
+                long scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
+
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_INT
+                            + ONE_INT
+                            + ONE_LONG
+                            + 1 + tableSpace.length()
+                            + 2 + query.length()
+                            + 1 + params.size() * 8);
+
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_OPENSCANNER);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(tx);
+            byteBuf.writeInt(fetchSize);
+            byteBuf.writeInt(maxRows);
+            byteBuf.writeLong(scannerId);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, query);
+
+            ByteBufUtils.writeVInt(byteBuf, params.size());
+            for (Object p : params) {
+                writeObject(byteBuf, p);
+            }
+
+            return byteBuf;
+
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static int readFetchSize(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getInt(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG);
+        }
+
+        public static int readMaxRows(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getInt(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_INT);
+        }
+
+        public static long readScannerId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_INT
+                    + ONE_INT
+            );
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_INT
+                    + ONE_INT
+                    + ONE_LONG);
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readQuery(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_INT
+                    + ONE_INT
+                    + ONE_LONG);
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static ObjectListReader startReadParameters(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_INT
+                    + ONE_INT
+                    + ONE_LONG
+            );
+            
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // query
+            int numParams = ByteBufUtils.readVInt(buffer);
+            return new ObjectListReader(pdu, numParams);
+        }
+    }
+
+    public static class ResultSetChunk {
+
+        public static ByteBuf write(long messageId, TuplesList tuplesList, boolean last, long tx) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_BYTE);
+
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_RESULTSET_CHUNK);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(tx);
+            byteBuf.writeByte(last ? 1 : 0);
+
+            int numColumns = tuplesList.columnNames.length;
+            byteBuf.writeInt(numColumns);
+            for (String columnName : tuplesList.columnNames) {
+                ByteBufUtils.writeString(byteBuf, columnName);
+            }
+
+            // num records
+            byteBuf.writeInt(tuplesList.tuples.size());
+            System.out.println("WRITING a BATCH of " + tuplesList.tuples.size() + " records");
+            for (DataAccessor da : tuplesList.tuples) {
+                IntHolder currentColumn = new IntHolder();
+                da.forEach((String key, Object value) -> {
+                    String expectedColumnName = tuplesList.columnNames[currentColumn.value];
+                    while (!key.equals(expectedColumnName)) {
+                        // nulls are not returned for some special accessors, like DataAccessorForFullRecord
+                        writeObject(byteBuf, null);
+                        currentColumn.value++;
+                        expectedColumnName = tuplesList.columnNames[currentColumn.value];
+                    }
+                    writeObject(byteBuf, value);
+                    currentColumn.value++;
+                });
+                // fill with nulls
+                while (currentColumn.value < numColumns) {
+                    writeObject(byteBuf, null);
+                    currentColumn.value++;
+                }
+                if (currentColumn.value > numColumns) {
+                    throw new RuntimeException("unexpected number of columns " + currentColumn.value + " > " + numColumns);
+                }
+            }
+            return byteBuf;
+        }
+
+        public static long readTx(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static boolean readIsLast(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+            ) == 1;
+        }
+
+        public static RecordsBatch startReadingData(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_BYTE);
+            return new RecordsBatch(pdu);
+        }
+    }
+
+    public static class FetchScannerData {
+
+        public static ByteBuf write(long messageId, long scannerId, int fetchSize) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_INT);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_FETCHSCANNERDATA);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(scannerId);
+            byteBuf.writeInt(fetchSize);
+            return byteBuf;
+        }
+
+        public static long readScannerId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static int readFetchSize(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getInt(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG);
+        }
+    }
+
+    public static class CloseScanner {
+
+        public static ByteBuf write(long messageId, long scannerId) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_CLOSESCANNER);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(scannerId);
+            return byteBuf;
+        }
+
+        public static long readScannerId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
         }
     }
 
