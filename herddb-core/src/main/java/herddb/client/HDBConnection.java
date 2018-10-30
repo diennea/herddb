@@ -233,7 +233,7 @@ public class HDBConnection implements AutoCloseable {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
                 return route.executeScan(tableSpace, query, params, tx, maxRows, fetchSize);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                LOGGER.log(Level.SEVERE, "temporary error: " + retry);
                 sleepOnRetry();
             }
 
