@@ -363,7 +363,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             long requestId = _channel.generateRequestId();
             ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, batch);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
-
                 if (reply.type == MessageType.TYPE_ERROR) {
                     handleGenericError(reply);
                     return null; // not possible
