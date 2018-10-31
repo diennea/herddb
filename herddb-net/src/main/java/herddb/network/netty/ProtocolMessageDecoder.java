@@ -19,13 +19,13 @@
  */
 package herddb.network.netty;
 
-import herddb.network.MessageWrapper;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -52,10 +52,9 @@ public class ProtocolMessageDecoder extends ChannelInboundHandlerAdapter {
         try {
             Pdu pdu = PduCodec.decodePdu(in);
             ctx.fireChannelRead(pdu);
-        } catch (IOException fallback) {
-            LOGGER.log(Level.SEVERE, "Falling back", fallback);
-            MessageWrapper pooled = MessageWrapper.newMessageWrapper(in);
-            ctx.fireChannelRead(pooled);
+        } catch (Throwable err) {
+            LOGGER.log(Level.SEVERE, "Error decoding PDU", err);
+            ReferenceCountUtil.safeRelease(msg);
         }
 
     }

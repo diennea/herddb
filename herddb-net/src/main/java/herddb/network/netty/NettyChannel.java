@@ -20,11 +20,8 @@
 package herddb.network.netty;
 
 import herddb.network.Channel;
-import herddb.network.MessageBuilder;
-import herddb.network.MessageWrapper;
 import herddb.network.SendResultCallback;
 import herddb.proto.Pdu;
-import herddb.proto.flatbuf.Response;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.socket.SocketChannel;
@@ -53,9 +50,7 @@ public class NettyChannel extends Channel {
     private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final ConcurrentLongHashMap<ResponseCallback> pendingReplyRequests = new ConcurrentLongHashMap<>();
     private final ConcurrentLongHashMap<PduCallback> callbacks = new ConcurrentLongHashMap<>();
-    private final ConcurrentLongHashMap<MessageBuilder> pendingReplyMessagesSource = new ConcurrentLongHashMap<>();
     private final ConcurrentLongLongHashMap pendingReplyMessagesDeadline = new ConcurrentLongLongHashMap();
     private final ExecutorService callbackexecutor;
     private boolean ioErrors = false;
@@ -65,7 +60,7 @@ public class NettyChannel extends Channel {
 
     @Override
     public String toString() {
-        return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + pendingReplyRequests.size() + " msgs}";
+        return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + callbacks.size() + " msgs}";
     }
 
     public NettyChannel(String name, io.netty.channel.Channel socket,
@@ -84,27 +79,12 @@ public class NettyChannel extends Channel {
         return id;
     }
 
-    public void responseReceived(MessageWrapper message) {
-        handleResponse(message);
-    }
-
     public void pduReceived(Pdu message) {
         if (message.isRequest()) {
             handlePduRequest(message);
         } else {
             handlePduResponse(message);
         }
-    }
-
-    public void requestReceived(MessageWrapper request) {
-        submitCallback(() -> {
-            try {
-                messagesReceiver.requestReceived(request, this);
-            } catch (Throwable t) {
-                LOGGER.log(Level.SEVERE, this + ": error " + t, t);
-                close();
-            }
-        });
     }
 
     private void handlePduRequest(Pdu request) {
@@ -116,23 +96,6 @@ public class NettyChannel extends Channel {
                 close();
             }
         });
-    }
-
-    private void handleResponse(MessageWrapper anwermessagewrapper) {
-        Response anwermessage = anwermessagewrapper.getResponse();
-        long replyMessageId = anwermessage.replyMessageId();
-        if (replyMessageId < 0) {
-            LOGGER.log(Level.SEVERE, "{0}: received response without replyId: type {1}", new Object[]{this, anwermessage.type()});
-            anwermessagewrapper.close();
-            return;
-        }
-        final ResponseCallback callback = pendingReplyRequests.remove(replyMessageId);
-        pendingReplyMessagesDeadline.remove(replyMessageId);
-        if (callback != null) {
-            submitCallback(() -> {
-                callback.responseReceived(anwermessagewrapper, null);
-            });
-        }
     }
 
     private void handlePduResponse(Pdu pdu) {
@@ -213,12 +176,6 @@ public class NettyChannel extends Channel {
         LOGGER.log(Level.SEVERE, "{0} found {1} without reply, channel will be closed", new Object[]{this, messagesWithNoReply});
         ioErrors = true;
         for (long messageId : messagesWithNoReply) {
-            ResponseCallback callback2 = pendingReplyRequests.remove(messageId);
-            if (callback2 != null) {
-                submitCallback(() -> {
-                    callback2.responseReceived(null, new IOException(this + " reply timeout expired, channel will be closed"));
-                });
-            }
             PduCallback callback = callbacks.remove(messageId);
             if (callback != null) {
                 submitCallback(() -> {
@@ -227,27 +184,6 @@ public class NettyChannel extends Channel {
             }
         }
         close();
-    }
-
-    @Override
-    protected void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, ResponseCallback callback) {
-
-        if (!isValid()) {
-            callback.responseReceived(null, new Exception(this + " connection is not active"));
-            return;
-        }
-        pendingReplyMessagesDeadline.put(id, System.currentTimeMillis() + timeout);
-        pendingReplyRequests.put(id, callback);
-        sendOneWayMessage(message, new SendResultCallback() {
-
-            @Override
-            public void messageSent(Throwable error) {
-                if (error != null) {
-                    LOGGER.log(Level.SEVERE, this + ": error while sending reply message to " + message, error);
-                    callback.responseReceived(null, new Exception(this + ": error while sending reply message to " + message, error));
-                }
-            }
-        });
     }
 
     @Override
@@ -300,13 +236,7 @@ public class NettyChannel extends Channel {
     }
 
     private void failPendingMessages(String socketDescription) {
-        pendingReplyRequests.forEach((key, callback) -> {
-            pendingReplyMessagesDeadline.remove(key);
-            LOGGER.log(Level.SEVERE, "{0} message {1} was not replied callback:{2}", new Object[]{this, key, callback});
-            submitCallback(() -> {
-                callback.responseReceived(null, new IOException("comunication channel is closed. Cannot wait for pending messages, socket=" + socketDescription));
-            });
-        });
+
         callbacks.forEach((key, callback) -> {
             pendingReplyMessagesDeadline.remove(key);
             LOGGER.log(Level.SEVERE, "{0} message {1} was not replied callback:{2}", new Object[]{this, key, callback});
@@ -314,8 +244,6 @@ public class NettyChannel extends Channel {
                 callback.responseReceived(null, new IOException("comunication channel is closed. Cannot wait for pending messages, socket=" + socketDescription));
             });
         });
-        pendingReplyRequests.clear();
-        pendingReplyMessagesSource.clear();
         pendingReplyMessagesDeadline.clear();
         callbacks.clear();
     }

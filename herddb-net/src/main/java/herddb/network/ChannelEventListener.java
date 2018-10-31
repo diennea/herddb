@@ -28,9 +28,6 @@ import herddb.proto.Pdu;
  */
 public interface ChannelEventListener {
 
-    public default void requestReceived(MessageWrapper message, Channel channel) {
-    }
-    
     public default void requestReceived(Pdu pdu, Channel channel) {
     }
 
