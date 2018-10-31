@@ -24,7 +24,8 @@ createdatabase="CREATE DATABASE $database;"
 dropdatabase="DROP DATABASE IF EXISTS  $database;"
 #droptable= "DROP TABLE usertable;"
 usedatabase="use $database;"
-createtable="CREATE TABLE usertable (YCSB_KEY VARCHAR(255) PRIMARY KEY, FIELD0 TEXT, FIELD1 TEXT,FIELD2 TEXT, FIELD3 TEXT, FIELD4 TEXT, FIELD5 TEXT, FIELD6 TEXT, FIELD7 TEXT,FIELD8 TEXT, FIELD9 TEXT);"
+#create table; use utf8 because some version of mysql have max length=767 bytes
+createtable="CREATE TABLE usertable (YCSB_KEY VARCHAR(255) PRIMARY KEY, FIELD0 TEXT, FIELD1 TEXT,FIELD2 TEXT, FIELD3 TEXT, FIELD4 TEXT, FIELD5 TEXT, FIELD6 TEXT, FIELD7 TEXT,FIELD8 TEXT, FIELD9 TEXT) DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;"
 
 $MYSQL_PATH/bin/mysql --socket $MYSQL_PATH/data/mysqld.sock -u $dbuser -p$dbpasswd << EOF
 $dropdatabase
