@@ -18,6 +18,7 @@ package herddb.proto;
 import herddb.utils.ByteBufUtils;
 import herddb.utils.DataAccessor;
 import herddb.utils.IntHolder;
+import herddb.utils.KeyValue;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
 import herddb.utils.TuplesList;
@@ -30,6 +31,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Codec for PDUs
@@ -353,7 +356,7 @@ public abstract class PduCodec {
                             + MSGID_SIZE);
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
-            byteBuf.writeByte(Pdu.TYPE_ERROR);
+            byteBuf.writeByte(Pdu.TYPE_ACK);
             byteBuf.writeLong(messageId);
             return byteBuf;
         }
@@ -955,6 +958,623 @@ public abstract class PduCodec {
             return new ObjectListReader(pdu, numParams);
         }
 
+    }
+
+    public static class RequestTablespaceDump {
+
+        public static ByteBuf write(long messageId, String tableSpace, String dumpId, int fetchSize, boolean includeTransactionLog) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_BYTE
+                            + ONE_INT
+                            + tableSpace.length()
+                            + dumpId.length());
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_REQUEST_TABLESPACE_DUMP);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeByte(includeTransactionLog ? 1 : 0);
+            byteBuf.writeInt(fetchSize);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, dumpId);
+
+            return byteBuf;
+
+        }
+
+        public static boolean readInludeTransactionLog(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE) == 1;
+        }
+
+        public static int readFetchSize(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getInt(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE);
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_INT
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readDumpId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_INT
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+    }
+
+    public static class TablespaceDumpData {
+
+        public static ByteBuf write(long messageId, String tableSpace, String dumpId,
+                String command, byte[] tableDefinition, long estimatedSize,
+                long dumpLedgerid, long dumpOffset, List<byte[]> indexesDefinition,
+                List<KeyValue> records
+        ) {
+            if (tableDefinition == null) {
+                tableDefinition = new byte[0];
+            }
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_BYTE
+                            + ONE_INT
+                            + tableDefinition.length
+                            + tableSpace.length()
+                            + dumpId.length());
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_TABLESPACE_DUMP_DATA);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(dumpLedgerid);
+            byteBuf.writeLong(dumpOffset);
+            byteBuf.writeLong(estimatedSize);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, dumpId);
+            ByteBufUtils.writeString(byteBuf, command);
+            ByteBufUtils.writeArray(byteBuf, tableDefinition);
+
+            if (indexesDefinition == null) {
+                byteBuf.writeInt(0);
+            } else {
+                byteBuf.writeInt(indexesDefinition.size());
+                for (int i = 0; i < indexesDefinition.size(); i++) {
+                    ByteBufUtils.writeArray(byteBuf, indexesDefinition.get(i));
+                }
+            }
+
+            if (records == null) {
+                byteBuf.writeInt(0);
+            } else {
+                byteBuf.writeInt(records.size());
+                for (KeyValue kv : records) {
+                    ByteBufUtils.writeArray(byteBuf, kv.key);
+                    ByteBufUtils.writeArray(byteBuf, kv.value);
+                }
+            }
+
+            return byteBuf;
+
+        }
+
+        public static long readLedgerId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static long readOffset(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+            );
+        }
+
+        public static long readEstimatedSize(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readDumpId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readCommand(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // dumpId
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static byte[] readTableDefinition(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // dumpId
+            ByteBufUtils.skipArray(buffer); // command
+            return ByteBufUtils.readArray(buffer);
+        }
+
+        public static List<byte[]> readIndexesDefinition(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // dumpId
+            ByteBufUtils.skipArray(buffer); // command
+            ByteBufUtils.skipArray(buffer); // tableDefinition
+            int num = buffer.readInt();
+            List<byte[]> res = new ArrayList<>();
+            for (int i = 0; i < num; i++) {
+                res.add(ByteBufUtils.readArray(buffer));
+            }
+            return res;
+        }
+
+        public static void readRecords(Pdu pdu, BiConsumer<byte[], byte[]> consumer) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // dumpId
+            ByteBufUtils.skipArray(buffer); // command
+            ByteBufUtils.skipArray(buffer); // tableDefinition
+            int num = buffer.readInt();
+            for (int i = 0; i < num; i++) {
+                ByteBufUtils.skipArray(buffer);
+            }
+            int numRecords = buffer.readInt();
+            for (int i = 0; i < numRecords; i++) {
+                byte[] key = ByteBufUtils.readArray(buffer);
+                byte[] value = ByteBufUtils.readArray(buffer);
+                consumer.accept(key, value);
+            }
+        }
+    }
+
+    public static class RequestTableRestore {
+
+        public static ByteBuf write(long messageId, String tableSpace, byte[] tableDefinition,
+                long dumpLedgerId, long dumpOffset) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_LONG
+                            + tableSpace.length()
+                            + tableDefinition.length
+                    );
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_REQUEST_TABLE_RESTORE);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(dumpLedgerId);
+            byteBuf.writeLong(dumpOffset);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeArray(byteBuf, tableDefinition);
+            return byteBuf;
+
+        }
+
+        public static long readLedgerId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+        public static long readOffset(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+            );
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static byte[] readTableDefinition(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG
+                    + ONE_LONG
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace            
+            return ByteBufUtils.readArray(buffer);
+        }
+
+    }
+
+    public static class TableRestoreFinished {
+
+        public static ByteBuf write(long messageId, String tableSpace, String tableName,
+                List<byte[]> indexesDefinition
+        ) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + tableSpace.length()
+                            + tableName.length()
+                            + (indexesDefinition == null ? 0 : (indexesDefinition.size() * 64)));
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_TABLE_RESTORE_FINISHED);
+            byteBuf.writeLong(messageId);
+
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, tableName);
+
+            if (indexesDefinition == null) {
+                byteBuf.writeInt(0);
+            } else {
+                byteBuf.writeInt(indexesDefinition.size());
+                for (int i = 0; i < indexesDefinition.size(); i++) {
+                    ByteBufUtils.writeArray(byteBuf, indexesDefinition.get(i));
+                }
+            }
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readTableName(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static List<byte[]> readIndexesDefinition(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // tableName
+            int num = buffer.readInt();
+            List<byte[]> res = new ArrayList<>();
+            for (int i = 0; i < num; i++) {
+                res.add(ByteBufUtils.readArray(buffer));
+            }
+            return res;
+        }
+
+    }
+
+    public static class RestoreFinished {
+
+        public static ByteBuf write(long messageId, String tableSpace) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + tableSpace.length());
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_RESTORE_FINISHED);
+            byteBuf.writeLong(messageId);
+
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+    }
+
+    public static class PushTableData {
+
+        public static ByteBuf write(long messageId, String tableSpace, String tableName, List<KeyValue> records) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + tableSpace.length()
+                            + tableName.length()
+                            + records.size() * 512);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_PUSH_TABLE_DATA);
+            byteBuf.writeLong(messageId);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, tableName);
+
+            byteBuf.writeInt(records.size());
+            for (KeyValue kv : records) {
+                ByteBufUtils.writeArray(byteBuf, kv.key);
+                ByteBufUtils.writeArray(byteBuf, kv.value);
+            }
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readTablename(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static void readRecords(Pdu pdu, BiConsumer<byte[], byte[]> consumer) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            ByteBufUtils.skipArray(buffer); // tablename            
+            int numRecords = buffer.readInt();
+            for (int i = 0; i < numRecords; i++) {
+                byte[] key = ByteBufUtils.readArray(buffer);
+                byte[] value = ByteBufUtils.readArray(buffer);
+                consumer.accept(key, value);
+            }
+        }
+    }
+
+    public static class PushTxLogChunk {
+
+        public static ByteBuf write(long messageId, String tableSpace, List<KeyValue> records) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + tableSpace.length()
+                            + records.size() * 512);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_PUSH_TXLOGCHUNK);
+            byteBuf.writeLong(messageId);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+
+            byteBuf.writeInt(records.size());
+            for (KeyValue kv : records) {
+                ByteBufUtils.writeArray(byteBuf, kv.key);
+                ByteBufUtils.writeArray(byteBuf, kv.value);
+            }
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static void readRecords(Pdu pdu, BiConsumer<byte[], byte[]> consumer) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+
+            int numRecords = buffer.readInt();
+            for (int i = 0; i < numRecords; i++) {
+                byte[] key = ByteBufUtils.readArray(buffer);
+                byte[] value = ByteBufUtils.readArray(buffer);
+                consumer.accept(key, value);
+            }
+        }
+    }
+
+    public static class PushTransactionsBlock {
+
+        public static ByteBuf write(long messageId, String tableSpace, List<byte[]> records) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + tableSpace.length()
+                            + records.size() * 512);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_PUSH_TRANSACTIONSBLOCK);
+            byteBuf.writeLong(messageId);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+
+            byteBuf.writeInt(records.size());
+            for (byte[] tx : records) {
+                ByteBufUtils.writeArray(byteBuf, tx);
+            }
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static void readTransactions(Pdu pdu, Consumer<byte[]> consumer) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+
+            int numRecords = buffer.readInt();
+            for (int i = 0; i < numRecords; i++) {
+                byte[] key = ByteBufUtils.readArray(buffer);
+                consumer.accept(key);
+            }
+        }
     }
 
     public static class ListOfListsReader {

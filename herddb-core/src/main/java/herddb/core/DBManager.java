@@ -86,9 +86,9 @@ import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
-import herddb.network.MessageBuilder;
 import herddb.network.ServerHostData;
-import herddb.proto.flatbuf.Request;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
 import herddb.server.ServerConfiguration;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
@@ -96,6 +96,7 @@ import herddb.sql.DDLSQLPlanner;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
+import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -891,13 +892,16 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public void dumpTableSpace(String tableSpace, String dumpId, Request message, Channel _channel, int fetchSize, boolean includeLog) {
+    public void dumpTableSpace(String tableSpace, String dumpId, Pdu message, Channel _channel, int fetchSize, boolean includeLog) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
+        ByteBuf resp;
         if (manager == null) {
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("tableSpace " + tableSpace + " not booted here")));
+            resp = PduCodec.ErrorResponse.write(message.messageId, "tableSpace " + tableSpace + " not booted here");
+            _channel.sendReplyMessage(message.messageId, resp);
             return;
         } else {
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+            resp = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, resp);
         }
         try {
             manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);
@@ -1291,5 +1295,5 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public ExecutorService getCallbacksExecutor() {
         return callbacksExecutor;
     }
-    
+
 }

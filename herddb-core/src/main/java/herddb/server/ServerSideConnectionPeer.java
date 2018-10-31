@@ -19,8 +19,6 @@
  */
 package herddb.server;
 
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,21 +65,21 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
-import herddb.network.MessageBuilder;
-import herddb.network.MessageWrapper;
 import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
+import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
+import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
+import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
 import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Request;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
+import java.io.EOFException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -123,83 +121,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     @Override
-    public void requestReceived(MessageWrapper messageWrapper, Channel _channel) {
-        // message is handled by current thread
-        boolean releaseMessageSync = true;
-        Request message = messageWrapper.getRequest();
-        try {
-            LOGGER.log(Level.FINEST, "messageReceived {0}", message);
-
-            switch (message.type()) {
-
-                case MessageType.TYPE_REQUEST_TABLESPACE_DUMP: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handleRequestTablespaceDump(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_REQUEST_TABLE_RESTORE: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handleRequestTableRestore(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_PUSH_TABLE_DATA: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handlePushTableData(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_TABLE_RESTORE_FINISHED: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handleTableRestoreFinished(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_RESTORE_FINISHED: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handleRestoreFinished(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_PUSH_TXLOGCHUNK: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handlePushTxLogChunk(message, _channel);
-                }
-                break;
-                case MessageType.TYPE_PUSH_TRANSACTIONSBLOCK: {
-                    if (!authenticated) {
-                        sendAuthRequiredError(_channel, message);
-                        break;
-                    }
-                    handlePushTransactionsBlock(message, _channel);
-                }
-                break;
-
-                default:
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported message type " + message.type())));
-            }
-        } finally {
-            if (releaseMessageSync) {
-                messageWrapper.close();
-            }
-        }
-    }
-
-    @Override
     public void requestReceived(Pdu message, Channel _channel) {
         // message is handled by current thread
         boolean releaseMessageSync = true;
@@ -207,7 +128,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
             switch (message.type) {
-                case MessageType.TYPE_EXECUTE_STATEMENT: {
+                case Pdu.TYPE_EXECUTE_STATEMENT: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
@@ -216,7 +137,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleExecuteStatement(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_EXECUTE_STATEMENTS: {
+                case Pdu.TYPE_EXECUTE_STATEMENTS: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
@@ -225,15 +146,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleExecuteStatements(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
+                case Pdu.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
                     handleSaslTokenMessageRequest(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
+                case Pdu.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
                     handleSaslTokenMessage(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_TX_COMMAND: {
+                case Pdu.TYPE_TX_COMMAND: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
@@ -242,7 +163,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleTxCommand(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_OPENSCANNER: {
+                case Pdu.TYPE_OPENSCANNER: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
@@ -251,7 +172,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                 }
                 break;
-                case MessageType.TYPE_FETCHSCANNERDATA: {
+                case Pdu.TYPE_FETCHSCANNERDATA: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
@@ -259,12 +180,68 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleFetchScannerData(message, _channel);
                 }
                 break;
-                case MessageType.TYPE_CLOSESCANNER: {
+                case Pdu.TYPE_CLOSESCANNER: {
                     if (!authenticated) {
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
                     handleCloseScanner(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_REQUEST_TABLESPACE_DUMP: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRequestTablespaceDump(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_REQUEST_TABLE_RESTORE: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRequestTableRestore(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_PUSH_TABLE_DATA: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTableData(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_TABLE_RESTORE_FINISHED: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleTableRestoreFinished(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_RESTORE_FINISHED: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRestoreFinished(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_PUSH_TXLOGCHUNK: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTxLogChunk(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_PUSH_TRANSACTIONSBLOCK: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTransactionsBlock(message, _channel);
                 }
                 break;
                 default:
@@ -279,139 +256,139 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleRequestTableRestore(Request message, Channel _channel) {
+    private void handleRequestTableRestore(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
-            byte[] table = MessageUtils.bufferToArray(message.tableDefinition().schemaAsByteBuffer());
-            long dumpLedgerId = message.dumpLedgerId();
-            long dumpOffset = message.dumpOffset();
+            long dumpLedgerId = PduCodec.RequestTableRestore.readLedgerId(message);
+            long dumpOffset = PduCodec.RequestTableRestore.readOffset(message);
+            String tableSpace = PduCodec.RequestTableRestore.readTablespace(message);
+            byte[] table = PduCodec.RequestTableRestore.readTableDefinition(message);
             Table tableSchema = Table.deserialize(table);
             tableSchema = Table
                     .builder()
                     .cloning(tableSchema)
-                    .tablespace(tableSpace.toString())
+                    .tablespace(tableSpace)
                     .build();
             server.getManager()
-                    .getTableSpaceManager(tableSpace.toString())
+                    .getTableSpaceManager(tableSpace)
                     .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
-
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
         } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
-    private void handleTableRestoreFinished(Request message, Channel _channel) {
+    private void handleTableRestoreFinished(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
-            RawString table = MessageUtils.readRawString(message.tableNameAsByteBuffer());
-
-            int numIndexes = message.indexesDefinitionLength();
+            String tableSpace = PduCodec.TableRestoreFinished.readTablespace(message);
+            String table = PduCodec.TableRestoreFinished.readTableName(message);
+            List<byte[]> _indexes = PduCodec.TableRestoreFinished.readIndexesDefinition(message);
+            int numIndexes = _indexes.size();
             List<Index> indexes = new ArrayList<>(numIndexes);
             for (int i = 0; i < numIndexes; i++) {
-                indexes.add(Index.deserialize(MessageUtils.bufferToArray(message.indexesDefinition(i).schemaAsByteBuffer())));
+                indexes.add(Index.deserialize(_indexes.get(i)));
             }
             LOGGER.log(Level.INFO, "tableRestoreFinished, table {0}, with {1} indexes", new Object[]{table, indexes.size()});
 
             server.getManager()
-                    .getTableSpaceManager(tableSpace.toString())
-                    .restoreTableFinished(table.toString(), indexes);
+                    .getTableSpaceManager(tableSpace)
+                    .restoreTableFinished(table, indexes);
 
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
         } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
-    private void handleRestoreFinished(Request message, Channel _channel) {
+    private void handleRestoreFinished(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            String tableSpace = PduCodec.TableRestoreFinished.readTablespace(message);
 
             server.getManager()
-                    .getTableSpaceManager(tableSpace.toString())
+                    .getTableSpaceManager(tableSpace)
                     .restoreFinished();
 
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
         } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
-    private void handlePushTableData(Request message, Channel _channel) {
+    private void handlePushTableData(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
-            RawString table = MessageUtils.readRawString(message.tableNameAsByteBuffer());
+            String tableSpace = PduCodec.PushTableData.readTablespace(message);
+            String table = PduCodec.PushTableData.readTablename(message);
 
             long _start = System.currentTimeMillis();
-            int size = message.rawDataChunkLength();
-            List<Record> records = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                herddb.proto.flatbuf.KeyValue keyValue = message.rawDataChunk(i);
+            List<Record> records = new ArrayList<>();
+            PduCodec.PushTableData.readRecords(message, (key, value) -> {
                 records.add(new Record(
-                        Bytes.from_array(MessageUtils.bufferToArray(keyValue.keyAsByteBuffer())),
-                        Bytes.from_array(MessageUtils.bufferToArray(keyValue.valueAsByteBuffer()))));
-            }
+                        Bytes.from_array(key),
+                        Bytes.from_array(value)));
+            });
+
             LOGGER.log(Level.INFO, "Received {0} records for restore of table {1} in tableSpace {2}", new Object[]{records.size(), table, tableSpace});
             TableManager tableManager = (TableManager) server.getManager()
-                    .getTableSpaceManager(tableSpace.toString())
-                    .getTableManager(table.toString());
+                    .getTableSpaceManager(tableSpace)
+                    .getTableManager(table);
             tableManager.writeFromDump(records);
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.INFO, "Time restore {0} records: data {1} ms", new Object[]{records.size(), _stop - _start});
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
         } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
-    private void handlePushTxLogChunk(Request message, Channel _channel) {
+    private void handlePushTxLogChunk(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            String tableSpace = PduCodec.PushTxLogChunk.readTablespace(message);
 
-            int size = message.rawDataChunkLength();
-            List<DumpedLogEntry> entries = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                herddb.proto.flatbuf.KeyValue kv = message.rawDataChunk(i);
+            List<DumpedLogEntry> entries = new ArrayList<>();
+            PduCodec.PushTxLogChunk.readRecords(message, (key, value) -> {
                 entries.add(new DumpedLogEntry(
-                        LogSequenceNumber.deserialize(MessageUtils.bufferToArray(kv.keyAsByteBuffer())),
-                        MessageUtils.bufferToArray(kv.valueAsByteBuffer())));
-            }
+                        LogSequenceNumber.deserialize(key),
+                        value));
+            });
+
             LOGGER.log(Level.INFO, "Received {0} records for restore of txlog in tableSpace {1}", new Object[]{entries.size(), tableSpace});
 
-            server.getManager().getTableSpaceManager(tableSpace.toString())
+            server.getManager().getTableSpaceManager(tableSpace)
                     .restoreRawDumpedEntryLogs(entries);
 
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
-        } catch (Exception err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
+        } catch (StatementExecutionException | EOFException err) {
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
-    private void handlePushTransactionsBlock(Request message, Channel _channel) {
+    private void handlePushTransactionsBlock(Pdu message, Channel _channel) {
         try {
-            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            String tableSpace = PduCodec.PushTransactionsBlock.readTablespace(message);
 
-            String _tableSpace = tableSpace.toString();
-            int size = message.dumpTxLogEntriesLength();
-            List<Transaction> entries = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                herddb.proto.flatbuf.TxLogEntry kv = message.dumpTxLogEntries(i);
-                entries.add(Transaction.deserialize(_tableSpace, MessageUtils.bufferToArray(kv.entryAsByteBuffer())));
-            }
+            List<Transaction> entries = new ArrayList<>();
+            PduCodec.PushTransactionsBlock.readTransactions(message, (value) -> {
+                entries.add(Transaction.deserialize(tableSpace, value));
+            });
 
             LOGGER.log(Level.INFO, "Received " + entries.size() + " records for restore of transactions in tableSpace " + tableSpace);
 
-            server.getManager().getTableSpaceManager(_tableSpace).restoreRawDumpedTransactions(entries);
+            server.getManager().getTableSpaceManager(tableSpace).restoreRawDumpedTransactions(entries);
 
-            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
-        } catch (Exception err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
-            _channel.sendReplyMessage(message.id(), error);
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            _channel.sendReplyMessage(message.messageId, res);
+        } catch (StatementExecutionException err) {
+            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, err, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.messageId, res);
         }
     }
 
@@ -536,26 +513,21 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void sendAuthRequiredError(Channel _channel, Request message) {
-        ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("autentication required (client " + channel + ")"));
-        _channel.sendReplyMessage(message.id(), error);
-    }
-
     private void sendAuthRequiredError(Channel _channel, Pdu message) {
         ByteBuf error = PduCodec.ErrorResponse.write(message.messageId,
                 "autentication required (client " + channel + ")");
         _channel.sendReplyMessage(message.messageId, error);
     }
 
-    private void handleRequestTablespaceDump(Request message, Channel _channel) {
-        RawString dumpId = MessageUtils.readRawString(message.dumpIdAsByteBuffer());
-        int fetchSize = message.fetchSize();
+    private void handleRequestTablespaceDump(Pdu message, Channel _channel) {
+        String dumpId = PduCodec.RequestTablespaceDump.readDumpId(message);
+        int fetchSize = PduCodec.RequestTablespaceDump.readFetchSize(message);
         if (fetchSize <= 0) {
             fetchSize = 10;
         }
-        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
-        boolean includeTransactionLog = message.includeTransactionLog();
-        server.getManager().dumpTableSpace(tableSpace.toString(), dumpId.toString(), message, _channel, fetchSize, includeTransactionLog);
+        String tableSpace = PduCodec.RequestTablespaceDump.readTablespace(message);
+        boolean includeTransactionLog = PduCodec.RequestTablespaceDump.readInludeTransactionLog(message);
+        server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize, includeTransactionLog);
     }
 
     private void handleExecuteStatements(Pdu message, Channel _channel) {
@@ -574,7 +546,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 batchParams.add(parametersReader.nextObject());
             }
             batch.add(batchParams);
-        }        
+        }
         RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tableSpace, "batch of " + numStatements);
         try {
 
@@ -640,11 +612,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                     long newTransactionId = result.transactionId;
                     if (current == queries.size()) {
-                        try {                        
-                        ByteBuf response = PduCodec.ExecuteStatementsResult.write(message.messageId, updateCounts, otherDatas, newTransactionId);
-                        _channel.sendReplyMessage(message.messageId, response);                        
-                        message.close();
-                        server.getManager().unregisterRunningStatement(statementInfo);
+                        try {
+                            ByteBuf response = PduCodec.ExecuteStatementsResult.write(message.messageId, updateCounts, otherDatas, newTransactionId);
+                            _channel.sendReplyMessage(message.messageId, response);
+                            message.close();
+                            server.getManager().unregisterRunningStatement(statementInfo);
                         } catch (Throwable t) {
                             t.printStackTrace();
                         }
@@ -794,13 +766,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         TransactionContext transactionContext = new TransactionContext(txId);
         Statement statement;
         switch (type) {
-            case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
+            case TX_COMMAND_COMMIT_TRANSACTION:
                 statement = new CommitTransactionStatement(tableSpace, txId);
                 break;
-            case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
+            case TX_COMMAND_ROLLBACK_TRANSACTION:
                 statement = new RollbackTransactionStatement(tableSpace, txId);
                 break;
-            case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
+            case TX_COMMAND_BEGIN_TRANSACTION:
                 statement = new BeginTransactionStatement(tableSpace);
                 break;
             default:
