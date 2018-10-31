@@ -15,6 +15,7 @@
  */
 package herddb.proto;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
 
@@ -23,6 +24,7 @@ import io.netty.util.ReferenceCountUtil;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD")
 public class Pdu implements AutoCloseable {
 
     public static final byte TYPE_ACK = 0;

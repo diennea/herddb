@@ -1029,7 +1029,7 @@ public abstract class PduCodec {
             byteBuf.writeDouble((Float) v);
         } else if (v instanceof Short) {
             byteBuf.writeByte(TYPE_SHORT);
-            byteBuf.writeLong((Integer) v);
+            byteBuf.writeLong((Short) v);
         } else if (v instanceof byte[]) {
             byteBuf.writeByte(TYPE_BYTEARRAY);
             ByteBufUtils.writeArray(byteBuf, (byte[]) v);
