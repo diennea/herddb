@@ -10,7 +10,6 @@ WORKLOAD=$5
 JDBC_DRIVER=$(ls $JDBC_PATH/*connector*.jar)
 dbuser=$(grep "db.user" $MYSQL_PROPERTIES | cut -d "=" -f2)
 dbpasswd=$(grep "db.passwd" $MYSQL_PROPERTIES | cut -d "=" -f2)
-runservice="mysql-ssd.service"
 echo "Running YCSB workload $WORKLOAD from $YCSB_PATH"
 echo "Using JDBC Driver $JDBC_DRIVER"
 
@@ -36,11 +35,6 @@ $MYSQL_PATH/bin/mysql --socket $MYSQL_PATH/data/mysqld.sock -u $dbuser -p$dbpass
 $usedatabase
 $createtable
 EOF
-
-
-
-
-
 
 $YCSB_PATH/bin/ycsb load jdbc -P $YCSB_PATH/workloads/$WORKLOAD -P $MYSQL_PROPERTIES  -cp $JDBC_PATH/mysql-connector*  -threads 200 -s
 echo "END_LOAD"
