@@ -37,12 +37,12 @@ rm -rf $FILE_TEMP$TEMP
 rm -rf $FILE_TEMP$NAME.txt
 rm -rf $FILE_TEMP$TEMP2
 rm -rf $FILE_TEMP$TEMP3
+
 NUMERO_TENTATIVI=$4
 while read -r line   #scorro tutte le righe del file
 do
  let SUM=$SUM+$line  #calcolo della somma di tutte le righe presenti nel file
 done < $FILE_TEMP$NAME$FILE_NAME
-
 while read -r line
 do 
 let LOAD=$LOAD+$line
@@ -51,4 +51,5 @@ MEDIA=$(($SUM/$NUMERO_TENTATIVI)) #calcolo della media
 MEDIA_LOAD=$(($LOAD/$NUMERO_TENTATIVI))
 
 ./final_report.sh $WORKLOAD $MEDIA $NUMERO_TENTATIVI $REPORT $FILE_TEMP $FINAL_REPORT $DATABASE_PATH $MEDIA_LOAD
+
 

@@ -17,7 +17,6 @@ FILE_TEMP="file_temp/"
 FINAL_REPORT="REPORT_FINAL/"
 HERDDB="HERDDB_"
 
-
 if [[ -e $REPORT ]]; then 
 rm -rf $REPORT
 fi 
@@ -39,11 +38,7 @@ while [ $L -lt $VAR ]; do
 I=3
 let L=L+1
 done
-
-
 cat  $FINAL_REPORT* > $HERDDB$REPORT
-
-
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
 
