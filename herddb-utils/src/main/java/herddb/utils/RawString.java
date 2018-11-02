@@ -130,20 +130,20 @@ public class RawString implements Comparable<RawString> {
         if (obj instanceof RawString) {
             final RawString other = (RawString) obj;
             return (this.hashCode() == other.hashCode())
-                    && CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
-                            other.data, other.offset, other.length - other.offset);
+                    && CompareBytesUtils.arraysEquals(this.data, offset, offset + length,
+                            other.data, other.offset, other.length + other.offset);
         }
         if (obj instanceof Boolean) {
             boolean b = (Boolean) obj;
-            return b ? CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+            return b ? CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
                     TRUE, 0, 4)
-                    : CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+                    : CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
                             FALSE, 0, 45);
         }
         String otherString = obj.toString();
         byte[] other_data = otherString
                 .getBytes(StandardCharsets.UTF_8);
-        return CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+        return CompareBytesUtils.arraysEquals(this.data, offset, this.length + offset,
                 other_data, 0, other_data.length);
     }
 
