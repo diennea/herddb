@@ -1,6 +1,5 @@
 #/bin/bash
-
-
+DATE=$(date '+%Y-%m-%d-%H:%M:%S')
 VAR=$3
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
@@ -11,15 +10,15 @@ JDBC_DRIVER=$(ls $HERDDB_PATH/*jdbc*.jar)
 I=3
 NARG=0 
 WORK=
-REPORT="Benchmark_result.txt"
+REPORT="Benchmark-"
 L=0
-FILE_TEMP="file_temp/"
-FINAL_REPORT="REPORT_FINAL/"
+FINAL="target/"
+LOG="work_files_herd-$DATE/"
+FILE_TEMP="target/$LOG"
+FINAL_REPORT="target/report_files_herd-$DATE/"
 HERDDB="HERDDB_"
-
-if [[ -e $REPORT ]]; then 
-rm -rf $REPORT
-fi 
+FORMAT=".txt" 
+mkdir $FINAL
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
 mkdir $FILE_TEMP
@@ -29,8 +28,6 @@ NARG=$#
 while [ $L -lt $VAR ]; do 
 	while [ $I -lt $NARG ]; do
  		WORK=${argv[$I]}
-		echo $WORK
-		rm -rf $REPORT
 		./full-ycsb.sh  $YCSB_PATH  $HERDDB_PATH  $WORK > $FILE_TEMP$WORK.txt
 		./parse_report.sh $WORK.txt $WORK$I.txt $WORK $VAR $FILE_TEMP $FINAL_REPORT $HERDDB_PATH
 		let I=I+1
@@ -38,10 +35,8 @@ while [ $L -lt $VAR ]; do
 I=3
 let L=L+1
 done
-cat  $FINAL_REPORT* > $HERDDB$REPORT
-rm -rf $FILE_TEMP
-rm -rf $FINAL_REPORT
-
+cat  $FINAL_REPORT* >$FINAL$HERDDB$REPORT$DATE$FORMAT
+rm -rf ".txt"
   
 
 
