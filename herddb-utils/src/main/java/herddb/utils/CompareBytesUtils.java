@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import java.util.Arrays;
 import java.util.logging.Logger;
 
 /**
@@ -45,5 +46,52 @@ public final class CompareBytesUtils {
             }
         }
         return left.length - right.length;
+    }
+
+    public static boolean arraysEquals(byte[] left, byte[] right) {
+        return Arrays.equals(left, right);
+    }
+
+    public static int compare(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+        for (int i = fromIndex, j = fromIndex2; i < toIndex && j < toIndex2; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return (toIndex - fromIndex) - (fromIndex2 - toIndex2);
+    }
+
+    public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+
+        int aLength = toIndex - fromIndex;
+        int bLength = toIndex2 - fromIndex2;
+        if (aLength != bLength) {
+            return false;
+        }
+
+        for (int i = fromIndex, j = fromIndex2; i < toIndex && j < toIndex2; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static int hashCode(byte a[], int offset, int length) {
+        if (a == null) {
+            return 0;
+        }
+
+        int result = 1;
+        for (int i = offset; i < length - offset; i++) {
+            result = 31 * result + a[i];
+        }
+        return result;
     }
 }

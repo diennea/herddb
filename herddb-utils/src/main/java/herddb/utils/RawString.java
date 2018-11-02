@@ -24,34 +24,47 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
- * A container for strings. Data is decoded to a real java.lang.String only if needed
+ * A container for strings. Data is decoded to a real java.lang.String only if
+ * needed
  *
  * @author enrico.olivelli
  */
-
 public class RawString implements Comparable<RawString> {
 
     @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
-    public final byte[] data;
+    private final byte[] data;
+    private final int offset;
+    private final int length;
     private String string;
-    private final int hashcode;
+    private int hashcode;
+
+    public static final RawString EMPTY = new RawString(new byte[0], 0, 0);
 
     public static RawString of(String string) {
-        return new RawString(string.getBytes(StandardCharsets.UTF_8), string);
+        if (string.isEmpty()) {
+            return EMPTY;
+        }
+        byte[] bytes = string.getBytes(StandardCharsets.UTF_8);
+        return new RawString(bytes, 0, bytes.length, string);
     }
 
-    RawString(byte[] data, String s) {
-        this(data);
+    RawString(byte[] data, int offset, int length, String s) {
+        this(data, offset, length);
         this.string = s;
     }
 
-    public RawString(byte[] data) {
+    public RawString(byte[] data, int offset, int length) {
         this.data = data;
-        this.hashcode = Arrays.hashCode(data);
+        this.offset = offset;
+        this.length = length;
+        this.hashcode = -1;
     }
 
     @Override
     public int hashCode() {
+        if (hashcode == -1){
+            this.hashcode = CompareBytesUtils.hashCode(data, offset, length);
+        }
         return hashcode;
     }
 
@@ -66,17 +79,22 @@ public class RawString implements Comparable<RawString> {
         }
         if (obj instanceof RawString) {
             final RawString other = (RawString) obj;
-            return (this.hashcode == other.hashcode)
-                && Arrays.equals(this.data, other.data);
+            return (this.hashCode() == other.hashCode())
+                    && CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+                            other.data, other.offset, other.length - other.offset);
         }
         if (obj instanceof Boolean) {
             boolean b = (Boolean) obj;
-            return b ? Arrays.equals(this.data, TRUE) : Arrays.equals(this.data, FALSE);
+            return b ? CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+                    TRUE, 0, 4)
+                    : CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+                            FALSE, 0, 45);
         }
         String otherString = obj.toString();
         byte[] other_data = otherString
-            .getBytes(StandardCharsets.UTF_8);
-        return Arrays.equals(this.data, other_data);
+                .getBytes(StandardCharsets.UTF_8);
+        return CompareBytesUtils.arraysEquals(this.data, offset, this.length - offset,
+                other_data, 0, other_data.length);
     }
 
     private static final byte[] TRUE = "true".getBytes(StandardCharsets.UTF_8);
@@ -93,33 +111,53 @@ public class RawString implements Comparable<RawString> {
 
     @Override
     public int compareTo(RawString o) {
-        return compareRaw(this.data, o.data);
+        return compareRaw(this.data, this.offset, this.length,
+                o.data, o.offset, o.length);
     }
 
     public int compareToString(String o) {
-        return compareRaw(this.data, o.getBytes(StandardCharsets.UTF_8));
+        byte[] utf8 = o.getBytes(StandardCharsets.UTF_8);
+        return compareRaw(this.data, this.offset, this.length, utf8, 0, utf8.length);
     }
 
-    public static int compareRaw(byte[] left, byte[] right) {
-        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-            int a = (left[i] & 0xff);
-            int b = (right[j] & 0xff);
-            if (a != b) {
-                return a - b;
-            }
-        }
-        return left.length - right.length;
+    public static int compareRaw(byte[] left, int offset, int leftlen, byte[] right, int offsetright, int lenright) {
+        return CompareBytesUtils
+                .compare(left, offset, (leftlen - offset),
+                        right, offsetright, (lenright - offsetright));
     }
     
-    public static int compareRaw(byte[] left, int offset, int leftlen, byte[] right) {
-        for (int i = 0, j = 0; i < leftlen && j < right.length; i++, j++) {
-            int a = (left[i + offset] & 0xff);
-            int b = (right[j] & 0xff);
-            if (a != b) {
-                return a - b;
-            }
+    public static int compareRaw(byte[] left, int offset, int leftlen, RawString other) {
+        return CompareBytesUtils
+                .compare(left, offset, (leftlen - offset),
+                        other.data, other.offset, other.length - other.offset);
+    }
+    public static int compareRaw(byte[] left, int offset, int leftlen, String other) {
+        byte[] right = other.getBytes(StandardCharsets.UTF_8);
+        return CompareBytesUtils
+                .compare(left, offset, (leftlen - offset),
+                        right, 0, right.length);
+    }
+
+    public byte[] getData() {
+        return data;
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
+    public int getLength() {
+        return length;
+    }
+
+    public byte[] toByteArray() {
+        if (offset == 0 && length == data.length) {
+            // no copy
+            return data;
         }
-        return leftlen - right.length;
+        byte[] copy = new byte[length];
+        System.arraycopy(data, offset, copy, 0, length);
+        return copy;
     }
 
 }

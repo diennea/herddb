@@ -33,13 +33,18 @@ public class ByteBufUtils {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
+    
+    public static final void writeArray(ByteBuf buffer, byte[] array, int offset, int length) {
+        writeVInt(buffer, length);
+        buffer.writeBytes(array, offset, length);
+    }
 
     public static final void writeString(ByteBuf buffer, String string) {
         writeArray(buffer, string.getBytes(StandardCharsets.UTF_8));
     }
 
     public static final void writeRawString(ByteBuf buffer, RawString string) {
-        writeArray(buffer, string.data);
+        writeArray(buffer, string.getData(), string.getOffset(), string.getLength());
     }
 
     public static final byte[] readArray(ByteBuf buffer) {
@@ -60,7 +65,7 @@ public class ByteBufUtils {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
-        return new RawString(array);
+        return new RawString(array, 0, len);
     }
 
     public static final void skipArray(ByteBuf buffer) {

@@ -301,6 +301,20 @@ public class ByteArrayCursor implements Closeable {
         readArray(len, res);
         return res;
     }
+    
+    public RawString readRawStringNoCopy() throws IOException {
+        int len = readVInt();
+        if (len == 0) {
+            return RawString.EMPTY;
+        } else if (len == -1) {
+            /* NULL array */
+            return null;
+        }
+        
+        RawString string = new RawString(array, position, len);
+        position += len;
+        return string;        
+    }
 
     @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipArray() throws IOException {

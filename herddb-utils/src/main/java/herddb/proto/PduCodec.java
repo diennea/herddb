@@ -49,12 +49,7 @@ public abstract class PduCodec {
             byte flags = in.getByte(1);
             byte type = in.getByte(2);
             long messageId = in.getLong(3);
-            Pdu pdu = new Pdu();
-            pdu.buffer = in;
-            pdu.type = type;
-            pdu.flags = flags;
-            pdu.messageId = messageId;
-            return pdu;
+            return Pdu.newPdu(in, type, flags, messageId);
         }
         throw new IOException("Cannot decode version " + version);
     }

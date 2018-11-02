@@ -15,8 +15,10 @@
  */
 package herddb.proto;
 
+import com.google.flatbuffers.ByteBufFlatBufferBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.Recycler;
 import io.netty.util.ReferenceCountUtil;
 
 /**
@@ -56,6 +58,27 @@ public class Pdu implements AutoCloseable {
     public static final byte FLAGS_ISREQUEST = 1;
     public static final byte FLAGS_ISRESPONSE = 2;
 
+    private static final Recycler<Pdu> RECYCLER = new Recycler<Pdu>() {
+        @Override
+        protected Pdu newObject(Recycler.Handle<Pdu> handle) {
+            return new Pdu(handle);
+        }
+    };
+    
+    public static Pdu newPdu(ByteBuf buffer, byte type, byte flags, long messageId) {
+        Pdu res = RECYCLER.get();
+        res.type = type;
+        res.flags = flags;
+        res.messageId = messageId;
+        res.buffer = buffer;
+        return res;
+    }
+    
+    private Pdu(Recycler.Handle<Pdu> handle) {
+        this.handle = handle;
+    }
+
+    private final Recycler.Handle<Pdu> handle;
     public ByteBuf buffer;
     public byte flags;
     public byte type;
@@ -73,6 +96,8 @@ public class Pdu implements AutoCloseable {
     public void close() {
         ReferenceCountUtil.release(buffer);
         buffer = null;
+        messageId = 0;
+        handle.recycle(this);
     }
 
 }

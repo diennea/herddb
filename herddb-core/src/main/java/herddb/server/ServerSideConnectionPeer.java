@@ -416,7 +416,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
 
         RunningStatementInfo statementInfo = new RunningStatementInfo(query,
-                System.currentTimeMillis(), tableSpace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
+                System.currentTimeMillis(), tableSpace, parameters.size() + " params");
         try {
             TranslatedQuery translatedQuery = server
                     .getManager()
