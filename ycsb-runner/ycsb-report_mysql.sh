@@ -11,14 +11,14 @@ WORKLOAD=$@
 I=5
 NARG=0 
 WORK=
-REPORT="Benchmark.txt"
+REPORT="Benchmark-"
 L=0
-FILE_TEMP="file_temp/"
-FINAL_REPORT="REPORT_FINAL/"
+FILE_TEMP="target/"
+FINAL_REPORT="target/REPORT_FINAL/"
 JDBC_PATH=$4
 MYSQL="MYSQL_"
-
-
+DATA=$(date '+%Y-%m-%d-%H:%M:%S')
+FORMAT=".txt"
 if [[ -e $MYSQL$REPORT ]]; then 
 rm -rf $MYSQL$REPORT
 fi 
@@ -42,7 +42,7 @@ let L=L+1
 done
 
 
-cat  $FINAL_REPORT* > $MYSQL$REPORT
+cat  $FINAL_REPORT* > $MYSQL$REPORT$DATE$FORMAT
 
 
 rm -rf $FILE_TEMP

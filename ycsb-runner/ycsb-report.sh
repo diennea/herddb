@@ -11,12 +11,13 @@ JDBC_DRIVER=$(ls $HERDDB_PATH/*jdbc*.jar)
 I=3
 NARG=0 
 WORK=
-REPORT="Benchmark_result.txt"
+REPORT="Benchmark-"
 L=0
-FILE_TEMP="file_temp/"
-FINAL_REPORT="REPORT_FINAL/"
+FILE_TEMP="target/"
+FINAL_REPORT="target/REPORT_FINAL/"
 HERDDB="HERDDB_"
-
+DATE=$(date '+%Y-%m-%d-%H:%M:%S')
+FORMAT=".txt"
 if [[ -e $REPORT ]]; then 
 rm -rf $REPORT
 fi 
@@ -38,7 +39,7 @@ while [ $L -lt $VAR ]; do
 I=3
 let L=L+1
 done
-cat  $FINAL_REPORT* > $HERDDB$REPORT
+cat  $FINAL_REPORT* > $HERDDB$REPORT$DATE$FORMAT
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
 
