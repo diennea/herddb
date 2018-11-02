@@ -65,7 +65,14 @@ public class ByteBufUtils {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
-        return new RawString(array, 0, len);
+        return RawString.newPooledRawString(array, 0, len);
+    }
+    
+    public static final RawString readUnpooledRawString(ByteBuf buffer) {
+        final int len = readVInt(buffer);
+        final byte[] array = new byte[len];
+        buffer.readBytes(array);
+        return RawString.newUnpooledRawString(array, 0, len);
     }
 
     public static final void skipArray(ByteBuf buffer) {

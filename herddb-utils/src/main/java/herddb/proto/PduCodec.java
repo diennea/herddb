@@ -1666,7 +1666,7 @@ public abstract class PduCodec {
             case TYPE_LONG:
                 return dii.readLong();
             case TYPE_STRING:
-                return ByteBufUtils.readRawString(dii);
+                return ByteBufUtils.readUnpooledRawString(dii);
             case TYPE_TIMESTAMP:
                 return new java.sql.Timestamp(dii.readLong());
             case TYPE_NULL:

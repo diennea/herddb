@@ -59,7 +59,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public final byte[] data;
-    private final int hashCode;
+    private int hashCode = -1;
 
     public Object deserialized;
 
@@ -160,7 +160,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public static RawString to_rawstring(byte[] data) {
-        return new RawString(data, 0, data.length);
+        return RawString.newUnpooledRawString(data, 0, data.length);
     }
 
     public java.sql.Timestamp to_timestamp() {
@@ -177,12 +177,15 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public Bytes(byte[] data) {
         this.data = data;
-        this.hashCode = Arrays.hashCode(this.data);;
     }
 
     @Override
     public int hashCode() {
+        if (hashCode == -1) {
+            this.hashCode = Arrays.hashCode(this.data);
+        }
         return hashCode;
+
     }
 
     @Override
@@ -192,13 +195,13 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         }
         try {
             final Bytes other = (Bytes) obj;
-            if (other.hashCode != this.hashCode) {
-                return false;
-            }
             if (data.length != other.data.length) {
                 return false;
             }
-            return PlatformDependent.equals(data, 0, other.data, 0, data.length);
+            if (other.hashCode() != this.hashCode()) {
+                return false;
+            }
+            return CompareBytesUtils.arraysEquals(data, 0, data.length, other.data, 0, data.length);
         } catch (ClassCastException otherClass) {
             return false;
         }

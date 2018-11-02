@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.util.Arrays;
 import java.util.logging.Logger;
 
@@ -72,15 +73,7 @@ public final class CompareBytesUtils {
         if (aLength != bLength) {
             return false;
         }
-
-        for (int i = fromIndex, j = fromIndex2; i < toIndex && j < toIndex2; i++, j++) {
-            int a = (left[i] & 0xff);
-            int b = (right[j] & 0xff);
-            if (a != b) {
-                return false;
-            }
-        }
-        return true;
+        return PlatformDependent.equals(left, fromIndex, right, fromIndex2, aLength);
     }
 
     public static int hashCode(byte a[], int offset, int length) {

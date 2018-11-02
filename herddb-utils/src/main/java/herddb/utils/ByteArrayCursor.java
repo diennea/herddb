@@ -311,7 +311,7 @@ public class ByteArrayCursor implements Closeable {
             return null;
         }
         
-        RawString string = new RawString(array, position, len);
+        RawString string = RawString.newPooledRawString(array, position, len);
         position += len;
         return string;        
     }

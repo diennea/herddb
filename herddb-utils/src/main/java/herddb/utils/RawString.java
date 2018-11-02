@@ -20,8 +20,8 @@
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.netty.util.Recycler;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 /**
  * A container for strings. Data is decoded to a real java.lang.String only if
@@ -31,38 +31,87 @@ import java.util.Arrays;
  */
 public class RawString implements Comparable<RawString> {
 
+    private final Recycler.Handle<RawString> handle;
+
     @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
-    private final byte[] data;
-    private final int offset;
-    private final int length;
+    private byte[] data;
+    private int offset;
+    private int length;
     private String string;
     private int hashcode;
 
-    public static final RawString EMPTY = new RawString(new byte[0], 0, 0);
+    public static final RawString EMPTY = newUnpooledRawString(new byte[0], 0, 0);
+
+    private static final Recycler<RawString> RECYCLER = new Recycler<RawString>() {
+        @Override
+        protected RawString newObject(Recycler.Handle<RawString> handle) {
+            return new RawString(handle);
+        }
+    };
+
+    public RawString(Recycler.Handle<RawString> handle) {
+        this.handle = handle;
+    }
+
+    public static RawString newPooledRawString(byte[] data, int offset, int length, String string) {
+        RawString res = RECYCLER.get();
+        res.data = data;
+        res.offset = offset;
+        res.length = length;
+        res.string = string;
+        res.hashcode = -1;
+        return res;
+    }
+
+    public static RawString newPooledRawString(byte[] data, int offset, int length) {
+        RawString res = RECYCLER.get();
+        res.data = data;
+        res.offset = offset;
+        res.length = length;
+        res.string = null;
+        res.hashcode = -1;
+        return res;
+    }
+
+    public static RawString newUnpooledRawString(byte[] data, int offset, int length) {
+        RawString res = new RawString(null);
+        res.data = data;
+        res.offset = offset;
+        res.length = length;
+        res.string = null;
+        res.hashcode = -1;
+        return res;
+    }
+    
+    public static RawString newUnpooledRawString(byte[] data, int offset, int length, String string) {
+        RawString res = new RawString(null);
+        res.data = data;
+        res.offset = offset;
+        res.length = length;
+        res.string = string;
+        res.hashcode = -1;
+        return res;
+    }
 
     public static RawString of(String string) {
         if (string.isEmpty()) {
             return EMPTY;
         }
         byte[] bytes = string.getBytes(StandardCharsets.UTF_8);
-        return new RawString(bytes, 0, bytes.length, string);
+        return newUnpooledRawString(bytes, 0, bytes.length, string);
     }
 
-    RawString(byte[] data, int offset, int length, String s) {
-        this(data, offset, length);
-        this.string = s;
-    }
-
-    public RawString(byte[] data, int offset, int length) {
-        this.data = data;
-        this.offset = offset;
-        this.length = length;
-        this.hashcode = -1;
+    public void recycle() {
+        if (handle != null) {
+            this.data = null;
+            this.string = null;
+            handle.recycle(this);
+        }
     }
 
     @Override
     public int hashCode() {
-        if (hashcode == -1){
+        if (hashcode == -1) {
             this.hashcode = CompareBytesUtils.hashCode(data, offset, length);
         }
         return hashcode;
@@ -125,12 +174,13 @@ public class RawString implements Comparable<RawString> {
                 .compare(left, offset, (leftlen - offset),
                         right, offsetright, (lenright - offsetright));
     }
-    
+
     public static int compareRaw(byte[] left, int offset, int leftlen, RawString other) {
         return CompareBytesUtils
                 .compare(left, offset, (leftlen - offset),
                         other.data, other.offset, other.length - other.offset);
     }
+
     public static int compareRaw(byte[] left, int offset, int leftlen, String other) {
         byte[] right = other.getBytes(StandardCharsets.UTF_8);
         return CompareBytesUtils
