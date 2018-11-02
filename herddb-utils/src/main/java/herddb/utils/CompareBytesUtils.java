@@ -62,7 +62,9 @@ public final class CompareBytesUtils {
                 return a - b;
             }
         }
-        return (toIndex - fromIndex) - (fromIndex2 - toIndex2);
+        int len1 = (toIndex - fromIndex);
+        int len2 = (toIndex2 - fromIndex2);
+        return len1 - len2;
     }
 
     public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
@@ -79,7 +81,7 @@ public final class CompareBytesUtils {
     public static int hashCode(byte a[], int offset, int length) {
         if (a == null) {
             return 0;
-        }
+        }        
 
         int result = 1;
         for (int i = offset; i < length - offset; i++) {
