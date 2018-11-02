@@ -514,7 +514,7 @@ public class TableSpaceManager {
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
             try {
                 // sync on beginTransaction
-                StatementExecutionResult newTransaction = FutureUtils.result(beginTransactionAsync());
+                StatementExecutionResult newTransaction = FutureUtils.result(beginTransactionAsync(context, true));
                 transactionContext = new TransactionContext(newTransaction.transactionId);
                 rollbackOnError = true;
             } catch (Exception err) {
@@ -658,6 +658,7 @@ public class TableSpaceManager {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "RELEASE TS WRITELOCK for " + description);
         }
+//        LOGGER.log(Level.SEVERE, "RELEASE TS WRITELOCK for " + description + " -> " + lockStamp + " " + generalLock);
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -1048,7 +1049,8 @@ public class TableSpaceManager {
                 && statement.supportsTransactionAutoCreate() // Do not autostart transaction on alter table statements
                 ) {
             AtomicLong capturedTx = new AtomicLong();
-            CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync();
+            boolean wasHoldingTableSpaceLock = context.getTableSpaceLock() != 0;
+            CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync(context, false);
             CompletableFuture<StatementExecutionResult> finalResult = newTransaction
                     .thenCompose((StatementExecutionResult begineTransactionResult) -> {
                         TransactionContext newtransactionContext = new TransactionContext(begineTransactionResult.transactionId);
@@ -1056,6 +1058,9 @@ public class TableSpaceManager {
                         return executeStatementAsyncInternal(statement, context, newtransactionContext, true);
                     });
             finalResult.whenComplete((xx, error) -> {
+                if (!wasHoldingTableSpaceLock) {
+                    releaseReadLock(context.getTableSpaceLock(), "begin immplicit transaction");
+                }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
                     try {
@@ -1103,7 +1108,7 @@ public class TableSpaceManager {
                 if (transaction != null) {
                     res = FutureUtils.exception(new StatementExecutionException("transaction already started"));
                 } else {
-                    res = beginTransactionAsync();
+                    res = beginTransactionAsync(context, true);
                 }
             } else if (statement instanceof CommitTransactionStatement) {
                 res = commitTransaction((CommitTransactionStatement) statement);
@@ -1209,6 +1214,7 @@ public class TableSpaceManager {
             LOGGER.log(Level.FINEST, "ACQUIRE TS READLOCK for " + statement);
         }
         long lockStamp = generalLock.readLock();
+//        LOGGER.log(Level.SEVERE, "ACQUIRED READLOCK for " + statement + ", " + generalLock);
         return lockStamp;
     }
 
@@ -1216,8 +1222,10 @@ public class TableSpaceManager {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "ACQUIRE TS WRITELOCK for " + statement);
         }
+//        LOGGER.log(Level.SEVERE, "ACQUIRINGTS WRITELOCK for " + statement + ", " + generalLock);
 
         long lockStamp = generalLock.writeLock();
+//        LOGGER.log(Level.SEVERE, "ACQUIRED WRITELOCK for " + statement + " -> " + lockStamp + ", " + generalLock);
         return lockStamp;
     }
 
@@ -1556,19 +1564,27 @@ public class TableSpaceManager {
         return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
     }
 
-    private CompletableFuture<StatementExecutionResult> beginTransactionAsync() throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
 
         LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
-        long lockStamp = acquireReadLock("begin transaction");
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireReadLock("begin transaction");
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
+
         pos = log.log(entry, false);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
         }, callbacksExecutor);
-        releaseReadLock(res, lockStamp, "begin transaction");
+        if (lockAcquired && releaseLock) {
+            releaseReadLock(res, context.getTableSpaceLock(), "begin transaction");
+        }
         return res;
 
     }
@@ -1614,6 +1630,7 @@ public class TableSpaceManager {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);
         }
+//        LOGGER.log(Level.SEVERE, "RELEASED READLOCK for " + description + ", " + generalLock);
         generalLock.unlockRead(lockStamp);
     }
 
