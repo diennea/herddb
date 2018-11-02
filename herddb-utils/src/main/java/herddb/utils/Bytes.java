@@ -103,6 +103,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     private static final byte[] BOOLEAN_TRUE = {1};
     private static final byte[] BOOLEAN_FALSE = {0};
 
+    @SuppressFBWarnings("MS_EXPOSE_REP")
     public static byte[] booleanToByteArray(boolean value) {
         return value ? BOOLEAN_TRUE : BOOLEAN_FALSE;
     }

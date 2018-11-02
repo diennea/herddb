@@ -30,6 +30,7 @@ import java.util.Arrays;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP"})
 public class RawString implements Comparable<RawString> {
 
     private final Recycler.Handle<RawString> handle;
