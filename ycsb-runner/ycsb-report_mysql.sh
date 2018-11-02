@@ -17,7 +17,7 @@ FILE_TEMP="target/"
 FINAL_REPORT="target/REPORT_FINAL/"
 JDBC_PATH=$4
 MYSQL="MYSQL_"
-DATA=$(date '+%Y-%m-%d-%H:%M:%S')
+DATE=$(date '+%Y-%m-%d-%H:%M:%S')
 FORMAT=".txt"
 if [[ -e $MYSQL$REPORT ]]; then 
 rm -rf $MYSQL$REPORT
