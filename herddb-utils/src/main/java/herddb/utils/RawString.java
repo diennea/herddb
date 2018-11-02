@@ -156,7 +156,7 @@ public class RawString implements Comparable<RawString> {
         if (_string != null) {
             return _string;
         }
-        return string = new String(data, 0, data.length, StandardCharsets.UTF_8);
+        return string = new String(data, offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
