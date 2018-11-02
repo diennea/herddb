@@ -11,16 +11,14 @@ NARG=0
 WORK=
 REPORT="Benchmark-"
 L=0
-LOG="work_files/"
+LOG="work_files_mysql/"
 FILE_TEMP="target/$LOG"
 FINAL="target/"
-FINAL_REPORT="target/report_files/"
+FINAL_REPORT="target/report_files_mysql/"
 JDBC_PATH=$4
 MYSQL="MYSQL_"
 DATE=$(date '+%Y-%m-%d-%H:%M:%S')
 FORMAT=".txt"
-
-
 if [[ -e $MYSQL$REPORT ]]; then 
 rm -rf $MYSQL$REPORT
 fi 

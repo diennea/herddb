@@ -13,14 +13,17 @@ NARG=0
 WORK=
 REPORT="Benchmark-"
 L=0
-FILE_TEMP="target/"
-FINAL_REPORT="target/REPORT_FINAL/"
+FINAL="target/"
+LOG="work_files_herd/"
+FILE_TEMP="target/$LOG"
+FINAL_REPORT="target/report_files_herd/"
 HERDDB="HERDDB_"
 DATE=$(date '+%Y-%m-%d-%H:%M:%S')
 FORMAT=".txt"
 if [[ -e $REPORT ]]; then 
 rm -rf $REPORT
 fi 
+mkdir $FINAL
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
 mkdir $FILE_TEMP
@@ -39,9 +42,7 @@ while [ $L -lt $VAR ]; do
 I=3
 let L=L+1
 done
-cat  $FINAL_REPORT* > $HERDDB$REPORT$DATE$FORMAT
-rm -rf $FILE_TEMP
-rm -rf $FINAL_REPORT
+cat  $FINAL_REPORT* >$FINAL$HERDDB$REPORT$DATE$FORMAT
 
   
 
