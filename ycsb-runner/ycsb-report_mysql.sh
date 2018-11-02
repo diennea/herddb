@@ -1,6 +1,4 @@
 #/bin/bash
-
-
 VAR=$5
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
@@ -13,17 +11,22 @@ NARG=0
 WORK=
 REPORT="Benchmark-"
 L=0
-FILE_TEMP="target/"
-FINAL_REPORT="target/REPORT_FINAL/"
+LOG="work_files/"
+FILE_TEMP="target/$LOG"
+FINAL="target/"
+FINAL_REPORT="target/report_files/"
 JDBC_PATH=$4
 MYSQL="MYSQL_"
 DATE=$(date '+%Y-%m-%d-%H:%M:%S')
 FORMAT=".txt"
+
+
 if [[ -e $MYSQL$REPORT ]]; then 
 rm -rf $MYSQL$REPORT
 fi 
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
+mkdir $FINAL
 mkdir $FILE_TEMP
 mkdir $FINAL_REPORT
 argv=("$@");
@@ -42,11 +45,8 @@ let L=L+1
 done
 
 
-cat  $FINAL_REPORT* > $MYSQL$REPORT$DATE$FORMAT
+cat  $FINAL_REPORT* > $FINAL$MYSQL$REPORT$DATE$FORMAT
 
-
-rm -rf $FILE_TEMP
-rm -rf $FINAL_REPORT
 
   
 
