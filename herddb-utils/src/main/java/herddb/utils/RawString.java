@@ -22,6 +22,7 @@ package herddb.utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.Recycler;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * A container for strings. Data is decoded to a real java.lang.String only if
@@ -82,7 +83,7 @@ public class RawString implements Comparable<RawString> {
         res.hashcode = -1;
         return res;
     }
-    
+
     public static RawString newUnpooledRawString(byte[] data, int offset, int length, String string) {
         RawString res = new RawString(null);
         res.data = data;
@@ -165,26 +166,25 @@ public class RawString implements Comparable<RawString> {
     }
 
     public int compareToString(String o) {
-        byte[] utf8 = o.getBytes(StandardCharsets.UTF_8);
-        return compareRaw(this.data, this.offset, this.length, utf8, 0, utf8.length);
+        return compareRaw(this.data, this.offset, this.length, o);
     }
 
     public static int compareRaw(byte[] left, int offset, int leftlen, byte[] right, int offsetright, int lenright) {
         return CompareBytesUtils
-                .compare(left, offset, (leftlen - offset),
-                        right, offsetright, (lenright - offsetright));
+                .compare(left, offset, leftlen + offset,
+                        right, offsetright, lenright + offsetright);
     }
 
     public static int compareRaw(byte[] left, int offset, int leftlen, RawString other) {
         return CompareBytesUtils
-                .compare(left, offset, (leftlen - offset),
-                        other.data, other.offset, other.length - other.offset);
+                .compare(left, offset, leftlen + offset,
+                        other.data, other.offset, other.length);
     }
 
     public static int compareRaw(byte[] left, int offset, int leftlen, String other) {
         byte[] right = other.getBytes(StandardCharsets.UTF_8);
         return CompareBytesUtils
-                .compare(left, offset, (leftlen - offset),
+                .compare(left, offset, leftlen + offset,
                         right, 0, right.length);
     }
 

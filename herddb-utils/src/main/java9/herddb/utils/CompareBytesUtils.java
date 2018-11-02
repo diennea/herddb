@@ -47,6 +47,8 @@ public final class CompareBytesUtils {
 
     public static int compare(byte[] left, int fromIndex, int toIndex,
             byte[] right, int fromIndex2, int toIndex2) {
+        System.out.println("COMPARE " + new String(left) + " from " + fromIndex + " - " + fromIndex2);
+        System.out.println("COMPARE2 " + new String(right) + " from " + fromIndex2 + " - " + toIndex2);
         return Arrays.compareUnsigned(left, fromIndex, toIndex,
                 right, fromIndex2, toIndex2);
     }
@@ -56,7 +58,7 @@ public final class CompareBytesUtils {
         return Arrays.equals(left, fromIndex, toIndex,
                 right, fromIndex2, toIndex2);
     }
-    
+
     public static int hashCode(byte a[], int offset, int length) {
         if (a == null) {
             return 0;
