@@ -81,10 +81,11 @@ public final class CompareBytesUtils {
     public static int hashCode(byte a[], int offset, int length) {
         if (a == null) {
             return 0;
-        }        
+        }
 
         int result = 1;
-        for (int i = offset; i < length - offset; i++) {
+        final int toIndex = length + offset;
+        for (int i = offset; i < toIndex; i++) {
             result = 31 * result + a[i];
         }
         return result;
