@@ -164,7 +164,7 @@ public final class RecordSerializer {
                 } else if (cvalue instanceof String) {
                     String _cvalue = (String) cvalue;
                     return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue);
-                } else {                    
+                } else {
                     RawString value = dii.readRawStringNoCopy();
                     return SQLRecordPredicateFunctions.compare(value, cvalue);
                 }
@@ -286,14 +286,12 @@ public final class RecordSerializer {
             case ColumnTypes.INTEGER:
                 if (v instanceof Integer) {
                     out.writeArray(Bytes.intToByteArray((Integer) v));
-                    return;
                 } else if (v instanceof Number) {
                     out.writeArray(Bytes.intToByteArray(((Number) v).intValue()));
-                    return;
                 } else {
                     out.writeArray(Bytes.intToByteArray(Integer.parseInt(v.toString())));
-                    return;
                 }
+                return;
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
                     out.writeArray(Bytes.longToByteArray((Long) v));
@@ -302,14 +300,15 @@ public final class RecordSerializer {
                 } else {
                     out.writeArray(Bytes.longToByteArray(Long.parseLong(v.toString())));
                 }
+                return;
             case ColumnTypes.STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
                     out.writeArray(rs.getData(), rs.getOffset(), rs.getLength());
-                    return;
                 } else {
                     out.writeArray(Bytes.string_to_array(v.toString()));
                 }
+                return;
             case ColumnTypes.BOOLEAN:
                 if (v instanceof Boolean) {
                     out.writeArray(Bytes.booleanToByteArray((Boolean) v));
