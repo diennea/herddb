@@ -139,7 +139,7 @@ public class RawString implements Comparable<RawString> {
             return b ? CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
                     TRUE, 0, 4)
                     : CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
-                            FALSE, 0, 45);
+                            FALSE, 0, 5);
         }
         String otherString = obj.toString();
         byte[] other_data = otherString
