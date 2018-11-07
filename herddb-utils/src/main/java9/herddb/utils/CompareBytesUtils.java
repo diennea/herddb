@@ -40,4 +40,33 @@ public final class CompareBytesUtils {
     public static int compare(byte[] left, byte[] right) {
         return Arrays.compareUnsigned(left, right);
     }
+
+    public static boolean arraysEquals(byte[] left, byte[] right) {
+        return Arrays.equals(left, right);
+    }
+
+    public static int compare(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+        return Arrays.compareUnsigned(left, fromIndex, toIndex,
+                right, fromIndex2, toIndex2);
+    }
+
+    public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+        return Arrays.equals(left, fromIndex, toIndex,
+                right, fromIndex2, toIndex2);
+    }
+
+    public static int hashCode(byte a[], int offset, int length) {
+        if (a == null) {
+            return 0;
+        }
+
+        int result = 1;
+        final int toIndex = length + offset;
+        for (int i = offset; i < toIndex; i++) {
+            result = 31 * result + a[i];
+        }
+        return result;
+    }
 }

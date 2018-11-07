@@ -59,7 +59,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public final byte[] data;
-    private final int hashCode;
+    private int hashCode = -1;
 
     public Object deserialized;
 
@@ -82,10 +82,30 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return res;
     }
 
+    public static byte[] intToByteArray(int value) {
+        byte[] res = new byte[4];
+        putInt(res, 0, value);
+        return res;
+    }
+
     public static byte[] doubleToByteArray(double value) {
         byte[] res = new byte[8];
         putLong(res, 0, Double.doubleToLongBits(value));
         return res;
+    }
+
+    public static byte[] timestampToByteArray(java.sql.Timestamp value) {
+        byte[] res = new byte[8];
+        putLong(res, 0, value.getTime());
+        return res;
+    }
+
+    private static final byte[] BOOLEAN_TRUE = {1};
+    private static final byte[] BOOLEAN_FALSE = {0};
+
+    @SuppressFBWarnings("MS_EXPOSE_REP")
+    public static byte[] booleanToByteArray(boolean value) {
+        return value ? BOOLEAN_TRUE : BOOLEAN_FALSE;
     }
 
     public static Bytes from_long(long value) {
@@ -115,9 +135,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public static Bytes from_boolean(boolean value) {
-        byte[] res = new byte[1];
-        putBoolean(res, 0, value);
-        return new Bytes(res);
+        return new Bytes(booleanToByteArray(value));
     }
 
     public static Bytes from_double(double value) {
@@ -143,7 +161,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public static RawString to_rawstring(byte[] data) {
-        return new RawString(data);
+        return RawString.newUnpooledRawString(data, 0, data.length);
     }
 
     public java.sql.Timestamp to_timestamp() {
@@ -160,12 +178,15 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public Bytes(byte[] data) {
         this.data = data;
-        this.hashCode = Arrays.hashCode(this.data);;
     }
 
     @Override
     public int hashCode() {
+        if (hashCode == -1) {
+            this.hashCode = Arrays.hashCode(this.data);
+        }
         return hashCode;
+
     }
 
     @Override
@@ -175,13 +196,13 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         }
         try {
             final Bytes other = (Bytes) obj;
-            if (other.hashCode != this.hashCode) {
-                return false;
-            }
             if (data.length != other.data.length) {
                 return false;
             }
-            return PlatformDependent.equals(data, 0, other.data, 0, data.length);
+            if (other.hashCode() != this.hashCode()) {
+                return false;
+            }
+            return CompareBytesUtils.arraysEquals(data, 0, data.length, other.data, 0, data.length);
         } catch (ClassCastException otherClass) {
             return false;
         }
@@ -340,8 +361,9 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     /**
      * Returns the next {@code Bytes} instance.
      * <p>
-     * Depending on current instance it couldn't be possible to evaluate the next one: if every bit in current byte
-     * array is already 1 next would generate an overflow and isn't permitted.
+     * Depending on current instance it couldn't be possible to evaluate the
+     * next one: if every bit in current byte array is already 1 next would
+     * generate an overflow and isn't permitted.
      * </p>
      *
      * @return the next Bytes instance
@@ -353,7 +375,6 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         final byte[] dst = new byte[data.length];
         System.arraycopy(data, 0, dst, 0, data.length);
 
-
         int idx = data.length - 1;
 
         /*
@@ -361,7 +382,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
          * increment when needed but System.arraycopy is really faster than manual for loop copy and in
          * standard cases we just need to very fiew bytes (normally just one)
          */
-        while(idx > -1 && ++dst[idx] == 0) {
+        while (idx > -1 && ++dst[idx] == 0) {
             --idx;
         }
 

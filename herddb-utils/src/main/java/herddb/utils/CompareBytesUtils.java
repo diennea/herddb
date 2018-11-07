@@ -19,6 +19,8 @@
  */
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
+import java.util.Arrays;
 import java.util.logging.Logger;
 
 /**
@@ -45,5 +47,47 @@ public final class CompareBytesUtils {
             }
         }
         return left.length - right.length;
+    }
+
+    public static boolean arraysEquals(byte[] left, byte[] right) {
+        return Arrays.equals(left, right);
+    }
+
+    public static int compare(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+        for (int i = fromIndex, j = fromIndex2; i < toIndex && j < toIndex2; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        int len1 = (toIndex - fromIndex);
+        int len2 = (toIndex2 - fromIndex2);
+        return len1 - len2;
+    }
+
+    public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2) {
+
+        int aLength = toIndex - fromIndex;
+        int bLength = toIndex2 - fromIndex2;
+        if (aLength != bLength) {
+            return false;
+        }
+        return PlatformDependent.equals(left, fromIndex, right, fromIndex2, aLength);
+    }
+
+    public static int hashCode(byte a[], int offset, int length) {
+        if (a == null) {
+            return 0;
+        }
+
+        int result = 1;
+        final int toIndex = length + offset;
+        for (int i = offset; i < toIndex; i++) {
+            result = 31 * result + a[i];
+        }
+        return result;
     }
 }

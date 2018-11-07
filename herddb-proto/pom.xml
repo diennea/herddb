@@ -16,7 +16,11 @@
         <flatc.generated.files>${basedir}/src/main/flatc</flatc.generated.files>
         <os-maven-plugin.version>1.5.0.Final</os-maven-plugin.version>        
     </properties>
-    <dependencies>
+    <dependencies>         
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.google.flatbuffers</groupId>
             <artifactId>flatbuffers-java</artifactId>    
@@ -73,6 +77,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-clean-plugin</artifactId>
+                        <version>3.1.0</version>
                         <executions>
                             <execution>
                                 <id>remove-old-stubs</id>

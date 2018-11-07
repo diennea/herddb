@@ -19,7 +19,7 @@
  */
 package herddb.network.netty;
 
-import herddb.network.MessageWrapper;
+import herddb.proto.Pdu;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.util.logging.Level;
@@ -54,12 +54,7 @@ public class ClientInboundMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        MessageWrapper message = (MessageWrapper) msg;
-        if (message.getResponse() != null) {
-            session.responseReceived(message);
-        } else {
-            session.requestReceived(message);
-        }
+        session.pduReceived((Pdu) msg);
     }
 
 }

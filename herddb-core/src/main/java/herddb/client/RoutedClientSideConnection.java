@@ -43,18 +43,15 @@ import herddb.model.Transaction;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.utils.KeyValue;
-import herddb.network.MessageBuilder;
-import herddb.network.MessageWrapper;
 import herddb.network.ServerHostData;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
 import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Request;
-import herddb.proto.flatbuf.Response;
 import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
 import io.netty.buffer.ByteBuf;
@@ -77,8 +74,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
+    private final AtomicLong scannerIdGenerator = new AtomicLong();
 
-    private final Map<RawString, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
+    private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
         this.connection = connection;
@@ -104,26 +102,26 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         long requestId = _channel.generateRequestId();
-        MessageWrapper saslResponse = _channel.sendMessageWithReply(requestId,
-                MessageBuilder.SASL_TOKEN_MESSAGE_REQUEST(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
+        Pdu saslResponse = _channel.sendMessageWithPduReply(requestId,
+                PduCodec.SaslTokenMessageRequest.write(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
         try {
             for (int i = 0; i < 100; i++) {
                 byte[] responseToSendToServer;
-                Response response = saslResponse.getResponse();
-                switch (response.type()) {
+                switch (saslResponse.type) {
                     case MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE:
-                        byte[] token = (byte[]) MessageUtils.bufferToArray(response.tokenAsByteBuffer());
+                        byte[] token = PduCodec.SaslTokenServerResponse.readToken(saslResponse);
                         responseToSendToServer = saslNettyClient.evaluateChallenge(token);
                         requestId = _channel.generateRequestId();
                         saslResponse.close();
-                        saslResponse = _channel.sendMessageWithReply(requestId, MessageBuilder.SASL_TOKEN_MESSAGE_TOKEN(requestId, responseToSendToServer), timeout);
+                        saslResponse = _channel.sendMessageWithPduReply(requestId,
+                                PduCodec.SaslTokenMessageToken.write(requestId, responseToSendToServer), timeout);
                         if (saslNettyClient.isComplete()) {
                             LOGGER.finest("SASL auth completed with success");
                             return;
                         }
                         break;
                     case MessageType.TYPE_ERROR:
-                        throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + response.error() + ")");
+                        throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + PduCodec.ErrorResponse.readError(saslResponse) + ")");
                     default:
                         throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
                 }
@@ -137,41 +135,37 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     @Override
     @SuppressFBWarnings(value = "SF_SWITCH_NO_DEFAULT")
     @SuppressWarnings("empty-statement")
-    public void requestReceived(MessageWrapper messageWrapper, Channel _channel) {
+    public void requestReceived(Pdu message, Channel _channel) {
         try {
-            Request message = messageWrapper.getRequest();
-            switch (message.type()) {
+            switch (message.type) {
                 case MessageType.TYPE_TABLESPACE_DUMP_DATA: {
-                    RawString dumpId = MessageUtils.readRawString(message.dumpIdAsByteBuffer());
+                    String dumpId = PduCodec.TablespaceDumpData.readDumpId(message);
                     TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
                     LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
                     if (receiver == null) {
                         if (_channel != null) {
-                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("no such dump receiver " + dumpId)));
+                            ByteBuf resp = PduCodec.ErrorResponse.write(message.messageId, "no such dump receiver " + dumpId);
+                            _channel.sendReplyMessage(message.messageId, resp);
                         }
                         return;
                     }
                     try {
-                        String command = message.command();
+                        String command = PduCodec.TablespaceDumpData.readCommand(message);
                         boolean sendAck = true;
                         switch (command) {
                             case "start": {
-                                long ledgerId = message.dumpLedgerId();
-                                long offset = message.dumpOffset();
+                                long ledgerId = PduCodec.TablespaceDumpData.readLedgerId(message);
+                                long offset = PduCodec.TablespaceDumpData.readOffset(message);
                                 receiver.start(new LogSequenceNumber(ledgerId, offset));
                                 break;
                             }
                             case "beginTable": {
-                                byte[] tableDefinition = MessageUtils.bufferToArray(message.tableDefinition().schemaAsByteBuffer());
+                                byte[] tableDefinition = PduCodec.TablespaceDumpData.readTableDefinition(message);
                                 Table table = Table.deserialize(tableDefinition);
-                                Long estimatedSize = message.estimatedSize();
-                                long dumpLedgerId = message.dumpLedgerId();
-                                long dumpOffset = message.dumpOffset();
-                                List<byte[]> indexesDef = new ArrayList<>();
-                                int numIndexes = message.indexesDefinitionLength();
-                                for (int i = 0; i < numIndexes; i++) {
-                                    indexesDef.add(MessageUtils.bufferToArray(message.indexesDefinition(i).schemaAsByteBuffer()));
-                                }
+                                long estimatedSize = PduCodec.TablespaceDumpData.readEstimatedSize(message);
+                                long dumpLedgerId = PduCodec.TablespaceDumpData.readLedgerId(message);
+                                long dumpOffset = PduCodec.TablespaceDumpData.readOffset(message);
+                                List<byte[]> indexesDef = PduCodec.TablespaceDumpData.readIndexesDefinition(message);
                                 List<Index> indexes = indexesDef
                                         .stream()
                                         .map(Index::deserialize)
@@ -190,57 +184,34 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                                 break;
                             }
                             case "finish": {
-                                long ledgerId = message.dumpLedgerId();
-                                long offset = message.dumpOffset();
+                                long ledgerId = PduCodec.TablespaceDumpData.readLedgerId(message);
+                                long offset = PduCodec.TablespaceDumpData.readOffset(message);
                                 receiver.finish(new LogSequenceNumber(ledgerId, offset));
                                 sendAck = false;
                                 break;
                             }
                             case "data": {
-                                int dataSize = message.rawDataChunkLength();
-                                List<KeyValue> data = new ArrayList<>(dataSize);
-                                for (int i = 0; i < dataSize; i++) {
-                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
-                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
-                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
-                                    data.add(new KeyValue(key, value));
-                                }
-
-                                List<Record> records = new ArrayList<>(data.size());
-                                for (KeyValue kv : data) {
-                                    records.add(new Record(new Bytes(kv.key), new Bytes(kv.value)));
-                                }
+                                List<Record> records = new ArrayList<>();
+                                PduCodec.TablespaceDumpData.readRecords(message, (key, value) -> {
+                                    records.add(new Record(new Bytes(key), new Bytes(value)));
+                                });
                                 receiver.receiveTableDataChunk(records);
                                 break;
                             }
                             case "txlog": {
-                                int dataSize = message.rawDataChunkLength();
-                                List<KeyValue> data = new ArrayList<>(dataSize);
-                                for (int i = 0; i < dataSize; i++) {
-                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
-                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
-                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
-                                    data.add(new KeyValue(key, value));
-                                }
-                                List<DumpedLogEntry> records = new ArrayList<>(data.size());
-                                for (KeyValue kv : data) {
-                                    records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
-                                }
+
+                                List<DumpedLogEntry> records = new ArrayList<>();
+                                PduCodec.TablespaceDumpData.readRecords(message, (key, value) -> {
+                                    records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(key), value));
+                                });
                                 receiver.receiveTransactionLogChunk(records);
                                 break;
                             }
                             case "transactions": {
-                                int dataSize = message.rawDataChunkLength();
-                                List<KeyValue> data = new ArrayList<>(dataSize);
-                                for (int i = 0; i < dataSize; i++) {
-                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
-                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
-                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
-                                    data.add(new KeyValue(key, value));
-                                }
-                                List<Transaction> transactions = data.stream().map(array -> {
-                                    return Transaction.deserialize(null, array.value);
-                                }).collect(Collectors.toList());
+                                List<Transaction> transactions = new ArrayList<>();
+                                PduCodec.TablespaceDumpData.readRecords(message, (key, value) -> {
+                                    transactions.add(Transaction.deserialize(null, value));
+                                });
                                 receiver.receiveTransactionsAtDump(transactions);
                                 break;
                             }
@@ -248,12 +219,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                                 throw new DataStorageManagerException("invalid dump command:" + command);
                         }
                         if (_channel != null && sendAck) {
-                            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+                            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+                            _channel.sendReplyMessage(message.messageId, res);
                         }
                     } catch (DataStorageManagerException error) {
                         LOGGER.log(Level.SEVERE, "error while handling dump data", error);
                         if (_channel != null) {
-                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), error));
+                            ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, error);
+                            _channel.sendReplyMessage(message.messageId, res);
                         }
                     }
                 }
@@ -261,7 +234,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
             }
         } finally {
-            messageWrapper.close();
+            message.close();
         }
     }
 
@@ -308,6 +281,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     channel = _channel;
                     return channel;
                 } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE, "Error", err);
                     if (_channel != null) {
                         _channel.close();
                     }
@@ -328,23 +302,21 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, returnValues, params);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, params);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
-                long updateCount = (Long) reply.updateCount();
-                long transactionId = (Long) reply.tx();
-
+                long updateCount = PduCodec.ExecuteStatementResult.readUpdateCount(reply);
+                long transactionId = PduCodec.ExecuteStatementResult.readTx(reply);
+                boolean hasData = PduCodec.ExecuteStatementResult.hasRecord(reply);
                 Object key = null;
-                Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
-                if (newvalue != null) {
+                Map<RawString, Object> newvalue = null;
+                if (hasData) {
+                    PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
+                    newvalue = readParametersListAsMap(parametersReader);
                     key = newvalue.get(RAWSTRING_KEY);
                 }
                 return new DMLResult(updateCount, key, newvalue, transactionId);
@@ -358,32 +330,34 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENTS(requestId, tableSpace, query, tx, returnValues, batch);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+            ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, batch);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == MessageType.TYPE_ERROR) {
+                    handleGenericError(reply);
+                    return null; // not possible
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
                     throw new HDBException(reply);
                 }
 
-                long transactionId = reply.tx();
-                int numResults = reply.batchResultsLength();
+                long transactionId = PduCodec.ExecuteStatementsResult.readTx(reply);
+                List<Long> updateCounts = PduCodec.ExecuteStatementsResult.readUpdateCounts(reply);
+                int numResults = updateCounts.size();
 
                 List<DMLResult> results = new ArrayList<>(numResults);
 
+                PduCodec.ListOfListsReader resultRecords = PduCodec.ExecuteStatementsResult.startResultRecords(reply);
+                int numResultRecords = resultRecords.getNumLists();
                 for (int i = 0; i < numResults; i++) {
-                    herddb.proto.flatbuf.DMLResult result = reply.batchResults(i);
-                    long updateCount = result.updateCount();
+                    Map<RawString, Object> newvalue = null;
                     Object key = null;
-                    Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
-                    if (newvalue != null) {
-                        key = newvalue.get(RAWSTRING_KEY);
+                    if (numResultRecords > 0) {
+                        PduCodec.ObjectListReader list = resultRecords.nextList();
+                        newvalue = readParametersListAsMap(list);
+                        if (newvalue != null) {
+                            key = newvalue.get(RAWSTRING_KEY);
+                        }
                     }
-
+                    long updateCount = updateCounts.get(i);
                     DMLResult res = new DMLResult(updateCount, key, newvalue, transactionId);
                     results.add(res);
                 }
@@ -398,47 +372,63 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, false, params);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, params);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
-                long found = reply.updateCount();
-                long transactionId = reply.tx();
-                if (found <= 0) {
+                long updateCount = PduCodec.ExecuteStatementResult.readUpdateCount(reply);
+                long transactionId = PduCodec.ExecuteStatementResult.readTx(reply);
+                boolean hasData = PduCodec.ExecuteStatementResult.hasRecord(reply);
+
+                Map<RawString, Object> data = null;
+                if (hasData) {
+                    PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
+                    data = readParametersListAsMap(parametersReader);
+                }
+
+                if (updateCount <= 0) {
                     return new GetResult(null, transactionId);
                 } else {
-                    Map<RawString, Object> data = MessageUtils.decodeMap(reply.newValue());
                     return new GetResult(data, transactionId);
                 }
             }
+
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
+    }
+
+    Map<RawString, Object> readParametersListAsMap(PduCodec.ObjectListReader parametersReader) {
+        Map<RawString, Object> data = new HashMap<>();
+        for (int i = 0; i < parametersReader.getNumParams(); i += 2) {
+            RawString _key = (RawString) parametersReader.nextObject();
+            Object _value = parametersReader.nextObject();
+            data.put(_key, _value);
+        }
+        return data;
     }
 
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION, 0);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION, 0, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                    return -1; // not possible
+                } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
+                    long tx = PduCodec.TxCommandResult.readTx(reply);
+                    if (tx <= 0) {
+                        throw new HDBException("Server did not create a new transaction");
                     }
+                    return tx;
+                } else {
                     throw new HDBException(reply);
                 }
-                return reply.tx();
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -449,15 +439,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION, tx);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION, tx, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                    return; // not possible
+                } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
                 }
             }
@@ -470,15 +457,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION, tx);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+            ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION, tx, tableSpace);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                    return; // not possible
+                } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
                 }
             }
@@ -487,34 +471,40 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
+    void handleGenericError(final Pdu reply) throws HDBException, ClientSideMetadataProviderException {
+        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
+        String msg = PduCodec.ErrorResponse.readError(reply);
+        reply.close();
+        if (notLeader) {
+            this.connection.requestMetadataRefresh();
+            throw new RetryRequestException(msg);
+        } else {
+            throw new HDBException(msg);
+        }
+    }
 
     ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
-        MessageWrapper reply = null;
+        Pdu reply = null;
         try {
-            String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
+            long scannerId = scannerIdGenerator.incrementAndGet();
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.OPEN_SCANNER(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
+            ByteBuf message = PduCodec.OpenScanner.write(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
             LOGGER.log(Level.FINEST, "open scanner {0} for query {1}, params {2}", new Object[]{scannerId, query, params});
-            reply = _channel.sendMessageWithReply(requestId, message, timeout);
-            Response response = reply.getResponse();
-            if (response.type() == MessageType.TYPE_ERROR) {
-                boolean notLeader = response.notLeader();
-                if (notLeader) {
-                    reply.close();
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
-                }
-                try {
-                    throw new HDBException(response);
-                } finally {
-                    reply.close();
-                }
+            reply = _channel.sendMessageWithPduReply(requestId, message, timeout);
+
+            if (reply.type == Pdu.TYPE_ERROR) {
+                handleGenericError(reply);
+                return null; // not possible
+            } else if (reply.type != Pdu.TYPE_RESULTSET_CHUNK) {
+                HDBException err = new HDBException(reply);
+                reply.close();
+                throw err;
             }
-            RecordsBatch data = new RecordsBatch(reply);
-            boolean last = (Boolean) response.last();
-            long transactionId = (Long) response.tx();
+
+            boolean last = PduCodec.ResultSetChunk.readIsLast(reply);
+            long transactionId = PduCodec.ResultSetChunk.readTx(reply);
+            RecordsBatch data = PduCodec.ResultSetChunk.startReadingData(reply);
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
             return impl;
@@ -529,24 +519,19 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
+            String dumpId = this.clientId + ":" + scannerIdGenerator.incrementAndGet();
             long requestId = _channel.generateRequestId();
-            ByteBuf message = MessageBuilder.REQUEST_TABLESPACE_DUMP(requestId, tableSpace, dumpId, fetchSize, includeTransactionLog);
+            ByteBuf message = PduCodec.RequestTablespaceDump.write(requestId, tableSpace, dumpId, fetchSize, includeTransactionLog);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}", new Object[]{dumpId, tableSpace});
-            dumpReceivers.put(RawString.of(dumpId), receiver);
-            try (MessageWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
-                Response reply = replyWrapper.getResponse();
+            dumpReceivers.put(dumpId, receiver);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}: first reply {2}", new Object[]{dumpId, tableSpace, reply});
-                if (reply.type() == MessageType.TYPE_ERROR) {
-                    boolean notLeader = reply.notLeader();
-                    if (notLeader) {
-                        this.connection.requestMetadataRefresh();
-                        throw new RetryRequestException(reply + "");
-                    }
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                } else if (reply.type != Pdu.TYPE_ACK) {
                     throw new HDBException(reply);
                 }
             }
-
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -568,13 +553,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         DumpedTableMetadata table = source.nextTable();
                         Channel _channel = ensureOpen();
                         long id = _channel.generateRequestId();
-                        ByteBuf message_create_table = MessageBuilder.REQUEST_TABLE_RESTORE(id, tableSpace,
+                        ByteBuf message_create_table = PduCodec.RequestTableRestore.write(id, tableSpace,
                                 table.table.serialize(), table.logSequenceNumber.ledgerId, table.logSequenceNumber.offset);
                         sendMessageAndCheckNoError(_channel, id, message_create_table);
                         List<KeyValue> chunk = source.nextTableDataChunk();
                         while (chunk != null) {
                             id = _channel.generateRequestId();
-                            ByteBuf message = MessageBuilder.PUSH_TABLE_DATA(id, tableSpace, table.table.name, chunk);
+                            ByteBuf message = PduCodec.PushTableData.write(id, tableSpace, table.table.name, chunk);
                             sendMessageAndCheckNoError(_channel, id, message);
                             chunk = source.nextTableDataChunk();
                         }
@@ -586,7 +571,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         Channel _channel = ensureOpen();
                         List<KeyValue> chunk = source.nextTransactionLogChunk();
                         long id = _channel.generateRequestId();
-                        ByteBuf message = MessageBuilder.PUSH_TXLOGCHUNK(id, tableSpace, chunk);
+                        ByteBuf message = PduCodec.PushTxLogChunk.write(id, tableSpace, chunk);
                         sendMessageAndCheckNoError(_channel, id, message);
                         break;
                     }
@@ -594,7 +579,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         Channel _channel = ensureOpen();
                         List<byte[]> chunk = source.nextTransactionsBlock();
                         long id = _channel.generateRequestId();
-                        ByteBuf message = MessageBuilder.PUSH_TRANSACTIONSBLOCK(id, tableSpace, chunk);
+                        ByteBuf message = PduCodec.PushTransactionsBlock.write(id, tableSpace, chunk);
                         sendMessageAndCheckNoError(_channel, id, message);
                         break;
                     }
@@ -607,13 +592,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
 
                             long id = _channel.generateRequestId();
-                            ByteBuf message_table_finished = MessageBuilder.TABLE_RESTORE_FINISHED(id, tableSpace,
+                            ByteBuf message_table_finished = PduCodec.TableRestoreFinished.write(id, tableSpace,
                                     table.table.name, indexes);
                             sendMessageAndCheckNoError(_channel, id, message_table_finished);
                         }
 
                         long id = _channel.generateRequestId();
-                        ByteBuf message_restore_finished = MessageBuilder.RESTORE_FINISHED(id, tableSpace);
+                        ByteBuf message_restore_finished = PduCodec.RestoreFinished.write(id, tableSpace);
                         sendMessageAndCheckNoError(_channel, id, message_restore_finished);
 
                         return;
@@ -630,16 +615,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     private void sendMessageAndCheckNoError(Channel _channel, long id, ByteBuf message)
             throws HDBException, InterruptedException, TimeoutException {
-        try (MessageWrapper reply = _channel.sendMessageWithReply(id, message, timeout);) {
-            if (reply.getResponse().type() == MessageType.TYPE_ERROR) {
-                throw new HDBException(reply.getResponse());
+        try (Pdu reply = _channel.sendMessageWithPduReply(id, message, timeout);) {
+            if (reply.type == Pdu.TYPE_ERROR) {
+                throw new HDBException(reply);
             }
         }
     }
 
     private class ScanResultSetImpl extends ScanResultSet {
 
-        private final String scannerId;
+        private final long scannerId;
         private final ScanResultSetMetadata metadata;
 
         RecordsBatch fetchBuffer;
@@ -649,7 +634,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         int fetchSize;
         boolean lastChunk;
 
-        private ScanResultSetImpl(String scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+        private ScanResultSetImpl(long scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
             super(tx);
 
             this.scannerId = scannerId;
@@ -699,26 +684,31 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 return;
             }
             Channel _channel = ensureOpen();
-            MessageWrapper result = null;
+            Pdu result = null;
             try {
                 long requestId = _channel.generateRequestId();
-                ByteBuf message = MessageBuilder.FETCH_SCANNER_DATA(requestId, scannerId, fetchSize);
-                result = _channel.sendMessageWithReply(requestId, message, 10000);
-                Response response = result.getResponse();
+                ByteBuf message = PduCodec.FetchScannerData.write(requestId, scannerId, fetchSize);
+                result = _channel.sendMessageWithPduReply(requestId, message, 10000);
+
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
-                if (response.type() == MessageType.TYPE_ERROR) {
+                if (result.type == MessageType.TYPE_ERROR) {
                     try {
-                        throw new HDBException(result.getResponse());
+                        throw new HDBException(result);
                     } finally {
                         result.close();
                     }
                 }
-                if (response.type() != MessageType.TYPE_RESULTSET_CHUNK) {
+                if (result.type != MessageType.TYPE_RESULTSET_CHUNK) {
                     finished = true;
-                    throw new HDBException("protocol error: " + result);
+                    try {
+                        throw new HDBException("protocol error: " + result);
+                    } finally {
+                        result.close();
+                    }
                 }
-                fetchBuffer = new RecordsBatch(result);
-                lastChunk = response.last();
+                lastChunk = PduCodec.ResultSetChunk.readIsLast(result);
+                fetchBuffer = PduCodec.ResultSetChunk.startReadingData(result);
+
                 if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }

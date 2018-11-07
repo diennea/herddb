@@ -20,9 +20,7 @@
 package herddb.core;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -31,8 +29,9 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.Channel;
+import herddb.proto.Pdu;
 import herddb.utils.KeyValue;
-import herddb.network.MessageBuilder;
+import herddb.proto.PduCodec;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 
@@ -71,10 +70,11 @@ class SingleTableDumper implements FullTableScanConsumer {
                     .map(Index::serialize)
                     .collect(Collectors.toList());
             long id = _channel.generateRequestId();
-            _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+            try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "beginTable", tableDefinition, stats.getTablesize(),
                     tableStatus.sequenceNumber.ledgerId, tableStatus.sequenceNumber.offset,
-                    indexes, null), timeout);
+                    indexes, null), timeout);) {
+            }
         } catch (InterruptedException | TimeoutException err) {
             throw new HerdDBInternalException(err);
         }
@@ -107,10 +107,12 @@ class SingleTableDumper implements FullTableScanConsumer {
                 sendBatch();
             }
             long id = _channel.generateRequestId();
-            _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+            try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "endTable", null, 0,
                     0, 0,
-                    null, null), timeout);
+                    null, null), timeout)) {
+
+            }
         } catch (Exception error) {
             throw new RuntimeException(error);
         }
@@ -118,10 +120,11 @@ class SingleTableDumper implements FullTableScanConsumer {
 
     private void sendBatch() throws TimeoutException, InterruptedException {
         long id = _channel.generateRequestId();
-        _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+        try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "data", null, 0,
                 0, 0,
-                null, batch), timeout);
+                null, batch), timeout)) {
+        }
         batch.clear();
     }
 

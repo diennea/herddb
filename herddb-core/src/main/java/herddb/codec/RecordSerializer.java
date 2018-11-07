@@ -103,9 +103,9 @@ public final class RecordSerializer {
                 return SQLRecordPredicateFunctions.compare(Bytes.toLong(data, 0), cvalue);
             case ColumnTypes.STRING:
                 if (cvalue instanceof RawString) {
-                    return RawString.compareRaw(data, ((RawString) cvalue).data);
+                    return RawString.compareRaw(data, 0, data.length, ((RawString) cvalue));
                 } else if (cvalue instanceof String) {
-                    return RawString.compareRaw(data, ((String) cvalue).getBytes(StandardCharsets.UTF_8));
+                    return RawString.compareRaw(data, 0, data.length, ((String) cvalue));
                 }
                 return SQLRecordPredicateFunctions.compare(Bytes.to_rawstring(data), cvalue);
             case ColumnTypes.TIMESTAMP:
@@ -131,8 +131,7 @@ public final class RecordSerializer {
             case ColumnTypes.LONG:
                 return dii.readLong();
             case ColumnTypes.STRING:
-                byte[] array = dii.readArray();
-                return array == null ? null : new RawString(array);
+                return dii.readRawStringNoCopy();
             case ColumnTypes.TIMESTAMP:
                 return new java.sql.Timestamp(dii.readLong());
             case ColumnTypes.NULL:
@@ -161,14 +160,12 @@ public final class RecordSerializer {
                 int len = dii.readArrayLen();
                 if (cvalue instanceof RawString) {
                     RawString _cvalue = (RawString) cvalue;
-                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue.data);
+                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue);
                 } else if (cvalue instanceof String) {
                     String _cvalue = (String) cvalue;
-                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue.getBytes(StandardCharsets.UTF_8));
+                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue);
                 } else {
-                    byte[] datum = new byte[len];
-                    dii.readArray(len, datum);
-                    RawString value = new RawString(datum);
+                    RawString value = dii.readRawStringNoCopy();
                     return SQLRecordPredicateFunctions.compare(value, cvalue);
                 }
 
@@ -225,51 +222,171 @@ public final class RecordSerializer {
                 return (byte[]) v;
             case ColumnTypes.INTEGER:
                 if (v instanceof Integer) {
-                    return Bytes.from_int((Integer) v).data;
+                    return Bytes.intToByteArray((Integer) v);
                 } else if (v instanceof Number) {
-                    return Bytes.from_int(((Number) v).intValue()).data;
+                    return Bytes.intToByteArray(((Number) v).intValue());
                 } else {
-                    return Bytes.from_int(Integer.parseInt(v.toString())).data;
+                    return Bytes.intToByteArray(Integer.parseInt(v.toString()));
                 }
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
-                    return Bytes.from_long((Long) v).data;
+                    return Bytes.longToByteArray((Long) v);
                 } else if (v instanceof Number) {
-                    return Bytes.from_long(((Number) v).longValue()).data;
+                    return Bytes.longToByteArray(((Number) v).longValue());
                 } else {
-                    return Bytes.from_long(Long.parseLong(v.toString())).data;
+                    return Bytes.longToByteArray(Long.parseLong(v.toString()));
                 }
             case ColumnTypes.STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
-                    return rs.data;
+                    // this will potentially make a copy
+                    return rs.toByteArray();
                 } else {
                     return Bytes.string_to_array(v.toString());
                 }
             case ColumnTypes.BOOLEAN:
                 if (v instanceof Boolean) {
-                    return Bytes.from_boolean((Boolean) v).data;
+                    return Bytes.booleanToByteArray((Boolean) v);
                 } else {
-                    return Bytes.from_boolean(Boolean.parseBoolean(v.toString())).data;
+                    return Bytes.booleanToByteArray(Boolean.parseBoolean(v.toString()));
                 }
             case ColumnTypes.DOUBLE:
                 if (v instanceof Double) {
-                    return Bytes.from_double((Double) v).data;
+                    return Bytes.doubleToByteArray((Double) v);
                 } else if (v instanceof Long) {
-                    return Bytes.from_double((Long) v).data;
+                    return Bytes.doubleToByteArray((Long) v);
                 } else if (v instanceof Number) {
-                    return Bytes.from_double(((Number) v).longValue()).data;
+                    return Bytes.doubleToByteArray(((Number) v).longValue());
                 } else {
-                    return Bytes.from_double(Double.parseDouble(v.toString())).data;
+                    return Bytes.doubleToByteArray(Double.parseDouble(v.toString()));
                 }
             case ColumnTypes.TIMESTAMP:
                 if (v instanceof Long) {
-                    return Bytes.from_timestamp(new java.sql.Timestamp(((Long) v))).data;
+                    return Bytes.timestampToByteArray(new java.sql.Timestamp(((Long) v)));
                 }
                 if (!(v instanceof java.sql.Timestamp)) {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
                 }
-                return Bytes.from_timestamp((java.sql.Timestamp) v).data;
+                return Bytes.timestampToByteArray((java.sql.Timestamp) v);
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+
+        }
+    }
+
+    public static void serializeTo(Object v, int type, ExtendedDataOutputStream out) throws IOException {
+        if (v == null) {
+            out.writeArray(null);
+            return;
+        }
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                out.writeArray((byte[]) v);
+                return;
+            case ColumnTypes.INTEGER:
+                if (v instanceof Integer) {
+                    out.writeArray(Bytes.intToByteArray((Integer) v));
+                } else if (v instanceof Number) {
+                    out.writeArray(Bytes.intToByteArray(((Number) v).intValue()));
+                } else {
+                    out.writeArray(Bytes.intToByteArray(Integer.parseInt(v.toString())));
+                }
+                return;
+            case ColumnTypes.LONG:
+                if (v instanceof Long) {
+                    out.writeArray(Bytes.longToByteArray((Long) v));
+                } else if (v instanceof Number) {
+                    out.writeArray(Bytes.longToByteArray(((Number) v).longValue()));
+                } else {
+                    out.writeArray(Bytes.longToByteArray(Long.parseLong(v.toString())));
+                }
+                return;
+            case ColumnTypes.STRING:
+                if (v instanceof RawString) {
+                    RawString rs = (RawString) v;
+                    out.writeArray(rs.getData(), rs.getOffset(), rs.getLength());
+                } else {
+                    out.writeArray(Bytes.string_to_array(v.toString()));
+                }
+                return;
+            case ColumnTypes.BOOLEAN:
+                if (v instanceof Boolean) {
+                    out.writeArray(Bytes.booleanToByteArray((Boolean) v));
+                } else {
+                    out.writeArray(Bytes.booleanToByteArray(Boolean.parseBoolean(v.toString())));
+                }
+                return;
+            case ColumnTypes.DOUBLE:
+                if (v instanceof Double) {
+                    out.writeArray(Bytes.doubleToByteArray((Double) v));
+                } else if (v instanceof Long) {
+                    out.writeArray(Bytes.doubleToByteArray((Long) v));
+                } else if (v instanceof Number) {
+                    out.writeArray(Bytes.doubleToByteArray(((Number) v).longValue()));
+                } else {
+                    out.writeArray(Bytes.doubleToByteArray(Double.parseDouble(v.toString())));
+                }
+                return;
+            case ColumnTypes.TIMESTAMP:
+                if (v instanceof Long) {
+                    out.writeArray(Bytes.timestampToByteArray(new java.sql.Timestamp(((Long) v))));
+                    return;
+                }
+                if (!(v instanceof java.sql.Timestamp)) {
+                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
+                }
+                out.writeArray(Bytes.timestampToByteArray((java.sql.Timestamp) v));
+                return;
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+
+        }
+    }
+
+    /**
+     * Same as {@link #serialize(java.lang.Object, int) } but without objects
+     * allocations
+     *
+     * @param v
+     * @param type
+     */
+    public static void validate(Object v, int type) {
+        if (v == null) {
+            return;
+        }
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                if (!(v instanceof byte[])) {
+                    throw new IllegalArgumentException();
+                }
+                return;
+            case ColumnTypes.INTEGER:
+                if (v instanceof Number) {
+                    return;
+                }
+                Integer.parseInt(v.toString());
+                return;
+            case ColumnTypes.LONG:
+                if (v instanceof Number) {
+                    return;
+                }
+                Long.parseLong(v.toString());
+                return;
+            case ColumnTypes.STRING:
+                return;
+            case ColumnTypes.BOOLEAN:
+                return;
+            case ColumnTypes.DOUBLE:
+                if (v instanceof Number) {
+                    return;
+                }
+                Double.parseDouble(v.toString());
+                return;
+            case ColumnTypes.TIMESTAMP:
+                if (v instanceof Long || v instanceof java.sql.Timestamp) {
+                    return;
+                }
+                throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
 
@@ -285,6 +402,9 @@ public final class RecordSerializer {
     }
 
     public static void serializeValue(Object v, int type, ExtendedDataOutputStream oo) throws IOException {
+        if (v == null) {
+            throw new IOException("You cannot serialize a null value");
+        }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
                 oo.writeArray((byte[]) v);
@@ -310,7 +430,7 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
-                    oo.writeArray(rs.data);
+                    oo.writeArray(rs.getData(), rs.getOffset(), rs.getLength());
                 } else {
                     oo.writeArray(Bytes.string_to_array(v.toString()));
                 }
@@ -374,7 +494,7 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 if (value instanceof RawString) {
                     // TODO: apply a real conversion from MySQL dump format
-                    return ((RawString) value).data;
+                    return ((RawString) value).toByteArray();
                 }
                 return value;
             default:
@@ -556,8 +676,7 @@ public final class RecordSerializer {
                     if (v == null) {
                         throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
                     }
-                    byte[] fieldValue = serialize(v, c.type);
-                    doo_key.writeArray(fieldValue);
+                    serializeTo(v, c.type, doo_key);
                     i++;
                 }
             } catch (IOException err) {
@@ -595,8 +714,7 @@ public final class RecordSerializer {
                     if (v == null) {
                         throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
                     }
-                    byte[] fieldValue = serialize(v, c.type);
-                    doo_key.writeArray(fieldValue);
+                    serializeTo(v, c.type, doo_key);
                     i++;
                 }
             } catch (IOException err) {
@@ -626,7 +744,7 @@ public final class RecordSerializer {
             if (v == null) {
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
-            serialize(v, c.type);
+            validate(v, c.type);
         } else {
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
             int i = 0;
@@ -639,7 +757,7 @@ public final class RecordSerializer {
                 if (v == null) {
                     throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
                 }
-                serialize(v, c.type);
+                validate(v, c.type);
                 i++;
             }
         }

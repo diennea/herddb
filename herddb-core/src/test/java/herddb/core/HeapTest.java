@@ -37,18 +37,10 @@ import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.network.MessageBuilder;
-import herddb.utils.MessageUtils;
 import herddb.utils.DataAccessor;
-import herddb.utils.RecordsBatch;
-import herddb.utils.TuplesList;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import java.util.List;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Tests on table creation. An heap is a table without primary key, that is that

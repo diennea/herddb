@@ -26,6 +26,7 @@ import herddb.model.Table;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ByteArrayCursor;
 import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
 import java.util.Map;
@@ -116,12 +117,18 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
             String pkField = table.primaryKey[0];
             Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
             consumer.accept(pkField, value);
+            if (value instanceof RawString) {
+                ((RawString) value).recycle();
+            }
         } else {
             try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
                     consumer.accept(primaryKeyColumn, theValue);
+                    if (theValue instanceof RawString) {
+                        ((RawString) theValue).recycle();
+                    }
                 }
             } catch (IOException err) {
                 throw new IllegalStateException("bad data:" + err, err);

@@ -19,7 +19,7 @@
  */
 package herddb.network;
 
-import herddb.proto.flatbuf.Response;
+import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -35,9 +35,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class Channel implements AutoCloseable {
 
-    protected interface ResponseCallback {
+    protected interface PduCallback {
 
-        public void responseReceived(MessageWrapper message, Throwable error);
+        public void responseReceived(Pdu message, Throwable error);
     }
 
     protected ChannelEventListener messagesReceiver;
@@ -58,7 +58,7 @@ public abstract class Channel implements AutoCloseable {
 
     public abstract void sendReplyMessage(long inAnswerTo, ByteBuf message);
 
-    protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, ResponseCallback callback);
+    protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback);
 
     public abstract void channelIdle();
 
@@ -73,10 +73,10 @@ public abstract class Channel implements AutoCloseable {
         return requestIdGeneator.incrementAndGet();
     }
 
-    public MessageWrapper sendMessageWithReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
-        CompletableFuture<MessageWrapper> resp = new CompletableFuture<>();
+    public Pdu sendMessageWithPduReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
+        CompletableFuture<Pdu> resp = new CompletableFuture<>();
         long _start = System.currentTimeMillis();
-        sendRequestWithAsyncReply(id, request, timeout, (MessageWrapper message1, Throwable error) -> {
+        sendRequestWithAsyncReply(id, request, timeout, (Pdu message1, Throwable error) -> {
             if (error != null) {
                 resp.completeExceptionally(error);
             } else {

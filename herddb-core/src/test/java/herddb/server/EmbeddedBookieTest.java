@@ -172,6 +172,7 @@ public class EmbeddedBookieTest {
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", Collections.emptyList(), 0, 0, 10);) {
                         fail("server_1 MUST not accept queries");
                     } catch (ClientSideMetadataProviderException ok) {
+                        assertTrue(ok.getMessage().contains("not working in cluser mode. metadata refresh is not possible"));
                     }
                 }
 

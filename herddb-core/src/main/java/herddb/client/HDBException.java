@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
 import herddb.proto.flatbuf.MessageType;
 import herddb.proto.flatbuf.Response;
 
@@ -37,6 +39,12 @@ public class HDBException extends Exception {
         super(reply.type() == MessageType.TYPE_ERROR
                 ? reply.error() + "" : reply + "",
                 new Exception("server-side-error:" + reply));
+
+    }
+
+    public HDBException(Pdu reply) {
+        super(reply.type == Pdu.TYPE_ERROR
+                ? PduCodec.ErrorResponse.readError(reply) : reply + "");
 
     }
 

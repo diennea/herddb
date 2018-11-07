@@ -15,40 +15,17 @@
  */
 package herddb.network;
 
-import com.google.flatbuffers.FlatBufferBuilder;
-import herddb.proto.flatbuf.Message;
-import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Request;
-import herddb.proto.flatbuf.Response;
-import java.nio.ByteBuffer;
+import herddb.proto.Pdu;
+import herddb.proto.PduCodec;
+import io.netty.buffer.ByteBuf;
 
 public class Utils {
 
-    static ByteBuffer buildAckResponse(Request message) {
-        FlatBufferBuilder builder = new FlatBufferBuilder();
-        Response.startResponse(builder);
-        Response.addType(builder, MessageType.TYPE_ACK);
-        Response.addReplyMessageId(builder, message.id());
-        int pos = Response.endResponse(builder);
-        Message.startMessage(builder);
-        Message.addResponse(builder, pos);
-        int endMsg = Message.endMessage(builder);
-        Message.finishMessageBuffer(builder, endMsg);
-        ByteBuffer dataBuffer = builder.dataBuffer();
-        return dataBuffer;
+    static ByteBuf buildAckResponse(Pdu message) {
+        return PduCodec.AckResponse.write(message.messageId);
     }
 
-    static ByteBuffer buildAckRequest(int i) {
-        FlatBufferBuilder builder = new FlatBufferBuilder();
-        Request.startRequest(builder);
-        Request.addId(builder, i);
-        Request.addType(builder, MessageType.TYPE_ACK);
-        int pos = Request.endRequest(builder);
-        Message.startMessage(builder);
-        Message.addRequest(builder, pos);
-        int endMsg = Message.endMessage(builder);
-        Message.finishMessageBuffer(builder, endMsg);
-        ByteBuffer buffer = builder.dataBuffer();
-        return buffer;
+    static ByteBuf buildAckRequest(int i) {
+        return PduCodec.CloseScanner.write(i, i * 100);
     }
 }
