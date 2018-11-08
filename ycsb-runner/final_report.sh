@@ -41,7 +41,7 @@ echo "Load phase=$MEDIA_LOAD" >> $FILE_TEMP$WORKLOAD$NAME
 echo "Attempts=$ATTEMPTS"  >> $FILE_TEMP$WORKLOAD$NAME
 if [[ -e  $DATABASE_PATH/bin/setenv.sh  ]]; then 
         JAVA_OPTS=$(cat $DATABASE_PATH/bin/setenv.sh | grep Xm)	
-	echo "Conf= $JAVA_OPTS"
+	echo "Conf= $JAVA_OPTS" >> $FILE_TEMP$WORKLOAD$NAME
 fi
 
 mv $FILE_TEMP$WORKLOAD$NAME $FINAL_REPORT
