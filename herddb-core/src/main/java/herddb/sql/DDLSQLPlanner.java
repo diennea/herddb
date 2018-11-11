@@ -285,8 +285,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return stmt;
     }
 
-    @Override
-    public ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
+    private ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
             boolean scan, boolean returnValues, int maxRows) {
         verifyJdbcParametersIndexes(stmt);
         ExecutionPlan result;

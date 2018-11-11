@@ -75,6 +75,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
     private final AtomicLong scannerIdGenerator = new AtomicLong();
+    private final ClientSideQueryCache preparedStatements = new ClientSideQueryCache();
 
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
@@ -298,11 +299,37 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    long prepareQuery(String tableSpace, String query) throws HDBException, ClientSideMetadataProviderException {
+        long existing = preparedStatements.getQueryId(tableSpace, query);
+        if (existing != 0) {
+            return existing;
+        }
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, params);
+            ByteBuf message = PduCodec.PrepareStatement.write(requestId, tableSpace, query);
+            try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
+                if (reply.type == Pdu.TYPE_ERROR) {
+                    handleGenericError(reply);
+                } else if (reply.type != Pdu.TYPE_PREPARE_STATEMENT_RESULT) {
+                    throw new HDBException(reply);
+                }
+                long statementId = PduCodec.PrepareStatementResult.readStatementId(reply);
+                preparedStatements.registerQueryId(tableSpace, query, statementId);
+                return statementId;
+            }
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+        Channel _channel = ensureOpen();
+        try {
+            long requestId = _channel.generateRequestId();
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, statementId, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
                     handleGenericError(reply);
@@ -326,11 +353,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
+    List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues,
+            boolean usePreparedStatement, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, batch);
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, statementId, batch);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == MessageType.TYPE_ERROR) {
                     handleGenericError(reply);
@@ -368,11 +398,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
             long requestId = _channel.generateRequestId();
-            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, params);
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, statementId, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
                     handleGenericError(reply);
@@ -483,13 +515,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
+    ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         Pdu reply = null;
         try {
             long scannerId = scannerIdGenerator.incrementAndGet();
             long requestId = _channel.generateRequestId();
-            ByteBuf message = PduCodec.OpenScanner.write(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.OpenScanner.write(requestId, tableSpace, query, scannerId, tx, params, statementId,
+                    fetchSize, maxRows);
             LOGGER.log(Level.FINEST, "open scanner {0} for query {1}, params {2}", new Object[]{scannerId, query, params});
             reply = _channel.sendMessageWithPduReply(requestId, message, timeout);
 

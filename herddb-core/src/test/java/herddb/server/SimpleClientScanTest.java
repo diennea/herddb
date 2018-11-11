@@ -53,23 +53,23 @@ public class SimpleClientScanTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_" + i, 1, 2)).updateCount);
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_" + i, 1, 2)).updateCount);
                 }
 
-                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // maxRows
-                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 17, 10).consume().size());
+                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), 0, 17, 10).consume().size());
 
                 // empty result set
-                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // single fetch result test
-                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
             }
         }

@@ -65,11 +65,11 @@ public class SimpleClientServerAutoTransactionTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 DMLResult executeUpdateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, false, Arrays.asList("test", 1, 2));
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, false, true, Arrays.asList("test", 1, 2));
 
                 long tx = executeUpdateResult.transactionId;
                 long countInsert = executeUpdateResult.updateCount;
@@ -77,7 +77,7 @@ public class SimpleClientServerAutoTransactionTest {
 
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());;
+                        "SELECT * FROM mytable WHERE id='test'", tx, true, Collections.emptyList());;
                 Map<RawString, Object> record = res.data;
                 Assert.assertNotNull(record);
                 assertEquals(RawString.of("test"), record.get(RawString.of("id")));
@@ -86,7 +86,7 @@ public class SimpleClientServerAutoTransactionTest {
 
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
-                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -96,7 +96,7 @@ public class SimpleClientServerAutoTransactionTest {
                     }
                 }
 
-                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         assertEquals(RawString.of("jvm-local"), aa.get("address"));

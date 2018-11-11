@@ -211,11 +211,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         fallback.clearCache();
     }
 
-    @Override
-    public ExecutionPlan plan(String defaultTableSpace, Statement stmt, boolean scan, boolean returnValues, int maxRows) {
-        return fallback.plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
-    }
-
     static final boolean isDDL(String query) {
         // this is quite expensive and it allocates temporary objects
         return USE_DDL_PARSER.matcher(query).matches();
@@ -227,7 +222,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
             query = query.substring(idx);
-        }       
+        }
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -245,7 +240,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (isDDL(query)) {
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
-        }        
+        }
         if (!isCachable(query)) {
             allowCache = false;
         }
@@ -324,7 +319,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             PlannerOp rootOp = sqlPlannedOperationStatement.getRootOp();
             ExecutionPlan executionPlan;
             if (rootOp.isSimpleStatementWrapper()) {
-                executionPlan = ExecutionPlan.simple(rootOp.unwrap(herddb.model.Statement.class), rootOp);            
+                executionPlan = ExecutionPlan.simple(rootOp.unwrap(herddb.model.Statement.class), rootOp);
             } else {
                 executionPlan = ExecutionPlan.simple(sqlPlannedOperationStatement, rootOp);
             }

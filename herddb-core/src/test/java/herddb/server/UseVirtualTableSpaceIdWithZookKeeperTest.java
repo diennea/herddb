@@ -135,17 +135,17 @@ public class UseVirtualTableSpaceIdWithZookKeeperTest {
                     client.setClientSideMetadataProvider(new ZookeeperClientSideMetadataProvider(testEnv.getAddress(),
                         testEnv.getTimeout(), testEnv.getPath()));
                     try (ScanResultSet scan = connection.executeScan(null,
-                        "SELECT * FROM " + server_1.getManager().getVirtualTableSpaceId() + ".sysnodes", Collections.emptyList(), 0, 0, 10);) {
+                        "SELECT * FROM " + server_1.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }
                     try (ScanResultSet scan = connection.executeScan(null,
-                        "SELECT * FROM " + server_2.getManager().getVirtualTableSpaceId() + ".sysnodes", Collections.emptyList(), 0, 0, 10);) {
+                        "SELECT * FROM " + server_2.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT * FROM sysnodes", Collections.emptyList(), 0, 0, 10);) {
+                        "SELECT * FROM sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }
