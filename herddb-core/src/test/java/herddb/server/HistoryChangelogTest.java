@@ -103,18 +103,18 @@ public class HistoryChangelogTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id long primary key, hid long, status integer)", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE TABLE mytable (id long primary key, hid long, status integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long resultCreateTableHistory = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE history (id long, hid long, status integer, primary key (id,hid) )", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE TABLE history (id long, hid long, status integer, primary key (id,hid) )", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTableHistory);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 for (long i = 0; i < TABLESIZE; i++) {
                     int status = 0;
                     connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,hid,status) values(?,?,?)", tx, false,
+                        "INSERT INTO mytable (id,hid,status) values(?,?,?)", tx, false, true,
                         Arrays.asList(i, 0, status));
                     elements.put(i, new Element(0, status));
                 }
@@ -144,7 +144,7 @@ public class HistoryChangelogTest {
                                     updates.incrementAndGet();
 
                                     DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                        "UPDATE mytable set hid=?,status=? WHERE id=?", TransactionContext.AUTOTRANSACTION_ID, false,
+                                        "UPDATE mytable set hid=?,status=? WHERE id=?", TransactionContext.AUTOTRANSACTION_ID, false, true,
                                         Arrays.asList(next_hid, new_status, id));
 
                                     transactionId = updateResult.transactionId;
@@ -152,7 +152,7 @@ public class HistoryChangelogTest {
                                         throw new RuntimeException("not updated ?");
                                     }
                                     DMLResult insertResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                        "INSERT INTO history (id,hid,status) values (?,?,?)", transactionId, false,
+                                        "INSERT INTO history (id,hid,status) values (?,?,?)", transactionId, false, true,
                                         Arrays.asList(id, next_hid, new_status));
                                     if (insertResult.updateCount <= 0) {
                                         throw new RuntimeException("not inserted ?");
@@ -189,14 +189,14 @@ public class HistoryChangelogTest {
                     for (Map.Entry<Long, Element> entry : elements.entrySet()) {
                     {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                            TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
                         assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
                         assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
                     }
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
-                            + "FROM mytable where id=?", Arrays.asList(entry.getKey()),
+                            + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
                             TransactionContext.NOTRANSACTION_ID, -1, 10000);
                         List<Map<String, Object>> consume = res.consume();
                         assertEquals(1, consume.size());
@@ -225,15 +225,16 @@ public class HistoryChangelogTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 for (Map.Entry<Long, Element> entry : elements.entrySet()) {
                     {
-                        GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                        GetResult res = connection.executeGet(TableSpace.DEFAULT,
+                                "SELECT status,hid FROM mytable where id=?",
+                            TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
                         assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
                         assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
                     }
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
-                            + "FROM mytable where id=?", Arrays.asList(entry.getKey()),
+                            + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
                             TransactionContext.NOTRANSACTION_ID, -1, 10000);
                         List<Map<String, Object>> consume = res.consume();
                         assertEquals(1, consume.size());

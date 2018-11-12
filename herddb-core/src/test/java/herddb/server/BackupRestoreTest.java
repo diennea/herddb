@@ -128,21 +128,21 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
-                    assertEquals(4, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
                 }
@@ -219,22 +219,22 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
                     /* No new insert AND no delete... if 5 it did see the new insert but missed the delete! */
-                    assertEquals(4, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
                 }
 
             }
@@ -311,22 +311,22 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(5, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(5, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
                     /* No new insert AND no delete... if 5 it did see the new insert but missed the delete! */
-                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
                 }
 
             }
@@ -389,7 +389,7 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
@@ -410,14 +410,14 @@ public class BackupRestoreTest {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
-                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
 
@@ -485,7 +485,7 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
@@ -507,14 +507,14 @@ public class BackupRestoreTest {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
-                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
 
@@ -580,7 +580,7 @@ public class BackupRestoreTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                     HDBConnection connection = client.openConnection()) {
 
-                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     ByteArrayOutputStream oo = new ByteArrayOutputStream();
                     BackupUtils.dumpTableSpace(TableSpace.DEFAULT, 64 * 1024, connection, oo, new ProgressListener() {
@@ -603,14 +603,14 @@ public class BackupRestoreTest {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, true, Collections.emptyList());
 
-                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     BackupUtils.restoreTableSpace("newts", server_2.getNodeId(), connection, new ByteArrayInputStream(backupData), new ProgressListener() {
                     });
 
-                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+                    assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                     assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
 

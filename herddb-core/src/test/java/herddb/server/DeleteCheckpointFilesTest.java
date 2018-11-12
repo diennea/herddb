@@ -59,24 +59,24 @@ public class DeleteCheckpointFilesTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 server.waitForStandaloneBoot();
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long resultCreateIndex = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE HASH INDEX myhashindex on mytable (n2)", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE HASH INDEX myhashindex on mytable (n2)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateIndex);
 
                 long resultCreateIndex2 = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE BRIN INDEX mybrinindex on mytable (n1)", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE BRIN INDEX mybrinindex on mytable (n1)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateIndex2);
 
-                Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_0", 1, 2)).updateCount);
-                Map<RawString, Object> newValue = connection.executeUpdate(TableSpace.DEFAULT, "UPDATE mytable set n1= n1+1 where id=?", 0, true, Arrays.asList("test_0")).newvalue;
+                Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_0", 1, 2)).updateCount);
+                Map<RawString, Object> newValue = connection.executeUpdate(TableSpace.DEFAULT, "UPDATE mytable set n1= n1+1 where id=?", 0, true, true, Arrays.asList("test_0")).newvalue;
                 assertEquals(Long.valueOf(2), newValue.get(RawString.of("n1")));
 
                 server.getManager().checkpoint();
                 server.getManager().checkpoint();
-                Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_1", 2, 2)).updateCount);
+                Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_1", 2, 2)).updateCount);
 
                 server.getManager().checkpoint();
 

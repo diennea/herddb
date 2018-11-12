@@ -64,7 +64,7 @@ public class SimpleServerTest {
             });
             runner.start();
             while (ServerMain.getRunningInstance() == null
-                || !ServerMain.getRunningInstance().isStarted()) {
+                    || !ServerMain.getRunningInstance().isStarted()) {
                 Thread.sleep(1000);
                 System.out.println("waiting for boot");
             }
@@ -73,10 +73,10 @@ public class SimpleServerTest {
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(
-                    new StaticClientSideMetadataProvider(ServerMain.getRunningInstance().getServer()
-                    ));
+                        new StaticClientSideMetadataProvider(ServerMain.getRunningInstance().getServer()
+                        ));
                 try (HDBConnection con = client.openConnection()) {
-                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", Collections.emptyList(), 0, 10, 10);) {
+                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10);) {
                         scan.consume();
                     }
                 }

@@ -55,7 +55,7 @@ public class JmxTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 {

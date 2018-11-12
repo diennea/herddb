@@ -92,19 +92,19 @@ public class SimpleClientServerTest {
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, Arrays.asList("test", 1, 2)).updateCount;
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2)).updateCount;
                 Assert.assertEquals(1, countInsert);
                 long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, Arrays.asList("test2", 2, 3)).updateCount;
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test2", 2, 3)).updateCount;
                 Assert.assertEquals(1, countInsert2);
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
+                        "SELECT * FROM mytable WHERE id='test'", tx, true, Collections.emptyList());
                 Map<RawString, Object> record = res.data;
                 Assert.assertNotNull(record);
 
@@ -115,6 +115,7 @@ public class SimpleClientServerTest {
                 List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT,
                         "UPDATE mytable set n2=? WHERE id=?", tx,
                         false,
+                        true,
                         Arrays.asList(
                                 Arrays.asList(1, "test"),
                                 Arrays.asList(2, "test2"),
@@ -130,7 +131,7 @@ public class SimpleClientServerTest {
                 assertEquals(tx, executeUpdates.get(2).transactionId);
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
-                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -140,7 +141,7 @@ public class SimpleClientServerTest {
                     }
                 }
 
-                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
 
@@ -154,7 +155,7 @@ public class SimpleClientServerTest {
 
                 List<DMLResult> executeUpdatesWithoutParams = connection.executeUpdates(TableSpace.DEFAULT,
                         "UPDATE mytable set n2=1 WHERE id='test'", -1,
-                        false,
+                        false, true,
                         Arrays.asList(
                                 // empty list of parameters
                                 Arrays.asList()
@@ -166,7 +167,7 @@ public class SimpleClientServerTest {
                 // missing JDBC parameter
                 try {
                     connection.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.NOTRANSACTION_ID, false, Arrays.asList("test"));
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList("test"));
                     fail("cannot issue a query without setting each parameter");
                 } catch (HDBException ok) {
                     assertTrue(ok.getMessage().contains(MissingJDBCParameterException.class.getName()));

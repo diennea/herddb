@@ -132,12 +132,12 @@ public class MultipleConcurrentUpdatesTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 if (withIndexes) {
                     long resultCreateIndex = connection.executeUpdate(TableSpace.DEFAULT,
-                            "CREATE INDEX theindex ON mytable (n1 long)", 0, false, Collections.emptyList()).updateCount;
+                            "CREATE INDEX theindex ON mytable (n1 long)", 0, false, true, Collections.emptyList()).updateCount;
                     Assert.assertEquals(1, resultCreateIndex);
 
                 }
@@ -145,7 +145,7 @@ public class MultipleConcurrentUpdatesTest {
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 for (int i = 0; i < TABLESIZE; i++) {
                     connection.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false,
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true,
                             Arrays.asList("test_" + i, 1, 2));
 
                     expectedValue.put("test_" + i, 1L);
@@ -178,7 +178,7 @@ public class MultipleConcurrentUpdatesTest {
                                         updates.incrementAndGet();
 
                                         DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                                "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false,
+                                                "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false, true,
                                                 Arrays.asList(value, "test_" + k));
 
                                         long count = updateResult.updateCount;
@@ -189,7 +189,7 @@ public class MultipleConcurrentUpdatesTest {
                                     } else {
                                         gets.incrementAndGet();
                                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT * FROM mytable where id=?",
-                                                useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, Arrays.asList("test_" + k));
+                                                useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, true, Arrays.asList("test_" + k));
 
                                         if (res.data == null) {
                                             throw new RuntimeException("not found?");
@@ -228,7 +228,7 @@ public class MultipleConcurrentUpdatesTest {
                     List<String> erroredKeys = new ArrayList<>();
                     for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
-                                TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                                TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
                         if (!entry.getValue().equals(res.data.get(N1))) {
                             if (!entry.getValue().equals(res.data.get(N1))) {
@@ -265,7 +265,7 @@ public class MultipleConcurrentUpdatesTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {
                     GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                            TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
                     assertNotNull(res.data);
                     assertEquals(entry.getValue(), res.data.get(N1));
                 }

@@ -57,11 +57,11 @@ public class RollbackOnCloseConnectionTest {
 
                 try (HDBConnection connection = client.openConnection()) {
                     long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                     Assert.assertEquals(1, resultCreateTable);
                     tx = connection.beginTransaction(TableSpace.DEFAULT);
                     long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, Arrays.asList("test", 1, 2)).updateCount;
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2)).updateCount;
                     Assert.assertEquals(1, countInsert);
                     assertTrue(server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getOpenTransactions().contains(tx));
                 }

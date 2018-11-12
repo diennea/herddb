@@ -221,6 +221,35 @@ public abstract class PduCodec {
 
     }
 
+    public static abstract class PrepareStatementResult {
+
+        public static ByteBuf write(
+                long messageId, long statementId) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE
+                            + ONE_LONG);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
+            byteBuf.writeByte(Pdu.TYPE_PREPARE_STATEMENT_RESULT);
+            byteBuf.writeLong(messageId);
+            byteBuf.writeLong(statementId);
+            return byteBuf;
+        }
+
+        public static long readStatementId(Pdu pdu) {
+            return pdu.buffer.getLong(
+                    VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+        }
+
+    }
+
     public static abstract class SaslTokenMessageRequest {
 
         public static ByteBuf write(long messageId, String saslMech, byte[] firstToken) {
@@ -504,7 +533,7 @@ public abstract class PduCodec {
     public static class OpenScanner {
 
         public static ByteBuf write(long messageId, String tableSpace, String query,
-                long scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
+                long scannerId, long tx, List<Object> params, long statementId, int fetchSize, int maxRows) {
 
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
@@ -516,6 +545,7 @@ public abstract class PduCodec {
                             + ONE_INT
                             + ONE_INT
                             + ONE_LONG
+                            + ONE_LONG
                             + 1 + tableSpace.length()
                             + 2 + query.length()
                             + 1 + params.size() * 8);
@@ -525,6 +555,7 @@ public abstract class PduCodec {
             byteBuf.writeByte(Pdu.TYPE_OPENSCANNER);
             byteBuf.writeLong(messageId);
             byteBuf.writeLong(tx);
+            byteBuf.writeLong(statementId);
             byteBuf.writeInt(fetchSize);
             byteBuf.writeInt(maxRows);
             byteBuf.writeLong(scannerId);
@@ -548,12 +579,22 @@ public abstract class PduCodec {
                     + MSGID_SIZE);
         }
 
+        public static long readStatementId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_LONG);
+        }
+
         public static int readFetchSize(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             return buffer.getInt(VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE
+                    + ONE_LONG
                     + ONE_LONG);
         }
 
@@ -564,6 +605,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_LONG
+                    + ONE_LONG
                     + ONE_INT);
         }
 
@@ -573,6 +615,7 @@ public abstract class PduCodec {
                     + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE
+                    + ONE_LONG
                     + ONE_LONG
                     + ONE_INT
                     + ONE_INT
@@ -585,6 +628,7 @@ public abstract class PduCodec {
                     + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE
+                    + ONE_LONG
                     + ONE_LONG
                     + ONE_INT
                     + ONE_INT
@@ -599,6 +643,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_LONG
+                    + ONE_LONG
                     + ONE_INT
                     + ONE_INT
                     + ONE_LONG);
@@ -612,6 +657,7 @@ public abstract class PduCodec {
                     + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE
+                    + ONE_LONG
                     + ONE_LONG
                     + ONE_INT
                     + ONE_INT
@@ -775,20 +821,25 @@ public abstract class PduCodec {
     public static class ExecuteStatements {
 
         public static ByteBuf write(long messageId, String tableSpace, String query,
-                long tx, boolean returnValues, List<List<Object>> statements) {
+                long tx, boolean returnValues, long statementId, List<List<Object>> statements) {
 
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
                             + FLAGS_SIZE
                             + TYPE_SIZE
-                            + MSGID_SIZE);
+                            + MSGID_SIZE
+                            + ONE_LONG
+                            + ONE_BYTE
+                            + ONE_LONG
+                            + 1 + statements.size() * 64);
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
             byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENTS);
             byteBuf.writeLong(messageId);
             byteBuf.writeByte(returnValues ? 1 : 0);
             byteBuf.writeLong(tx);
+            byteBuf.writeLong(statementId);
             ByteBufUtils.writeString(byteBuf, tableSpace);
             ByteBufUtils.writeString(byteBuf, query);
 
@@ -824,6 +875,16 @@ public abstract class PduCodec {
                     + ONE_BYTE);
         }
 
+        public static long readStatementId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG);
+        }
+
         public static String readTablespace(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             buffer.readerIndex(VERSION_SIZE
@@ -831,6 +892,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_BYTE
+                    + ONE_LONG
                     + ONE_LONG
             );
             return ByteBufUtils.readString(buffer);
@@ -843,6 +905,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_BYTE
+                    + ONE_LONG
                     + ONE_LONG
             );
             ByteBufUtils.skipArray(buffer); // tablespace
@@ -857,6 +920,7 @@ public abstract class PduCodec {
                     + MSGID_SIZE
                     + ONE_BYTE
                     + ONE_LONG
+                    + ONE_LONG
             );
             ByteBufUtils.skipArray(buffer); // tablespace
             ByteBufUtils.skipArray(buffer); // query
@@ -869,7 +933,7 @@ public abstract class PduCodec {
     public static class ExecuteStatement {
 
         public static ByteBuf write(long messageId, String tableSpace, String query, long tx,
-                boolean returnValues,
+                boolean returnValues, long statementId,
                 List<Object> params) {
 
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
@@ -877,13 +941,20 @@ public abstract class PduCodec {
                             VERSION_SIZE
                             + FLAGS_SIZE
                             + TYPE_SIZE
-                            + MSGID_SIZE);
+                            + MSGID_SIZE
+                            + ONE_BYTE
+                            + ONE_LONG
+                            + tableSpace.length()
+                            + query.length()
+                            + ONE_BYTE
+                            + params.size() * 8);
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
             byteBuf.writeByte(Pdu.TYPE_EXECUTE_STATEMENT);
             byteBuf.writeLong(messageId);
             byteBuf.writeByte(returnValues ? 1 : 0);
             byteBuf.writeLong(tx);
+            byteBuf.writeLong(statementId);
             ByteBufUtils.writeString(byteBuf, tableSpace);
             ByteBufUtils.writeString(byteBuf, query);
 
@@ -913,6 +984,16 @@ public abstract class PduCodec {
                     + ONE_BYTE);
         }
 
+        public static long readStatementId(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            return buffer.getLong(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+                    + ONE_BYTE
+                    + ONE_LONG);
+        }
+
         public static String readTablespace(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             buffer.readerIndex(VERSION_SIZE
@@ -920,6 +1001,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_BYTE
+                    + ONE_LONG
                     + ONE_LONG
             );
             return ByteBufUtils.readString(buffer);
@@ -932,6 +1014,7 @@ public abstract class PduCodec {
                     + TYPE_SIZE
                     + MSGID_SIZE
                     + ONE_BYTE
+                    + ONE_LONG
                     + ONE_LONG
             );
             ByteBufUtils.skipArray(buffer); // tablespace
@@ -946,11 +1029,56 @@ public abstract class PduCodec {
                     + MSGID_SIZE
                     + ONE_BYTE
                     + ONE_LONG
+                    + ONE_LONG
             );
             ByteBufUtils.skipArray(buffer); // tablespace
             ByteBufUtils.skipArray(buffer); // query
             int numParams = ByteBufUtils.readVInt(buffer);
             return new ObjectListReader(pdu, numParams);
+        }
+
+    }
+
+    public static class PrepareStatement {
+
+        public static ByteBuf write(long messageId, String tableSpace, String query) {
+
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                            + FLAGS_SIZE
+                            + TYPE_SIZE
+                            + MSGID_SIZE);
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_PREPARE_STATEMENT);
+            byteBuf.writeLong(messageId);
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+            ByteBufUtils.writeString(byteBuf, query);
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
+        }
+
+        public static String readQuery(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            ByteBufUtils.skipArray(buffer); // tablespace
+            return ByteBufUtils.readString(buffer);
         }
 
     }

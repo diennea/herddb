@@ -37,6 +37,7 @@ import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
 import herddb.core.TableManager;
+import herddb.core.TableSpaceManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLStatementExecutionResult;
@@ -107,6 +108,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private final String address;
     private volatile String username = "";
     private final long connectionTs = System.currentTimeMillis();
+    private final ServerSidePreparedStatementCache preparedStatements = new ServerSidePreparedStatementCache();
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
         this.channel = channel;
@@ -135,6 +137,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     }
                     releaseMessageSync = false;
                     handleExecuteStatement(message, _channel);
+                }
+                break;
+                case Pdu.TYPE_PREPARE_STATEMENT: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    releaseMessageSync = false;
+                    handlePrepareStatement(message, _channel);
                 }
                 break;
                 case Pdu.TYPE_EXECUTE_STATEMENTS: {
@@ -397,7 +408,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         long txId = PduCodec.OpenScanner.readTx(message);
 
         String tableSpace = PduCodec.OpenScanner.readTablespace(message);
-        String query = PduCodec.OpenScanner.readQuery(message);
+        long statementId = PduCodec.OpenScanner.readStatementId(message);
+        String query
+                = statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
+                        : PduCodec.OpenScanner.readQuery(message);
+        if (query == null) {
+            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "bad statement id: " + statementId);
+            _channel.sendReplyMessage(message.messageId, error);
+            return;
+        }
         long scannerId = PduCodec.OpenScanner.readScannerId(message);
 
         int fetchSize = PduCodec.OpenScanner.readFetchSize(message);
@@ -533,8 +552,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private void handleExecuteStatements(Pdu message, Channel _channel) {
         long txId = PduCodec.ExecuteStatements.readTx(message);
         long transactionId = txId;
-        String query = PduCodec.ExecuteStatements.readQuery(message);
         String tableSpace = PduCodec.ExecuteStatements.readTablespace(message);
+        long statementId = PduCodec.ExecuteStatements.readStatementId(message);
+        String query
+                = statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
+                        : PduCodec.ExecuteStatements.readQuery(message);
+        if (query == null) {
+            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "bad statement id: " + statementId);
+            _channel.sendReplyMessage(message.messageId, error);
+            message.close();
+            return;
+        }
         boolean returnValues = PduCodec.ExecuteStatements.readReturnValues(message);
         PduCodec.ListOfListsReader statementParameters = PduCodec.ExecuteStatements.startReadStatementsParameters(message);
         int numStatements = statementParameters.getNumLists();
@@ -646,9 +674,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     private void handleExecuteStatement(Pdu message, Channel _channel) {
         long txId = PduCodec.ExecuteStatement.readTx(message);
-
-        String query = PduCodec.ExecuteStatement.readQuery(message);
         String tablespace = PduCodec.ExecuteStatement.readTablespace(message);
+        long statementId = PduCodec.ExecuteStatement.readStatementId(message);
+        String query
+                = statementId > 0 ? preparedStatements.resolveQuery(tablespace, statementId)
+                        : PduCodec.ExecuteStatement.readQuery(message);
+        if (query == null) {
+            ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "bad statement id: " + statementId);
+            _channel.sendReplyMessage(message.messageId, error);
+            message.close();
+            return;
+        }
         boolean returnValues = PduCodec.ExecuteStatement.readReturnValues(message);
 
         PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatement.startReadParameters(message);
@@ -757,6 +793,29 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 message.close();
             }
         });
+    }
+
+    private void handlePrepareStatement(Pdu message, Channel _channel) {
+        try {
+            String query = PduCodec.PrepareStatement.readQuery(message);
+            String tablespace = PduCodec.PrepareStatement.readTablespace(message);
+            TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(tablespace);
+            if (tableSpaceManager == null) {
+                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "no such tablespace " + tablespace, false);
+                _channel.sendReplyMessage(message.messageId, error);
+                return;
+            } else if (!tableSpaceManager.isLeader()) {
+                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "not leader for " + tablespace, true);
+                _channel.sendReplyMessage(message.messageId, error);
+                return;
+            }
+            long newId = preparedStatements.prepare(tablespace, query);
+            _channel.sendReplyMessage(message.messageId,
+                    PduCodec.PrepareStatementResult.write(
+                            message.messageId, newId));
+        } finally {
+            message.close();
+        }
     }
 
     private void handleTxCommand(Pdu message, Channel _channel) {
@@ -917,7 +976,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     ConnectionsInfo.ConnectionInfo toConnectionInfo() {
-        return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address);
+        return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address, preparedStatements.getSize());
     }
 
     @Override

@@ -17,27 +17,24 @@
  under the License.
 
  */
-package herddb.sql;
+package herddb.client;
 
-import herddb.model.ExecutionPlan;
-import herddb.model.StatementExecutionException;
-import java.util.List;
-import net.sf.jsqlparser.statement.Statement;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
+ * Tracks client side prepared statements.
  *
- * @author eolivelli
+ * @author enrico.olivelli
  */
-public interface AbstractSQLPlanner {
+public class ClientSideQueryCache {
 
-    void clearCache();
+    private final ConcurrentHashMap<String, Long> preparedStatements = new ConcurrentHashMap<>();
 
-    long getCacheHits();
+    public long getQueryId(String tableSpace, String query) {
+        return preparedStatements.getOrDefault(tableSpace + "#" + query, 0L);
+    }
 
-    long getCacheMisses();
-
-    long getCacheSize();
-
-    TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException;
-
+    public void registerQueryId(String tableSpace, String text, long id) {
+        preparedStatements.put(tableSpace + "#" + text, id);
+    }
 }

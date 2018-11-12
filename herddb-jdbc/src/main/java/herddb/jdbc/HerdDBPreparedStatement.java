@@ -70,7 +70,8 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     public ResultSet executeQuery() throws SQLException {
         try {
             parent.discoverTableSpace(sql);
-            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, parameters, parent.ensureTransaction(), maxRows, fetchSize);
+            ScanResultSet scanResult = this.parent.getConnection()
+                    .executeScan(parent.getTableSpace(), sql, true, parameters, parent.ensureTransaction(), maxRows, fetchSize);
             this.parent.statementFinished(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
@@ -226,7 +227,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             parent.discoverTableSpace(sql);
             List<DMLResult> dmlresults = parent.getConnection().executeUpdates(
                 parent.getTableSpace(), sql,
-                parent.ensureTransaction(), false, this.batch);
+                parent.ensureTransaction(), false, true, this.batch);
 
             for (DMLResult dmlresult : dmlresults) {
                 results[i++] = (int) dmlresult.updateCount;
@@ -479,7 +480,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         try {
             parent.discoverTableSpace(sql);
             DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(),
-                sql, parent.ensureTransaction(), returnValues, actualParameters);
+                sql, parent.ensureTransaction(), returnValues, true, actualParameters);
             parent.statementFinished(result.transactionId);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;
