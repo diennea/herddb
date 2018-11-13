@@ -1,0 +1,16 @@
+language: java
+sudo: false
+
+cache:
+  directories:
+  - "$HOME/.m2"
+
+jobs:
+  include:
+  - stage: test
+    jdk: oraclejdk8
+    script: mvn test -Pjenkins
+
+branches:
+  only:
+  - master
