@@ -8,7 +8,7 @@ cache:
 jobs:
   include:
   - stage: test
-    jdk: openjdk10
+    jdk: openjdk11
     script: mvn test -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Pherddb.file.requirefsync=false
 
 branches:
