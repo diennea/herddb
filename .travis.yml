@@ -8,8 +8,8 @@ cache:
 jobs:
   include:
   - stage: test
-    jdk: oraclejdk8
-    script: mvn test -Pjenkins
+    jdk: openjdk10
+    script: mvn test -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Pherddb.file.requirefsync=false
 
 branches:
   only:
