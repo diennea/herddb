@@ -14,7 +14,6 @@ FILE_TEMP=$5
 FINAL_REPORT=$6
 DATABASE_PATH=$7
 MEDIA_LOAD=$8
-DATABASE_PATH=$9
 
 
 $JAVA_HOME/bin/java -version 2> $FILE_TEMPjavaversion.txt
@@ -40,11 +39,10 @@ echo "Throughput=$THROUGHPUT" >> $FILE_TEMP$WORKLOAD$NAME
 echo "Load phase=$MEDIA_LOAD" >> $FILE_TEMP$WORKLOAD$NAME
 echo "Attempts=$ATTEMPTS"  >> $FILE_TEMP$WORKLOAD$NAME
 if [[ -e  $DATABASE_PATH/bin/setenv.sh  ]]; then 
-        JAVA_OPTS=$(cat $DATABASE_PATH/bin/setenv.sh | grep Xm)	
-	echo "Conf= $JAVA_OPTS" >> $FILE_TEMP$WORKLOAD$NAME
+        JAVA_OPTS=$(cat $DATABASE_PATH/bin/setenv.sh | grep JAVA_OPTS)	
+	echo "Conf JAVA_OPTS= $JAVA_OPTS" >> $FILE_TEMP$WORKLOAD$NAME
 fi
 
 mv $FILE_TEMP$WORKLOAD$NAME $FINAL_REPORT
  
-#cat $FILE_TEMP$WORKLOAD$NAME > $REPORT
  

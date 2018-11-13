@@ -23,13 +23,13 @@ grep -B50 "END_LOAD" $FILE_TEMP$FILE_NAME | grep " Throughput(ops/sec)" | cut -f
 if [[ ! -e $FILE_TEMP$NAME$FILE_NAME ]]; then
         grep "Throughput(ops/sec)" $FILE_TEMP$SAVE_FILE_NAME > $FILE_TEMP$TEMP2
         cut -f 3 -d, $FILE_TEMP$TEMP2   > $FILE_TEMP$TEMP3
-        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME  #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
+        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME  
 else
          grep "Throughput(ops/sec)" $FILE_TEMP$SAVE_FILE_NAME > $FILE_TEMP$TEMP
         mv $FILE_TEMP$NAME$FILE_NAME $FILE_TEMP$NAME.txt
         cat $FILE_TEMP$TEMP $FILE_TEMP$NAME.txt > $FILE_TEMP$TEMP2
         cut -f 3 -d, $FILE_TEMP$TEMP2  > $FILE_TEMP$TEMP3
-        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME     #prende il risultato, ci toglie lo spazio iniziale e prende solamente la parte prima del punto
+        cat $FILE_TEMP$TEMP3 | awk '{$1=$1;print}' | awk -F"." '{print $1}' > $FILE_TEMP$NAME$FILE_NAME     
 fi
 
 rm -rf $FILE_TEMP$SAVE_FILE_NAME
@@ -39,17 +39,17 @@ rm -rf $FILE_TEMP$TEMP2
 rm -rf $FILE_TEMP$TEMP3
 
 NUMERO_TENTATIVI=$4
-while read -r line   #scorro tutte le righe del file
+while read -r line   
 do
- let SUM=$SUM+$line  #calcolo della somma di tutte le righe presenti nel file
+ let SUM=$SUM+$line  
 done < $FILE_TEMP$NAME$FILE_NAME
 while read -r line
 do 
 let LOAD=$LOAD+$line
 done < $FILE_TEMP$LOAD_FILE$SAVE_FILE_NAME 
-MEDIA=$(($SUM/$NUMERO_TENTATIVI)) #calcolo della media
+MEDIA=$(($SUM/$NUMERO_TENTATIVI)) 
 MEDIA_LOAD=$(($LOAD/$NUMERO_TENTATIVI))
 
-./final_report.sh $WORKLOAD $MEDIA $NUMERO_TENTATIVI $REPORT $FILE_TEMP $FINAL_REPORT $DATABASE_PATH $MEDIA_LOAD $DATABASE_PATH
+./final_report.sh $WORKLOAD $MEDIA $NUMERO_TENTATIVI $REPORT $FILE_TEMP $FINAL_REPORT $DATABASE_PATH $MEDIA_LOAD 
 
 
