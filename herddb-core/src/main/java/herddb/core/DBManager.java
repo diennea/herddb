@@ -90,6 +90,7 @@ import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.server.ServerConfiguration;
+import herddb.server.ServerSidePreparedStatementCache;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
@@ -123,6 +124,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final ExecutorService callbacksExecutor;
     private final AbstractSQLPlanner planner;
+    private final ServerSidePreparedStatementCache preparedStatementsCache = new ServerSidePreparedStatementCache();
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
     private MemoryManager memoryManager;
@@ -1294,6 +1296,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public ExecutorService getCallbacksExecutor() {
         return callbacksExecutor;
+    }
+
+    public ServerSidePreparedStatementCache getPreparedStatementsCache() {
+        return preparedStatementsCache;
     }
 
 }

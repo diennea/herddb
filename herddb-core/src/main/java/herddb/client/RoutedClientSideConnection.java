@@ -46,6 +46,7 @@ import herddb.utils.KeyValue;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
+import herddb.proto.PduCodec.ErrorResponse;
 import herddb.proto.flatbuf.MessageType;
 import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
@@ -310,7 +311,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.PrepareStatement.write(requestId, tableSpace, query);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, 0);
                 } else if (reply.type != Pdu.TYPE_PREPARE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -332,7 +333,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, statementId, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, statementId);
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -363,7 +364,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, statementId, batch);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == MessageType.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, statementId);
                     return null; // not possible
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
                     throw new HDBException(reply);
@@ -407,7 +408,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, true, statementId, params);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, statementId);
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -450,7 +451,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION, 0, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, 0);
                     return -1; // not possible
                 } else if (reply.type == Pdu.TYPE_TX_COMMAND_RESULT) {
                     long tx = PduCodec.TxCommandResult.readTx(reply);
@@ -474,7 +475,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION, tx, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, 0);
                     return; // not possible
                 } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
@@ -492,7 +493,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             ByteBuf message = PduCodec.TxCommand.write(requestId, PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION, tx, tableSpace);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, 0);
                     return; // not possible
                 } else if (reply.type != Pdu.TYPE_TX_COMMAND_RESULT) {
                     throw new HDBException(reply);
@@ -503,12 +504,23 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void handleGenericError(final Pdu reply) throws HDBException, ClientSideMetadataProviderException {
+    void handleGenericError(final Pdu reply, final long statementId) throws HDBException, ClientSideMetadataProviderException {
+        handleGenericError(reply, statementId, false);
+    }
+
+    void handleGenericError(final Pdu reply, final long statementId, final boolean release) throws HDBException, ClientSideMetadataProviderException {
         boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
+        boolean missingPreparedStatement = ErrorResponse.readIsMissingPreparedStatementError(reply);
         String msg = PduCodec.ErrorResponse.readError(reply);
-        reply.close();
+        if (release) {
+            reply.close();
+        }
         if (notLeader) {
             this.connection.requestMetadataRefresh();
+            throw new RetryRequestException(msg);
+        } else if (missingPreparedStatement) {
+            LOGGER.log(Level.INFO, "Statement was flushed from server side cache " + msg);
+            preparedStatements.invalidate(statementId);
             throw new RetryRequestException(msg);
         } else {
             throw new HDBException(msg);
@@ -529,7 +541,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             reply = _channel.sendMessageWithPduReply(requestId, message, timeout);
 
             if (reply.type == Pdu.TYPE_ERROR) {
-                handleGenericError(reply);
+                handleGenericError(reply, statementId, true);
                 return null; // not possible
             } else if (reply.type != Pdu.TYPE_RESULTSET_CHUNK) {
                 HDBException err = new HDBException(reply);
@@ -562,7 +574,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}: first reply {2}", new Object[]{dumpId, tableSpace, reply});
                 if (reply.type == Pdu.TYPE_ERROR) {
-                    handleGenericError(reply);
+                    handleGenericError(reply, 0);
                 } else if (reply.type != Pdu.TYPE_ACK) {
                     throw new HDBException(reply);
                 }

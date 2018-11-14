@@ -388,11 +388,27 @@ public abstract class PduCodec {
 
     public static class ErrorResponse {
 
+        public static final byte FLAG_NONE = 0;
+        public static final byte FLAG_NOT_LEADER = 1;
+        public static final byte FLAG_MISSING_PREPARED_STATEMENT = 2;
+
         public static ByteBuf write(long messageId, String error) {
-            return write(messageId, error, false);
+            return write(messageId, error, false, false);
         }
 
-        public static ByteBuf write(long messageId, String error, boolean notLeader) {
+        public static ByteBuf writeNotLeaderError(long messageId, String message) {
+            return write(messageId, message, true, false);
+        }
+
+        public static ByteBuf writeMissingPreparedStatementError(long messageId, String message) {
+            return write(messageId, message, false, true);
+        }
+
+        public static ByteBuf writeNotLeaderError(long messageId, Throwable message) {
+            return write(messageId, message, true, false);
+        }
+
+        private static ByteBuf write(long messageId, String error, boolean notLeader, boolean missingPreparedStatement) {
             if (error == null) {
                 error = "";
             }
@@ -408,19 +424,26 @@ public abstract class PduCodec {
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
             byteBuf.writeByte(Pdu.TYPE_ERROR);
             byteBuf.writeLong(messageId);
-            byteBuf.writeByte(notLeader ? 1 : 0);
+            byte flags = FLAG_NONE;
+            if (notLeader) {
+                flags = (byte) (flags | FLAG_NOT_LEADER);
+            }
+            if (missingPreparedStatement) {
+                flags = (byte) (flags | FLAG_MISSING_PREPARED_STATEMENT);
+            }
+            byteBuf.writeByte(flags);
             ByteBufUtils.writeString(byteBuf, error);
             return byteBuf;
         }
 
-        public static ByteBuf write(long messageId, Throwable error, boolean notLeader) {
+        public static ByteBuf write(long messageId, Throwable error, boolean notLeader, boolean missingPreparedStatementError) {
             StringWriter writer = new StringWriter();
             error.printStackTrace(new PrintWriter(writer));
-            return write(messageId, writer.toString(), notLeader);
+            return write(messageId, writer.toString(), notLeader, missingPreparedStatementError);
         }
 
         public static ByteBuf write(long messageId, Throwable error) {
-            return write(messageId, error, false);
+            return write(messageId, error, false, false);
         }
 
         public static String readError(Pdu pdu) {
@@ -436,10 +459,20 @@ public abstract class PduCodec {
 
         public static boolean readIsNotLeader(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
-            return buffer.getByte(VERSION_SIZE
+            byte read = buffer.getByte(VERSION_SIZE
                     + FLAGS_SIZE
                     + TYPE_SIZE
-                    + MSGID_SIZE) == 1;
+                    + MSGID_SIZE);
+            return (read & FLAG_NOT_LEADER) == FLAG_NOT_LEADER;
+        }
+        
+        public static boolean readIsMissingPreparedStatementError(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            byte read = buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+            return (read & FLAG_MISSING_PREPARED_STATEMENT) == FLAG_MISSING_PREPARED_STATEMENT;
         }
 
     }
