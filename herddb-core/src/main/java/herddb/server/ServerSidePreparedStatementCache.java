@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
@@ -65,4 +66,10 @@ public class ServerSidePreparedStatementCache {
         return query;
     }
 
+    @VisibleForTesting
+    public void clear() {
+        preparedStatements.clear();
+        tableSpaces.clear();
+        queries.clear();
+    }
 }

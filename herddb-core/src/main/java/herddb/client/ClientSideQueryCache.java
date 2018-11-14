@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -36,5 +38,18 @@ public class ClientSideQueryCache {
 
     public void registerQueryId(String tableSpace, String text, long id) {
         preparedStatements.put(tableSpace + "#" + text, id);
+    }
+
+    void invalidate(long statementId) {
+        String query = null;
+        for (Map.Entry<String, Long> next : preparedStatements.entrySet()) {
+            Long value = next.getValue();
+            if (value != null & value == statementId) {
+                query = next.getKey();
+            }
+        }
+        if (query != null) {
+            preparedStatements.remove(query, statementId);
+        }
     }
 }
