@@ -42,7 +42,6 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
             .column("username", ColumnTypes.STRING)
             .column("address", ColumnTypes.STRING)
             .column("connectionts", ColumnTypes.TIMESTAMP)
-            .column("preparedstatements", ColumnTypes.INTEGER)
             .primaryKey("id", false)
             .build();
 
@@ -60,11 +59,10 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
                 .getActualConnections().connections
                 .stream()
                 .map(r -> RecordSerializer.makeRecord(table,
-                        "id", r.id,
-                        "username", r.username,
-                        "address", r.address,
-                        "preparedstatements", r.numPreparedStatements,
-                        "connectionts", new java.sql.Timestamp(r.connectionTs)))
+                "id", r.id,
+                "username", r.username,
+                "address", r.address,
+                "connectionts", new java.sql.Timestamp(r.connectionTs)))
                 .collect(Collectors.toList());
     }
 

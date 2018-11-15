@@ -171,6 +171,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_PLANSCACHE_MAXMEMORY = "server.memory.planscache.limit";
     public static final long PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
+    
+    public static final String PROPERTY_STATEMENTSCACHE_MAXMEMORY = "server.memory.statementscache.limit";    
+    public static final long PROPERTY_STATEMENTSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
 
     /**
      * Maximum amount of memory used for data pages

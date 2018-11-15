@@ -20,8 +20,15 @@
 package herddb.server;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
+import herddb.core.HerdDBInternalException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -32,44 +39,81 @@ import java.util.logging.Logger;
 public class ServerSidePreparedStatementCache {
 
     private final AtomicLong idGenerator = new AtomicLong();
-    private final ConcurrentHashMap<String, Long> preparedStatements = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, String> tableSpaces = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, String> queries = new ConcurrentHashMap<>();
+    private final Cache<String, Long> preparedStatements;
+    private final ConcurrentHashMap<Long, PreparedStatementInfo> statementsInfo = new ConcurrentHashMap<>();
+
+    private static final class PreparedStatementInfo {
+
+        private final String query;
+        private final String tablespace;
+        private final int memory;
+
+        public PreparedStatementInfo(String query, String tablespace) {
+            this.query = query;
+            this.tablespace = tablespace;
+            // impossible overflow
+            this.memory = query.length() + tablespace.length();
+        }
+
+    }
+
+    public ServerSidePreparedStatementCache(long maxMemory) {
+        this.preparedStatements = CacheBuilder
+                .<String, Long>newBuilder()
+                .maximumWeight(maxMemory)
+                .initialCapacity(200)
+                .weigher((String query, Long statementid) -> {
+                    PreparedStatementInfo info = statementsInfo.get(statementid);
+                    if (info == null) {
+                        // quite impossible
+                        return Integer.MAX_VALUE;
+                    } else {
+                        return info.memory;
+                    }
+                })
+                .removalListener((RemovalNotification<String, Long> notification) -> {
+                    PreparedStatementInfo info = statementsInfo.remove(notification.getValue());
+                    LOG.log(Level.INFO, "unpreparing {0} {1}", new Object[]{notification.getValue(), notification.getKey()});
+                })
+                .build();
+    }
 
     public void registerQueryId(String tableSpace, String text, long id) {
         preparedStatements.put(tableSpace + "#" + text, id);
     }
 
     long prepare(String tableSpace, String text) {
-        return preparedStatements.computeIfAbsent(tableSpace + "#" + text, (k) -> {
-            long newId = idGenerator.incrementAndGet();
-            queries.put(newId, text);
-            tableSpaces.put(newId, tableSpace);
-            return newId;
-        });
+        try {
+            return preparedStatements.get(tableSpace + "#" + text, () -> {
+                long newId = idGenerator.incrementAndGet();
+                PreparedStatementInfo info = new PreparedStatementInfo(text, tableSpace);
+                statementsInfo.put(newId, info);
+                return newId;
+            });
+        } catch (ExecutionException err) {
+            throw new HerdDBInternalException(err.getCause());
+        }
     }
     private static final Logger LOG = Logger.getLogger(ServerSidePreparedStatementCache.class.getName());
 
-    public int getSize() {
+    public long getSize() {
         return preparedStatements.size();
     }
 
     String resolveQuery(String tableSpace, long statementId) {
-        String ts = tableSpaces.get(statementId);
-        if (!tableSpace.equals(ts)) {
+        PreparedStatementInfo info = statementsInfo.get(statementId);
+        if (info == null) {
             return null;
         }
-        String query = queries.get(statementId);
-        if (query == null) {
+        if (!tableSpace.equals(info.tablespace)) {
             return null;
         }
-        return query;
+        return info.query;
     }
 
     @VisibleForTesting
     public void clear() {
-        preparedStatements.clear();
-        tableSpaces.clear();
-        queries.clear();
+        preparedStatements.invalidateAll();
+        statementsInfo.clear();
     }
 }

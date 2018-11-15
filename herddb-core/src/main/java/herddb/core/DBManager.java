@@ -124,7 +124,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final ExecutorService callbacksExecutor;
     private final AbstractSQLPlanner planner;
-    private final ServerSidePreparedStatementCache preparedStatementsCache = new ServerSidePreparedStatementCache();
+    private final ServerSidePreparedStatementCache preparedStatementsCache;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
     private MemoryManager memoryManager;
@@ -182,6 +182,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
         long planCacheMem = configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
                 ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT);
+        long statementsMem = configuration.getLong(ServerConfiguration.PROPERTY_STATEMENTSCACHE_MAXMEMORY,
+                ServerConfiguration.PROPERTY_STATEMENTSCACHE_MAXMEMORY_DEFAULT);
+        preparedStatementsCache = new ServerSidePreparedStatementCache(statementsMem);
         String plannerType = serverConfiguration.getString(ServerConfiguration.PROPERTY_PLANNER_TYPE,
                 ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
         switch (plannerType) {
