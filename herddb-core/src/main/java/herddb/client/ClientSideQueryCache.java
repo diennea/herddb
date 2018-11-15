@@ -44,7 +44,7 @@ public class ClientSideQueryCache {
         String query = null;
         for (Map.Entry<String, Long> next : preparedStatements.entrySet()) {
             Long value = next.getValue();
-            if (value != null & value == statementId) {
+            if (value != null && value == statementId) {
                 query = next.getKey();
             }
         }
