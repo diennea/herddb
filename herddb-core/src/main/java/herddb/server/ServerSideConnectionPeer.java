@@ -974,7 +974,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     ConnectionsInfo.ConnectionInfo toConnectionInfo() {
-        return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address, preparedStatements.getSize());
+        return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address);
     }
 
     @Override

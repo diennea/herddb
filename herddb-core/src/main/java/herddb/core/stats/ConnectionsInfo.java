@@ -40,14 +40,12 @@ public class ConnectionsInfo {
         public long connectionTs;
         public String username;
         public String address;
-        public int numPreparedStatements;
 
-        public ConnectionInfo(String id, long connectionTs, String username, String address, int numPreparedStatements) {
+        public ConnectionInfo(String id, long connectionTs, String username, String address) {
             this.id = id;
             this.connectionTs = connectionTs;
             this.username = username;
             this.address = address;
-            this.numPreparedStatements = numPreparedStatements;
         }
 
     }
