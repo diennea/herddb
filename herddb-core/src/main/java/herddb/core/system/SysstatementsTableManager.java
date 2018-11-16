@@ -44,6 +44,7 @@ public class SysstatementsTableManager extends AbstractSystemTableManager {
             .column("query", ColumnTypes.STRING)
             .column("startts", ColumnTypes.TIMESTAMP)
             .column("runningtime", ColumnTypes.LONG)
+            .column("batches", ColumnTypes.INTEGER)
             .column("info", ColumnTypes.STRING)
             .primaryKey("id", false)
             .build();
@@ -54,7 +55,7 @@ public class SysstatementsTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = tableSpaceManager.getDbmanager().getRunningStatements();
+        ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = tableSpaceManager.getDbmanager().getRunningStatements().getRunningStatements();
         List<Record> result = new ArrayList<>();
         long now = System.currentTimeMillis();
         for (RunningStatementInfo info : runningStatements.values()) {
@@ -66,6 +67,7 @@ public class SysstatementsTableManager extends AbstractSystemTableManager {
                     "query", info.getQuery(),
                     "startts", new java.sql.Timestamp(info.getStartTimestamp()),
                     "runningtime", (now - info.getStartTimestamp()),
+                    "batches", info.getNumBatches(),
                     "info", info.getInfo())
             );
         }

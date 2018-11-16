@@ -33,7 +33,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -45,15 +44,17 @@ import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
-import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
 import java.nio.channels.ClosedChannelException;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.stats.Gauge;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -79,8 +80,10 @@ public class FileCommitLog extends CommitLog {
     private volatile CommitFileWriter writer;
     private Thread spool;
     private final OpStatsLogger statsFsyncTime;
+    private final AtomicInteger queueSize = new AtomicInteger();
+    private final AtomicInteger pendingEntries = new AtomicInteger();
     private final OpStatsLogger statsEntryLatency;
-    private final Counter queueSize;
+    private final OpStatsLogger batchWriteSize;
     private final ExecutorService fsyncThreadPool;
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
@@ -279,7 +282,32 @@ public class FileCommitLog extends CommitLog {
         this.spool.setDaemon(true);
         this.statsFsyncTime = statslogger.getOpStatsLogger("fsync");
         this.statsEntryLatency = statslogger.getOpStatsLogger("entrylatency");
-        this.queueSize = statslogger.getCounter("queuesize");
+        this.batchWriteSize = statslogger.getOpStatsLogger("batchWriteSize");
+        statslogger.registerGauge("queuesize", new Gauge<Integer>() {
+            @Override
+            public Integer getDefaultValue() {
+                return 0;
+            }
+
+            @Override
+            public Integer getSample() {
+                return queueSize.get();
+            }
+
+        });
+        statslogger.registerGauge("pendingentries", new Gauge<Integer>() {
+            @Override
+            public Integer getDefaultValue() {
+                return 0;
+            }
+
+            @Override
+            public Integer getSample() {
+                return pendingEntries.get();
+            }
+
+        });
+
         this.fsyncThreadPool = fsyncThreadPool;
         LOGGER.log(Level.FINE, "tablespace {2}, logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize, tableSpaceName});
     }
@@ -319,39 +347,54 @@ public class FileCommitLog extends CommitLog {
             try {
                 openNewLedger();
                 int count = 0;
-                List<LogEntryHolderFuture> doneEntries = new ArrayList<>();
+                List<LogEntryHolderFuture> batch = new ArrayList<>();
                 while (!closed || !writeQueue.isEmpty()) {
                     LogEntryHolderFuture entry = writeQueue.poll(MAX_SYNC_TIME, TimeUnit.MILLISECONDS);
                     boolean timedOut = false;
                     if (entry != null) {
-                        queueSize.dec();
-                        writeEntry(entry);
-                        doneEntries.add(entry);
+                        batch.add(entry);
                         count++;
                     } else {
                         timedOut = true;
                     }
                     if (timedOut || count >= MAX_UNSYNCHED_BATCH) {
-                        if (!doneEntries.isEmpty()) {
-                            flush();
-                            List<LogEntryHolderFuture> entriesToNotify = doneEntries;
-                            doneEntries = new ArrayList<>();
-                            count = 0;
-                            SyncTask syncTask = new SyncTask(entriesToNotify);
-                            fsyncThreadPool.submit(syncTask);
-                        }
-
+                        List<LogEntryHolderFuture> entriesToNotify = flushBatch(batch);
+                        batch = new ArrayList<>();
+                        count = 0;
+                        SyncTask syncTask = new SyncTask(entriesToNotify);
+                        fsyncThreadPool.submit(syncTask);
                     }
                 }
+                List<LogEntryHolderFuture> entriesToNotify = flushBatch(batch);
+                if (entriesToNotify.isEmpty()) {
+                    LOGGER.log(Level.INFO, "flushing last {0} entries", entriesToNotify.size());
+                    SyncTask syncTask = new SyncTask(entriesToNotify);
+                    syncTask.run();
+                }
+
             } catch (LogNotAvailableException | IOException | InterruptedException t) {
                 failed = true;
                 LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory, t);
             }
         }
 
+        private List<LogEntryHolderFuture> flushBatch(List<LogEntryHolderFuture> batch) throws LogNotAvailableException, IOException, InterruptedException {
+            if (!batch.isEmpty()) {
+                flush();
+                List<LogEntryHolderFuture> entriesToWrite = batch;
+                for (LogEntryHolderFuture _entry : entriesToWrite) {
+                    queueSize.decrementAndGet();
+                    writeEntry(_entry);
+                }
+                batchWriteSize.registerSuccessfulValue(entriesToWrite.size());
+                return entriesToWrite;
+            } else {
+                return Collections.emptyList();
+            }
+        }
     }
 
-    private static class LogEntryHolderFuture {
+    private class LogEntryHolderFuture {
 
         final CompletableFuture<LogSequenceNumber> ack = new CompletableFuture<>();
         final LogEntry entry;
@@ -382,6 +425,7 @@ public class FileCommitLog extends CommitLog {
             if (sequenceNumber == null && error == null) {
                 throw new IllegalStateException();
             }
+            pendingEntries.decrementAndGet();
             if (error != null) {
                 ack.completeExceptionally(error);
             } else {
@@ -435,8 +479,8 @@ public class FileCommitLog extends CommitLog {
         _writer.sync();
     }
 
-    public Counter getQueueSize() {
-        return queueSize;
+    public int getQueueSize() {
+        return queueSize.get();
     }
 
     @Override
@@ -444,7 +488,8 @@ public class FileCommitLog extends CommitLog {
         if (failed) {
             throw new LogNotAvailableException("file commit log is failed");
         }
-        if (isHasListeners()) {
+        boolean hasListeners = isHasListeners();
+        if (hasListeners) {
             sync = true;
         }
         if (LOGGER.isLoggable(Level.FINEST)) {
@@ -452,14 +497,17 @@ public class FileCommitLog extends CommitLog {
         }
         LogEntryHolderFuture future = new LogEntryHolderFuture(edit, sync);
         try {
-            queueSize.inc();
+            queueSize.incrementAndGet();
+            pendingEntries.incrementAndGet();
             writeQueue.put(future);
             if (!sync) {
                 return new CommitLogResult(future.ack, false /* deferred */, false);
             } else {
-                future.ack.thenAccept((pos) -> {
-                    notifyListeners(pos, edit);
-                });
+                if (hasListeners) {
+                    future.ack.thenAccept((pos) -> {
+                        notifyListeners(pos, edit);
+                    });
+                }
                 return new CommitLogResult(future.ack, false /* deferred */, true);
             }
         } catch (InterruptedException err) {

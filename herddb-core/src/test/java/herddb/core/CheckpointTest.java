@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Tests on checkpoints
@@ -77,41 +78,42 @@ public class CheckpointTest {
         config1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
 
         try (DBManager manager = new DBManager("localhost",
-            new MemoryMetadataStorageManager(),
-            new MemoryDataStorageManager(),
-            new MemoryCommitLogManager(),
-            null, null, config1);) {
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config1,
+                null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
-                Collections.emptyList());
+                    Collections.emptyList());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
 
             manager.checkpoint();
 
             /* Dirty a page with few data */
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey5", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey5", "a", Integer.valueOf(1234))).getUpdateCount());
 
             manager.checkpoint();
 
             /* The page is still dirty */
             assertEquals(1, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getDirtypages());
+                    .getTableManager("tsql").getStats().getDirtypages());
 
         }
     }
@@ -135,56 +137,56 @@ public class CheckpointTest {
         config1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config1)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config1, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
-                Collections.emptyList());
+                    Collections.emptyList());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
+                    Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
 
             manager.checkpoint();
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
 
             assertEquals(3, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getLoadedpages());
+                    .getTableManager("tsql").getStats().getLoadedpages());
 
             assertEquals(1, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getDirtypages());
+                    .getTableManager("tsql").getStats().getDirtypages());
 
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config1)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config1, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
 
             assertEquals(1, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getLoadedpages());
+                    .getTableManager("tsql").getStats().getLoadedpages());
 
             assertEquals(1, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getDirtypages());
+                    .getTableManager("tsql").getStats().getDirtypages());
 
         }
 
@@ -211,24 +213,24 @@ public class CheckpointTest {
 
         int originalPages;
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config1)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config1, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string, s1 string, n1 int, primary key(k1))",
-                Collections.emptyList());
+                    Collections.emptyList());
 
             for (int i = 0; i < records; ++i) {
                 executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
-                    Arrays.asList(
-                        RandomString.getInstance().nextString(keylen),
-                        RandomString.getInstance().nextString(strlen),
-                        Integer.valueOf(i)));
+                        Arrays.asList(
+                                RandomString.getInstance().nextString(keylen),
+                                RandomString.getInstance().nextString(strlen),
+                                Integer.valueOf(i)));
             }
 
             manager.checkpoint();
@@ -246,10 +248,10 @@ public class CheckpointTest {
         config2.set(ServerConfiguration.PROPERTY_COMPACTION_DURATION, -1L);
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config2)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config2, null)) {
             manager.start();
 
             assertTrue(manager.waitForTablespace("tblspace1", 20000));
@@ -289,10 +291,10 @@ public class CheckpointTest {
         Map<String, String> expectedValues = new HashMap<>();
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config1)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config1, null)) {
 
             // we want frequent checkpoints
             manager.setCheckpointPeriod(10 * 1000L);
@@ -303,7 +305,7 @@ public class CheckpointTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string, n1 string, primary key(k1))",
-                Collections.emptyList());
+                    Collections.emptyList());
 
             Random random = new Random();
             List<String> keys = new ArrayList<>();
@@ -319,10 +321,10 @@ public class CheckpointTest {
                 }
                 String value = RandomString.getInstance().nextString(strlen);
                 executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)",
-                    Arrays.asList(
-                        key,
-                        value),
-                    new TransactionContext(tx));
+                        Arrays.asList(
+                                key,
+                                value),
+                        new TransactionContext(tx));
                 expectedValues.put(key, value);
                 if (i % 1000 == 0) {
                     System.out.println("commit at " + i);
@@ -341,10 +343,10 @@ public class CheckpointTest {
                 String key = keys.get(random.nextInt(keys.size()));
                 String value = RandomString.getInstance().nextString(strlen);
                 assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=? where k1=?",
-                    Arrays.asList(
-                        value,
-                        key, new TransactionContext(tx)
-                    )).getUpdateCount()
+                        Arrays.asList(
+                                value,
+                                key, new TransactionContext(tx)
+                        )).getUpdateCount()
                 );
                 expectedValues.put(key, value);
 
@@ -384,10 +386,10 @@ public class CheckpointTest {
 
         // reboot
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmpDir, null, config1)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmpDir, null, config1, null)) {
 
             // we want frequent checkpoints
             manager.setCheckpointPeriod(10 * 1000L);

@@ -42,12 +42,19 @@ import io.netty.util.concurrent.FastThreadLocalThread;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.bookkeeper.stats.Gauge;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Accepts connections from workers
@@ -74,6 +81,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private int workerThreads = 16;
     private int callbackThreads = 64;
     private ExecutorService callbackExecutor;
+    private BlockingQueue callbackExecutorQueue;
     private boolean enableRealNetwork = true;
     private boolean enableJVMNetwork = true;
 
@@ -167,6 +175,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
     private Channel channel;
     private Channel local_channel;
+    private StatsLogger statsLogger;
 
     private static final ThreadFactory threadFactory = new ThreadFactory() {
         private final AtomicLong count = new AtomicLong();
@@ -178,9 +187,14 @@ public class NettyChannelAcceptor implements AutoCloseable {
     };
 
     public NettyChannelAcceptor(String host, int port, boolean ssl) {
+        this(host, port, ssl, NullStatsLogger.INSTANCE);
+    }
+
+    public NettyChannelAcceptor(String host, int port, boolean ssl, StatsLogger statsLogger) {
         this.host = host;
         this.port = port;
         this.ssl = ssl;
+        this.statsLogger = statsLogger;
     }
 
     public void start() throws Exception {
@@ -207,11 +221,30 @@ public class NettyChannelAcceptor implements AutoCloseable {
         }
 
         if (callbackThreads == 0) {
-
-            callbackExecutor = Executors.newCachedThreadPool(threadFactory);
+            callbackExecutorQueue = new SynchronousQueue<Runnable>();
+            callbackExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                    60L, TimeUnit.SECONDS,
+                    callbackExecutorQueue,
+                    threadFactory);
         } else {
-            callbackExecutor = Executors.newFixedThreadPool(callbackThreads, threadFactory);
+            callbackExecutorQueue = new LinkedBlockingQueue<Runnable>();
+            callbackExecutor = new ThreadPoolExecutor(callbackThreads, callbackThreads,
+                    0L, TimeUnit.MILLISECONDS,
+                    callbackExecutorQueue,
+                    threadFactory);
         }
+        statsLogger.registerGauge("callbacksqueue", new Gauge<Integer>() {
+            @Override
+            public Integer getDefaultValue() {
+                return 0;
+            }
+
+            @Override
+            public Integer getSample() {
+                return callbackExecutorQueue.size();
+            }
+
+        });
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {

@@ -336,13 +336,16 @@ public class SystemTablesTest {
                         ).findAny().isPresent());
             }
 
-            manager.registerRunningStatement(new RunningStatementInfo("mock query", System.currentTimeMillis(), "tblspace1", "info"));
+            RunningStatementInfo runningStatementInfo = new RunningStatementInfo("mock query", System.currentTimeMillis(), "tblspace1", "info", 1);
+            manager.getRunningStatements().registerRunningStatement(runningStatementInfo);
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysstatements ", Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 assertEquals(1, records.size());
                 records.forEach(s -> {
                     System.out.println("STATEMENT: " + s);
                 });
+            } finally {
+                manager.getRunningStatements().unregisterRunningStatement(runningStatementInfo);
             }
 
         }
