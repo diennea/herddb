@@ -112,47 +112,61 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
 
     @Override
     public void forEach(BiConsumer<String, Object> consumer) {
-        // no need to create a Map
-        if (table.primaryKey.length == 1) {
-            String pkField = table.primaryKey[0];
-            Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
-            consumer.accept(pkField, value);
-            if (value instanceof RawString) {
-                ((RawString) value).recycle();
+        // best case
+        if (table.physicalLayoutLikeLogicalLayout) {
+
+            // no need to create a Map
+            if (table.primaryKey.length == 1) {
+                String pkField = table.primaryKey[0];
+                Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
+                consumer.accept(pkField, value);
+                if (value instanceof RawString) {
+                    ((RawString) value).recycle();
+                }
+            } else {
+                try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                    for (String primaryKeyColumn : table.primaryKey) {
+                        byte[] value = din.readArray();
+                        Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
+                        consumer.accept(primaryKeyColumn, theValue);
+                        if (theValue instanceof RawString) {
+                            ((RawString) theValue).recycle();
+                        }
+                    }
+                } catch (IOException err) {
+                    throw new IllegalStateException("bad data:" + err, err);
+                }
             }
-        } else {
-            try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
-                for (String primaryKeyColumn : table.primaryKey) {
-                    byte[] value = din.readArray();
-                    Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
-                    consumer.accept(primaryKeyColumn, theValue);
-                    if (theValue instanceof RawString) {
-                        ((RawString) theValue).recycle();
+
+            try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
+                while (!din.isEof()) {
+                    int serialPosition;
+                    serialPosition = din.readVIntNoEOFException();
+                    if (din.isEof()) {
+                        break;
+                    }
+                    Column col = table.getColumnBySerialPosition(serialPosition);
+                    if (col != null) {
+                        Object value = RecordSerializer.deserializeTypeAndValue(din);
+                        consumer.accept(col.name, value);
+                    } else {
+                        // we have to deserialize always the value, even the column is no more present
+                        RecordSerializer.skipTypeAndValue(din);
                     }
                 }
             } catch (IOException err) {
                 throw new IllegalStateException("bad data:" + err, err);
             }
-        }
-
-        try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
-            while (!din.isEof()) {
-                int serialPosition;
-                serialPosition = din.readVIntNoEOFException();
-                if (din.isEof()) {
-                    break;
-                }
-                Column col = table.getColumnBySerialPosition(serialPosition);
-                if (col != null) {
-                    Object value = RecordSerializer.deserializeTypeAndValue(din);
-                    consumer.accept(col.name, value);
-                } else {
-                    // we have to deserialize always the value, even the column is no more present
-                    RecordSerializer.skipTypeAndValue(din);
+        } else {
+            // bad case
+            for (int i = 0; i < table.columnNames.length; i++) {
+                String columnName = table.columnNames[i];
+                Object value = get(i);
+                consumer.accept(columnName, value);
+                if (value instanceof RawString) {
+                    ((RawString) value).recycle();
                 }
             }
-        } catch (IOException err) {
-            throw new IllegalStateException("bad data:" + err, err);
         }
     }
 

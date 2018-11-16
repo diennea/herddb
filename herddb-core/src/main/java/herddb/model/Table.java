@@ -41,6 +41,9 @@ import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import java.util.Comparator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Table definition
@@ -49,6 +52,8 @@ import herddb.utils.SimpleByteArrayInputStream;
  */
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
+
+    private static final Logger LOG = Logger.getLogger(Table.class.getName());
 
     public final String uuid;
     public final String name;
@@ -63,10 +68,23 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     private final Set<String> primaryKeyColumns;
     public final int maxSerialPosition;
 
+    /**
+     * Best case:
+     * <ul>
+     * <li> PK is the before the other columns (so the 'key' is before the
+     * 'value')
+     * <li> PK columns are in the same order of the logical order of columns
+     * <li> non-PK columns are in the same order of the logical order of columns
+     * </ul>
+     * In this case in order to serve a 'SELECT * FROM TABLE' we can dump the
+     * key and than the value.
+     */
+    public final boolean physicalLayoutLikeLogicalLayout;
+
     private Table(String uuid, String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
         this.uuid = uuid;
         this.name = name;
-        this.columns = reorderColumnsPrimaryKeyFirst(columns, primaryKey);
+        this.columns = columns;
         this.maxSerialPosition = maxSerialPosition;
         this.primaryKey = primaryKey;
         this.tablespace = tablespace;
@@ -89,35 +107,34 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         }
         this.primaryKeyColumns = ImmutableSet.<String>builder().addAll(Arrays.asList(primaryKey)).build();
 
-    }
+        boolean primaryKeyIsInKeyAndOrdered = true;
+        for (int k = 0; k < primaryKey.length; k++) {
+            if (!columnNames[k].equals(primaryKey[k])) {
+                primaryKeyIsInKeyAndOrdered = false;
+            }
+        }
 
-    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {
-        Column[] _columns = new Column[columns.length];
-        int pos = 0;
-        Set<String> pkCols = new HashSet<>();
-        for (String pkCol : primaryKey) {
-            pkCols.add(pkCol.toLowerCase());
-            boolean found = false;
-            for (Column column : columns) {
-                if (column.name.equalsIgnoreCase(pkCol)) {
-                    _columns[pos++] = column;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                throw new IllegalArgumentException("pk col " + pkCol + " not found in columns definition " + Arrays.toString(columns));
-            }
+        boolean columnsOrderedAsInPhysicalOrder = false;
+        // check if columns are in the relative order as 'serialPosition'
+        List<String> columnsNamesAsList = Arrays.asList(columnNames);
+        List<String> columnsNamesOrderedBySerialPosition = new ArrayList<>(columnsNamesAsList);
+        columnsNamesOrderedBySerialPosition.sort(Comparator.comparingInt(s -> {
+            return columnsByName.get(s).serialPosition;
+        }));
+        columnsOrderedAsInPhysicalOrder = columnsNamesOrderedBySerialPosition.equals(columnsNamesAsList);
+
+        this.physicalLayoutLikeLogicalLayout = primaryKeyIsInKeyAndOrdered && columnsOrderedAsInPhysicalOrder;
+
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.log(Level.FINE, "Table: ", tablespace + "." + name + "\n"
+                    + "Columns: " + columnsNamesAsList + "\n"
+                    + "PrimaryKey: " + Arrays.asList(primaryKey) + "\n"
+                    + "Columns ordered physically: " + columnsNamesOrderedBySerialPosition + "\n"
+                    + "PrimaryKeyIsInKeyAndOrdered: " + primaryKeyIsInKeyAndOrdered + "\n"
+                    + "ColumnsOrderedAsInPhysicalOrder: " + columnsOrderedAsInPhysicalOrder + "\n"
+                    + "PhysicalLayoutLikeLogicalLayout: " + physicalLayoutLikeLogicalLayout + "\n"
+            );
         }
-        for (Column column : columns) {
-            if (!pkCols.contains(column.name.toLowerCase())) {
-                _columns[pos++] = column;
-            }
-        }
-        if (pos != columns.length) {
-            throw new IllegalStateException();
-        }
-        return _columns;
     }
 
     public boolean isPrimaryKeyColumn(String column) {
