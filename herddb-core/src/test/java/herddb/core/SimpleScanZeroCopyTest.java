@@ -31,6 +31,7 @@ import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.utils.DataAccessor;
+import herddb.utils.IntHolder;
 import herddb.utils.ProjectedDataAccessor;
 import herddb.utils.RawString;
 import java.util.Arrays;
@@ -62,6 +63,16 @@ public class SimpleScanZeroCopyTest {
                 assertEquals(1, data.size());
                 // read from the full record
                 assertTrue(data.get(0) instanceof DataAccessorForFullRecord);
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
             }
             try (DataScanner scan = TestUtils.scan(manager, "SELECT k1 FROM tblspace1.tsql ", Collections.emptyList());) {
                 List<DataAccessor> data = scan.consume();
@@ -71,6 +82,216 @@ public class SimpleScanZeroCopyTest {
                         || data.get(0) instanceof ZeroCopyProjection.RuntimeProjectedDataAccessor);
                 assertEquals(RawString.of("a"), data.get(0).get("k1"));
                 assertEquals(RawString.of("a"), data.get(0).get(0));
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                assertTrue(data.get(0) instanceof Tuple);
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+            }
+        }
+    }
+
+    @Test
+    public void testPkNotFirst() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int,k1 string primary key, s1 string)", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList("a", 1, "b"));
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record
+                assertTrue(data.get(0) instanceof DataAccessorForFullRecord);
+
+                assertEquals(1, data.get(0).get("n1"));
+                assertEquals(1, data.get(0).get(0));
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(1));
+                assertEquals(RawString.of("b"), data.get(0).get("s1"));
+                assertEquals(RawString.of("b"), data.get(0).get(2));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT k1 FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record, keeping only some field
+                assertTrue(data.get(0) instanceof ProjectedDataAccessor
+                        || data.get(0) instanceof ZeroCopyProjection.RuntimeProjectedDataAccessor);
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(0));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                assertTrue(data.get(0) instanceof Tuple);
+            }
+        }
+    }
+
+    @Test
+    public void testMultiPkFirst() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int primary key,k1 string primary key, s1 string)", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList("a", 1, "b"));
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record
+                assertTrue(data.get(0) instanceof DataAccessorForFullRecord);
+
+                assertEquals(1, data.get(0).get("n1"));
+                assertEquals(1, data.get(0).get(0));
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(1));
+                assertEquals(RawString.of("b"), data.get(0).get("s1"));
+                assertEquals(RawString.of("b"), data.get(0).get(2));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT k1 FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record, keeping only some field
+                assertTrue(data.get(0) instanceof ProjectedDataAccessor
+                        || data.get(0) instanceof ZeroCopyProjection.RuntimeProjectedDataAccessor);
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(0));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                assertTrue(data.get(0) instanceof Tuple);
+            }
+        }
+    }
+
+    @Test
+    public void testMultiPkFirstButBadPkOrder() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int ,k1 string, s1 string,"
+                    + "primary key(k1, n1))", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList("a", 1, "b"));
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record
+                assertTrue(data.get(0) instanceof DataAccessorForFullRecord);
+
+                assertEquals(1, data.get(0).get("n1"));
+                assertEquals(1, data.get(0).get(0));
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(1));
+                assertEquals(RawString.of("b"), data.get(0).get("s1"));
+                assertEquals(RawString.of("b"), data.get(0).get(2));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
+
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT k1 FROM tblspace1.tsql ", Collections.emptyList());) {
+                List<DataAccessor> data = scan.consume();
+                assertEquals(1, data.size());
+                // read from the full record, keeping only some field
+                assertTrue(data.get(0) instanceof ProjectedDataAccessor
+                        || data.get(0) instanceof ZeroCopyProjection.RuntimeProjectedDataAccessor);
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(0));
+
+                String[] fieldNames = scan.getFieldNames();
+                for (String fName : fieldNames) {
+                    Object value = data.get(0).get(fName);
+                    System.out.println("FIELD " + fName + " -> " + value + " (" + value.getClass() + ")");
+                }
+                IntHolder current = new IntHolder();
+                data.get(0).forEach((fName, value) -> {
+                    System.out.println("FIELD2 " + fName + " -> " + value + " (" + value.getClass() + ")");
+                    assertEquals(fName, fieldNames[current.value++]);
+                });
             }
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
                 List<DataAccessor> data = scan.consume();

@@ -98,4 +98,27 @@ public class HeapTest {
         }
     }
 
+    @Test
+    public void insertWithoutValuesAndPrimaryKeyIsNotTheFirstColumn() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE `ao_21d670_whitelist_rules` (\n"
+                    + "  `ALLOWINBOUND` tinyint(1) DEFAULT NULL,\n"
+                    + "  `EXPRESSION` longtext COLLATE utf8_bin NOT NULL,\n"
+                    + "  `ID` int(11) NOT NULL AUTO_INCREMENT,\n"
+                    + "  `TYPE` varchar(255) COLLATE utf8_bin NOT NULL,\n"
+                    + "  PRIMARY KEY (`ID`)\n"
+                    + ") ", Collections.emptyList());
+
+            execute(manager, "INSERT INTO `ao_21d670_whitelist_rules` VALUES (?,?,?,?)\n"
+                    + "", Arrays.asList(0, "http://www.xxx.com/*", 3, "WILDCARD_EXPRESSION"));
+
+        }
+    }
+
 }
