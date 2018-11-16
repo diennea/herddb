@@ -41,6 +41,7 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.model.MissingJDBCParameterException;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.utils.RawString;
@@ -317,6 +318,53 @@ public class SimpleClientServerTest {
                     );
 
                     assertEquals(1, executeUpdate.updateCount);
+                }
+
+            }
+        }
+    }
+
+    @Test
+    public void testExecuteUpdatesWithDDL() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                    HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                {
+
+                    List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT,
+                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", TransactionContext.NOTRANSACTION_ID,
+                            false,
+                            true,
+                            Arrays.asList(
+                                    Collections.emptyList()
+                            )
+                    );
+                    assertEquals(1, executeUpdates.size());
+                    assertEquals(1, executeUpdates.get(0).updateCount);
+
+                }
+
+                {
+
+                    List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT,
+                            "DROP TABLE mytable", TransactionContext.NOTRANSACTION_ID,
+                            false,
+                            true,
+                            Arrays.asList(
+                                    Collections.emptyList()
+                            )
+                    );
+                    assertEquals(1, executeUpdates.size());
+                    assertEquals(1, executeUpdates.get(0).updateCount);
+
                 }
 
             }

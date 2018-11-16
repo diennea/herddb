@@ -544,7 +544,7 @@ public class TableSpaceManager {
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
                 try {
-                    rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId)).get();
+                    rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId), context).get();
                 } catch (ExecutionException err) {
                     throw new StatementExecutionException(err.getCause());
                 } catch (InterruptedException ex) {
@@ -619,37 +619,6 @@ public class TableSpaceManager {
     public List<Table> getAllTablesForPlanner() {
         // No LOCK is necessary, since tables is a concurrent map
         return tables.values().stream().map(AbstractTableManager::getTable).collect(Collectors.toList());
-
-    }
-
-    private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
-        long lockStamp = acquireWriteLock(alterTableStatement);
-        try {
-            if (transactionContext.transactionId > 0) {
-                throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
-            }
-            AbstractTableManager tableManager = tables.get(alterTableStatement.getTable());
-            if (tableManager == null) {
-                throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
-            }
-
-            Table newTable;
-            try {
-                newTable = tableManager.getTable().applyAlterTable(alterTableStatement);
-            } catch (IllegalArgumentException error) {
-                throw new StatementExecutionException(error);
-            }
-            LogEntry entry = LogEntryFactory.alterTable(newTable, null);
-            try {
-                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                apply(pos, entry, false);
-            } catch (Exception err) {
-                throw new StatementExecutionException(err);
-            }
-            return new DDLStatementExecutionResult(transactionContext.transactionId);
-        } finally {
-            releaseWriteLock(lockStamp, alterTableStatement);
-        }
 
     }
 
@@ -1064,7 +1033,7 @@ public class TableSpaceManager {
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
                     try {
-                        rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
+                        rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                 .get();
                     } catch (InterruptedException ex) {
                         LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);
@@ -1111,19 +1080,19 @@ public class TableSpaceManager {
                     res = beginTransactionAsync(context, true);
                 }
             } else if (statement instanceof CommitTransactionStatement) {
-                res = commitTransaction((CommitTransactionStatement) statement);
+                res = commitTransaction((CommitTransactionStatement) statement, context);
             } else if (statement instanceof RollbackTransactionStatement) {
-                res = rollbackTransaction((RollbackTransactionStatement) statement);
+                res = rollbackTransaction((RollbackTransactionStatement) statement, context);
             } else if (statement instanceof CreateTableStatement) {
-                res = CompletableFuture.completedFuture(createTable((CreateTableStatement) statement, transaction));
+                res = CompletableFuture.completedFuture(createTable((CreateTableStatement) statement, transaction, context));
             } else if (statement instanceof CreateIndexStatement) {
-                res = CompletableFuture.completedFuture(createIndex((CreateIndexStatement) statement, transaction));
+                res = CompletableFuture.completedFuture(createIndex((CreateIndexStatement) statement, transaction, context));
             } else if (statement instanceof DropTableStatement) {
-                res = CompletableFuture.completedFuture(dropTable((DropTableStatement) statement, transaction));
+                res = CompletableFuture.completedFuture(dropTable((DropTableStatement) statement, transaction, context));
             } else if (statement instanceof DropIndexStatement) {
-                return CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction));
+                return CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
-                return CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext));
+                return CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -1137,7 +1106,7 @@ public class TableSpaceManager {
                 res = res.whenComplete((xx, error) -> {
                     if (error != null) {
                         try {
-                            rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
+                            rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                     .get();
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
@@ -1229,8 +1198,52 @@ public class TableSpaceManager {
         return lockStamp;
     }
 
-    private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
-        long lockStamp = acquireWriteLock(statement);
+    private StatementExecutionResult alterTable(AlterTableStatement statement, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
+        try {
+            if (transactionContext.transactionId > 0) {
+                throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
+            }
+            AbstractTableManager tableManager = tables.get(statement.getTable());
+            if (tableManager == null) {
+                throw new TableDoesNotExistException("no table " + statement.getTable() + " in tablespace " + tableSpaceName);
+            }
+
+            Table newTable;
+            try {
+                newTable = tableManager.getTable().applyAlterTable(statement);
+            } catch (IllegalArgumentException error) {
+                throw new StatementExecutionException(error);
+            }
+            LogEntry entry = LogEntryFactory.alterTable(newTable, null);
+            try {
+                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                apply(pos, entry, false);
+            } catch (Exception err) {
+                throw new StatementExecutionException(err);
+            }
+            return new DDLStatementExecutionResult(transactionContext.transactionId);
+        } finally {
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), statement);
+                context.setTableSpaceLock(0);
+            }
+        }
+
+    }
+
+    private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             if (tables.containsKey(statement.getTableDefinition().name)) {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
@@ -1255,12 +1268,20 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp, statement);
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), statement);
+                context.setTableSpaceLock(0);
+            }
         }
     }
 
-    private StatementExecutionResult createIndex(CreateIndexStatement statement, Transaction transaction) throws StatementExecutionException {
-        long lockStamp = acquireWriteLock(statement);
+    private StatementExecutionResult createIndex(CreateIndexStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             if (indexes.containsKey(statement.getIndexefinition().name)) {
                 throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
@@ -1279,12 +1300,20 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp, statement);
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), statement);
+                context.setTableSpaceLock(0);
+            }
         }
     }
 
-    private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction) throws StatementExecutionException {
-        long lockStamp = acquireWriteLock(statement);
+    private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             if (!tables.containsKey(statement.getTable())) {
                 if (statement.isIfExists()) {
@@ -1316,12 +1345,20 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp, statement);
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), statement);
+                context.setTableSpaceLock(0);
+            }
         }
     }
 
-    private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction) throws StatementExecutionException {
-        long lockStamp = acquireWriteLock(statement);
+    private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean lockAcquired = false;
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             if (!indexes.containsKey(statement.getIndexName())) {
                 if (statement.isIfExists()) {
@@ -1349,7 +1386,10 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp, statement);
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), statement);
+                context.setTableSpaceLock(0);
+            }
         }
     }
 
@@ -1589,10 +1629,16 @@ public class TableSpaceManager {
 
     }
 
-    private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement statement) throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         long txId = statement.getTransactionId();
         LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
-        final long lockStamp = acquireReadLock(statement);
+        long lockStamp = context.getTableSpaceLock();
+        boolean lockAcquired = false;
+        if (lockStamp == 0) {
+            lockStamp = acquireReadLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         CompletableFuture<StatementExecutionResult> res;
         Transaction tx = transactions.get(txId);
         if (tx == null) {
@@ -1604,19 +1650,39 @@ public class TableSpaceManager {
                 return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
             }, callbacksExecutor);
         }
-        return releaseReadLock(res, lockStamp, statement);
+        if (lockAcquired) {
+            res = releaseReadLock(res, lockStamp, statement)
+                    .thenApply(s -> {
+                        context.setTableSpaceLock(0);
+                        return s;
+                    });
+        }
+        return res;
     }
 
-    private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement statement) throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         long txId = statement.getTransactionId();
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
-        final long lockStamp = acquireReadLock(statement);
+        long lockStamp = context.getTableSpaceLock();
+        boolean lockAcquired = false;
+        if (lockStamp == 0) {
+            lockStamp = acquireReadLock(statement);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         CommitLogResult pos = log.log(entry, true);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
         }, callbacksExecutor);
-        return releaseReadLock(res, lockStamp, statement);
+        if (lockAcquired) {
+            res = releaseReadLock(res, lockStamp, statement)
+                    .thenApply(s -> {
+                        context.setTableSpaceLock(0);
+                        return s;
+                    });
+        }
+        return res;
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
