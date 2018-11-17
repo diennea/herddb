@@ -53,7 +53,7 @@ import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.bookkeeper.stats.Counter;
+import java.util.function.Consumer;
 import org.apache.bookkeeper.stats.Gauge;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
@@ -85,6 +85,7 @@ public class FileCommitLog extends CommitLog {
     private final OpStatsLogger statsEntryLatency;
     private final OpStatsLogger batchWriteSize;
     private final ExecutorService fsyncThreadPool;
+    private final Consumer<FileCommitLog> onClose;
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
@@ -106,6 +107,14 @@ public class FileCommitLog extends CommitLog {
 
     final static byte ENTRY_START = 13;
     final static byte ENTRY_END = 25;
+
+    void backgroundSync() {
+        try {
+            getWriter().sync(true);
+        } catch (Throwable t) {
+            LOGGER.log(Level.SEVERE, "error background fsync on " + this.logDirectory, t);
+        }
+    }
 
     class CommitFileWriter implements AutoCloseable {
 
@@ -146,7 +155,12 @@ public class FileCommitLog extends CommitLog {
         }
 
         public void sync() throws IOException {
-            if (!REQUIRE_FSYNC) {
+            sync(false);
+        }
+
+        public void sync(boolean force) throws IOException {
+
+            if (!force && !REQUIRE_FSYNC) {
                 return;
             }
             long now = System.nanoTime();
@@ -274,7 +288,10 @@ public class FileCommitLog extends CommitLog {
         }
     }
 
-    public FileCommitLog(Path logDirectory, String tableSpaceName, long maxLogFileSize, ExecutorService fsyncThreadPool, StatsLogger statslogger) {
+    public FileCommitLog(Path logDirectory, String tableSpaceName,
+            long maxLogFileSize, ExecutorService fsyncThreadPool, StatsLogger statslogger,
+            Consumer<FileCommitLog> onClose) {
+        this.onClose = onClose;
         this.maxLogFileSize = maxLogFileSize;
         this.tableSpaceName = tableSpaceName;
         this.logDirectory = logDirectory.toAbsolutePath();
@@ -642,6 +659,8 @@ public class FileCommitLog extends CommitLog {
     @Override
     public void close() throws LogNotAvailableException {
         closed = true;
+        onClose.accept(this);
+
         try {
             spool.join();
         } catch (InterruptedException err) {
