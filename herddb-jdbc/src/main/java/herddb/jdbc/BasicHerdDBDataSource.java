@@ -47,7 +47,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected HDBClient client;
     protected final Properties properties = new Properties();
     protected int loginTimeout;
-    protected int maxActive = 100;
+    protected int maxActive = 200;
 
     private static final Logger LOGGER = Logger.getLogger(BasicHerdDBDataSource.class.getName());
     protected String url;

@@ -227,8 +227,8 @@ public class FileCommitLogTest {
                     writeCount++;
                 }
                 TestUtils.waitForCondition(() -> {
-                    Long qsize = log.getQueueSize().get();
-                    return qsize != null && qsize == 0;
+                    int qsize = log.getQueueSize();
+                    return qsize == 0;
                 }, TestUtils.NOOP, 100);
             }
             final long _endWrite = System.currentTimeMillis();

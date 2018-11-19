@@ -111,7 +111,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public Server(ServerConfiguration configuration, StatsLogger statsLogger) {
-        this.statsLogger = statsLogger  == null ? new NullStatsLogger() : statsLogger;
+        this.statsLogger = statsLogger == null ? new NullStatsLogger() : statsLogger;
         this.configuration = configuration;
 
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
@@ -209,7 +209,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 metadataStorageManager,
                 buildDataStorageManager(),
                 buildCommitLogManager(),
-                tmpDirectory, serverHostData, configuration
+                tmpDirectory, serverHostData, configuration, statsLogger
         );
 
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
@@ -255,7 +255,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         String realHost = serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_HOST);
         int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
 
-        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost, realPort, serverHostData.isSsl());
+        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost, realPort, serverHostData.isSsl(),
+                statsLogger.scope("network"));
         // with 'local' mode we are disabling network by default
         // but in case you want to run benchmarks with 'local' mode using
         // the client on a separate process/machine you should be able
@@ -358,7 +359,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException();
         }
     }
-
 
     public void start() throws Exception {
         boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START,

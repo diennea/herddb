@@ -34,17 +34,19 @@ public class RunningStatementInfo {
     private final String query;
     private final String tablespace;
     private final String info;
+    private final int numBatches;
     private final long startTimestamp;
 
-    public RunningStatementInfo(String query, long startTimestamp, String tablespace, String info) {
+    public RunningStatementInfo(String query, long startTimestamp, String tablespace, String info, int numBatches) {
         this.query = query;
         this.startTimestamp = startTimestamp;
         this.tablespace = tablespace;
         this.info = info;
+        this.numBatches = numBatches;
     }
 
-    public static AtomicLong getIDGENERATOR() {
-        return IDGENERATOR;
+    public int getNumBatches() {
+        return numBatches;
     }
 
     public long getId() {

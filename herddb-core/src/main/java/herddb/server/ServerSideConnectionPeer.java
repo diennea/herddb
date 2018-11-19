@@ -36,6 +36,7 @@ import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
+import herddb.core.RunningStatementsStats;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.ConnectionsInfo;
@@ -437,9 +438,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
         }
-
+        RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
         RunningStatementInfo statementInfo = new RunningStatementInfo(query,
-                System.currentTimeMillis(), tableSpace, parameters.size() + " params");
+                System.currentTimeMillis(), tableSpace, "", 1);
         try {
             TranslatedQuery translatedQuery = server
                     .getManager()
@@ -453,8 +454,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             TransactionContext transactionContext = new TransactionContext(txId);
             if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
                     || translatedQuery.plan.mainStatement instanceof ScanStatement) {
-
-                server.getManager().registerRunningStatement(statementInfo);
+                runningStatements.registerRunningStatement(statementInfo);
                 ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                 DataScanner dataScanner = scanResult.dataScanner;
 
@@ -483,7 +483,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             ByteBuf error = composeErrorResponse(message.messageId, err);
             _channel.sendReplyMessage(message.messageId, error);
         } finally {
-            server.getManager().unregisterRunningStatement(statementInfo);
+            runningStatements.unregisterRunningStatement(statementInfo);
         }
     }
 
@@ -579,7 +579,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             batch.add(batchParams);
         }
-        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tableSpace, "batch of " + numStatements);
+        RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
+        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tableSpace, "", numStatements);
         try {
 
             List<TranslatedQuery> queries = new ArrayList<>();
@@ -609,7 +610,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         ByteBuf errorMsg = composeErrorResponse(message.messageId, error);
                         _channel.sendReplyMessage(message.messageId, errorMsg);
                         message.close();
-                        server.getManager().unregisterRunningStatement(statementInfo);
+                        runningStatements.unregisterRunningStatement(statementInfo);
                         return;
                     }
                     if (result instanceof DMLStatementExecutionResult) {
@@ -638,7 +639,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         ByteBuf response = PduCodec.ErrorResponse.write(message.messageId, "bad result type " + result.getClass() + " (" + result + ")");
                         _channel.sendReplyMessage(message.messageId, response);
                         message.close();
-                        server.getManager().unregisterRunningStatement(statementInfo);
+                        runningStatements.unregisterRunningStatement(statementInfo);
                         return;
                     }
 
@@ -648,7 +649,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             ByteBuf response = PduCodec.ExecuteStatementsResult.write(message.messageId, updateCounts, otherDatas, newTransactionId);
                             _channel.sendReplyMessage(message.messageId, response);
                             message.close();
-                            server.getManager().unregisterRunningStatement(statementInfo);
+                            runningStatements.unregisterRunningStatement(statementInfo);
                         } catch (Throwable t) {
                             t.printStackTrace();
                         }
@@ -672,7 +673,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             ByteBuf response = composeErrorResponse(message.messageId, err);
             _channel.sendReplyMessage(message.messageId, response);
             message.close();
-            server.getManager().unregisterRunningStatement(statementInfo);
+            runningStatements.unregisterRunningStatement(statementInfo);
         }
     }
 
@@ -700,20 +701,21 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.FINEST, "query {0} with {1}", new Object[]{query, parameters});
         }
 
-        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
+        RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tablespace, "", 1);
         TransactionContext transactionContext = new TransactionContext(txId);
         TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tablespace,
                 query, parameters, false, true, returnValues, -1);
         Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-        server.getManager().registerRunningStatement(statementInfo);
+        RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
+        runningStatements.registerRunningStatement(statementInfo);
         CompletableFuture<StatementExecutionResult> res = server
                 .getManager()
                 .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
         res.whenComplete((result, err) -> {
             try {
-                server.getManager().unregisterRunningStatement(statementInfo);
+                runningStatements.unregisterRunningStatement(statementInfo);
                 if (err != null) {
                     while (err instanceof CompletionException) {
                         err = err.getCause();

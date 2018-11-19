@@ -81,7 +81,9 @@ public class FlushFileTest extends BaseTestcase {
             @Override
             public CommitLog createCommitLog(String tableSpace, String name, String nodeId) {
                 try {
-                    return new FileCommitLog(folder.newFolder(tableSpace).toPath(), name, 1024 * 1024, threadPool, new NullStatsLogger());
+                    return new FileCommitLog(folder.newFolder(tableSpace).toPath(),
+                            name, 1024 * 1024, threadPool, new NullStatsLogger(), 
+                            l -> {});
                 } catch (IOException err) {
                     throw new RuntimeException(err);
                 }

@@ -103,6 +103,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * General Manager of the local instance of HerdDB
@@ -146,7 +148,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 
-    private final ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
+    private final RunningStatementsStats runningStatements;
     private static final ThreadFactory ASYNC_WORKERS_THREAD_FACTORY = new ThreadFactory() {
         private final AtomicLong count = new AtomicLong();
 
@@ -163,11 +165,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
-        this(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, tmpDirectory, hostData, new ServerConfiguration());
+        this(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, tmpDirectory, hostData, new ServerConfiguration(),
+                null);
     }
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
-            CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration) {
+            CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration,
+            StatsLogger mainStatsLogger) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
         int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
@@ -177,6 +181,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
+        if (mainStatsLogger == null) {
+            mainStatsLogger = NullStatsLogger.INSTANCE;
+        }
+        this.runningStatements = new RunningStatementsStats(mainStatsLogger);
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
@@ -1284,16 +1292,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.clearAtBoot = clearAtBoot;
     }
 
-    public void registerRunningStatement(RunningStatementInfo info) {
-        runningStatements.put(info.getId(), info);
-    }
-
-    public void unregisterRunningStatement(RunningStatementInfo info) {
-
-        runningStatements.remove(info.getId());
-    }
-
-    public ConcurrentHashMap<Long, RunningStatementInfo> getRunningStatements() {
+    public RunningStatementsStats getRunningStatements() {
         return runningStatements;
     }
 
