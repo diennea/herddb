@@ -45,6 +45,7 @@ import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
+import herddb.server.ServerConfiguration;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
@@ -207,7 +208,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException("corrutped data file " + p.toAbsolutePath() + ", checksum failed");
         }
         try (InputStream in = new SimpleByteArrayInputStream(pageData);
-            ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
+                ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
             long version = iin.readVLong(); // version
             long flags = iin.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -222,11 +223,11 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         Path tablespaceMetaTmp = baseDirectory.resolve(tableSpace.name.toLowerCase() + "." + System.nanoTime() + ".tmpmetadata");
         Path tablespaceMeta = baseDirectory.resolve(tableSpace.name.toLowerCase() + ".metadata");
 
-        try (ManagedFile file = ManagedFile.open(tablespaceMetaTmp);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),
-                    FileDataStorageManager.COPY_BUFFERS_SIZE);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dout = new ExtendedDataOutputStream(oo)) {
+        try (ManagedFile file = ManagedFile.open(tablespaceMetaTmp, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),
+                        FileDataStorageManager.COPY_BUFFERS_SIZE);
+                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(oo)) {
 
             dout.writeVLong(1); // version
             dout.writeVLong(0); // flags for future implementations
@@ -279,11 +280,11 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             TableSpace exists = tableSpaces.get(TableSpace.DEFAULT);
             if (exists == null) {
                 TableSpace defaultTableSpace = TableSpace
-                    .builder()
-                    .leader(localNodeId)
-                    .replica(localNodeId)
-                    .name(TableSpace.DEFAULT)
-                    .build();
+                        .builder()
+                        .leader(localNodeId)
+                        .replica(localNodeId)
+                        .name(TableSpace.DEFAULT)
+                        .build();
                 registerTableSpace(defaultTableSpace);
             }
         } catch (DDLException err) {

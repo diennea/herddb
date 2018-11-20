@@ -38,15 +38,14 @@ import java.util.Set;
  */
 public class ManagedFile implements AutoCloseable {
 
-    private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
-        "herddb.file.requirefsync", true);
-
     private final FileChannel channel;
     private final OutputStream stream;
+    private final boolean requirefsync;
 
-    private ManagedFile(FileChannel channel) {
+    private ManagedFile(FileChannel channel, boolean requirefsync) {
         this.channel = channel;
         this.stream = Channels.newOutputStream(channel);
+        this.requirefsync = requirefsync;
     }
 
     private static final Set<StandardOpenOption> DEFAULT_OPTIONS_SET = EnumSet.of(
@@ -56,8 +55,8 @@ public class ManagedFile implements AutoCloseable {
             DEFAULT_OPTIONS_SET.toArray(new StandardOpenOption[DEFAULT_OPTIONS_SET.size()]);
 
 
-    public static ManagedFile open(Path path) throws IOException {
-        return open(FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE));
+    public static ManagedFile open(Path path, boolean requirefsync) throws IOException {
+        return open(FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE), requirefsync);
     }
 
     /**
@@ -70,12 +69,13 @@ public class ManagedFile implements AutoCloseable {
      * </p>
      *
      * @param path
+     * @param requirefsync
      * @param options
      * @return
      * @throws IOException
      */
-    public static ManagedFile open(Path path, StandardOpenOption... options) throws IOException {
-        return open(FileChannel.open(path, options == null || options.length < 1 ? DEFAULT_OPTIONS : options));
+    public static ManagedFile open(Path path, boolean requirefsync, StandardOpenOption... options) throws IOException {
+        return open(FileChannel.open(path, options == null || options.length < 1 ? DEFAULT_OPTIONS : options), requirefsync);
     }
 
     /**
@@ -93,12 +93,12 @@ public class ManagedFile implements AutoCloseable {
      * @return
      * @throws IOException
      */
-    public static ManagedFile open(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
-        return open(FileChannel.open(path, options == null || options.size() < 1 ? DEFAULT_OPTIONS_SET : options, attrs));
+    public static ManagedFile open(Path path, boolean requirefsync, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+        return open(FileChannel.open(path, options == null || options.size() < 1 ? DEFAULT_OPTIONS_SET : options, attrs), requirefsync);
     }
 
-    public static ManagedFile open(FileChannel channel) throws IOException {
-        return new ManagedFile(channel);
+    public static ManagedFile open(FileChannel channel, boolean requirefsync) throws IOException {
+        return new ManagedFile(channel, requirefsync);
     }
 
     /**
@@ -109,7 +109,7 @@ public class ManagedFile implements AutoCloseable {
      * @see FileChannel#force(boolean)
      */
     public void sync() throws IOException {
-        if (!REQUIRE_FSYNCH) {
+        if (!requirefsync) {
             return;
         }
         channel.force(false);
@@ -123,7 +123,7 @@ public class ManagedFile implements AutoCloseable {
      * @see FileChannel#force(boolean)
      */
     public void sync(boolean metaData) throws IOException {
-        if (!REQUIRE_FSYNCH) {
+        if (!requirefsync) {
             return;
         }
         channel.force(metaData);

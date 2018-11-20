@@ -21,13 +21,11 @@ package herddb.file;
 
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
 import herddb.utils.SystemProperties;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -53,26 +51,44 @@ public class FileCommitLogManager extends CommitLogManager {
      * Force an fsync on the disk with txlogs. This period is in seconds. It is
      * an alternative to herddb.file.requirefsync.
      */
-    private final static int DEFERRED_BACKGROUND_FSYNC = SystemProperties.getIntSystemProperty(
-            "herddb.file.deferredfsync.period", 0);
+    private final int deferredSyncPeriod;
 
     private static final Logger LOG = Logger.getLogger(FileCommitLogManager.class.getName());
 
     private final Path baseDirectory;
     private final long maxLogFileSize;
+    private final int maxUnflushedBatchSize;
+    private final int maxUnflushedBatchBytes;
+    private final int maxSyncTime;
+    private final boolean requireSync;
     private final StatsLogger statsLogger;
     private ScheduledExecutorService fsyncThreadPool;
     private final List<FileCommitLog> activeLogs = new CopyOnWriteArrayList<>();
 
-    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize) {
-        this(baseDirectory, maxLogFileSize, new NullStatsLogger());
+    public FileCommitLogManager(Path baseDirectory) {
+        this(baseDirectory, ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
+                ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                NullStatsLogger.INSTANCE);
     }
 
-    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, StatsLogger statsLogger) {
+    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, int maxUnflushedBatchSize,
+            int maxUnflushedBatchBytes,
+            int maxSyncTime,
+            boolean requireSync,
+            int deferredSyncPeriod,
+            StatsLogger statsLogger) {
         this.baseDirectory = baseDirectory;
         this.maxLogFileSize = maxLogFileSize;
         this.statsLogger = statsLogger;
-
+        this.deferredSyncPeriod = deferredSyncPeriod;
+        this.maxUnflushedBatchSize = maxUnflushedBatchSize;
+        this.maxUnflushedBatchBytes = maxUnflushedBatchBytes;
+        this.maxSyncTime = maxSyncTime;
+        this.requireSync = requireSync;
     }
 
     @Override
@@ -85,7 +101,12 @@ public class FileCommitLogManager extends CommitLogManager {
             Files.createDirectories(folder);
             FileCommitLog res = new FileCommitLog(folder, tablespaceName,
                     maxLogFileSize, fsyncThreadPool, statsLogger.scope(tablespaceName),
-                    activeLogs::remove);
+                    activeLogs::remove,
+                    maxUnflushedBatchSize,
+                    maxUnflushedBatchBytes,
+                    maxSyncTime,
+                    requireSync
+            );
             activeLogs.add(res);
             return res;
         } catch (IOException err) {
@@ -110,10 +131,10 @@ public class FileCommitLogManager extends CommitLogManager {
     @Override
     public void start() throws LogNotAvailableException {
         this.fsyncThreadPool = Executors.newScheduledThreadPool(MAXCONCURRENTFSYNCS);
-        if (DEFERRED_BACKGROUND_FSYNC > 0) {
-            LOG.log(Level.INFO, "Starting background fsync thread, every {0} s", DEFERRED_BACKGROUND_FSYNC);
-            this.fsyncThreadPool.scheduleWithFixedDelay(new DummyFsync(), DEFERRED_BACKGROUND_FSYNC,
-                    DEFERRED_BACKGROUND_FSYNC, TimeUnit.SECONDS);
+        if (deferredSyncPeriod > 0) {
+            LOG.log(Level.INFO, "Starting background fsync thread, every {0} s", deferredSyncPeriod);
+            this.fsyncThreadPool.scheduleWithFixedDelay(new DummyFsync(), deferredSyncPeriod,
+                    deferredSyncPeriod, TimeUnit.SECONDS);
         }
     }
 

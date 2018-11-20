@@ -308,7 +308,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
-                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, statsLogger);
+                boolean requirefsync = configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
+                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, statsLogger);
             default:
                 throw new RuntimeException();
         }
@@ -321,7 +322,15 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new MemoryCommitLogManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
-                return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024, statsLogger.scope("txlog"));
+                return new FileCommitLogManager(logDirectory,
+                        configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE, ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT),
+                        configuration.getInt(ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH, ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT),
+                        configuration.getInt(ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES, ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT),
+                        configuration.getInt(ServerConfiguration.PROPERTY_MAX_SYNC_TIME, ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT),
+                        configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT),
+                        configuration.getInt(ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD, ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT),
+                        statsLogger.scope("txlog")
+                );
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration, statsLogger);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));

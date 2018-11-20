@@ -42,6 +42,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
 import java.util.concurrent.ExecutorService;
@@ -82,8 +83,12 @@ public class FlushFileTest extends BaseTestcase {
             public CommitLog createCommitLog(String tableSpace, String name, String nodeId) {
                 try {
                     return new FileCommitLog(folder.newFolder(tableSpace).toPath(),
-                            name, 1024 * 1024, threadPool, new NullStatsLogger(), 
-                            l -> {});
+                            name, 1024 * 1024, threadPool, new NullStatsLogger(),
+                            l -> {
+                            }, ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                            ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                            ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT, false /* require fsync */
+                    );
                 } catch (IOException err) {
                     throw new RuntimeException(err);
                 }
