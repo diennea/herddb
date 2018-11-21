@@ -85,7 +85,7 @@ public class RunHerdDB070Test {
         try (DBManager manager = new DBManager(expectedNodeId,
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                new FileCommitLogManager(logsPath),
                 tmoDir, null)) {
             manager.start();
             final String tableSpace = "herd";
