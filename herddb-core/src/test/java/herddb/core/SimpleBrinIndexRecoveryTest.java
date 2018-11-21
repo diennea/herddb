@@ -71,7 +71,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -119,7 +119,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -147,7 +147,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -196,7 +196,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -224,7 +224,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -280,7 +280,7 @@ public class SimpleBrinIndexRecoveryTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));

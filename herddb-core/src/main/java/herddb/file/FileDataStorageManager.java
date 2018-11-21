@@ -86,6 +86,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final int swapThreshold;
+    private final boolean requirefsync;
     private final StatsLogger logger;
     private final OpStatsLogger dataPageReads;
     private final OpStatsLogger dataPageWrites;
@@ -100,14 +101,19 @@ public class FileDataStorageManager extends DataStorageManager {
     public static final int COPY_BUFFERS_SIZE = 64 * 1024;
 
     public FileDataStorageManager(Path baseDirectory) {
-        this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT, new NullStatsLogger());
+        this(baseDirectory, baseDirectory.resolve("tmp"),
+                ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT, 
+                ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                new NullStatsLogger());
     }
 
-    public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold, StatsLogger logger) {
+    public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold,
+            boolean requirefsync, StatsLogger logger) {
         this.baseDirectory = baseDirectory;
         this.tmpDirectory = tmpDirectory;
         this.swapThreshold = swapThreshold;
         this.logger = logger;
+        this.requirefsync = requirefsync;
         StatsLogger scope = logger.scope("filedatastore");
         this.dataPageReads = scope.getOpStatsLogger("data_pagereads");
         this.dataPageWrites = scope.getOpStatsLogger("data_pagewrites");
@@ -470,7 +476,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") to file " + checkpointFile);
 
-        try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+        try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                 SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                 XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
                 ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
@@ -551,7 +557,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         LOGGER.log(Level.FINE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
-        try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+        try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                 SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                 XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
                 ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
@@ -735,7 +741,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile,
+        try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
                 StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                 XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
@@ -780,7 +786,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile,
+        try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
                 StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                 XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
@@ -960,7 +966,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(parent);
 
             LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + fileTables.toAbsolutePath().toString());
-            try (ManagedFile file = ManagedFile.open(fileTables);
+            try (ManagedFile file = ManagedFile.open(fileTables, requirefsync);
                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
@@ -981,7 +987,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 throw new DataStorageManagerException(err);
             }
 
-            try (ManagedFile file = ManagedFile.open(fileIndexes);
+            try (ManagedFile file = ManagedFile.open(fileIndexes, requirefsync);
                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
@@ -1055,7 +1061,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
 
-            try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+            try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
@@ -1288,7 +1294,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, checkPointFile.toAbsolutePath().toString(), transactions.size()});
-            try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+            try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 

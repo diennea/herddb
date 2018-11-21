@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import herddb.utils.SystemProperties;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -55,6 +56,27 @@ public final class ServerConfiguration {
     public static final String PROPERTY_DATADIR_DEFAULT = "data";
     public static final String PROPERTY_LOGDIR = "server.log.dir";
     public static final String PROPERTY_LOGDIR_DEFAULT = "txlog";
+
+    public final static String PROPERTY_MAX_UNSYNCHED_BATCH = "txlog.maxsyncbatchsize";
+    public final static int PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT = 10_000;
+
+    public final static String PROPERTY_MAX_UNSYNCHED_BATCH_BYTES = "txlog.maxsyncbatchbytes";
+    public final static int PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT = 512 * 1024;
+
+    public final static String PROPERTY_MAX_SYNC_TIME = "txlog.synctimeout";
+    public final static int PROPERTY_MAX_SYNC_TIME_DEFAULT = 1;
+
+    public final static String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
+    public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;
+    /* disabled */
+
+    public final static String PROPERTY_MAX_LOG_FILE_SIZE = "txlog.maxfilesize";
+    public final static long PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT = 64L * 1024L * 1024L;
+
+    public final static String PROPERTY_REQUIRE_FSYNC = "requirefsync";
+    public final static boolean PROPERTY_REQUIRE_FSYNC_DEFAULT = SystemProperties.getBooleanSystemProperty(
+            "herddb.file.requirefsync", true);
+
     public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
     public static final String PROPERTY_METADATADIR = "server.metadata.dir";
@@ -78,7 +100,7 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_ASYNC_WORKER_THREADS = "server.async.thread.workers";
     public static final int PROPERTY_ASYNC_WORKER_THREADS_DEFAULT = 64;
-    
+
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
@@ -97,7 +119,7 @@ public final class ServerConfiguration {
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
-    
+
     public static final String PROPERTY_BOOKKEEPER_MAX_IDLE_TIME = "server.bookkeeper.max.idle.time";
     public static final long PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT = 1000L * 10;
 
@@ -105,34 +127,40 @@ public final class ServerConfiguration {
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
 
     /**
-     * Maximum dirty bytes percentage at which a pages will be considered for rebuild during a checkpoint. This value
-     * must be between 0 and 1.0. By default, the value is 0.25.
+     * Maximum dirty bytes percentage at which a pages will be considered for
+     * rebuild during a checkpoint. This value must be between 0 and 1.0. By
+     * default, the value is 0.25.
      */
     public static final String PROPERTY_DIRTY_PAGE_THRESHOLD = "server.checkpoint.page.dirty.max.threshold";
     public static final double PROPERTY_DIRTY_PAGE_THRESHOLD_DEFAULT = 0.25D;
 
     /**
-     * Minimum byte fill percentage at which a pages will be considered for rebuild during a checkpoint. This value must
-     * be between 0 and 1.0. By default, the value is 0.75D.
+     * Minimum byte fill percentage at which a pages will be considered for
+     * rebuild during a checkpoint. This value must be between 0 and 1.0. By
+     * default, the value is 0.75D.
      */
     public static final String PROPERTY_FILL_PAGE_THRESHOLD = "server.checkpoint.page.fill.min.threshold";
     public static final double PROPERTY_FILL_PAGE_THRESHOLD_DEFAULT = 0.75D;
 
     /**
-     * Maximum target time in milliseconds to spend during standard checkpoint operations. Checkpoint duration could be
-     * longer than this to complete pages flush. If set to -1 checkpoints won't have a time limit. Be aware that
-     * configuring this parameter to small values could impact performances on the long run increasing pages pollution
-     * with dirty not reclaimed records: in many cases is safer to configure a wider dirty page threshold. By default,
-     * the value is -1.
+     * Maximum target time in milliseconds to spend during standard checkpoint
+     * operations. Checkpoint duration could be longer than this to complete
+     * pages flush. If set to -1 checkpoints won't have a time limit. Be aware
+     * that configuring this parameter to small values could impact performances
+     * on the long run increasing pages pollution with dirty not reclaimed
+     * records: in many cases is safer to configure a wider dirty page
+     * threshold. By default, the value is -1.
      */
     public static final String PROPERTY_CHECKPOINT_DURATION = "server.checkpoint.duration";
     public static final long PROPERTY_CHECKPOINT_DURATION_DEFAULT = -1;
 
     /**
-     * Maximum target time in milliseconds to spend during standard checkpoint operations on compacting smaller pages.
-     * Is should be less than the maximum checkpoint duration configured by {@link #PROPERTY_CHECKPOINT_DURATION}. If
-     * set to -1 checkpoints won't have a time limit. Regardless his value at least one page will be compacted for each
-     * checkpoint. By default, the value is 1000 ms.
+     * Maximum target time in milliseconds to spend during standard checkpoint
+     * operations on compacting smaller pages. Is should be less than the
+     * maximum checkpoint duration configured by
+     * {@link #PROPERTY_CHECKPOINT_DURATION}. If set to -1 checkpoints won't
+     * have a time limit. Regardless his value at least one page will be
+     * compacted for each checkpoint. By default, the value is 1000 ms.
      */
     public static final String PROPERTY_COMPACTION_DURATION = "server.checkpoint.compaction";
     public static final long PROPERTY_COMPACTION_DURATION_DEFAULT = 1000L;
@@ -162,8 +190,9 @@ public final class ServerConfiguration {
     public static final boolean PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR_DEAULT = false;
 
     /**
-     * Maximum memory usable by HerdDB. If 0 the system will try to use most of the RAM of the JVM. When you are
-     * embedding the server in another process use this property in order to limit the usage of resources by the
+     * Maximum memory usable by HerdDB. If 0 the system will try to use most of
+     * the RAM of the JVM. When you are embedding the server in another process
+     * use this property in order to limit the usage of resources by the
      * database.
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.memory.max.limit";
@@ -171,8 +200,8 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_PLANSCACHE_MAXMEMORY = "server.memory.planscache.limit";
     public static final long PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
-    
-    public static final String PROPERTY_STATEMENTSCACHE_MAXMEMORY = "server.memory.statementscache.limit";    
+
+    public static final String PROPERTY_STATEMENTSCACHE_MAXMEMORY = "server.memory.statementscache.limit";
     public static final long PROPERTY_STATEMENTSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
 
     /**
@@ -193,8 +222,8 @@ public final class ServerConfiguration {
     public static final String PROPERTY_PLANNER_TYPE = "server.planner.type";
     public static final String PLANNER_TYPE_JSQLPARSER = "jsqlparser";
     public static final String PLANNER_TYPE_CALCITE = "calcite";
-    public static final String PROPERTY_PLANNER_TYPE_DEFAULT =
-            System.getProperty("herddb.defaultplanner.type", PLANNER_TYPE_CALCITE);
+    public static final String PROPERTY_PLANNER_TYPE_DEFAULT
+            = System.getProperty("herddb.defaultplanner.type", PLANNER_TYPE_CALCITE);
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();

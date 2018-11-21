@@ -72,7 +72,7 @@ public class CleanupOnCheckPointTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             storageManager,
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
 
@@ -141,7 +141,7 @@ public class CleanupOnCheckPointTest {
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             storageManager,
-            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            new FileCommitLogManager(logsPath),
             tmoDir, null)) {
             manager.start();
 

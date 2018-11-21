@@ -30,10 +30,19 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import herddb.log.CommitLog;
+import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogSequenceNumber;
+import herddb.server.ServerConfiguration;
 import herddb.utils.TestUtils;
+import static herddb.utils.TestUtils.NOOP;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.test.TestStatsProvider;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Basic Tests on FileCommitLog
@@ -47,7 +56,7 @@ public class FileCommitLogTest {
 
     @Test
     public void testLog() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath());) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
@@ -77,7 +86,7 @@ public class FileCommitLogTest {
 
     @Test
     public void testDiskFullLogMissingFooter() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath())) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
@@ -131,7 +140,7 @@ public class FileCommitLogTest {
 
     @Test
     public void testDiskFullLogBrokenEntry() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath())) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
@@ -185,7 +194,7 @@ public class FileCommitLogTest {
 
     @Test
     public void testLogsynch() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath());) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
@@ -215,7 +224,18 @@ public class FileCommitLogTest {
 
     @Test
     public void testLogMultiFiles() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 1024);) {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                1024 * 2, // 2K Bbyte files,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
+                false,
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                statsLogger);) {
             manager.start();
 
             int writeCount = 0;
@@ -245,7 +265,213 @@ public class FileCommitLogTest {
             assertEquals(writeCount, readCount.get());
             System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
             System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+
+            // this number really depends on disk format
+            // this test in the future will be updated when we change the format
+            assertEquals(145L, statsLogger.scope("aa").getCounter("newfiles").get().longValue());
         }
     }
 
+    @Test
+    public void testMaxSyncTime() throws Exception {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                1, // 1ms
+                true /* require fsync */,
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                statsLogger);) {
+            manager.start();
+
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
+                writeCount = 1;
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+        }
+    }
+
+    @Test
+    public void testMaxBatchSize() throws Exception {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                2, // flush only when we have 2 entries in the queue
+                Integer.MAX_VALUE, // no flush by size
+                Integer.MAX_VALUE, // no flush by time
+                true /* require fsync */,
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                statsLogger);) {
+            manager.start();
+
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                CopyOnWriteArrayList<LogSequenceNumber> completed = new CopyOnWriteArrayList<>();
+
+                CommitLogResult future = log.log(LogEntryFactory.beginTransaction(0), true);
+                future.logSequenceNumber.thenAccept(completed::add);
+                assertFalse(future.logSequenceNumber.isDone());
+
+                CommitLogResult future2 = log.log(LogEntryFactory.beginTransaction(0), true);
+                future2.logSequenceNumber.thenAccept(completed::add);
+
+                future.logSequenceNumber.get(10, TimeUnit.SECONDS);
+                future2.logSequenceNumber.get(10, TimeUnit.SECONDS);
+
+                TestUtils.waitForCondition(() -> {
+                    return completed.size() == 2;
+                }, NOOP, 100);
+
+                writeCount = completed.size();
+
+                assertTrue(completed.get(1).after(completed.get(0)));
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+        }
+    }
+
+    @Test
+    public void testMaxBatchSizeBytes() throws Exception {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                Integer.MAX_VALUE, // no flush by batch size
+                LogEntryFactory.beginTransaction(0).serialize().length * 2 - 1, // flush after 2 writes
+                Integer.MAX_VALUE, // no flush by time
+                true /* require fsync */,
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                statsLogger);) {
+            manager.start();
+
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                CopyOnWriteArrayList<LogSequenceNumber> completed = new CopyOnWriteArrayList<>();
+
+                CommitLogResult future = log.log(LogEntryFactory.beginTransaction(0), true);
+                future.logSequenceNumber.thenAccept(completed::add);
+                assertFalse(future.logSequenceNumber.isDone());
+
+                CommitLogResult future2 = log.log(LogEntryFactory.beginTransaction(0), true);
+                future2.logSequenceNumber.thenAccept(completed::add);
+
+                future.logSequenceNumber.get(10, TimeUnit.SECONDS);
+                future2.logSequenceNumber.get(10, TimeUnit.SECONDS);
+
+                TestUtils.waitForCondition(() -> {
+                    return completed.size() == 2;
+                }, NOOP, 100);
+
+                writeCount = completed.size();
+
+                assertTrue(completed.get(1).after(completed.get(0)));
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+        }
+    }
+
+    @Test
+    public void testDeferredSync() throws Exception {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                1,
+                false /* require fsync */,
+                1, // each second
+                statsLogger);) {
+
+            manager.start();
+
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                for (int i = 0; i < 10_000; i++) {
+                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    writeCount++;
+                }
+                Counter deferredSyncs = statsLogger.scope("aa").getCounter("deferredSyncs");
+
+                TestUtils.waitForCondition(() -> {
+                    int qsize = log.getQueueSize();
+                    Long _deferredSyncs = deferredSyncs.get();
+                    return qsize == 0 && _deferredSyncs != null && _deferredSyncs > 0;
+                }, TestUtils.NOOP, 100);
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+        }
+    }
 }
