@@ -465,7 +465,7 @@ public abstract class PduCodec {
                     + MSGID_SIZE);
             return (read & FLAG_NOT_LEADER) == FLAG_NOT_LEADER;
         }
-        
+
         public static boolean readIsMissingPreparedStatementError(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             byte read = buffer.getByte(VERSION_SIZE
@@ -706,7 +706,12 @@ public abstract class PduCodec {
 
     public static class ResultSetChunk {
 
+        private static int estimateTupleListSize(TuplesList data) {
+            return data.tuples.size() * 1024 + data.columnNames.length * 64;
+        }
+
         public static ByteBuf write(long messageId, TuplesList tuplesList, boolean last, long tx) {
+            int dataSize = estimateTupleListSize(tuplesList);
             ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
                     .directBuffer(
                             VERSION_SIZE
@@ -714,7 +719,8 @@ public abstract class PduCodec {
                             + TYPE_SIZE
                             + MSGID_SIZE
                             + ONE_LONG
-                            + ONE_BYTE);
+                            + ONE_BYTE
+                            + dataSize);
 
             byteBuf.writeByte(VERSION_3);
             byteBuf.writeByte(Pdu.FLAGS_ISRESPONSE);
