@@ -37,6 +37,7 @@ import herddb.index.blink.BLinkKeyToPageIndex.MetadataSerializer;
 import herddb.index.blink.BLinkMetadata;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
+import herddb.jdbc.PreparedStatementAsync;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
@@ -110,6 +111,7 @@ import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import herddb.storage.IndexStatus;
 import herddb.utils.DataAccessor;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * HerdDB command line interface
@@ -132,7 +134,9 @@ public class HerdDBCLI {
             options.addOption("pwd", "password", true, "JDBC Password");
             options.addOption("q", "query", true, "Execute inline query");
             options.addOption("v", "verbose", false, "Verbose output");
+            options.addOption("a", "async", false, "Use (experimental) executeBatchAsync for sending DML");
             options.addOption("s", "schema", true, "Default tablespace (SQL schema)");
+            options.addOption("fi", "filter", true, "SQL filter mode: all|ddl|dml");
             options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
             options.addOption("at", "autotransaction", false, "Execute scripts in autocommit=false mode and commit automatically");
             options.addOption("atbs", "autotransactionbatchsize", true, "Batch size for 'autotransaction' mode");
@@ -183,6 +187,8 @@ public class HerdDBCLI {
             String schema = commandLine.getOptionValue("schema", TableSpace.DEFAULT);
             String tablespaceuuid = commandLine.getOptionValue("tablespaceuuid", "");
             final boolean verbose = commandLine.hasOption("verbose");
+            final boolean async = commandLine.hasOption("async");
+            final String filter = commandLine.getOptionValue("filter", "all");
             if (!verbose) {
                 LogManager.getLogManager().reset();
             }
@@ -323,7 +329,10 @@ public class HerdDBCLI {
                     } else if (!query.isEmpty()) {
                         executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper, false, PRETTY_PRINT);
                     } else if (!file.isEmpty()) {
-                        executeSqlFile(autotransactionbatchsize, connection, file, verbose, ignoreerrors, frommysqldump, rewritestatements, statement, tableSpaceMapper, PRETTY_PRINT);
+                        executeSqlFile(autotransactionbatchsize, connection, file, verbose, async,
+                                ignoreerrors, frommysqldump, rewritestatements,
+                                statement, tableSpaceMapper, PRETTY_PRINT, filter,
+                                datasource);
                     } else if (!script.isEmpty()) {
                         executeScript(connection, datasource, statement, script);
                     } else if (listTablespaces) {
@@ -495,6 +504,13 @@ public class HerdDBCLI {
             default:
                 System.out.println("Unknown file type " + mode + " valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
         }
+    }
+
+    private static boolean isDDL(String uppercase) {
+        return uppercase.startsWith("CREATE")
+                || uppercase.startsWith("DROP")
+                || uppercase.startsWith("LOCK")
+                || uppercase.startsWith("UNLOCK");
     }
 
     private enum ChangeReplicaAction {
@@ -671,7 +687,9 @@ public class HerdDBCLI {
         shell.evaluate(new File(script));
     }
 
-    private static void executeSqlFile(int autotransactionbatchsize, final Connection connection, String file, final boolean verbose, final boolean ignoreerrors, final boolean frommysqldump, final boolean rewritestatements, final Statement statement, TableSpaceMapper tableSpaceMapper, boolean pretty) throws Exception, SQLException {
+    private static void executeSqlFile(int autotransactionbatchsize, final Connection connection, String file, final boolean verbose, final boolean async, final boolean ignoreerrors, final boolean frommysqldump, final boolean rewritestatements,
+            final Statement statement, TableSpaceMapper tableSpaceMapper, boolean pretty, String filter,
+            final HerdDBDataSource datasource) throws Exception, SQLException {
         if (autotransactionbatchsize > 0) {
             connection.setAutoCommit(false);
         }
@@ -680,7 +698,11 @@ public class HerdDBCLI {
         final IntHolder totalDoneCount = new IntHolder();
         File f = new File(file);
         long fileSize = f.length();
-        SqlFileStatus fileStatus = new SqlFileStatus(verbose, ignoreerrors, frommysqldump, rewritestatements, pretty, tableSpaceMapper);
+        boolean allowDDL = filter.equals("all") || filter.equals("ddl");
+        boolean allowDML = filter.equals("all") || filter.equals("dml");
+        SqlFileStatus fileStatus = new SqlFileStatus(verbose, async, ignoreerrors,
+                frommysqldump, rewritestatements, pretty, tableSpaceMapper, datasource,
+                autotransactionbatchsize <= 0);
         try (FileInputStream rawStream = new FileInputStream(file);
                 BufferedInputStream buffer = new BufferedInputStream(rawStream);
                 CounterInputStream counter = new CounterInputStream(buffer);
@@ -690,8 +712,11 @@ public class HerdDBCLI {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
+                    boolean isDDL = isDDL(st.content.toUpperCase());
                     int totalBefore = fileStatus.executedOperations;
-                    executeStatementInSqlFile(st.content, statement, fileStatus);
+                    if ((allowDDL && isDDL) || (allowDML && !isDDL)) {
+                        executeStatementInSqlFile(st.content, statement, fileStatus);
+                    }
                     int count = fileStatus.executedOperations - totalBefore;
 
                     if (_autotransactionbatchsize > 0 && fileStatus.pendingOperations > _autotransactionbatchsize) {
@@ -718,6 +743,7 @@ public class HerdDBCLI {
             });
         }
         if (!connection.getAutoCommit()) {
+            totalDoneCount.value += fileStatus.pendingOperations;
             fileStatus.flushAndCommit(connection);
         }
         System.out.println("Import completed, " + totalDoneCount.value + " ops, in " + ((System.currentTimeMillis() - _start) / 60000) + " minutes");
@@ -929,23 +955,30 @@ public class HerdDBCLI {
         // LinkedHashMap preserve the order
         // this is important because CREATE TABLE must precede INSERTs on the same table
         private Map<String, PreparedStatement> currentStatements = new LinkedHashMap<>();
+        private HerdDBDataSource datasource;
         private int pendingOperations;
         private int executedOperations;
-
+        private boolean autocommit;
         final boolean verbose;
+        final boolean async;
         final boolean ignoreerrors;
         final boolean frommysqldump;
         final boolean rewritestatements;
         final boolean prettyPrint;
         final TableSpaceMapper tableSpaceMapper;
 
-        public SqlFileStatus(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, boolean prettyPrint, TableSpaceMapper tableSpaceMapper) {
+        public SqlFileStatus(boolean verbose, boolean async, boolean ignoreerrors,
+                boolean frommysqldump, boolean rewritestatements, boolean prettyPrint,
+                TableSpaceMapper tableSpaceMapper, HerdDBDataSource datasource, boolean autocommit) {
             this.verbose = verbose;
+            this.async = async;
+            this.autocommit = autocommit;
             this.ignoreerrors = ignoreerrors;
             this.frommysqldump = frommysqldump;
             this.rewritestatements = rewritestatements;
             this.prettyPrint = prettyPrint;
             this.tableSpaceMapper = tableSpaceMapper;
+            this.datasource = datasource;
         }
 
         private void flushAndCommit(Connection connection) throws SQLException {
@@ -973,17 +1006,58 @@ public class HerdDBCLI {
             if (verbose) {
                 System.out.println("flushing " + currentStatements.size() + " statements, with " + pendingOperations + " pending ops");
             }
+            List<CompletableFuture<?>> futures = new ArrayList<>();
             for (Map.Entry<String, PreparedStatement> entry : currentStatements.entrySet()) {
                 if (verbose) {
                     System.out.println("flushing " + entry.getKey());
                 }
                 PreparedStatement ps = entry.getValue();
-                ps.executeBatch();
-                ps.close();
+                if (async) {
+                    CompletableFuture<?> future = ps.unwrap(PreparedStatementAsync.class)
+                            .executeBatchAsync();
+
+                    future.whenComplete((res, error) -> {
+                        if (error != null) {
+                            error.printStackTrace();
+                        }
+                        try {
+                            // we are creating one connection per PreparedStatement
+                            // in async mode
+                            Connection psCon = ps.getConnection();
+                            if (!psCon.getAutoCommit()) {
+                                psCon.commit();
+                            }
+                            ps.close();
+                            psCon.close();
+                        } catch (SQLException err) {
+                            throw new RuntimeException(err);
+                        }
+                    });
+
+                } else {
+                    ps.executeBatch();
+                    ps.close();
+                }
+            }
+            if (async) {
+                for (CompletableFuture<?> future : futures) {
+                    try {
+                        future.get();
+                    } catch (ExecutionException err) {
+                        if (err.getCause() instanceof SQLException) {
+                            throw (SQLException) err.getCause();
+                        } else {
+                            throw new SQLException(err.getCause());
+                        }
+                    } catch (InterruptedException err) {
+                        throw new SQLException(err);
+                    }
+                }
             }
             currentStatements.clear();
             executedOperations += pendingOperations;
             pendingOperations = 0;
+
         }
 
         private PreparedStatement prepareStatement(Connection connection, String query) throws SQLException {
@@ -991,7 +1065,14 @@ public class HerdDBCLI {
             if (ps != null) {
                 return ps;
             }
-            ps = connection.prepareStatement(query);
+            if (async) {
+                // in asyc mode we have to create a new connection for each statement
+                Connection newConnection = datasource.getConnection();
+                newConnection.setAutoCommit(false);
+                ps = newConnection.prepareStatement(query);
+            } else {
+                ps = connection.prepareStatement(query);
+            }
             currentStatements.put(query, ps);
             return ps;
         }
@@ -1081,11 +1162,11 @@ public class HerdDBCLI {
                     ps.setObject(i++, o);
                 }
                 ps.addBatch();
-                sqlFileStatus.countPendingOp();
             } else {
                 PreparedStatement ps = sqlFileStatus.prepareStatement(statement.getConnection(), query);
                 ps.addBatch();
             }
+            sqlFileStatus.countPendingOp();
         } catch (SQLException err) {
             if (sqlFileStatus.ignoreerrors) {
                 println("ERROR:" + err);

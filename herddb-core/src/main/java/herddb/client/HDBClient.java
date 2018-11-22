@@ -36,15 +36,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * HerdDB Client
@@ -61,9 +58,14 @@ public class HDBClient implements AutoCloseable {
     private ExecutorService thredpool;
     private MultithreadEventLoopGroup networkGroup;
     private DefaultEventLoopGroup localEventsGroup;
+    private final StatsLogger statsLogger;
 
     public HDBClient(ClientConfiguration configuration) {
+        this(configuration, NullStatsLogger.INSTANCE);
+    }
+    public HDBClient(ClientConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
+        this.statsLogger = statsLogger.scope("hdbclient");
         init();
     }
 
@@ -146,4 +148,7 @@ public class HDBClient implements AutoCloseable {
                 networkGroup, localEventsGroup);
     }
 
+    StatsLogger getStatsLogger() {
+        return statsLogger;
+    }
 }

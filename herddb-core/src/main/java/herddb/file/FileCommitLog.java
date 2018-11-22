@@ -398,6 +398,10 @@ public class FileCommitLog extends CommitLog {
                             // force close placeholder
                             break;
                         }
+                        if (!entry.sync) {
+                            // early write on internal buffer and ack: no flush/fsync on disk
+                            writeEntry(entry);
+                        }
 
                         batch.add(entry);
                         count++;
@@ -430,12 +434,15 @@ public class FileCommitLog extends CommitLog {
         private List<LogEntryHolderFuture> flushBatch(List<LogEntryHolderFuture> batch) throws LogNotAvailableException, IOException, InterruptedException {
             if (!batch.isEmpty()) {
                 int size = 0;
+                int count = 0;
                 List<LogEntryHolderFuture> entriesToWrite = batch;
                 for (LogEntryHolderFuture _entry : entriesToWrite) {
                     queueSize.decrementAndGet();
-                    size += writeEntry(_entry);
+                    if (_entry.sync) {
+                        size += writeEntry(_entry);
+                    }
                 }
-                batchWriteSize.registerSuccessfulValue(entriesToWrite.size());
+                batchWriteSize.registerSuccessfulValue(count);
                 batchWriteBytes.registerSuccessfulValue(size);
                 flush();
                 return entriesToWrite;

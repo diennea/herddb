@@ -47,13 +47,15 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * SQL Statement
  *
  * @author enrico.olivelli
  */
-public class HerdDBPreparedStatement extends HerdDBStatement implements PreparedStatement {
+public class HerdDBPreparedStatement extends HerdDBStatement implements PreparedStatementAsync {
 
     private final String sql;
     private final List<Object> parameters = new ArrayList<>();
@@ -206,7 +208,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             moreResults = true;
             return true;
         } else {
-            executeLargeUpdate();           
+            executeLargeUpdate();
             moreResults = false;
             return false;
         }
@@ -226,13 +228,13 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             lastUpdateCount = 0;
             parent.discoverTableSpace(sql);
             List<DMLResult> dmlresults = parent.getConnection().executeUpdates(
-                parent.getTableSpace(), sql,
-                parent.ensureTransaction(), false, true, this.batch);
+                    parent.getTableSpace(), sql,
+                    parent.ensureTransaction(), false, true, this.batch);
 
             for (DMLResult dmlresult : dmlresults) {
                 results[i++] = (int) dmlresult.updateCount;
                 parent.statementFinished(dmlresult.transactionId);
-                lastUpdateCount += dmlresult.updateCount;                
+                lastUpdateCount += dmlresult.updateCount;
                 lastKey = dmlresult.key;
             }
             return results;
@@ -480,7 +482,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         try {
             parent.discoverTableSpace(sql);
             DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(),
-                sql, parent.ensureTransaction(), returnValues, true, actualParameters);
+                    sql, parent.ensureTransaction(), returnValues, true, actualParameters);
             parent.statementFinished(result.transactionId);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;
@@ -490,4 +492,88 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         }
     }
 
+    @Override
+    public CompletableFuture<Long> executeLargeUpdateAsync() {
+        return doExecuteLargeUpdateWithParametersAsync(parameters, returnValues);
+    }
+
+    @Override
+    public CompletableFuture<Integer> executeUpdateAsync() {
+        return doExecuteLargeUpdateWithParametersAsync(parameters, returnValues)
+                .thenApply(Number::intValue);
+    }
+
+    private CompletableFuture<Long> doExecuteLargeUpdateWithParametersAsync(List<Object> actualParameters, boolean returnValues) {
+        CompletableFuture<Long> res = new CompletableFuture<>();
+
+        lastUpdateCount = 0;
+        long tx;
+        try {
+            parent.discoverTableSpace(sql);
+            tx = parent.ensureTransaction();
+        } catch (SQLException err) {
+            res.completeExceptionally(err);
+            return res;
+        }
+        parent.getConnection()
+                .executeUpdateAsync(parent.getTableSpace(),
+                        sql, tx, returnValues, true, actualParameters)
+                .whenComplete((dmlres, error) -> {
+                    if (error != null) {
+                        res.completeExceptionally(SQLExceptionUtils.wrapException(error));
+                        return;
+                    }
+                    parent.statementFinished(dmlres.transactionId);
+                    lastUpdateCount = dmlres.updateCount;
+                    lastKey = dmlres.key;
+                    res.complete(dmlres.updateCount);
+                });
+        return res;
+
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) throws SQLException {
+        if (clazz.isAssignableFrom(PreparedStatementAsync.class)) {
+            return (T) this;
+        }
+        return super.unwrap(clazz);
+    }
+
+    @Override
+    public CompletableFuture<int[]> executeBatchAsync() {
+        CompletableFuture<int[]> res = new CompletableFuture<>();
+
+        lastUpdateCount = 0;
+        long tx;
+        try {
+            parent.discoverTableSpace(sql);
+            tx = parent.ensureTransaction();
+        } catch (SQLException err) {
+            res.completeExceptionally(err);
+            return res;
+        }
+
+        parent.getConnection().executeUpdatesAsync(
+                parent.getTableSpace(), sql,
+                tx, false, true, this.batch)
+                .whenComplete((dmsresults, error) -> {
+                    if (error != null) {
+                        res.completeExceptionally(SQLExceptionUtils.wrapException(error));
+                    } else {
+                        int[] results = new int[batch.size()];
+                        int i = 0;
+                        for (DMLResult dmlresult : dmsresults) {
+                            results[i++] = (int) dmlresult.updateCount;
+                            parent.statementFinished(dmlresult.transactionId);
+                            lastUpdateCount += dmlresult.updateCount;
+                            lastKey = dmlresult.key;
+                        }
+                        res.complete(results);
+                    }
+                    batch.clear();
+                });
+
+        return res;
+    }
 }

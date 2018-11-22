@@ -187,7 +187,7 @@ public class NettyChannel extends Channel {
     }
 
     @Override
-    protected void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback) {
+    public void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback) {
 
         if (!isValid()) {
             callback.responseReceived(null, new Exception(this + " connection is not active"));

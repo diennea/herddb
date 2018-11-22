@@ -34,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
+import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
@@ -57,6 +58,7 @@ import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
 import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A real connection to a server
@@ -76,14 +78,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
     private final AtomicLong scannerIdGenerator = new AtomicLong();
-    private final ClientSideQueryCache preparedStatements = new ClientSideQueryCache();
+    private final ClientSideQueryCache preparedStatements = new ClientSideQueryCache();    
 
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
         this.connection = connection;
-        this.nodeId = nodeId;
-
+        this.nodeId = nodeId;        
         server = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
@@ -354,10 +355,53 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
+    CompletableFuture<DMLResult> executeUpdateAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) {
+        CompletableFuture<DMLResult> res = new CompletableFuture<>();
+        try {
+            Channel _channel = ensureOpen();
+            long requestId = _channel.generateRequestId();
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.ExecuteStatement.write(requestId, tableSpace, query, tx, returnValues, statementId, params);
+            _channel.sendRequestWithAsyncReply(requestId, message, timeout,
+                    (msg, error) -> {
+                        if (error != null) {
+                            res.completeExceptionally(error);
+                            return;
+                        }
+                        try (Pdu reply = msg) {
+                            if (reply.type == Pdu.TYPE_ERROR) {
+                                handleGenericError(reply, statementId);
+                                return;
+                            } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENT_RESULT) {
+                                throw new HDBException(reply);
+                            }
+                            long updateCount = PduCodec.ExecuteStatementResult.readUpdateCount(reply);
+                            long transactionId = PduCodec.ExecuteStatementResult.readTx(reply);
+                            boolean hasData = PduCodec.ExecuteStatementResult.hasRecord(reply);
+                            Object key = null;
+                            Map<RawString, Object> newvalue = null;
+                            if (hasData) {
+                                PduCodec.ObjectListReader parametersReader = PduCodec.ExecuteStatementResult.readRecord(reply);
+                                newvalue = readParametersListAsMap(parametersReader);
+                                key = newvalue.get(RAWSTRING_KEY);
+                            }
+                            res.complete(new DMLResult(updateCount, key, newvalue, transactionId));
+                        } catch (HDBException | ClientSideMetadataProviderException err) {
+                            res.completeExceptionally(err);
+                        }
+                    });
+
+        } catch (HDBException | ClientSideMetadataProviderException err) {
+            res.completeExceptionally(new HDBException(err));
+        }
+        return res;
+    }
+
     List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues,
             boolean usePreparedStatement, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
-        Channel _channel = ensureOpen();
         try {
+            Channel _channel = ensureOpen();
             long requestId = _channel.generateRequestId();
             long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
             query = statementId > 0 ? "" : query;
@@ -397,6 +441,63 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
+    }
+
+    CompletableFuture<List<DMLResult>> executeUpdatesAsync(String tableSpace, String query, long tx, boolean returnValues,
+            boolean usePreparedStatement, List<List<Object>> batch) {
+
+        CompletableFuture<List<DMLResult>> res = new CompletableFuture<>();
+        try {
+            Channel _channel = ensureOpen();
+            long requestId = _channel.generateRequestId();
+            long statementId = usePreparedStatement ? prepareQuery(tableSpace, query) : 0;
+            query = statementId > 0 ? "" : query;
+            ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, statementId, batch);
+            _channel.sendRequestWithAsyncReply(requestId, message, timeout,
+                    (msg, error) -> {
+                        if (error != null) {
+                            res.completeExceptionally(error);
+                            return;
+                        }
+                        try (Pdu reply = msg) {
+                            if (reply.type == Pdu.TYPE_ERROR) {
+                                handleGenericError(reply, statementId);
+                                return;
+                            } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
+                                throw new HDBException(reply);
+                            }
+                            long transactionId = PduCodec.ExecuteStatementsResult.readTx(reply);
+                            List<Long> updateCounts = PduCodec.ExecuteStatementsResult.readUpdateCounts(reply);
+                            int numResults = updateCounts.size();
+
+                            List<DMLResult> results = new ArrayList<>(numResults);
+
+                            PduCodec.ListOfListsReader resultRecords = PduCodec.ExecuteStatementsResult.startResultRecords(reply);
+                            int numResultRecords = resultRecords.getNumLists();
+                            for (int i = 0; i < numResults; i++) {
+                                Map<RawString, Object> newvalue = null;
+                                Object key = null;
+                                if (numResultRecords > 0) {
+                                    PduCodec.ObjectListReader list = resultRecords.nextList();
+                                    newvalue = readParametersListAsMap(list);
+                                    if (newvalue != null) {
+                                        key = newvalue.get(RAWSTRING_KEY);
+                                    }
+                                }
+                                long updateCount = updateCounts.get(i);
+                                DMLResult _res = new DMLResult(updateCount, key, newvalue, transactionId);
+                                results.add(_res);
+                            }
+                            res.complete(results);
+                        } catch (HDBException | ClientSideMetadataProviderException err) {
+                            res.completeExceptionally(err);
+                        }
+                    });
+
+        } catch (HDBException | ClientSideMetadataProviderException err) {
+            res.completeExceptionally(new HDBException(err));
+        }
+        return res;
     }
 
     GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
@@ -509,7 +610,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void handleGenericError(final Pdu reply, final long statementId, final boolean release) throws HDBException, ClientSideMetadataProviderException {
-        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
+        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);        
         boolean missingPreparedStatement = ErrorResponse.readIsMissingPreparedStatementError(reply);
         String msg = PduCodec.ErrorResponse.readError(reply);
         if (release) {
@@ -517,7 +618,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         if (notLeader) {
             this.connection.requestMetadataRefresh();
-            throw new RetryRequestException(msg);
+            throw new LeaderChangedException(msg);
         } else if (missingPreparedStatement) {
             LOGGER.log(Level.INFO, "Statement was flushed from server side cache " + msg);
             preparedStatements.invalidate(statementId);
