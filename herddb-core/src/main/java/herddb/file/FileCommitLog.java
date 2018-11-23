@@ -46,6 +46,7 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.Fallocate;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
@@ -94,6 +95,10 @@ public class FileCommitLog extends CommitLog {
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
+
+    private final static boolean USE_FALLOCATE = SystemProperties.getBooleanSystemProperty(
+            "herddb.file.usefallocate", true);
+
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
 
     private final int maxUnflushedBatchSize;
@@ -109,6 +114,9 @@ public class FileCommitLog extends CommitLog {
 
     final static byte ENTRY_START = 13;
     final static byte ENTRY_END = 25;
+    
+    // assuming posix_fallocate will write zeros?
+    final static byte ZERO_PADDING = 0;
 
     void backgroundSync() {
         if (needsSync) {
@@ -140,7 +148,18 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.FINE, "starting new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
             this.channel = FileChannel.open(filename,
                     StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-
+            if (USE_FALLOCATE) {
+                try {
+                    long now = System.currentTimeMillis();
+                    Fallocate
+                            .forChannel(channel, maxLogFileSize)
+                            .execute();
+                    long end = System.currentTimeMillis();
+                    LOGGER.log(Level.INFO, "fallocate " + filename + " success in " + (end - now) + " ms for " + maxLogFileSize + " bytes");
+                } catch (Throwable t) {
+                    LOGGER.log(Level.SEVERE, "Could not fallocate " + filename + ": " + t);
+                }
+            }
             this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
             writtenBytes = 0;
         }
@@ -260,8 +279,23 @@ public class FileCommitLog extends CommitLog {
                 } catch (EOFException completeFileFinished) {
                     return null;
                 }
+
+                // handle preallocated files
+                if (entryStart == ZERO_PADDING) {
+                    try {
+                        byte next = in.readByte();
+                        if (next == ZERO_PADDING) {
+                            LOGGER.log(Level.INFO, "Detected end of pre-allocated file");
+                            return null;
+                        } else {
+                            throw new IOException("corrupted txlog file, read " + entryStart + "," + next + " instead of a " + ENTRY_START);
+                        }
+                    } catch (EOFException ok) {
+                        return null;
+                    }
+                }
                 if (entryStart != ENTRY_START) {
-                    throw new IOException("corrupted txlog file");
+                    throw new IOException("corrupted txlog file, read " + entryStart + " instead of a " + ENTRY_START);
                 }
                 long seqNumber = this.in.readLong();
                 LogEntry edit = LogEntry.deserialize(this.in);
