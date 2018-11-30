@@ -29,8 +29,13 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  * Extended version of DataInputStream
  *
  * @author enrico.olivelli
+ * @author diego.salvi
+ *
+ * @see ExtendedDataOutputStream
  */
 public class ExtendedDataInputStream extends DataInputStream {
+
+    private static final boolean USE_FOLDED_VAR_INT = Boolean.getBoolean("herddb.vint.read.folded");
 
     public ExtendedDataInputStream(InputStream in) {
         super(in);
@@ -44,6 +49,36 @@ public class ExtendedDataInputStream extends DataInputStream {
      * @throws java.io.IOException
      */
     public int readVInt() throws IOException {
+        return USE_FOLDED_VAR_INT ? readVIntFolded() : readVIntUnfolded();
+    }
+
+    protected int readVIntUnfolded() throws IOException {
+        byte b = readByte();
+        int i = b & 0x7F;
+
+        if ((b & 0x80) != 0) {
+            b = readByte();
+            i |= (b & 0x7F) << 7;
+
+            if ((b & 0x80) != 0) {
+                b = readByte();
+                i |= (b & 0x7F) << 14;
+
+                if ((b & 0x80) != 0) {
+                    b = readByte();
+                    i |= (b & 0x7F) << 21;
+
+                    if ((b & 0x80) != 0) {
+                        b = readByte();
+                        i |= (b & 0x7F) << 28;
+                    }
+                }
+            }
+        }
+        return i;
+    }
+
+    protected int readVIntFolded() throws IOException {
         byte b = readByte();
         int i = b & 0x7F;
         for (int shift = 7; (b & 0x80) != 0; shift += 7) {
