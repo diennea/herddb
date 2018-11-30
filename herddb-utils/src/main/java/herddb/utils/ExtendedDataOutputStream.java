@@ -27,17 +27,60 @@ import java.io.OutputStream;
  * Extended version of DataInputStream
  *
  * @author enrico.olivelli
+ * @author diego.salvi
+ *
  * @see ExtendedDataInputStream
  */
 public final class ExtendedDataOutputStream extends DataOutputStream {
 
+    private static final boolean USE_FOLDED_VAR_INT = Boolean.getBoolean("herddb.vint.write.folded");
+
     public static final ExtendedDataOutputStream NULL = new ExtendedDataOutputStream(NullOutputStream.INSTANCE);
-    
+
     public ExtendedDataOutputStream(OutputStream out) {
         super(out);
     }
 
+    /**
+     * Writes an int in a variable-length format. Writes between one and five bytes. Smaller values take fewer bytes.
+     *
+     * @param i
+     * @throws java.io.IOException
+     */
     public final void writeVInt(int i) throws IOException {
+        if (USE_FOLDED_VAR_INT) {
+            writeVIntFolded(i);
+        } else {
+            writeVIntUnfolded(i);
+        }
+    }
+
+    protected final void writeVIntUnfolded(int i) throws IOException {
+
+        if ((i & ~0x7F) != 0) {
+            writeByte((byte) ((i & 0x7F) | 0x80));
+            i >>>= 7;
+
+            if ((i & ~0x7F) != 0) {
+                writeByte((byte) ((i & 0x7F) | 0x80));
+                i >>>= 7;
+
+                if ((i & ~0x7F) != 0) {
+                    writeByte((byte) ((i & 0x7F) | 0x80));
+                    i >>>= 7;
+
+                    if ((i & ~0x7F) != 0) {
+                        writeByte((byte) ((i & 0x7F) | 0x80));
+                        i >>>= 7;
+                    }
+                }
+            }
+        }
+
+        writeByte((byte) i);
+    }
+
+    protected final void writeVIntFolded(int i) throws IOException {
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -46,7 +89,7 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
     }
 
     /**
-     * Writes an long in a variable-length format. Writes between one and nine bytes. Smaller values take fewer bytes.
+     * Writes a long in a variable-length format. Writes between one and nine bytes. Smaller values take fewer bytes.
      * Negative numbers are not supported.
      *
      * @param i
