@@ -51,6 +51,14 @@ public class ExtendedDataInputStream extends DataInputStream {
     public int readVInt() throws IOException {
         return USE_FOLDED_VAR_INT ? readVIntFolded(readByte()) : readVIntUnfolded(readByte());
     }
+    
+    int readVIntFolded() throws IOException {
+        return readVIntFolded(readByte());
+    }
+    
+    int readVIntUnfolded() throws IOException {
+        return readVIntUnfolded(readByte());
+    }
 
     protected int readVIntUnfolded(byte first) throws IOException {
         byte b = first;
