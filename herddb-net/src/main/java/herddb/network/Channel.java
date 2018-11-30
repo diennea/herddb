@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class Channel implements AutoCloseable {
 
-    protected interface PduCallback {
+    public interface PduCallback {
 
         public void responseReceived(Pdu message, Throwable error);
     }
@@ -58,7 +58,7 @@ public abstract class Channel implements AutoCloseable {
 
     public abstract void sendReplyMessage(long inAnswerTo, ByteBuf message);
 
-    protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback);
+    public abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback);
 
     public abstract void channelIdle();
 

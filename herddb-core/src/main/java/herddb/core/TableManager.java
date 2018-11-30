@@ -1168,7 +1168,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean forceFlushTableData = false;
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
-                throw new DataStorageManagerException("this tableManager is available only on transaction " + createdInTransaction);
+                throw new DataStorageManagerException("table "+table.tablespace+"."+table.name+" is available only on transaction " + createdInTransaction);
             }
             createdInTransaction = 0;
             forceFlushTableData = true;

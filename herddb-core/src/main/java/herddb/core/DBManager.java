@@ -583,7 +583,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
-            err.printStackTrace();
             Throwable cause = err.getCause();
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
@@ -691,6 +690,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } else {
                 return executeStatementAsync(plan.mainStatement, context, transactionContext);
             }
+        } catch (herddb.model.NotLeaderException err) {
+            LOGGER.log(Level.INFO, "not-leader", err);
+            return FutureUtils.exception(err);
         } catch (Throwable err) {
             LOGGER.log(Level.SEVERE, "uncaught error", err);
             return FutureUtils.exception(err);

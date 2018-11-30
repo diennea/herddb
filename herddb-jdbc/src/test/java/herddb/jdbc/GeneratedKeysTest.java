@@ -55,12 +55,12 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')",
-                        Statement.RETURN_GENERATED_KEYS));
+                            Statement.RETURN_GENERATED_KEYS));
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         int count = 0;
@@ -75,7 +75,7 @@ public class GeneratedKeysTest {
                             key = generatedKeys.getObject(1);
                         }
                     }
-                    assertNotNull(key);                    
+                    assertNotNull(key);
                     assertEquals(Integer.valueOf(1), key);
                 }
             }
@@ -90,8 +90,8 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS));
@@ -115,7 +115,7 @@ public class GeneratedKeysTest {
             }
         }
     }
-    
+
     @Test
     public void testPreparedStatementInt() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
@@ -124,28 +124,27 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
-                    
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
+
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
-                    
-                    
+
                     try (PreparedStatement prepared = con.prepareStatement("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS)) {
-                        
+
                         assertEquals(1, prepared.executeUpdate());
-                        
+
                         Object key = null;
                         try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
                             if (generatedKeys.next()) {
                                 key = generatedKeys.getObject(1);
                             }
                         }
-                        
+
                         assertNotNull(key);
                         assertEquals(Integer.valueOf(1), key);
-                        
+
                     }
-                    
+
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         int count = 0;
                         while (rs.next()) {
@@ -166,28 +165,57 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
-                    
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
+
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
-                    
-                    
+
                     try (PreparedStatement prepared = con.prepareStatement("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS)) {
-                        
+
                         assertEquals(1, prepared.executeUpdate());
-                        
+
                         Object key = null;
                         try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
                             if (generatedKeys.next()) {
                                 key = generatedKeys.getObject(1);
                             }
                         }
-                        
+
                         assertNotNull(key);
                         assertEquals(Long.valueOf(1), key);
-                        
+
                     }
-                    
+
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
+                        int count = 0;
+                        while (rs.next()) {
+                            count++;
+                        }
+                        assertEquals(1, count);
+                    }
+
+                    // async
+                    try (PreparedStatementAsync delete = con.prepareStatement("DELETE FROM mytable").unwrap(PreparedStatementAsync.class);
+                            PreparedStatementAsync prepared = con.prepareStatement("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS)
+                                    .unwrap(PreparedStatementAsync.class)) {
+
+                        assertEquals(1, delete.executeUpdateAsync().get().intValue());
+
+                        assertEquals(1, prepared.executeUpdateAsync().get().intValue());
+
+                        Object key = null;
+                        // getGeneratedKeys makes sense only if the Future has completed with success
+                        try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
+                            if (generatedKeys.next()) {
+                                key = generatedKeys.getObject(1);
+                            }
+                        }
+
+                        assertNotNull(key);
+                        assertEquals(Long.valueOf(2), key);
+
+                    }
+
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         int count = 0;
                         while (rs.next()) {

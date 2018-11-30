@@ -17,30 +17,25 @@
  under the License.
 
  */
-package herddb.jdbc.utils;
-
-import herddb.client.HDBException;
-import java.sql.SQLException;
-import java.util.concurrent.CompletionException;
+package herddb.client.impl;
 
 /**
- * Utility to report SQLException correctly to the client
+ * a retry is needed. for instance in case of leadership change
  *
  * @author enrico.olivelli
  */
-public class SQLExceptionUtils {
+public class LeaderChangedException extends RetryRequestException {
 
-    public static SQLException wrapException(Throwable exception) {
-        while (exception instanceof CompletionException) {
-            exception = exception.getCause();
-        }
-        SQLException res;
-        if (exception instanceof HDBException) {
-            HDBException ex = (HDBException) exception;
-            res = new SQLException(ex.getMessage(), ex);
-        } else {
-            res = new SQLException(exception);
-        }
-        return res;
+    public LeaderChangedException(String message) {
+        super(message);
     }
+
+    public LeaderChangedException(Throwable cause) {
+        super(cause);
+    }
+
+    public LeaderChangedException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

@@ -37,4 +37,16 @@ public class GetResult {
         this.transactionId = transactionId;
     }
 
+    public boolean isFound() {
+        return data != null;
+    }
+
+    public Map<RawString, Object> getData() {
+        return data;
+    }
+
+    public long getTransactionId() {
+        return transactionId;
+    }
+
 }

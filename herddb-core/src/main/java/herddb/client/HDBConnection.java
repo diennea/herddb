@@ -19,18 +19,24 @@
  */
 package herddb.client;
 
+import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.model.TransactionContext;
 import static herddb.utils.QueryUtils.discoverTablespace;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.Counter;
 
 /**
  * Connection on the client side
@@ -46,12 +52,16 @@ public class HDBConnection implements AutoCloseable {
     private final ReentrantLock routesLock = new ReentrantLock(true);
     private volatile boolean closed;
     private boolean discoverTablespaceFromSql = true;
+    private Counter leaderChangedErrors;
 
     public HDBConnection(HDBClient client) {
         if (client == null) {
             throw new NullPointerException();
         }
         this.client = client;
+        this.leaderChangedErrors = client
+                .getStatsLogger()
+                .getCounter("leaderChangedErrors");
     }
 
     public boolean isDiscoverTablespaceFromSql() {
@@ -124,7 +134,7 @@ public class HDBConnection implements AutoCloseable {
                     return false;
                 }
                 LOGGER.log(Level.FINE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
 
             long now = System.currentTimeMillis();
@@ -141,8 +151,7 @@ public class HDBConnection implements AutoCloseable {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
                 return route.beginTransaction(tableSpace);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
@@ -155,8 +164,7 @@ public class HDBConnection implements AutoCloseable {
                 route.rollbackTransaction(tableSpace, tx);
                 return;
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
@@ -170,7 +178,7 @@ public class HDBConnection implements AutoCloseable {
                 return;
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
@@ -186,14 +194,83 @@ public class HDBConnection implements AutoCloseable {
                 return route.executeUpdate(tableSpace, query, tx, returnValues, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
     }
 
+    public CompletableFuture<DMLResult> executeUpdateAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) {
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
+        if (closed) {
+            return FutureUtils.exception(new HDBException("client is closed"));
+        }
+        CompletableFuture<DMLResult> res = new CompletableFuture<>();
+
+        AtomicInteger count = new AtomicInteger(10);
+        executeStatementAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, params, count);
+        return res;
+    }
+
+    private void executeStatementAsyncInternal(String tableSpace, CompletableFuture<DMLResult> res, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params, AtomicInteger count) {
+        RoutedClientSideConnection route;
+        try {
+            route = getRouteToTableSpace(tableSpace);
+        } catch (ClientSideMetadataProviderException | HDBException err) {
+            res.completeExceptionally(err);
+            return;
+        }
+        route.executeUpdateAsync(tableSpace, query, tx, returnValues, usePreparedStatement, params)
+                .whenComplete((dmlresult, error) -> {
+                    if (error != null) {
+                        if (error instanceof RetryRequestException
+                                && count.decrementAndGet() > 0
+                                && !closed) {
+                            leaderChangedErrors.inc();
+                            LOGGER.log(Level.INFO, "retry #{0} {1}: {2}", new Object[]{count, query, error});
+                            executeStatementAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, params, count);
+                        } else {
+                            res.completeExceptionally(error);
+                        }
+                    } else {
+                        res.complete(dmlresult);
+                    }
+                });
+    }
+
+    private void executeStatementsAsyncInternal(String tableSpace, CompletableFuture<List<DMLResult>> res, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<List<Object>> params, AtomicInteger count) {
+        RoutedClientSideConnection route;
+        try {
+            route = getRouteToTableSpace(tableSpace);
+        } catch (ClientSideMetadataProviderException | HDBException err) {
+            res.completeExceptionally(err);
+            return;
+        }
+        route.executeUpdatesAsync(tableSpace, query, tx, returnValues, usePreparedStatement, params)
+                .whenComplete((dmlresult, error) -> {
+                    if (error != null) {
+                        if (error instanceof RetryRequestException
+                                && count.decrementAndGet() > 0
+                                && !closed) {
+                            leaderChangedErrors.inc();
+                            LOGGER.log(Level.INFO, "retry #{0} {1}: {2}", new Object[]{count, query, error});
+                            executeStatementsAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, params, count);
+                        } else {
+                            res.completeExceptionally(error);
+                        }
+                    } else {
+                        res.complete(dmlresult);
+                    }
+                });
+    }
+
     public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues,
             boolean usePreparedStatement, List<List<Object>> batch) throws ClientSideMetadataProviderException, HDBException {
+        if (batch.isEmpty()) {
+            return Collections.emptyList();
+        }
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }
@@ -203,10 +280,28 @@ public class HDBConnection implements AutoCloseable {
                 return route.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
+    }
+
+    public CompletableFuture<List<DMLResult>> executeUpdatesAsync(String tableSpace, String query, long tx, boolean returnValues,
+            boolean usePreparedStatement, List<List<Object>> batch) {
+        if (batch.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
+        if (closed) {
+            return FutureUtils.exception(new HDBException("client is closed"));
+        }
+        CompletableFuture<List<DMLResult>> res = new CompletableFuture<>();
+
+        AtomicInteger count = new AtomicInteger(10);
+        executeStatementsAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, batch, count);
+        return res;
     }
 
     public GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
@@ -219,7 +314,7 @@ public class HDBConnection implements AutoCloseable {
                 return route.executeGet(tableSpace, query, tx, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
-                sleepOnRetry();
+                handleRetryError(retry);
             }
         }
         throw new HDBException("client is closed");
@@ -234,17 +329,21 @@ public class HDBConnection implements AutoCloseable {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
                 return route.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "temporary error: " + retry);
-                sleepOnRetry();
+                LOGGER.log(Level.INFO, "temporary error: " + retry);
+                handleRetryError(retry);
             }
 
         }
         throw new HDBException("client is closed");
     }
 
-    private void sleepOnRetry() throws HDBException {
+    private void handleRetryError(Exception retry) throws HDBException {
+        LOGGER.info("retry:" + retry); // no stracktrace
+        if (retry instanceof LeaderChangedException) {
+            leaderChangedErrors.inc();
+        }
         try {
-            Thread.sleep(1000);
+            Thread.sleep(200);
         } catch (InterruptedException err) {
             throw new HDBException(err);
         }

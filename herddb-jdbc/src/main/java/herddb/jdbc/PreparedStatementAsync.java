@@ -17,30 +17,23 @@
  under the License.
 
  */
-package herddb.jdbc.utils;
+package herddb.jdbc;
 
-import herddb.client.HDBException;
-import java.sql.SQLException;
-import java.util.concurrent.CompletionException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Utility to report SQLException correctly to the client
+ * An extension to JDBC PreparedStatement which supports Async dispatch.
  *
  * @author enrico.olivelli
  */
-public class SQLExceptionUtils {
+public interface PreparedStatementAsync extends PreparedStatement {
 
-    public static SQLException wrapException(Throwable exception) {
-        while (exception instanceof CompletionException) {
-            exception = exception.getCause();
-        }
-        SQLException res;
-        if (exception instanceof HDBException) {
-            HDBException ex = (HDBException) exception;
-            res = new SQLException(ex.getMessage(), ex);
-        } else {
-            res = new SQLException(exception);
-        }
-        return res;
-    }
+    public CompletableFuture<int[]> executeBatchAsync();
+
+    public CompletableFuture<Long> executeLargeUpdateAsync();
+
+    public CompletableFuture<Integer> executeUpdateAsync();
+
 }
