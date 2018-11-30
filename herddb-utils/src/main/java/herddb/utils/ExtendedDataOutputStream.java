@@ -33,7 +33,7 @@ import java.io.OutputStream;
  */
 public final class ExtendedDataOutputStream extends DataOutputStream {
 
-    private static final boolean USE_FOLDED_VAR_INT = Boolean.getBoolean("herddb.vint.write.folded");
+    private static final boolean USE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.write.folded", false);
 
     public static final ExtendedDataOutputStream NULL = new ExtendedDataOutputStream(NullOutputStream.INSTANCE);
 

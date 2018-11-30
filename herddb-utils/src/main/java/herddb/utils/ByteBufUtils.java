@@ -19,8 +19,9 @@
  */
 package herddb.utils;
 
-import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Utilities for write variable length values on {@link ByteBuf}.
@@ -29,11 +30,15 @@ import java.nio.charset.StandardCharsets;
  */
 public class ByteBufUtils {
 
+    private static final boolean READ_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.read.folded", false);
+    private static final boolean WRITE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.write.folded", false);
+
+
     public static final void writeArray(ByteBuf buffer, byte[] array) {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
-    
+
     public static final void writeArray(ByteBuf buffer, byte[] array, int offset, int length) {
         writeVInt(buffer, length);
         buffer.writeBytes(array, offset, length);
@@ -67,7 +72,7 @@ public class ByteBufUtils {
         buffer.readBytes(array);
         return RawString.newPooledRawString(array, 0, len);
     }
-    
+
     public static final RawString readUnpooledRawString(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
@@ -81,6 +86,38 @@ public class ByteBufUtils {
     }
 
     public static final void writeVInt(ByteBuf buffer, int i) {
+        if (WRITE_FOLDED_VAR_INT) {
+            writeVIntFolded(buffer, i);
+        } else {
+            writeVIntUnfolded(buffer, i);
+        }
+    }
+
+    protected static final void writeVIntUnfolded(ByteBuf buffer, int i) {
+        if ((i & ~0x7F) != 0) {
+            buffer.writeByte((byte) ((i & 0x7F) | 0x80));
+            i >>>= 7;
+
+            if ((i & ~0x7F) != 0) {
+                buffer.writeByte((byte) ((i & 0x7F) | 0x80));
+                i >>>= 7;
+
+                if ((i & ~0x7F) != 0) {
+                    buffer.writeByte((byte) ((i & 0x7F) | 0x80));
+                    i >>>= 7;
+
+                    if ((i & ~0x7F) != 0) {
+                        buffer.writeByte((byte) ((i & 0x7F) | 0x80));
+                        i >>>= 7;
+                    }
+                }
+            }
+        }
+
+        buffer.writeByte((byte) i);
+    }
+
+    protected static final void writeVIntFolded(ByteBuf buffer, int i) {
         while ((i & ~0x7F) != 0) {
             buffer.writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -89,6 +126,36 @@ public class ByteBufUtils {
     }
 
     public static final int readVInt(ByteBuf buffer) {
+        return READ_FOLDED_VAR_INT ? readVIntFolded(buffer) : readVIntUnfolded(buffer);
+    }
+
+    protected static final int readVIntUnfolded(ByteBuf buffer) {
+        byte b = buffer.readByte();
+        int i = b & 0x7F;
+
+        if ((b & 0x80) != 0) {
+            b = buffer.readByte();
+            i |= (b & 0x7F) << 7;
+
+            if ((b & 0x80) != 0) {
+                b = buffer.readByte();
+                i |= (b & 0x7F) << 14;
+
+                if ((b & 0x80) != 0) {
+                    b = buffer.readByte();
+                    i |= (b & 0x7F) << 21;
+
+                    if ((b & 0x80) != 0) {
+                        b = buffer.readByte();
+                        i |= (b & 0x7F) << 28;
+                    }
+                }
+            }
+        }
+        return i;
+    }
+
+    protected static final int readVIntFolded(ByteBuf buffer) {
         byte b = buffer.readByte();
         int i = b & 0x7F;
         for (int shift = 7; (b & 0x80) != 0; shift += 7) {

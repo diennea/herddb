@@ -35,7 +35,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  */
 public class ExtendedDataInputStream extends DataInputStream {
 
-    private static final boolean USE_FOLDED_VAR_INT = Boolean.getBoolean("herddb.vint.read.folded");
+    private static final boolean USE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.read.folded",false);
 
     public ExtendedDataInputStream(InputStream in) {
         super(in);
@@ -49,11 +49,11 @@ public class ExtendedDataInputStream extends DataInputStream {
      * @throws java.io.IOException
      */
     public int readVInt() throws IOException {
-        return USE_FOLDED_VAR_INT ? readVIntFolded() : readVIntUnfolded();
+        return USE_FOLDED_VAR_INT ? readVIntFolded(readByte()) : readVIntUnfolded(readByte());
     }
 
-    protected int readVIntUnfolded() throws IOException {
-        byte b = readByte();
+    protected int readVIntUnfolded(byte first) throws IOException {
+        byte b = first;
         int i = b & 0x7F;
 
         if ((b & 0x80) != 0) {
@@ -78,8 +78,8 @@ public class ExtendedDataInputStream extends DataInputStream {
         return i;
     }
 
-    protected int readVIntFolded() throws IOException {
-        byte b = readByte();
+    protected int readVIntFolded(byte first) throws IOException {
+        byte b = first;
         int i = b & 0x7F;
         for (int shift = 7; (b & 0x80) != 0; shift += 7) {
             b = readByte();
@@ -113,13 +113,7 @@ public class ExtendedDataInputStream extends DataInputStream {
             return -1;
         }
 
-        byte b = (byte) (ch);
-        int i = b & 0x7F;
-        for (int shift = 7; (b & 0x80) != 0; shift += 7) {
-            b = readByte();
-            i |= (b & 0x7F) << shift;
-        }
-        return i;
+        return USE_FOLDED_VAR_INT ? readVIntFolded((byte) (ch)) : readVIntUnfolded((byte) (ch));
     }
 
     /**
