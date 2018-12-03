@@ -15,15 +15,6 @@
  */
 package herddb.proto;
 
-import herddb.utils.ByteBufUtils;
-import herddb.utils.DataAccessor;
-import herddb.utils.IntHolder;
-import herddb.utils.KeyValue;
-import herddb.utils.RawString;
-import herddb.utils.RecordsBatch;
-import herddb.utils.TuplesList;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -33,6 +24,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import herddb.utils.ByteBufUtils;
+import herddb.utils.DataAccessor;
+import herddb.utils.IntHolder;
+import herddb.utils.KeyValue;
+import herddb.utils.RawString;
+import herddb.utils.RecordsBatch;
+import herddb.utils.TuplesList;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 
 /**
  * Codec for PDUs
@@ -74,6 +75,7 @@ public abstract class PduCodec {
     public static final byte TYPE_DOUBLE = 6;
     public static final byte TYPE_BOOLEAN = 7;
     public static final byte TYPE_SHORT = 8;
+    public static final byte TYPE_BYTE = 9;
 
     public static abstract class ExecuteStatementsResult {
 
@@ -1449,7 +1451,7 @@ public abstract class PduCodec {
                     + ONE_LONG
                     + ONE_LONG
             );
-            ByteBufUtils.skipArray(buffer); // tablespace            
+            ByteBufUtils.skipArray(buffer); // tablespace
             return ByteBufUtils.readArray(buffer);
         }
 
@@ -1621,7 +1623,7 @@ public abstract class PduCodec {
                     + MSGID_SIZE
             );
             ByteBufUtils.skipArray(buffer); // tablespace
-            ByteBufUtils.skipArray(buffer); // tablename            
+            ByteBufUtils.skipArray(buffer); // tablename
             int numRecords = buffer.readInt();
             for (int i = 0; i < numRecords; i++) {
                 byte[] key = ByteBufUtils.readArray(buffer);
@@ -1815,6 +1817,9 @@ public abstract class PduCodec {
         } else if (v instanceof byte[]) {
             byteBuf.writeByte(TYPE_BYTEARRAY);
             ByteBufUtils.writeArray(byteBuf, (byte[]) v);
+        } else if (v instanceof Byte) {
+            byteBuf.writeByte(TYPE_BYTE);
+            byteBuf.writeByte((Byte) v);
         } else {
             throw new IllegalArgumentException("bad data type " + v.getClass());
         }
@@ -1828,10 +1833,14 @@ public abstract class PduCodec {
         switch (type) {
             case TYPE_BYTEARRAY:
                 return ByteBufUtils.readArray(dii);
-            case TYPE_INTEGER:
-                return dii.readInt();
             case TYPE_LONG:
                 return dii.readLong();
+            case TYPE_INTEGER:
+                return dii.readInt();
+            case TYPE_SHORT:
+                return dii.readShort();
+            case TYPE_BYTE:
+                return dii.readByte();
             case TYPE_STRING:
                 return ByteBufUtils.readUnpooledRawString(dii);
             case TYPE_TIMESTAMP:
