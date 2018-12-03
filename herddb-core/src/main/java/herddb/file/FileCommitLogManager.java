@@ -19,10 +19,6 @@
  */
 package herddb.file;
 
-import herddb.log.CommitLogManager;
-import herddb.log.LogNotAvailableException;
-import herddb.server.ServerConfiguration;
-import herddb.utils.SystemProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +30,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+
+import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
+import herddb.utils.SystemProperties;
 
 /**
  * Commit logs on local files
@@ -57,8 +59,8 @@ public class FileCommitLogManager extends CommitLogManager {
 
     private final Path baseDirectory;
     private final long maxLogFileSize;
-    private final int maxUnflushedBatchSize;
-    private final int maxUnflushedBatchBytes;
+    private final int maxUnsynchedBatchSize;
+    private final int maxUnsynchedBatchBytes;
     private final int maxSyncTime;
     private final boolean requireSync;
     private final StatsLogger statsLogger;
@@ -75,8 +77,8 @@ public class FileCommitLogManager extends CommitLogManager {
                 NullStatsLogger.INSTANCE);
     }
 
-    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, int maxUnflushedBatchSize,
-            int maxUnflushedBatchBytes,
+    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, int maxUnsynchedBatchSize,
+            int maxUnsynchedBatchBytes,
             int maxSyncTime,
             boolean requireSync,
             int deferredSyncPeriod,
@@ -85,8 +87,8 @@ public class FileCommitLogManager extends CommitLogManager {
         this.maxLogFileSize = maxLogFileSize;
         this.statsLogger = statsLogger;
         this.deferredSyncPeriod = deferredSyncPeriod;
-        this.maxUnflushedBatchSize = maxUnflushedBatchSize;
-        this.maxUnflushedBatchBytes = maxUnflushedBatchBytes;
+        this.maxUnsynchedBatchSize = maxUnsynchedBatchSize;
+        this.maxUnsynchedBatchBytes = maxUnsynchedBatchBytes;
         this.maxSyncTime = maxSyncTime;
         this.requireSync = requireSync;
     }
@@ -102,8 +104,8 @@ public class FileCommitLogManager extends CommitLogManager {
             FileCommitLog res = new FileCommitLog(folder, tablespaceName,
                     maxLogFileSize, fsyncThreadPool, statsLogger.scope(tablespaceName),
                     activeLogs::remove,
-                    maxUnflushedBatchSize,
-                    maxUnflushedBatchBytes,
+                    maxUnsynchedBatchSize,
+                    maxUnsynchedBatchBytes,
                     maxSyncTime,
                     requireSync
             );
