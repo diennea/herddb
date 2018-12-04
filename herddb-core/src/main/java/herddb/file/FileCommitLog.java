@@ -146,11 +146,10 @@ public class FileCommitLog extends CommitLog {
             writtenBytes = 0;
         }
 
-        private int writeEntry(long seqnumber, byte[] entry) throws IOException {
+        private int writeEntry(long seqnumber, LogEntry entry) throws IOException {
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
-            int written = entry.length;
-            this.out.write(entry);
+            int written = entry.serialize(out);            
             this.out.writeByte(ENTRY_END);
             int entrySize = (1 + 8 + written + 1);
             writtenBytes += entrySize;
@@ -406,7 +405,7 @@ public class FileCommitLog extends CommitLog {
                 long unsyncedBytes = 0;
                 int unsyncedCount = 0;
                 while (!closed || !writeQueue.isEmpty()) {
-                    LogEntryHolderFuture entry = writeQueue.poll(maxSyncTime, TimeUnit.MILLISECONDS);
+                    LogEntryHolderFuture entry = writeQueue.poll(maxSyncTime, TimeUnit.MICROSECONDS);
                     boolean timedOut = false;
                     if (entry != null) {
                         if (entry.entry == null) {
@@ -415,10 +414,10 @@ public class FileCommitLog extends CommitLog {
                         }
 
                         queueSize.decrementAndGet();
-                        writeEntry(entry);
+                        int size = writeEntry(entry);
 
                         ++unsyncedCount;
-                        unsyncedBytes += entry.entry.length;
+                        unsyncedBytes += size;
 
                         if (entry.sync) {
                             syncNeeded.add(entry);
@@ -473,7 +472,7 @@ public class FileCommitLog extends CommitLog {
     private class LogEntryHolderFuture {
 
         final CompletableFuture<LogSequenceNumber> ack = new CompletableFuture<>();
-        final byte[] entry;
+        final LogEntry entry;
         final long timestamp;
         LogSequenceNumber sequenceNumber;
         Throwable error;
@@ -485,7 +484,7 @@ public class FileCommitLog extends CommitLog {
                 this.entry = null;
                 this.timestamp = System.currentTimeMillis();
             } else {
-                this.entry = entry.serialize();
+                this.entry = entry;
                 this.timestamp = entry.timestamp;
             }
             this.sync = synch;
@@ -520,7 +519,7 @@ public class FileCommitLog extends CommitLog {
 
     }
 
-    private long writeEntry(LogEntryHolderFuture entry) {
+    private int writeEntry(LogEntryHolderFuture entry) {
         try {
             CommitFileWriter writer = this.writer;
 
