@@ -64,7 +64,7 @@ public class ClientConfiguration {
     public static final String PROPERTY_SERVER_SSL = "client.server.ssl";
     
     public static final String PROPERTY_MAX_CONNECTIONS_PER_SERVER = "client.maxconnections.perserver";
-    public static final int PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT = 1;
+    public static final int PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT = 10;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "client.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.session.timeout";
