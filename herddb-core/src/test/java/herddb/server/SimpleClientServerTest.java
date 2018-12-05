@@ -189,8 +189,7 @@ public class SimpleClientServerTest {
     }
 
     /**
-     * Testing that if the server discards the query the client will resend the
-     * PREPARE_STATEMENT COMMAND
+     * Testing that if the server discards the query the client will resend the PREPARE_STATEMENT COMMAND
      *
      * @throws Exception
      */
