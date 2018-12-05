@@ -161,7 +161,7 @@ public class SimpleClientServerTest {
                         assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get("username"));
                         assertNotNull(aa.get("connectionts"));
                     }
-                    assertEquals(1, all.size());
+                    assertTrue(all.size() >= 1);
                 }
 
                 List<DMLResult> executeUpdatesWithoutParams = connection.executeUpdates(TableSpace.DEFAULT,
