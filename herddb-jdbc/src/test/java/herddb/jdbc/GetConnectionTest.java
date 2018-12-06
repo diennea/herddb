@@ -61,7 +61,7 @@ public class GetConnectionTest {
 
             }
             Server server = dataSource.getServer();
-            assertEquals(1, server.getConnectionCount());
+            assertTrue(server.getConnectionCount() > 0);
 
             Connection _con;
             try (Connection con = dataSource.getConnection()) {

@@ -94,7 +94,9 @@ public class JdbcDriverTest {
                     count++;
                 }
                 assertTrue(count > 0);
-                assertEquals(1, server.getActualConnections().connections.size());
+                // since 0.8.0 we will open multiple sockets, so this test may flap
+                assertTrue(server.getActualConnections().connections.size() <= 2
+                        && server.getActualConnections().connections.size() >= 1);
             }
 
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
@@ -106,7 +108,9 @@ public class JdbcDriverTest {
                     count++;
                 }
                 assertTrue(count > 0);
-                assertEquals(1, server.getActualConnections().connections.size());
+                // since 0.8.0 we will open multiple sockets, so this test may flap
+                assertTrue(server.getActualConnections().connections.size() <= 3
+                        && server.getActualConnections().connections.size() >= 1);
             }
         }
     }

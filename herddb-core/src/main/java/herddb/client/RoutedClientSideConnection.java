@@ -65,7 +65,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @author enrico.olivelli
  */
-public class RoutedClientSideConnection implements AutoCloseable, ChannelEventListener {
+public class RoutedClientSideConnection implements ChannelEventListener {
 
     private static final Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
     private static final RawString RAWSTRING_KEY = RawString.of("_key");
@@ -78,14 +78,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
     private final AtomicLong scannerIdGenerator = new AtomicLong();
-    private final ClientSideQueryCache preparedStatements = new ClientSideQueryCache();    
+    private final ClientSideQueryCache preparedStatements = new ClientSideQueryCache();
 
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
-    public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
+    public RoutedClientSideConnection(HDBConnection connection, String nodeId, ServerHostData server) {
         this.connection = connection;
-        this.nodeId = nodeId;        
-        server = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
+        this.nodeId = nodeId;
+        this.server = server;
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
@@ -248,11 +248,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    @Override
     public void close() {
         LOGGER.log(Level.SEVERE, "{0} - close", this);
 
-        this.connection.releaseRoute(nodeId);
         connectionLock.writeLock().lock();
         try {
             if (channel != null) {
@@ -610,7 +608,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void handleGenericError(final Pdu reply, final long statementId, final boolean release) throws HDBException, ClientSideMetadataProviderException {
-        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);        
+        boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
         boolean missingPreparedStatement = ErrorResponse.readIsMissingPreparedStatementError(reply);
         String msg = PduCodec.ErrorResponse.readError(reply);
         if (release) {

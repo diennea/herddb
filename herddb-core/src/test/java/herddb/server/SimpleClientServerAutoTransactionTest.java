@@ -42,6 +42,7 @@ import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.utils.RawString;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Basic server/client boot test
@@ -75,7 +76,6 @@ public class SimpleClientServerAutoTransactionTest {
                 long countInsert = executeUpdateResult.updateCount;
                 Assert.assertEquals(1, countInsert);
 
-
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
                         "SELECT * FROM mytable WHERE id='test'", tx, true, Collections.emptyList());;
                 Map<RawString, Object> record = res.data;
@@ -100,11 +100,10 @@ public class SimpleClientServerAutoTransactionTest {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         assertEquals(RawString.of("jvm-local"), aa.get("address"));
-                        assertEquals("1", aa.get("id") + "");
                         assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get("username"));
                         assertNotNull(aa.get("connectionts"));
                     }
-                    assertEquals(1, all.size());
+                    assertTrue(all.size() >= 1);
                 }
 
             }

@@ -22,17 +22,17 @@ package herddb.client;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.model.TransactionContext;
+import herddb.network.ServerHostData;
 import static herddb.utils.QueryUtils.discoverTablespace;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
@@ -45,16 +45,17 @@ import org.apache.bookkeeper.stats.Counter;
  */
 public class HDBConnection implements AutoCloseable {
 
-    private final Map<String, RoutedClientSideConnection> routes = new HashMap<>();
     private final static AtomicLong IDGENERATOR = new AtomicLong();
     private final long id = IDGENERATOR.incrementAndGet();
     private final HDBClient client;
-    private final ReentrantLock routesLock = new ReentrantLock(true);
     private volatile boolean closed;
     private boolean discoverTablespaceFromSql = true;
     private Counter leaderChangedErrors;
+    private final int maxConnectionsPerServer;
+    private final Random random = new Random();
+    private Map<String, RoutedClientSideConnection[]> routes;
 
-    public HDBConnection(HDBClient client) {
+    HDBConnection(HDBClient client) {
         if (client == null) {
             throw new NullPointerException();
         }
@@ -62,6 +63,12 @@ public class HDBConnection implements AutoCloseable {
         this.leaderChangedErrors = client
                 .getStatsLogger()
                 .getCounter("leaderChangedErrors");
+
+        this.maxConnectionsPerServer
+                = client.getConfiguration().getInt(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT);
+
+        this.routes = new ConcurrentHashMap<>();
+
     }
 
     public boolean isDiscoverTablespaceFromSql() {
@@ -84,28 +91,15 @@ public class HDBConnection implements AutoCloseable {
     public void close() {
         LOGGER.log(Level.SEVERE, "{0} close ", this);
         closed = true;
-        List<RoutedClientSideConnection> routesAtClose;
-        routesLock.lock();
-        try {
-            routesAtClose = new ArrayList<>(routes.values());
-        } finally {
-            routesLock.unlock();
-        }
-        for (RoutedClientSideConnection route : routesAtClose) {
-            route.close();
-        }
+        routes.forEach((n, b) -> {
+            for (RoutedClientSideConnection cc : b) {
+                cc.close();
+            }
+        });
+        routes.clear();
         client.releaseConnection(this);
     }
     private static final Logger LOGGER = Logger.getLogger(HDBConnection.class.getName());
-
-    void releaseRoute(String nodeId) {
-        routesLock.lock();
-        try {
-            routes.remove(nodeId);
-        } finally {
-            routesLock.unlock();
-        }
-    }
 
     public boolean waitForTableSpace(String tableSpace, int timeout) throws HDBException {
         long start = System.currentTimeMillis();
@@ -356,16 +350,28 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
-        routesLock.lock();
         try {
-            RoutedClientSideConnection route = routes.get(nodeId);
-            if (route == null) {
-                route = new RoutedClientSideConnection(this, nodeId);
-                routes.put(nodeId, route);
+            RoutedClientSideConnection[] all = routes.computeIfAbsent(nodeId, n -> {
+                try {
+                    ServerHostData serverHostData = client.getClientSideMetadataProvider().getServerHostData(nodeId);
+
+                    RoutedClientSideConnection[] res = new RoutedClientSideConnection[maxConnectionsPerServer];
+                    for (int i = 0; i < maxConnectionsPerServer; i++) {
+                        res[i] = new RoutedClientSideConnection(this, nodeId, serverHostData);
+                    }
+                    return res;
+                } catch (ClientSideMetadataProviderException err) {
+                    throw new RuntimeException(err);
+                }
+            });
+
+            return all[random.nextInt(maxConnectionsPerServer)];
+        } catch (RuntimeException err) {
+            if (err.getCause() instanceof ClientSideMetadataProviderException) {
+                throw (ClientSideMetadataProviderException) (err.getCause());
+            } else {
+                throw new HDBException(err);
             }
-            return route;
-        } finally {
-            routesLock.unlock();
         }
     }
 
@@ -398,7 +404,7 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public String toString() {
-        return "HDBConnection{" + "routes=" + routes.size() + ", id=" + id + '}';
+        return "HDBConnection{" + "routes=" + routes + ", id=" + id + '}';
     }
 
     @Override
