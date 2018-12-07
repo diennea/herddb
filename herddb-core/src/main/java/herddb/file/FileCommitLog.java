@@ -56,6 +56,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.ODirectFileOutputStream;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
 
@@ -92,6 +93,9 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
+    private final static boolean USE_ODIRECT = SystemProperties.getBooleanSystemProperty(
+            "herddb.file.odirect", true);
+
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
@@ -107,6 +111,7 @@ public class FileCommitLog extends CommitLog {
     private volatile boolean failed = false;
     private volatile boolean needsSync = false;
 
+    final static byte ZERO_PADDING = 0;
     final static byte ENTRY_START = 13;
     final static byte ENTRY_END = 25;
 
@@ -139,17 +144,25 @@ public class FileCommitLog extends CommitLog {
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             LOGGER.log(Level.FINE, "starting new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
-            this.channel = FileChannel.open(filename,
-                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            if (USE_ODIRECT) {
+                Files.createFile(filename);
+                ODirectFileOutputStream oo = new ODirectFileOutputStream(filename);
+                // TODO: fsync...needs padding
+                this.channel = oo.getFc();
+                this.out = new ExtendedDataOutputStream(oo);
+            } else {
+                this.channel = FileChannel.open(filename,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
-            this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
+                this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
+            }
             writtenBytes = 0;
         }
 
         private int writeEntry(long seqnumber, LogEntry entry) throws IOException {
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
-            int written = entry.serialize(out);            
+            int written = entry.serialize(out);
             this.out.writeByte(ENTRY_END);
             int entrySize = (1 + 8 + written + 1);
             writtenBytes += entrySize;
@@ -260,6 +273,14 @@ public class FileCommitLog extends CommitLog {
                     entryStart = in.readByte();
                 } catch (EOFException completeFileFinished) {
                     return null;
+                }
+                // skip zeros due to padding if using pre-allocation or O_DIRECT
+                while (entryStart == ZERO_PADDING) {
+                    try {
+                        entryStart = in.readByte();
+                    } catch (EOFException completeFileFinished) {
+                        return null;
+                    }
                 }
                 if (entryStart != ENTRY_START) {
                     throw new IOException("corrupted txlog file");
@@ -460,7 +481,6 @@ public class FileCommitLog extends CommitLog {
                     }
 
                 }
-
 
             } catch (LogNotAvailableException | IOException | InterruptedException t) {
                 failed = true;

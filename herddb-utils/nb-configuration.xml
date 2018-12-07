@@ -15,5 +15,6 @@ Any value defined here will override the pom.xml file value but is only applicab
 -->
         <netbeans.compile.on.save>none</netbeans.compile.on.save>
         <netbeans.hint.licensePath>${project.basedir}/../licenseheader.txt</netbeans.hint.licensePath>
+        <netbeans.hint.jdkPlatform>JDK_10</netbeans.hint.jdkPlatform>
     </properties>
 </project-shared-configuration>
