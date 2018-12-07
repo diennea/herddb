@@ -94,7 +94,9 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
-    
+    private final static boolean USE_ODIRECT = SystemProperties.getBooleanSystemProperty(
+            "herddb.file.odirect", true);
+
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
@@ -143,10 +145,10 @@ public class FileCommitLog extends CommitLog {
 
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
-            
+
             if (enableO_DIRECT) {
                 Files.createFile(filename);
-                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});                
+                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
                 // in O_DIRECT mode we have to call flush() and this will
                 // eventually write all data to disks, adding some padding of zeroes
                 // because in O_DIRECT mode you can only write fixed length blocks
@@ -159,6 +161,7 @@ public class FileCommitLog extends CommitLog {
                 this.out = new ExtendedDataOutputStream(oo);
             } else {
                 LOGGER.log(Level.FINE, "opening (no O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
+
                 this.channel = FileChannel.open(filename,
                         StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
