@@ -48,7 +48,6 @@ import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.proto.PduCodec.ErrorResponse;
-import herddb.proto.flatbuf.MessageType;
 import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
@@ -111,7 +110,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             for (int i = 0; i < 100; i++) {
                 byte[] responseToSendToServer;
                 switch (saslResponse.type) {
-                    case MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE:
+                    case Pdu.TYPE_SASL_TOKEN_SERVER_RESPONSE:
                         byte[] token = PduCodec.SaslTokenServerResponse.readToken(saslResponse);
                         responseToSendToServer = saslNettyClient.evaluateChallenge(token);
                         requestId = _channel.generateRequestId();
@@ -123,7 +122,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                             return;
                         }
                         break;
-                    case MessageType.TYPE_ERROR:
+                    case Pdu.TYPE_ERROR:
                         throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + PduCodec.ErrorResponse.readError(saslResponse) + ")");
                     default:
                         throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
@@ -141,7 +140,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     public void requestReceived(Pdu message, Channel _channel) {
         try {
             switch (message.type) {
-                case MessageType.TYPE_TABLESPACE_DUMP_DATA: {
+                case Pdu.TYPE_TABLESPACE_DUMP_DATA: {
                     String dumpId = PduCodec.TablespaceDumpData.readDumpId(message);
                     TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
                     LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
@@ -405,7 +404,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             query = statementId > 0 ? "" : query;
             ByteBuf message = PduCodec.ExecuteStatements.write(requestId, tableSpace, query, tx, returnValues, statementId, batch);
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
-                if (reply.type == MessageType.TYPE_ERROR) {
+                if (reply.type == Pdu.TYPE_ERROR) {
                     handleGenericError(reply, statementId);
                     return null; // not possible
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
@@ -837,14 +836,14 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 result = _channel.sendMessageWithPduReply(requestId, message, 10000);
 
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
-                if (result.type == MessageType.TYPE_ERROR) {
+                if (result.type == Pdu.TYPE_ERROR) {
                     try {
                         throw new HDBException(result);
                     } finally {
                         result.close();
                     }
                 }
-                if (result.type != MessageType.TYPE_RESULTSET_CHUNK) {
+                if (result.type != Pdu.TYPE_RESULTSET_CHUNK) {
                     finished = true;
                     try {
                         throw new HDBException("protocol error: " + result);

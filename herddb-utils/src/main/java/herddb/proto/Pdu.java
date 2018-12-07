@@ -15,7 +15,6 @@
  */
 package herddb.proto;
 
-import com.google.flatbuffers.ByteBufFlatBufferBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.Recycler;

@@ -19,8 +19,8 @@
         <url>https://github.com/diennea/herddb.git</url>        
         <connection>scm:git:https://github.com/diennea/herddb.git</connection>
         <developerConnection>scm:git:https://github.com/diennea/herddb.git</developerConnection>
-      <tag>HEAD</tag>
-  </scm>
+        <tag>HEAD</tag>
+    </scm>
     <developers>
         <developer>
             <id>eolivelli</id>
@@ -82,8 +82,7 @@
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations> 
         <libs.spotbugsannotations>3.1.0</libs.spotbugsannotations>
         <libs.spotbugsmaven>3.1.3.1</libs.spotbugsmaven>
-        <fbs.version>1.9.0</fbs.version>          
-        <dep.flatc.version>1.9.0</dep.flatc.version>  
+        <fbs.version>1.9.0</fbs.version>                  
     </properties>
         
     <dependencies>
@@ -115,12 +114,7 @@
     </dependencies>
 
     <dependencyManagement>
-        <dependencies>  
-            <dependency>
-                <groupId>com.google.flatbuffers</groupId>
-                <artifactId>flatbuffers-java</artifactId>
-                <version>${fbs.version}</version>
-            </dependency>
+        <dependencies>            
             <dependency>
                 <groupId>commons-lang</groupId>
                 <artifactId>commons-lang</artifactId>
@@ -352,8 +346,7 @@
             <activation>
                 <activeByDefault>true</activeByDefault>                
             </activation> 
-            <modules>
-                <module>herddb-proto</module>
+            <modules>                
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -447,8 +440,7 @@
             <activation>
                 <activeByDefault>false</activeByDefault>                
             </activation>   
-            <modules>
-                <module>herddb-proto</module>
+            <modules>                
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -549,8 +541,7 @@
             <activation>
                 <activeByDefault>false</activeByDefault>                
             </activation> 
-            <modules>
-                <module>herddb-proto</module>
+            <modules>                
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -605,8 +596,7 @@
             <activation>
                 <activeByDefault>false</activeByDefault>                
             </activation> 
-            <modules>
-                <module>herddb-proto</module>
+            <modules>                
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
