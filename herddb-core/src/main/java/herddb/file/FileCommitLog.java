@@ -145,7 +145,6 @@ public class FileCommitLog extends CommitLog {
 
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
-
             if (enableO_DIRECT) {
                 Files.createFile(filename);
                 LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
@@ -161,7 +160,6 @@ public class FileCommitLog extends CommitLog {
                 this.out = new ExtendedDataOutputStream(oo);
             } else {
                 LOGGER.log(Level.FINE, "opening (no O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
-
                 this.channel = FileChannel.open(filename,
                         StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
