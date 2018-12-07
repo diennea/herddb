@@ -69,7 +69,7 @@ public class JAASKerberosTest {
         kdc = new MiniKdc(conf, kdcDir.getRoot());
         kdc.start();
 
-        String localhostName = "localhost.localdomain";
+        String localhostName = "localhost";
         String principalServerNoRealm = "herddb/" + localhostName;
         String principalServer = "herddb/" + localhostName + "@" + kdc.getRealm();
         String principalClientNoRealm = "herddbclient/" + localhostName;
@@ -145,7 +145,7 @@ public class JAASKerberosTest {
     @Test
     public void test() throws Exception {
         ServerConfiguration serverConfig = new ServerConfiguration(folder.newFolder().toPath());
-        serverConfig.set(ServerConfiguration.PROPERTY_HOST, "localhost.localdomain");
+        serverConfig.set(ServerConfiguration.PROPERTY_HOST, "localhost");
         try (Server server = new Server(serverConfig)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));

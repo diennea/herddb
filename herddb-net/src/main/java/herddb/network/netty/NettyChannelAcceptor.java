@@ -40,6 +40,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -247,6 +248,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
         });
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
+        if (address.isUnresolved()) {
+            throw new IOException("Bind address "+host+":"+port+" cannot be resolved");
+        }
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
             @Override
             public void initChannel(io.netty.channel.Channel ch) throws Exception {
@@ -272,21 +276,21 @@ public class NettyChannelAcceptor implements AutoCloseable {
             if (NetworkUtils.isEnableEpoolNative()) {
                 bossGroup = new EpollEventLoopGroup(workerThreads);
                 workerGroup = new EpollEventLoopGroup(workerThreads);
-                LOGGER.log(Level.INFO, "Using netty-native-epoll network type");
+                LOGGER.log(Level.FINE, "Using netty-native-epoll network type");
             } else {
                 bossGroup = new NioEventLoopGroup(workerThreads);
                 workerGroup = new NioEventLoopGroup(workerThreads);
-                LOGGER.log(Level.INFO, "Using nio network type");
+                LOGGER.log(Level.FINE, "Using nio network type");
             }
 
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
                     .channel(NetworkUtils.isEnableEpoolNative() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);
-
+                    .option(ChannelOption.SO_BACKLOG, 128);            
             ChannelFuture f = b.bind(address).sync();
             this.channel = f.channel();
+           
         }
 
         if (enableJVMNetwork) {

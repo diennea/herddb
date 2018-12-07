@@ -6,7 +6,6 @@ import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyConnector;
 import herddb.network.netty.NetworkUtils;
 import herddb.proto.Pdu;
-import herddb.proto.flatbuf.MessageType;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.DefaultEventLoopGroup;
@@ -94,7 +93,7 @@ public class NetworkChannelTest {
 
                         ByteBuf buffer = buildAckRequest(i);
                         try (Pdu result = client.sendMessageWithPduReply(i, Unpooled.wrappedBuffer(buffer), 10000)) {
-                            assertEquals(MessageType.TYPE_ACK, result.type);
+                            assertEquals(Pdu.TYPE_ACK, result.type);
                         }
                     }
                 } finally {

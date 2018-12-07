@@ -73,7 +73,6 @@ import herddb.proto.PduCodec;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
-import herddb.proto.flatbuf.MessageType;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;

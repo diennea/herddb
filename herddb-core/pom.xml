@@ -14,16 +14,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <buildNumber>${maven.build.timestamp}</buildNumber>
     </properties>
-    <dependencies>
-        <dependency>
-            <groupId>com.google.flatbuffers</groupId>
-            <artifactId>flatbuffers-java</artifactId>    
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-proto</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+    <dependencies>        
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-utils</artifactId>
