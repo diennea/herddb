@@ -57,6 +57,7 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.ODirectFileOutputStream;
+import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
 
@@ -143,14 +144,16 @@ public class FileCommitLog extends CommitLog {
 
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
-            LOGGER.log(Level.FINE, "starting new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
-            if (USE_ODIRECT) {
+            
+            if (USE_ODIRECT && OpenFileUtils.isO_DIRECT_Supported()) {
+                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
                 Files.createFile(filename);
                 ODirectFileOutputStream oo = new ODirectFileOutputStream(filename);
                 // TODO: fsync...needs padding
                 this.channel = oo.getFc();
                 this.out = new ExtendedDataOutputStream(oo);
             } else {
+                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
                 this.channel = FileChannel.open(filename,
                         StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 

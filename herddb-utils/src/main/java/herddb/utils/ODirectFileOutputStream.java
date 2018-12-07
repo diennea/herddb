@@ -19,13 +19,10 @@
  */
 package herddb.utils;
 
-import com.sun.nio.file.ExtendedOpenOption;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.FileStore;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -42,16 +39,12 @@ public class ODirectFileOutputStream extends OutputStream {
     int writtenBlocks;
 
     public ODirectFileOutputStream(Path p) throws IOException {
-        FileStore fs = Files.getFileStore(p);
-        this.alignment = (int) fs.getBlockSize();
-        this.block = ByteBuffer
-                .allocateDirect(alignment + alignment)
-                .alignedSlice(alignment);
+        this.alignment = (int) OpenFileUtils.getBlockSize(p);
+        this.block = OpenFileUtils.allocateAlignedBuffer(alignment + alignment, alignment);
         this.block.position(0);
         this.block.limit(alignment);
-        this.fc = FileChannel.open(p,
-                StandardOpenOption.WRITE,
-                ExtendedOpenOption.DIRECT);
+        this.fc = OpenFileUtils.openFileChannelWithO_DIRECT(p,
+                StandardOpenOption.WRITE);
     }
 
     public int getAlignment() {

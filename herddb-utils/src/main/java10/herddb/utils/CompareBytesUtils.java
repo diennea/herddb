@@ -31,7 +31,7 @@ public final class CompareBytesUtils {
     private static final Logger LOG = Logger.getLogger(CompareBytesUtils.class.getName());
 
     static {
-        LOG.info("Using Arrays#compare(byte[], byte[])");
+        LOG.info("Using Arrays#compare(byte[], byte[]), available from JDK10+");
     }
 
     private CompareBytesUtils() {
