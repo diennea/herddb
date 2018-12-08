@@ -53,7 +53,7 @@ public class OpenFileUtils {
     }
 
     public static boolean isO_DIRECT_Supported() {
-        return false;
+        return true;
     }
 
     public static ByteBuffer allocateAlignedBuffer(int capacity, int alignment) {
