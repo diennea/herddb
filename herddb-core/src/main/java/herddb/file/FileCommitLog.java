@@ -94,9 +94,6 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
-    private final static boolean USE_ODIRECT = SystemProperties.getBooleanSystemProperty(
-            "herddb.file.odirect", OpenFileUtils.isO_DIRECT_Supported());
-
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
