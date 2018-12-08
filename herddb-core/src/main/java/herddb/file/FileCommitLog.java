@@ -146,6 +146,7 @@ public class FileCommitLog extends CommitLog {
             // in case of IOException the stream is not opened, not need to close it
             
             if (USE_ODIRECT) {
+                Files.createFile(filename);
                 LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});                
                 // in O_DIRECT mode we have to call flush() and this will
                 // eventually write all data to disks, adding some padding of zeroes
