@@ -44,7 +44,7 @@ public class ODirectFileOutputStream extends OutputStream {
         this.block.position(0);
         this.block.limit(alignment);
         this.fc = OpenFileUtils.openFileChannelWithO_DIRECT(p,
-                StandardOpenOption.WRITE);
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
     }
 
     public int getAlignment() {

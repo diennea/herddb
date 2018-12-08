@@ -95,7 +95,7 @@ public class FileCommitLog extends CommitLog {
     private final Consumer<FileCommitLog> onClose;
 
     private final static boolean USE_ODIRECT = SystemProperties.getBooleanSystemProperty(
-            "herddb.file.odirect", true);
+            "herddb.file.odirect", OpenFileUtils.isO_DIRECT_Supported());
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
@@ -145,15 +145,20 @@ public class FileCommitLog extends CommitLog {
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             
-            if (USE_ODIRECT && OpenFileUtils.isO_DIRECT_Supported()) {
-                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
-                Files.createFile(filename);
+            if (USE_ODIRECT) {
+                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});                
+                // in O_DIRECT mode we have to call flush() and this will
+                // eventually write all data to disks, adding some padding of zeroes
+                // because in O_DIRECT mode you can only write fixed length blocks
+                // of data
+                // fsync is quite redudant, but having separated code paths
+                // will make code tricker to understand.
+                // so in O_DIRECT mode flush() ~ fsync()
                 ODirectFileOutputStream oo = new ODirectFileOutputStream(filename);
-                // TODO: fsync...needs padding
                 this.channel = oo.getFc();
                 this.out = new ExtendedDataOutputStream(oo);
             } else {
-                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
+                LOGGER.log(Level.FINE, "opening (no O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
                 this.channel = FileChannel.open(filename,
                         StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 

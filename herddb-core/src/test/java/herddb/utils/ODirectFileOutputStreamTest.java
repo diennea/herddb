@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import herddb.utils.ODirectFileOutputStream;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -30,7 +31,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- *
+ * Testing O_DIRECT. This file should be in core project, because it leverages Multi-Release JAR
+ * feature of JDK9
  * @author enrico.olivelli
  */
 public class ODirectFileOutputStreamTest {
