@@ -94,9 +94,7 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
-    private final static boolean USE_ODIRECT = SystemProperties.getBooleanSystemProperty(
-            "herddb.file.odirect", OpenFileUtils.isO_DIRECT_Supported());
-
+    
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
@@ -105,6 +103,7 @@ public class FileCommitLog extends CommitLog {
     private final int maxUnsyncedBatchBytes;
     private final int maxSyncTime;
     private final boolean requireSync;
+    private final boolean enableO_DIRECT;
 
     public static final String LOGFILEEXTENSION = ".txlog";
 
@@ -145,7 +144,7 @@ public class FileCommitLog extends CommitLog {
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             
-            if (USE_ODIRECT) {
+            if (enableO_DIRECT) {
                 Files.createFile(filename);
                 LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});                
                 // in O_DIRECT mode we have to call flush() and this will
@@ -337,12 +336,14 @@ public class FileCommitLog extends CommitLog {
             int maxUnsynchedBatchSize,
             int maxUnsynchedBatchBytes,
             int maxSyncTime,
-            boolean requireSync
+            boolean requireSync,
+            boolean enableO_DIRECT
     ) {
         this.maxUnsyncedBatchSize = maxUnsynchedBatchSize;
         this.maxUnsyncedBatchBytes = maxUnsynchedBatchBytes;
         this.maxSyncTime = maxSyncTime;
         this.requireSync = requireSync;
+        this.enableO_DIRECT = enableO_DIRECT && OpenFileUtils.isO_DIRECT_Supported();
         this.onClose = onClose;
         this.maxLogFileSize = maxLogFileSize;
         this.tableSpaceName = tableSpaceName;

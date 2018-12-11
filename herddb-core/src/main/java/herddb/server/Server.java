@@ -328,6 +328,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                         configuration.getInt(ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES, ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT),
                         configuration.getInt(ServerConfiguration.PROPERTY_MAX_SYNC_TIME, ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT),
                         configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT),
+                        configuration.getBoolean(ServerConfiguration.PROPERTY_TXLOG_USE_ODIRECT, ServerConfiguration.PROPERTY_TXLOG_USE_ODIRECT_DEFAULT),
                         configuration.getInt(ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD, ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT),
                         statsLogger.scope("txlog")
                 );

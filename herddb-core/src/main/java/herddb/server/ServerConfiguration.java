@@ -67,8 +67,10 @@ public final class ServerConfiguration {
     public final static int PROPERTY_MAX_SYNC_TIME_DEFAULT = 1;
 
     public final static String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
-    public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;
-    /* disabled */
+    public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;  /* disabled */
+    
+    public final static String PROPERTY_TXLOG_USE_ODIRECT = "txlog.use_o_direct";
+    public final static boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = false;
 
     public final static String PROPERTY_MAX_LOG_FILE_SIZE = "txlog.maxfilesize";
     public final static long PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT = 64L * 1024L * 1024L;

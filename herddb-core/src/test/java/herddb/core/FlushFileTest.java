@@ -88,6 +88,7 @@ public class FlushFileTest extends BaseTestcase {
                             }, ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
                             ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
                             ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT, false /* require fsync */
+                            , false /* O_DIRECT */
                     );
                 } catch (IOException err) {
                     throw new RuntimeException(err);

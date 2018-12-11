@@ -37,6 +37,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
 import herddb.server.ServerConfiguration;
+import herddb.utils.OpenFileUtils;
 import herddb.utils.SystemProperties;
 
 /**
@@ -63,6 +64,7 @@ public class FileCommitLogManager extends CommitLogManager {
     private final int maxUnsynchedBatchBytes;
     private final int maxSyncTime;
     private final boolean requireSync;
+    private final boolean enableO_DIRECT;
     private final StatsLogger statsLogger;
     private ScheduledExecutorService fsyncThreadPool;
     private final List<FileCommitLog> activeLogs = new CopyOnWriteArrayList<>();
@@ -73,6 +75,7 @@ public class FileCommitLogManager extends CommitLogManager {
                 ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
                 ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
                 ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                ServerConfiguration.PROPERTY_TXLOG_USE_ODIRECT_DEFAULT,
                 ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
                 NullStatsLogger.INSTANCE);
     }
@@ -81,6 +84,7 @@ public class FileCommitLogManager extends CommitLogManager {
             int maxUnsynchedBatchBytes,
             int maxSyncTime,
             boolean requireSync,
+            boolean enableO_DIRECT,
             int deferredSyncPeriod,
             StatsLogger statsLogger) {
         this.baseDirectory = baseDirectory;
@@ -91,6 +95,8 @@ public class FileCommitLogManager extends CommitLogManager {
         this.maxUnsynchedBatchBytes = maxUnsynchedBatchBytes;
         this.maxSyncTime = maxSyncTime;
         this.requireSync = requireSync;
+        this.enableO_DIRECT = enableO_DIRECT && OpenFileUtils.isO_DIRECT_Supported();
+        LOG.log(Level.INFO, "Txlog settings: fsync: " + requireSync + ", O_DIRECT: " + enableO_DIRECT + ", deferredSyncPeriod:" + deferredSyncPeriod);
     }
 
     @Override
@@ -107,7 +113,8 @@ public class FileCommitLogManager extends CommitLogManager {
                     maxUnsynchedBatchSize,
                     maxUnsynchedBatchBytes,
                     maxSyncTime,
-                    requireSync
+                    requireSync,
+                    enableO_DIRECT
             );
             activeLogs.add(res);
             return res;
