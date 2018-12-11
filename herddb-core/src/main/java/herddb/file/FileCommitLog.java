@@ -96,6 +96,7 @@ public class FileCommitLog extends CommitLog {
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
+
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
 
     private final int maxUnsyncedBatchSize;
