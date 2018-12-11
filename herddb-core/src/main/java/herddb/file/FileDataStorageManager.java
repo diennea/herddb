@@ -23,6 +23,7 @@ import java.io.BufferedInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -40,9 +41,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.OpStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 import herddb.core.HerdDBInternalException;
 import herddb.core.MemoryManager;
@@ -67,13 +73,12 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.ManagedFile;
+import herddb.utils.ODirectFileInputStream;
+import herddb.utils.ODirectFileOutputStream;
+import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.XXHash64Utils;
-import java.util.concurrent.TimeUnit;
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.OpStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Data Storage on local filesystem
@@ -87,6 +92,8 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path tmpDirectory;
     private final int swapThreshold;
     private final boolean requirefsync;
+    private final boolean pageodirect;
+    private final boolean indexodirect;
     private final StatsLogger logger;
     private final OpStatsLogger dataPageReads;
     private final OpStatsLogger dataPageWrites;
@@ -100,20 +107,27 @@ public class FileDataStorageManager extends DataStorageManager {
      */
     public static final int COPY_BUFFERS_SIZE = 64 * 1024;
 
+    /** Standard blocks batch number for o_direct procedures */
+    public static final int O_DIRECT_BLOCK_BATCH = 16;
+
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
-                ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT, 
+                ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
                 ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT,
+                ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT,
                 new NullStatsLogger());
     }
 
     public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold,
-            boolean requirefsync, StatsLogger logger) {
+            boolean requirefsync, boolean pageodirect, boolean indexodirect, StatsLogger logger) {
         this.baseDirectory = baseDirectory;
         this.tmpDirectory = tmpDirectory;
         this.swapThreshold = swapThreshold;
         this.logger = logger;
         this.requirefsync = requirefsync;
+        this.pageodirect = pageodirect && OpenFileUtils.isO_DIRECT_Supported();
+        this.indexodirect = indexodirect && OpenFileUtils.isO_DIRECT_Supported();
         StatsLogger scope = logger.scope("filedatastore");
         this.dataPageReads = scope.getOpStatsLogger("data_pagereads");
         this.dataPageWrites = scope.getOpStatsLogger("data_pagewrites");
@@ -223,7 +237,16 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         List<Record> result;
         try {
-            result = rawReadDataPage(pageFile);
+            if (pageodirect) {
+                try (ODirectFileInputStream odirect = new ODirectFileInputStream(pageFile, O_DIRECT_BLOCK_BATCH)) {
+                    result = rawReadDataPage(pageFile, odirect);
+                }
+            } else {
+                try (InputStream input = Files.newInputStream(pageFile);
+                        BufferedInputStream buffer = new BufferedInputStream(input, COPY_BUFFERS_SIZE);) {
+                    result = rawReadDataPage(pageFile, buffer);
+                }
+            }
         } catch (NoSuchFileException nsfe) {
             throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId, nsfe);
         } catch (IOException err) {
@@ -236,14 +259,11 @@ public class FileDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    public static List<Record> rawReadDataPage(Path pageFile) throws DataStorageManagerException,
-            NoSuchFileException, IOException {
+    private static List<Record> rawReadDataPage(Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
         List<Record> result;
         long hashFromFile;
         long hashFromDigest;
-        try (InputStream input = Files.newInputStream(pageFile);
-                BufferedInputStream buffer = new BufferedInputStream(input, 1024);
-                XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
+        try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
@@ -266,37 +286,81 @@ public class FileDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    @Override
-    public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader) throws DataStorageManagerException {
-        Path tableDir = getIndexDirectory(tableSpace, indexName);
-        Path pageFile = getPageFile(tableDir, pageId);
-        long _start = System.currentTimeMillis();
+    public static List<Record> rawReadDataPage(Path pageFile) throws DataStorageManagerException,
+            NoSuchFileException, IOException {
+        List<Record> result;
         long hashFromFile;
         long hashFromDigest;
-        X read;
-        try (InputStream input = Files.newInputStream(pageFile);
-                BufferedInputStream buffer = new BufferedInputStream(input, 1024);
-                XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
+        try (ODirectFileInputStream odirect = new ODirectFileInputStream(pageFile, O_DIRECT_BLOCK_BATCH);
+                XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(odirect);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
-            read = reader.read(dataIn);
+            int numRecords = dataIn.readInt();
+            result = new ArrayList<>(numRecords);
+            for (int i = 0; i < numRecords; i++) {
+                byte[] key = dataIn.readArray();
+                byte[] value = dataIn.readArray();
+                result.add(new Record(new Bytes(key), new Bytes(value)));
+            }
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
         }
         if (hashFromDigest != hashFromFile) {
             throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+        }
+        return result;
+    }
+
+    private static <X> X readIndexPage(DataReader<X> reader, Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
+        X result;
+        long hashFromFile;
+        long hashFromDigest;
+        try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+            long version = dataIn.readVLong(); // version
+            long flags = dataIn.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
+            }
+            result = reader.read(dataIn);
+            hashFromDigest = hash.hash();
+            hashFromFile = dataIn.readLong();
+        }
+        if (hashFromDigest != hashFromFile) {
+            throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+        }
+        return result;
+    }
+
+    @Override
+    public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        Path pageFile = getPageFile(tableDir, pageId);
+        long _start = System.currentTimeMillis();
+        X result;
+        try {
+            if (indexodirect) {
+                try (ODirectFileInputStream odirect = new ODirectFileInputStream(pageFile, O_DIRECT_BLOCK_BATCH)) {
+                    result = readIndexPage(reader, pageFile, odirect);
+                }
+            } else {
+                try (InputStream input = Files.newInputStream(pageFile);
+                        BufferedInputStream buffer = new BufferedInputStream(input, COPY_BUFFERS_SIZE)) {
+                    result = readIndexPage(reader, pageFile, buffer);
+                }
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
         }
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
         LOGGER.log(Level.FINE, "readIndexPage {0}.{1} {2} ms", new Object[]{tableSpace, indexName, delta + ""});
         indexPageReads.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
-        return read;
+        return result;
     }
 
     @Override
@@ -728,6 +792,43 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+
+    /**
+     * Write a record page
+     *
+     * @param newPage data to write
+     * @param file    managed file used for sync operations
+     * @param stream  output stream related to given managed file for write operations
+     * @return
+     * @throws IOException
+     */
+    private static long writePage(Collection<Record> newPage, ManagedFile file, OutputStream stream) throws IOException {
+
+        try (XXHash64Utils.HashingOutputStream hash = new XXHash64Utils.HashingOutputStream(stream);
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(hash)) {
+
+            dataOutput.writeVLong(1); // version
+            dataOutput.writeVLong(0); // flags for future implementations
+            dataOutput.writeInt(newPage.size());
+            for (Record record : newPage) {
+                dataOutput.writeArray(record.key.data);
+                dataOutput.writeArray(record.value.data);
+            }
+
+            long size = hash.size();
+
+            // footer
+            dataOutput.writeLong(hash.hash());
+            dataOutput.flush();
+
+            file.sync();
+
+            return size;
+
+        }
+
+    }
+
     @Override
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
@@ -741,25 +842,24 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
-                StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+        try {
+            if (pageodirect) {
+                try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                        ManagedFile file = ManagedFile.open(odirect.getFc(), requirefsync)) {
 
-            dataOutput.writeVLong(1); // version
-            dataOutput.writeVLong(0); // flags for future implementations
-            dataOutput.writeInt(newPage.size());
-            for (Record record : newPage) {
-                dataOutput.writeArray(record.key.data);
-                dataOutput.writeArray(record.value.data);
+                    size = writePage(newPage, file, odirect);
+                }
+
+            } else {
+                try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                        SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE)) {
+
+                    size = writePage(newPage, file, buffer);
+                }
+
             }
-
-            size = oo.size();
-            // footer
-            dataOutput.writeLong(oo.hash());
-            dataOutput.flush();
-            file.sync();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -771,6 +871,27 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms", new Object[]{(size / 1024) + "", newPage.size(), delta + ""});
         }
         dataPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
+    }
+
+    private static long writeIndexPage(DataWriter writer, ManagedFile file, OutputStream stream) throws IOException {
+        long size;
+        try (XXHash64Utils.HashingOutputStream hash = new XXHash64Utils.HashingOutputStream(stream);
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(hash)) {
+
+            dataOutput.writeVLong(1); // version
+            dataOutput.writeVLong(0); // flags for future implementations
+
+            size = hash.size();
+            writer.write(dataOutput);
+            size = hash.size() - size;
+
+            // footer
+            dataOutput.writeLong(hash.hash());
+            dataOutput.flush();
+            file.sync();
+
+            return size;
+        }
     }
 
     @Override
@@ -786,23 +907,24 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
-                StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+        try {
+            if (indexodirect) {
+                try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                        ManagedFile file = ManagedFile.open(odirect.getFc(), requirefsync)) {
 
-            dataOutput.writeVLong(1); // version
-            dataOutput.writeVLong(0); // flags for future implementations
+                    size = writeIndexPage(writer, file, odirect);
+                }
 
-            size = oo.size();
-            writer.write(dataOutput);
-            size = oo.size() - size;
+            } else {
+                try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                        SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE)) {
 
-            // footer
-            dataOutput.writeLong(oo.hash());
-            dataOutput.flush();
-            file.sync();
+                    size = writeIndexPage(writer, file, buffer);
+                }
+            }
+
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

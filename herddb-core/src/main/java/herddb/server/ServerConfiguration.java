@@ -19,7 +19,6 @@
  */
 package herddb.server;
 
-import herddb.utils.SystemProperties;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -27,6 +26,8 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import herddb.utils.SystemProperties;
 
 /**
  * Server configuration
@@ -68,7 +69,7 @@ public final class ServerConfiguration {
 
     public final static String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
     public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;  /* disabled */
-    
+
     public final static String PROPERTY_TXLOG_USE_ODIRECT = "txlog.use_o_direct";
     public final static boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = false;
 
@@ -78,6 +79,12 @@ public final class ServerConfiguration {
     public final static String PROPERTY_REQUIRE_FSYNC = "requirefsync";
     public final static boolean PROPERTY_REQUIRE_FSYNC_DEFAULT = SystemProperties.getBooleanSystemProperty(
             "herddb.file.requirefsync", true);
+
+    public final static String PROPERTY_PAGE_USE_ODIRECT = "page.use_o_direct";
+    public final static boolean PROPERTY_PAGE_USE_ODIRECT_DEFAULT = false;
+
+    public final static String PROPERTY_INDEX_USE_ODIRECT = "index.use_o_direct";
+    public final static boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = false;
 
     public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";

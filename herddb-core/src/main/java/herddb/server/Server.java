@@ -31,6 +31,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
+
 import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.EmbeddedBookie;
@@ -60,8 +63,6 @@ import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Version;
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * HerdDB Server
@@ -309,7 +310,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
                 boolean requirefsync = configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
-                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, statsLogger);
+                boolean pageodirect = configuration.getBoolean(ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT, ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT);
+                boolean indexodirect = configuration.getBoolean(ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT, ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT);
+                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, pageodirect, indexodirect, statsLogger);
             default:
                 throw new RuntimeException();
         }

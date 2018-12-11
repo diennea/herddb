@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -35,20 +36,41 @@ public class ODirectFileOutputStream extends OutputStream {
 
     final ByteBuffer block;
     final FileChannel fc;
+    final int batchBlocks;
     final int alignment;
+    final int batchSize;
     int writtenBlocks;
 
     public ODirectFileOutputStream(Path p) throws IOException {
+        this(p,1);
+    }
+
+    private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.WRITE };
+    public ODirectFileOutputStream(Path p, int btachBlocks, OpenOption... options) throws IOException {
+        this.batchBlocks = btachBlocks;
         this.alignment = (int) OpenFileUtils.getBlockSize(p);
-        this.block = OpenFileUtils.allocateAlignedBuffer(alignment + alignment, alignment);
+        this.batchSize = alignment * btachBlocks;
+        this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
         this.block.position(0);
-        this.block.limit(alignment);
-        this.fc = OpenFileUtils.openFileChannelWithO_DIRECT(p,
-                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        this.block.limit(batchSize);
+
+        if (options == null) {
+            options = DEFAULT_OPTIONS;
+        }
+
+        this.fc = OpenFileUtils.openFileChannelWithO_DIRECT(p, options);
     }
 
     public int getAlignment() {
         return alignment;
+    }
+
+    public int getWrittenBlocks() {
+        return writtenBlocks;
+    }
+
+    public int getBatchBlocks() {
+        return batchBlocks;
     }
 
     @Override
@@ -61,9 +83,9 @@ public class ODirectFileOutputStream extends OutputStream {
         if (block.remaining() == 0) {
             block.flip();
             fc.write(block);
-            writtenBlocks++;
+            writtenBlocks += batchBlocks;
             block.position(0);
-            block.limit(alignment);
+            block.limit(batchSize);
         }
     }
 
@@ -86,16 +108,16 @@ public class ODirectFileOutputStream extends OutputStream {
             return;
         }
         if (pad) {
-            int remaining = block.remaining();
+            int remaining = block.remaining() % alignment;
             for (int i = 0; i < remaining; i++) {
                 block.put((byte) 0);
             }
         }
         block.flip();
         fc.write(block);
-        writtenBlocks++;
+        writtenBlocks += (block.position()) / alignment;
         block.position(0);
-        block.limit(alignment);
+        block.limit(batchSize);
     }
 
     public FileChannel getFc() {
@@ -132,10 +154,6 @@ public class ODirectFileOutputStream extends OutputStream {
     @Override
     public void write(byte[] b) throws IOException {
         write(b, 0, b.length);
-    }
-
-    public int getWrittenBlocks() {
-        return writtenBlocks;
     }
 
 }
