@@ -56,6 +56,8 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.ODirectFileOutputStream;
+import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
 
@@ -92,6 +94,7 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
+    
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
@@ -100,6 +103,7 @@ public class FileCommitLog extends CommitLog {
     private final int maxUnsyncedBatchBytes;
     private final int maxSyncTime;
     private final boolean requireSync;
+    private final boolean enableO_DIRECT;
 
     public static final String LOGFILEEXTENSION = ".txlog";
 
@@ -107,6 +111,7 @@ public class FileCommitLog extends CommitLog {
     private volatile boolean failed = false;
     private volatile boolean needsSync = false;
 
+    final static byte ZERO_PADDING = 0;
     final static byte ENTRY_START = 13;
     final static byte ENTRY_END = 25;
 
@@ -138,18 +143,34 @@ public class FileCommitLog extends CommitLog {
 
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
-            LOGGER.log(Level.FINE, "starting new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
-            this.channel = FileChannel.open(filename,
-                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            
+            if (enableO_DIRECT) {
+                Files.createFile(filename);
+                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});                
+                // in O_DIRECT mode we have to call flush() and this will
+                // eventually write all data to disks, adding some padding of zeroes
+                // because in O_DIRECT mode you can only write fixed length blocks
+                // of data
+                // fsync is quite redudant, but having separated code paths
+                // will make code tricker to understand.
+                // so in O_DIRECT mode flush() ~ fsync()
+                ODirectFileOutputStream oo = new ODirectFileOutputStream(filename);
+                this.channel = oo.getFc();
+                this.out = new ExtendedDataOutputStream(oo);
+            } else {
+                LOGGER.log(Level.FINE, "opening (no O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
+                this.channel = FileChannel.open(filename,
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
-            this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
+                this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
+            }
             writtenBytes = 0;
         }
 
         private int writeEntry(long seqnumber, LogEntry entry) throws IOException {
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
-            int written = entry.serialize(out);            
+            int written = entry.serialize(out);
             this.out.writeByte(ENTRY_END);
             int entrySize = (1 + 8 + written + 1);
             writtenBytes += entrySize;
@@ -261,6 +282,14 @@ public class FileCommitLog extends CommitLog {
                 } catch (EOFException completeFileFinished) {
                     return null;
                 }
+                // skip zeros due to padding if using pre-allocation or O_DIRECT
+                while (entryStart == ZERO_PADDING) {
+                    try {
+                        entryStart = in.readByte();
+                    } catch (EOFException completeFileFinished) {
+                        return null;
+                    }
+                }
                 if (entryStart != ENTRY_START) {
                     throw new IOException("corrupted txlog file");
                 }
@@ -307,12 +336,14 @@ public class FileCommitLog extends CommitLog {
             int maxUnsynchedBatchSize,
             int maxUnsynchedBatchBytes,
             int maxSyncTime,
-            boolean requireSync
+            boolean requireSync,
+            boolean enableO_DIRECT
     ) {
         this.maxUnsyncedBatchSize = maxUnsynchedBatchSize;
         this.maxUnsyncedBatchBytes = maxUnsynchedBatchBytes;
         this.maxSyncTime = maxSyncTime;
         this.requireSync = requireSync;
+        this.enableO_DIRECT = enableO_DIRECT && OpenFileUtils.isO_DIRECT_Supported();
         this.onClose = onClose;
         this.maxLogFileSize = maxLogFileSize;
         this.tableSpaceName = tableSpaceName;
@@ -460,7 +491,6 @@ public class FileCommitLog extends CommitLog {
                     }
 
                 }
-
 
             } catch (LogNotAvailableException | IOException | InterruptedException t) {
                 failed = true;

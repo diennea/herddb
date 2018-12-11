@@ -234,6 +234,59 @@ public class FileCommitLogTest {
                 ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
                 ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
                 false,
+                false, /* O_DIRECT */
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                statsLogger);) {
+            manager.start();
+
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                for (int i = 0; i < 10_000; i++) {
+                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    writeCount++;
+                }
+                TestUtils.waitForCondition(() -> {
+                    int qsize = log.getQueueSize();
+                    return qsize == 0;
+                }, TestUtils.NOOP, 100);
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+
+            // this number really depends on disk format
+            // this test in the future will be updated when we change the format
+            assertEquals(145L, statsLogger.scope("aa").getCounter("newfiles").get().longValue());
+        }
+    }
+    
+    
+    @Test
+    public void testLogMultiFiles_O_DIRECT() throws Exception {
+        TestStatsProvider testStatsProvider = new TestStatsProvider();
+        TestStatsProvider.TestStatsLogger statsLogger = testStatsProvider.getStatsLogger("test");
+
+        try (FileCommitLogManager manager = new FileCommitLogManager(
+                folder.newFolder().toPath(),
+                1024 * 2, // 2K Bbyte files,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
+                false,
+                true, /* O_DIRECT */
                 ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
                 statsLogger);) {
             manager.start();
@@ -284,6 +337,7 @@ public class FileCommitLogTest {
                 ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
                 1, // 1ms
                 true /* require fsync */,
+                false, /* O_DIRECT */
                 ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
                 statsLogger);) {
             manager.start();
@@ -324,6 +378,7 @@ public class FileCommitLogTest {
                 Integer.MAX_VALUE, // no flush by size
                 Integer.MAX_VALUE, // no flush by time
                 true /* require fsync */,
+                false, /* O_DIRECT */
                 ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
                 statsLogger);) {
             manager.start();
@@ -381,6 +436,7 @@ public class FileCommitLogTest {
                 LogEntryFactory.beginTransaction(0).serialize().length * 2 - 1, // flush after 2 writes
                 Integer.MAX_VALUE, // no flush by time
                 true /* require fsync */,
+                false, /* O_DIRECT */
                 ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
                 statsLogger);) {
             manager.start();
@@ -437,6 +493,7 @@ public class FileCommitLogTest {
                 ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
                 1,
                 false /* require fsync */,
+                false, /* O_DIRECT */
                 1, // each second
                 statsLogger);) {
 

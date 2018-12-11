@@ -25,9 +25,9 @@
     </dependencies>
     <profiles>
         <profile>
-            <id>jdk9</id>
+            <id>jdk10</id>
             <activation>
-                <jdk>[9,)</jdk>
+                <jdk>[10,)</jdk>
             </activation>
             <build>
                 <pluginManagement>
@@ -37,16 +37,16 @@
                             <artifactId>maven-compiler-plugin</artifactId>
                             <executions>
                                 <execution>
-                                    <id>jdk9</id>
+                                    <id>jdk10</id>
                                     <goals>
                                         <goal>compile</goal>
                                     </goals>
                                     <configuration>
-                                        <release>9</release>
+                                        <release>10</release>
                                         <compileSourceRoots>
-                                            <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                            <compileSourceRoot>${project.basedir}/src/main/java10</compileSourceRoot>
                                         </compileSourceRoots>
-                                        <outputDirectory>${project.build.outputDirectory}/META-INF/versions/9</outputDirectory>
+                                        <outputDirectory>${project.build.outputDirectory}/META-INF/versions/10</outputDirectory>
                                         <compilerArgs>
                                             <arg>--patch-module</arg>
                                             <arg>example.mrjar=${project.build.outputDirectory}</arg>
