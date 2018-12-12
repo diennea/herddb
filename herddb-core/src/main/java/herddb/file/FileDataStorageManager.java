@@ -78,6 +78,7 @@ import herddb.utils.ODirectFileOutputStream;
 import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SystemProperties;
 import herddb.utils.XXHash64Utils;
 
 /**
@@ -102,13 +103,13 @@ public class FileDataStorageManager extends DataStorageManager {
 
     public static final String FILEEXTENSION_PAGE = ".page";
 
-    /**
-     * Standard buffer size for data copies
-     */
-    public static final int COPY_BUFFERS_SIZE = 64 * 1024;
+    /** Standard buffer size for data copies */
+    public static final int COPY_BUFFERS_SIZE =
+            SystemProperties.getIntSystemProperty("herddb.file.copybuffersize", 64 * 1024);
 
     /** Standard blocks batch number for o_direct procedures */
-    public static final int O_DIRECT_BLOCK_BATCH = 16;
+    public static final int O_DIRECT_BLOCK_BATCH =
+            SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
@@ -265,6 +266,10 @@ public class FileDataStorageManager extends DataStorageManager {
         long hashFromDigest;
         try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+            /*
+             * When writing with O_DIRECT this stream will be zero padded at the end. It isn't a problem: reader
+             * known how many record has to read (numRecords) hash is written to file before zero pad
+             */
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -321,6 +326,11 @@ public class FileDataStorageManager extends DataStorageManager {
         long hashFromDigest;
         try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+            /*
+             * When writing with O_DIRECT this stream will be zero padded at the end. It isn't a problem: reader
+             * must already handle his stop condition without reading file till the end because it contains an
+             * hash after data end that must not be read by the reader.
+             */
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {

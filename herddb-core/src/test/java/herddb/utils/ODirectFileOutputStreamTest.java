@@ -33,7 +33,7 @@ import org.junit.rules.TemporaryFolder;
 
 /**
  * Testing O_DIRECT. This file should be in core project, because it leverages Multi-Release JAR
- * feature of JDK9
+ * feature of JDK10
  * @author enrico.olivelli
  */
 public class ODirectFileOutputStreamTest {

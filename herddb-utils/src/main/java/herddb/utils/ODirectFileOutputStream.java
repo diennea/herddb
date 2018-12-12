@@ -46,10 +46,10 @@ public class ODirectFileOutputStream extends OutputStream {
     }
 
     private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.WRITE };
-    public ODirectFileOutputStream(Path p, int btachBlocks, OpenOption... options) throws IOException {
-        this.batchBlocks = btachBlocks;
+    public ODirectFileOutputStream(Path p, int batchBlocks, OpenOption... options) throws IOException {
+        this.batchBlocks = batchBlocks;
         this.alignment = (int) OpenFileUtils.getBlockSize(p);
-        this.batchSize = alignment * btachBlocks;
+        this.batchSize = alignment * batchBlocks;
         this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
         this.block.position(0);
         this.block.limit(batchSize);

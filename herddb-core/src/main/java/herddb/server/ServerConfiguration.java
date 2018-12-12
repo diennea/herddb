@@ -70,8 +70,11 @@ public final class ServerConfiguration {
     public final static String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
     public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;  /* disabled */
 
+    public final static boolean USE_O_DIRECT_DEFAULT = SystemProperties.getBooleanSystemProperty(
+            "herddb.file.use_o_direct_default", false);
+
     public final static String PROPERTY_TXLOG_USE_ODIRECT = "txlog.use_o_direct";
-    public final static boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = false;
+    public final static boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
     public final static String PROPERTY_MAX_LOG_FILE_SIZE = "txlog.maxfilesize";
     public final static long PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT = 64L * 1024L * 1024L;
@@ -81,10 +84,10 @@ public final class ServerConfiguration {
             "herddb.file.requirefsync", true);
 
     public final static String PROPERTY_PAGE_USE_ODIRECT = "page.use_o_direct";
-    public final static boolean PROPERTY_PAGE_USE_ODIRECT_DEFAULT = false;
+    public final static boolean PROPERTY_PAGE_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
     public final static String PROPERTY_INDEX_USE_ODIRECT = "index.use_o_direct";
-    public final static boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = false;
+    public final static boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
     public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
