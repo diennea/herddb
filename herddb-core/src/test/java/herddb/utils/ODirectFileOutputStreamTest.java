@@ -19,20 +19,21 @@
  */
 package herddb.utils;
 
-import herddb.utils.ODirectFileOutputStream;
-import java.io.File;
-import java.nio.file.Files;
-import java.util.Arrays;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.Arrays;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
  * Testing O_DIRECT. This file should be in core project, because it leverages Multi-Release JAR
- * feature of JDK9
+ * feature of JDK10
  * @author enrico.olivelli
  */
 public class ODirectFileOutputStreamTest {
@@ -95,7 +96,7 @@ public class ODirectFileOutputStreamTest {
         try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath())) {
             _oo = oo;
             blocksize = oo.getAlignment();
-            while (oo.getWrittenBlocks() < 1) {
+            while (oo.getWrittenBlocks() < oo.getBatchBlocks()) {
                 oo.write(test);
                 countWritten++;
             }
@@ -117,7 +118,7 @@ public class ODirectFileOutputStreamTest {
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
         int countWritten = 0;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath())) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             while (oo.getWrittenBlocks() < 2) {
@@ -136,18 +137,18 @@ public class ODirectFileOutputStreamTest {
     }
 
     @Test
-    public void testThreeBlocksExact() throws Exception {
+    public void testTwoBlocksExact() throws Exception {
         byte[] test = "four".getBytes("ASCII");
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
         int countWritten = 0;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath())) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             assertTrue(blocksize % test.length == 0);
 
-            while (oo.getWrittenBlocks() < 3) {
+            while (oo.getWrittenBlocks() < oo.getBatchBlocks()) {
                 oo.write(test);
                 countWritten++;
             }
@@ -157,8 +158,8 @@ public class ODirectFileOutputStreamTest {
             int offset = i * test.length;
             assertArrayEquals(test, Arrays.copyOfRange(read, offset, offset + test.length));
         }
-        assertEquals(3, _oo.getWrittenBlocks());
-        assertEquals(blocksize * 3, read.length);
+        assertEquals(2, _oo.getWrittenBlocks());
+        assertEquals(blocksize * 2, read.length);
 
     }
 
@@ -168,7 +169,7 @@ public class ODirectFileOutputStreamTest {
         File file = tmp.newFile();
         byte[] test;
         ODirectFileOutputStream _oo;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath())) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             test = new byte[blocksize];

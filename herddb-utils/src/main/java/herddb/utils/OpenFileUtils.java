@@ -38,6 +38,7 @@ public class OpenFileUtils {
     static {
         LOG.info("This JVM is not able to use O_DIRECT (only from Java 10+)");
     }
+
     public static FileChannel openFileChannelWithO_DIRECT(Path path, OpenOption... options) throws IOException {
         return FileChannel.open(path, options);
     }
