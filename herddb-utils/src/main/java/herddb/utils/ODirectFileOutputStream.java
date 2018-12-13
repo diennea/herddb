@@ -34,6 +34,8 @@ import java.nio.file.StandardOpenOption;
  */
 public class ODirectFileOutputStream extends OutputStream {
 
+    private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.WRITE };
+
     final ByteBuffer block;
     final FileChannel fc;
     final int batchBlocks;
@@ -45,7 +47,6 @@ public class ODirectFileOutputStream extends OutputStream {
         this(p,1);
     }
 
-    private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.WRITE };
     public ODirectFileOutputStream(Path p, int batchBlocks, OpenOption... options) throws IOException {
         this.batchBlocks = batchBlocks;
         this.alignment = (int) OpenFileUtils.getBlockSize(p);
@@ -54,7 +55,7 @@ public class ODirectFileOutputStream extends OutputStream {
         this.block.position(0);
         this.block.limit(batchSize);
 
-        if (options == null) {
+        if (options == null || options.length == 0) {
             options = DEFAULT_OPTIONS;
         }
 
