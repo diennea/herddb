@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.Buffer;
@@ -38,6 +39,7 @@ public class ODirectFileOutputStream extends OutputStream {
 
     private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.WRITE};
 
+    final ByteBuffer originalBuffer;
     final ByteBuffer block;
     final FileChannel fc;
     final int batchBlocks;
@@ -69,7 +71,8 @@ public class ODirectFileOutputStream extends OutputStream {
         this.batchBlocks = batchBlocks;
         this.batchSize = alignment * batchBlocks;
 
-        this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
+        this.originalBuffer = ByteBuffer.allocateDirect(batchSize + batchSize);
+        this.block = OpenFileUtils.alignedSlice(originalBuffer, alignment);
         ((Buffer) block).position(0);
         ((Buffer) block).limit(batchSize);
     }
@@ -107,7 +110,7 @@ public class ODirectFileOutputStream extends OutputStream {
         // this will add padding
         flush(true);
         fc.close();
-        OpenFileUtils.releaseAlignedBuffer(block);
+        PlatformDependent.freeDirectBuffer(originalBuffer);
     }
 
     @Override

@@ -53,11 +53,12 @@ public class OpenFileUtils {
         return false;
     }
 
-    public static ByteBuffer allocateAlignedBuffer(int capacity, int alignment) {
-        return PlatformDependent.allocateDirectNoCleaner(capacity);
+    public static ByteBuffer alignedSlice(ByteBuffer buffer, int alignment) {
+        // on JDK8 you cannot require an aligned slice, but you cannot use O_DIRECT as well
+        return buffer;
     }
 
     public static void releaseAlignedBuffer(ByteBuffer buffer) {
-        PlatformDependent.freeDirectNoCleaner(buffer);
+        PlatformDependent.freeDirectBuffer(buffer);
     }
 }

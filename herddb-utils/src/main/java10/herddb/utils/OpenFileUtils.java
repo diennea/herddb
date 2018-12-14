@@ -57,12 +57,11 @@ public class OpenFileUtils {
         return true;
     }
 
-    public static ByteBuffer allocateAlignedBuffer(int capacity, int alignment) {
-        return PlatformDependent.allocateDirectNoCleaner(capacity)
-                .alignedSlice(alignment);
+    public static ByteBuffer alignedSlice(ByteBuffer buffer, int alignment) {
+        return buffer.alignedSlice(alignment);
     }
 
     public static void releaseAlignedBuffer(ByteBuffer buffer) {
-        PlatformDependent.freeDirectNoCleaner(buffer);
+        PlatformDependent.freeDirectBuffer(buffer);
     }
 }
