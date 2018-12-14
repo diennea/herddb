@@ -20,6 +20,7 @@
 package herddb.utils;
 
 import com.sun.nio.file.ExtendedOpenOption;
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -57,8 +58,11 @@ public class OpenFileUtils {
     }
 
     public static ByteBuffer allocateAlignedBuffer(int capacity, int alignment) {
-        return ByteBuffer
-                .allocateDirect(capacity)
+        return PlatformDependent.allocateDirectNoCleaner(capacity)
                 .alignedSlice(alignment);
+    }
+
+    public static void releaseAlignedBuffer(ByteBuffer buffer) {
+        PlatformDependent.freeDirectNoCleaner(buffer);
     }
 }
