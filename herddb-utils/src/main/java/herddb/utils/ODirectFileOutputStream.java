@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -48,18 +49,29 @@ public class ODirectFileOutputStream extends OutputStream {
     }
 
     public ODirectFileOutputStream(Path p, int batchBlocks, OpenOption... options) throws IOException {
-        this.batchBlocks = batchBlocks;
-        this.alignment = (int) OpenFileUtils.getBlockSize(p);
-        this.batchSize = alignment * batchBlocks;
-        this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
-        this.block.position(0);
-        this.block.limit(batchSize);
 
         if (options == null || options.length == 0) {
             options = DEFAULT_OPTIONS;
         }
 
         this.fc = OpenFileUtils.openFileChannelWithO_DIRECT(p, options);
+
+        /* Read alignment after file creation deleting file if in error */
+        try {
+            this.alignment = (int) OpenFileUtils.getBlockSize(p);
+        } catch (IOException e) {
+            fc.close();
+            Files.delete(p);
+
+            throw e;
+        }
+
+        this.batchBlocks = batchBlocks;
+        this.batchSize = alignment * batchBlocks;
+
+        this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
+        this.block.position(0);
+        this.block.limit(batchSize);
     }
 
     public int getAlignment() {
