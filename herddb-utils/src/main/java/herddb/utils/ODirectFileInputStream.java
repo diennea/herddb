@@ -50,12 +50,13 @@ public class ODirectFileInputStream extends InputStream {
     }
 
     public ODirectFileInputStream(Path path, int batchBlocks) throws IOException {
-        this.batchBlocks = batchBlocks;
 
+        fc = OpenFileUtils.openFileChannelWithO_DIRECT(path, StandardOpenOption.READ);
+
+        this.batchBlocks = batchBlocks;
         alignment = (int) OpenFileUtils.getBlockSize(path);
         fetchSize = alignment * batchBlocks;
         block =  OpenFileUtils.allocateAlignedBuffer(fetchSize + fetchSize, fetchSize);
-        fc = OpenFileUtils.openFileChannelWithO_DIRECT(path, StandardOpenOption.READ);
 
         eof = false;
 
