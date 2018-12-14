@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.Buffer;
@@ -34,6 +35,7 @@ import java.nio.file.StandardOpenOption;
  */
 public class ODirectFileInputStream extends InputStream {
 
+    private final ByteBuffer originalBuffer;
     private final ByteBuffer block;
     private final FileChannel fc;
     private final int alignment;
@@ -46,7 +48,7 @@ public class ODirectFileInputStream extends InputStream {
     private boolean eof;
 
     public ODirectFileInputStream(Path path) throws IOException {
-        this(path,1);
+        this(path, 1);
     }
 
     public ODirectFileInputStream(Path path, int batchBlocks) throws IOException {
@@ -54,15 +56,21 @@ public class ODirectFileInputStream extends InputStream {
         fc = OpenFileUtils.openFileChannelWithO_DIRECT(path, StandardOpenOption.READ);
 
         this.batchBlocks = batchBlocks;
-        alignment = (int) OpenFileUtils.getBlockSize(path);
+        try {
+            alignment = (int) OpenFileUtils.getBlockSize(path);
+        } catch (IOException err) {
+            fc.close();
+            throw err;
+        }
         fetchSize = alignment * batchBlocks;
-        block =  OpenFileUtils.allocateAlignedBuffer(fetchSize + fetchSize, fetchSize);
+        originalBuffer = ByteBuffer.allocateDirect(fetchSize + fetchSize);
+        block = OpenFileUtils.alignedSlice(originalBuffer, alignment);
 
         eof = false;
 
-        ((Buffer)block).position(0);
-        ((Buffer)block).limit(alignment);
-        ((Buffer)block).flip();
+        ((Buffer) block).position(0);
+        ((Buffer) block).limit(alignment);
+        ((Buffer) block).flip();
     }
 
     public int getAlignment() {
@@ -97,13 +105,12 @@ public class ODirectFileInputStream extends InputStream {
 
     private void fill() throws IOException {
 
-
-        ((Buffer)block).position(0);
-        ((Buffer)block).limit(fetchSize);
+        ((Buffer) block).position(0);
+        ((Buffer) block).limit(fetchSize);
 
         int read = fc.read(block);
 
-        ((Buffer)block).flip();
+        ((Buffer) block).flip();
 
         if (read > EOF) {
             readBlocks += batchBlocks;
@@ -121,8 +128,8 @@ public class ODirectFileInputStream extends InputStream {
 
         ByteBuffer block = ByteBuffer.wrap(b, off, directLen);
 
-        ((Buffer)block).position(0);
-        ((Buffer)block).limit(directLen);
+        ((Buffer) block).position(0);
+        ((Buffer) block).limit(directLen);
 
         int read = fc.read(block);
 
@@ -148,7 +155,7 @@ public class ODirectFileInputStream extends InputStream {
         }
 
         int read = 0;
-        while(read < len) {
+        while (read < len) {
 
             if (eof && !block.hasRemaining()) {
 
@@ -193,6 +200,7 @@ public class ODirectFileInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         fc.close();
+        PlatformDependent.freeDirectBuffer(originalBuffer);
     }
 
 }

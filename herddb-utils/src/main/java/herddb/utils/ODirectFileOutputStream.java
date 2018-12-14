@@ -19,8 +19,10 @@
  */
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -35,8 +37,9 @@ import java.nio.file.StandardOpenOption;
  */
 public class ODirectFileOutputStream extends OutputStream {
 
-    private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.WRITE };
+    private static final OpenOption[] DEFAULT_OPTIONS = new OpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.WRITE};
 
+    final ByteBuffer originalBuffer;
     final ByteBuffer block;
     final FileChannel fc;
     final int batchBlocks;
@@ -45,7 +48,7 @@ public class ODirectFileOutputStream extends OutputStream {
     int writtenBlocks;
 
     public ODirectFileOutputStream(Path p) throws IOException {
-        this(p,1);
+        this(p, 1);
     }
 
     public ODirectFileOutputStream(Path p, int batchBlocks, OpenOption... options) throws IOException {
@@ -62,16 +65,16 @@ public class ODirectFileOutputStream extends OutputStream {
         } catch (IOException e) {
             fc.close();
             Files.delete(p);
-
             throw e;
         }
 
         this.batchBlocks = batchBlocks;
         this.batchSize = alignment * batchBlocks;
 
-        this.block = OpenFileUtils.allocateAlignedBuffer(batchSize + batchSize, batchSize);
-        this.block.position(0);
-        this.block.limit(batchSize);
+        this.originalBuffer = ByteBuffer.allocateDirect(batchSize + batchSize);
+        this.block = OpenFileUtils.alignedSlice(originalBuffer, alignment);
+        ((Buffer) block).position(0);
+        ((Buffer) block).limit(batchSize);
     }
 
     public int getAlignment() {
@@ -94,11 +97,11 @@ public class ODirectFileOutputStream extends OutputStream {
 
     private void flushIfNeeded() throws IOException {
         if (block.remaining() == 0) {
-            block.flip();
+            ((Buffer) block).flip();
             fc.write(block);
             writtenBlocks += batchBlocks;
-            block.position(0);
-            block.limit(batchSize);
+            ((Buffer) block).position(0);
+            ((Buffer) block).limit(batchSize);
         }
     }
 
@@ -107,6 +110,7 @@ public class ODirectFileOutputStream extends OutputStream {
         // this will add padding
         flush(true);
         fc.close();
+        PlatformDependent.freeDirectBuffer(originalBuffer);
     }
 
     @Override
@@ -116,7 +120,7 @@ public class ODirectFileOutputStream extends OutputStream {
     }
 
     private void flush(boolean pad) throws IOException {
-        if (block.position() == 0) {
+        if (((Buffer) block).position() == 0) {
             // nothing to flush
             return;
         }
@@ -126,11 +130,11 @@ public class ODirectFileOutputStream extends OutputStream {
                 block.put((byte) 0);
             }
         }
-        block.flip();
+        ((Buffer) block).flip();
         fc.write(block);
-        writtenBlocks += (block.position()) / alignment;
-        block.position(0);
-        block.limit(batchSize);
+        writtenBlocks += (((Buffer) block).position()) / alignment;
+        ((Buffer) block).position(0);
+        ((Buffer) block).limit(batchSize);
     }
 
     public FileChannel getFc() {
