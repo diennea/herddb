@@ -19,7 +19,6 @@
  */
 package herddb.utils;
 
-import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.Buffer;
@@ -27,6 +26,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import io.netty.util.internal.PlatformDependent;
 
 /**
  * {@code O_DIRECT} InputStream implementation.
@@ -122,29 +123,6 @@ public class ODirectFileInputStream extends InputStream {
 
     }
 
-    private int directFill(byte[] b, int off, int len) throws IOException {
-
-        int directLen = (len / alignment) * alignment;
-
-        ByteBuffer block = ByteBuffer.wrap(b, off, directLen);
-
-        ((Buffer) block).position(0);
-        ((Buffer) block).limit(directLen);
-
-        int read = fc.read(block);
-
-        if (read > EOF) {
-            readBlocks += directLen / alignment;
-        }
-
-        if (read < directLen) {
-            eof = true;
-        }
-
-        return read;
-
-    }
-
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
 
@@ -170,14 +148,7 @@ public class ODirectFileInputStream extends InputStream {
             int remaining = block.remaining();
 
             if (remaining < 1) {
-
-                if (len - read > 2 * fetchSize) {
-                    read += directFill(b, off + read, len - read);
-                    continue;
-                }
-
                 fill();
-
                 remaining = block.remaining();
             }
 
