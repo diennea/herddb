@@ -701,8 +701,7 @@ public class HerdDBCLI {
         boolean allowDDL = filter.equals("all") || filter.equals("ddl");
         boolean allowDML = filter.equals("all") || filter.equals("dml");
         SqlFileStatus fileStatus = new SqlFileStatus(verbose, async, ignoreerrors,
-                frommysqldump, rewritestatements, pretty, tableSpaceMapper, datasource,
-                autotransactionbatchsize <= 0);
+                frommysqldump, rewritestatements, pretty, tableSpaceMapper, datasource);
         try (FileInputStream rawStream = new FileInputStream(file);
                 BufferedInputStream buffer = new BufferedInputStream(rawStream);
                 CounterInputStream counter = new CounterInputStream(buffer);
@@ -958,7 +957,6 @@ public class HerdDBCLI {
         private HerdDBDataSource datasource;
         private int pendingOperations;
         private int executedOperations;
-        private boolean autocommit;
         final boolean verbose;
         final boolean async;
         final boolean ignoreerrors;
@@ -969,10 +967,9 @@ public class HerdDBCLI {
 
         public SqlFileStatus(boolean verbose, boolean async, boolean ignoreerrors,
                 boolean frommysqldump, boolean rewritestatements, boolean prettyPrint,
-                TableSpaceMapper tableSpaceMapper, HerdDBDataSource datasource, boolean autocommit) {
+                TableSpaceMapper tableSpaceMapper, HerdDBDataSource datasource) {
             this.verbose = verbose;
             this.async = async;
-            this.autocommit = autocommit;
             this.ignoreerrors = ignoreerrors;
             this.frommysqldump = frommysqldump;
             this.rewritestatements = rewritestatements;
@@ -1060,6 +1057,8 @@ public class HerdDBCLI {
 
         }
 
+        @SuppressFBWarnings(value = "ODR_OPEN_DATABASE_RESOURCE",
+                justification = "Connection will be closed in async mode while closing PreparedStatement")
         private PreparedStatement prepareStatement(Connection connection, String query) throws SQLException {
             PreparedStatement ps = currentStatements.get(query);
             if (ps != null) {
