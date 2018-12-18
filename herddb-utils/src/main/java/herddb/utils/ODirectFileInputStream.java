@@ -94,13 +94,16 @@ public class ODirectFileInputStream extends InputStream {
     public int read() throws IOException {
 
         if (block.remaining() == 0) {
-            fill();
             if (eof) {
+                return EOF;
+            }
+            fill();
+            if (eof && !block.hasRemaining()) {
                 return EOF;
             }
         }
 
-        return block.get();
+        return block.get() & 0xff;
 
     }
 
