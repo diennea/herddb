@@ -50,6 +50,32 @@ public class ODirectFileInputStreamTest {
     }
 
     @Test
+    public void readBytePerByte() throws Exception {
+        Random random = new Random();
+
+        Path path = tmp.newFile().toPath();
+        int blockSize = (int) OpenFileUtils.getBlockSize(path);
+
+        int writeSize = blockSize + blockSize/2;
+        assertTrue(writeSize > blockSize);
+
+        byte[] data = new byte[writeSize];
+        random.nextBytes(data);
+        Files.write(path, data);
+
+        try (ODirectFileInputStream oo = new ODirectFileInputStream(path)) {
+
+            int count = 0;
+            while(oo.read() != -1) {
+                ++count;
+            }
+
+            assertEquals(writeSize, count);
+            assertEquals(2, oo.getReadBlocks());
+        }
+    }
+
+    @Test
     public void readPartialBlock() throws Exception {
         Random random = new Random();
 

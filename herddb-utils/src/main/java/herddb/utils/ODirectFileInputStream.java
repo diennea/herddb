@@ -95,12 +95,12 @@ public class ODirectFileInputStream extends InputStream {
 
         if (block.remaining() == 0) {
             fill();
-            if (eof) {
+            if (eof && !block.hasRemaining()) {
                 return EOF;
             }
         }
 
-        return block.get();
+        return block.get() & 0xff;
 
     }
 
