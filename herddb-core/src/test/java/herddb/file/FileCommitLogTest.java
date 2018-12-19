@@ -40,6 +40,7 @@ import static herddb.utils.TestUtils.NOOP;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.test.TestStatsProvider;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -86,7 +87,15 @@ public class FileCommitLogTest {
 
     @Test
     public void testDiskFullLogMissingFooter() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath())) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
+                ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                false, // do not use O_DIRECT, we are creating a broken file, O_DIRECT will add padding at unpredictable points
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                NullStatsLogger.INSTANCE)) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
@@ -140,7 +149,15 @@ public class FileCommitLogTest {
 
     @Test
     public void testDiskFullLogBrokenEntry() throws Exception {
-        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath())) {
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(),
+                ServerConfiguration.PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT,
+                ServerConfiguration.PROPERTY_MAX_SYNC_TIME_DEFAULT,
+                ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                false, // do not use O_DIRECT, we are creating a broken file, O_DIRECT will add padding at unpredictable points
+                ServerConfiguration.PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT,
+                NullStatsLogger.INSTANCE)) {
             manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();

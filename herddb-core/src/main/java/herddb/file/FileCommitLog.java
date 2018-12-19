@@ -296,7 +296,7 @@ public class FileCommitLog extends CommitLog {
                 LogEntry edit = LogEntry.deserialize(this.in);
                 int entryEnd = this.in.readByte();
                 if (entryEnd != ENTRY_END) {
-                    throw new IOException("corrupted txlog file");
+                    throw new IOException("corrupted txlog file, found a "+entryEnd+" instead of magic '"+ENTRY_END+"'");
                 }
                 return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
             } catch (EOFException truncatedLog) {
