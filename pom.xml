@@ -562,6 +562,9 @@
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${libs.spotbugsmaven}</version>
+	          	<configuration>
+                        <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
+                        </configuration>
                     </plugin>                        
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
@@ -634,6 +637,9 @@
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${libs.spotbugsmaven}</version>
+			 <configuration>
+                        <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
+                        </configuration>
                     </plugin>                        
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
