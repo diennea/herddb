@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * Combined strucutre linked list / hash map.
  * <p>
- * If necessary elements can be removed in <tt>O1</tt> with {@link #remove(Object)}
+ * If necessary elements can be removed in O1 with {@link #remove(Object)}
  * </p>
  *
  * @author diego.salvi

@@ -59,8 +59,8 @@ public class SQLUtils {
      * <li>tabs</li>
      * <li>carriage returns</li>
      * <li>new lines</li>
-     * <li>multi line comments: <tt>&#47;&#42; comment &#42;&#47;</tt></li>
-     * <li>single line comments: <tt>-- comment</tt></li>
+     * <li>multi line comments: &#47;&#42; comment &#42;&#47;</li>
+     * <li>single line comments: -- comment</li>
      * </ul>
      * 
      * @param query
