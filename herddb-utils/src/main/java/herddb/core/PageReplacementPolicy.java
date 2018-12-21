@@ -73,14 +73,14 @@ public interface PageReplacementPolicy {
     /**
      * Returns the current number of {@link Page Pages} memorized.
      *
-     * @return current number of <tt>Pages</tt>
+     * @return current number of Pages
      */
     public int size();
 
     /**
      * Returns the maximum number of {@link Page Pages} memorizable.
      *
-     * @return maximum number of <tt>Pages</tt>
+     * @return maximum number of Pages
      */
     public int capacity();
 
