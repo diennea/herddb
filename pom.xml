@@ -379,7 +379,7 @@
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${libs.spotbugsmaven}</version>
                         <configuration>
-                        <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>	
+                            <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>	
                         </configuration>
                     </plugin>                   
                     <plugin>
@@ -556,14 +556,38 @@
                 <module>herddb-site-skin</module>
                 <module>herddb-backward-compatibility</module>
             </modules>           
-            <build>        
-                <plugins>                                           
+            <build>     
+                <plugins>   
+                    <plugin>
+                        <groupId>org.eluder.coveralls</groupId>
+                        <artifactId>coveralls-maven-plugin</artifactId>
+                        <version>4.3.0</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>javax.xml.bind</groupId>
+                                <artifactId>jaxb-api</artifactId>
+                                <version>2.3.1</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.2</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>                                           
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${libs.spotbugsmaven}</version>
-	          	<configuration>
-                        <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
+                        <configuration>
+                            <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
                         </configuration>
                     </plugin>                        
                     <plugin>
@@ -616,7 +640,7 @@
             </modules>           
             <build>        
                 <plugins>                        
-                   <plugin>
+                    <plugin>
                         <groupId>org.eluder.coveralls</groupId>
                         <artifactId>coveralls-maven-plugin</artifactId>
                         <version>4.3.0</version>
@@ -644,8 +668,8 @@
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${libs.spotbugsmaven}</version>
-			 <configuration>
-                        <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
+                        <configuration>
+                            <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
                         </configuration>
                     </plugin>                        
                     <plugin>
