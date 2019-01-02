@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/diennea/herddb.svg?branch=master)](https://travis-ci.org/diennea/herddb) [![Coverage Status](https://coveralls.io/repos/github/diennea/herddb/badge.svg?branch=master)](https://coveralls.io/github/diennea/herddb?branch=master)
+
+
 # What is HerdDB ?
 
 HerdDB is a **distributed Database**, data is distributed among a cluster of server **without the need of a shared storage**.
