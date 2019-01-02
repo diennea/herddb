@@ -581,6 +581,15 @@
                                 </goals>
                             </execution>
                         </executions>
+                        <configuration>
+                            <configuration>
+                                <excludes>
+                                    <!-- JaCoCo does not work with multi-release jars -->
+                                    <!-- https://stackoverflow.com/questions/50163426/jacoco-cannot-exclude-classes/50294239#50294239 -->
+                                    <exclude>META-INF/**</exclude>
+                                </excludes>
+                            </configuration>
+                        </configuration>
                     </plugin>                                           
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
@@ -621,88 +630,6 @@
                 </plugins>        
             </build>
         </profile>
-        <profile>
-            <id>code-coverage</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>                
-            </activation> 
-            <modules>                
-                <module>herddb-utils</module>
-                <module>herddb-net</module>
-                <module>herddb-core</module>
-                <module>herddb-jdbc</module>
-                <module>herddb-services</module>
-                <module>herddb-cli</module>
-                <module>herddb-ui</module>
-                <module>herddb-website</module>
-                <module>herddb-site-skin</module>
-                <!-- <module>herddb-bench</module> -->
-            </modules>           
-            <build>        
-                <plugins>                        
-                    <plugin>
-                        <groupId>org.eluder.coveralls</groupId>
-                        <artifactId>coveralls-maven-plugin</artifactId>
-                        <version>4.3.0</version>
-                        <dependencies>
-                            <dependency>
-                                <groupId>javax.xml.bind</groupId>
-                                <artifactId>jaxb-api</artifactId>
-                                <version>2.3.1</version>
-                            </dependency>
-                        </dependencies>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.8.2</version>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>                
-                    <plugin>
-                        <groupId>com.github.spotbugs</groupId>
-                        <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>${libs.spotbugsmaven}</version>
-                        <configuration>
-                            <excludeFilterFile>excludeFindBugsFilter.xml</excludeFilterFile>
-                        </configuration>
-                    </plugin>                        
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.21.0</version>
-                        <configuration>                                        
-                            <forkCount>1</forkCount>
-                            <reuseForks>false</reuseForks>                            
-                            <argLine>-Xmx2G -XX:+UseG1GC @{argLine}</argLine>
-                            <trimStackTrace>false</trimStackTrace>
-                            <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
-                        </configuration>
-                    </plugin>            
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <version>3.6.0</version>
-                        <configuration>
-                            <encoding>${project.build.sourceEncoding}</encoding>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-resources-plugin</artifactId>
-                        <version>2.7</version>
-                        <configuration>
-                            <encoding>${project.build.sourceEncoding}</encoding>
-                        </configuration>
-                    </plugin>
-                </plugins>        
-            </build>
-        </profile>     
         <profile>
             <id>website</id>            
             <modules>
