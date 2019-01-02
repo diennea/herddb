@@ -581,14 +581,13 @@
                                 </goals>
                             </execution>
                         </executions>
-                        <configuration>
-                            <configuration>
-                                <excludes>
-                                    <!-- JaCoCo does not work with multi-release jars -->
-                                    <!-- https://stackoverflow.com/questions/50163426/jacoco-cannot-exclude-classes/50294239#50294239 -->
-                                    <exclude>META-INF/**</exclude>
-                                </excludes>
-                            </configuration>
+                        <configuration>                                
+                            <excludes>
+                                <!-- JaCoCo does not work with multi-release jars -->
+                                <!-- https://stackoverflow.com/questions/50163426/jacoco-cannot-exclude-classes/50294239#50294239 -->
+                                <exclude>META-INF/versions/10/herddb/utils/OpenFileUtils.class</exclude>
+                                <exclude>META-INF/versions/10/herddb/utils/CompareBytesUtils.class</exclude>
+                            </excludes>
                         </configuration>
                     </plugin>                                           
                     <plugin>
