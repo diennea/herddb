@@ -1065,7 +1065,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     }
 
-    private final class PendingLogEntryWork {
+    private static final class PendingLogEntryWork {
         final LogEntry entry;
         final CommitLogResult pos;
         final LockHandle lockHandle;
