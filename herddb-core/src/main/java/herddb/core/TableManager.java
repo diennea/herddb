@@ -21,6 +21,7 @@ package herddb.core;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
@@ -49,6 +51,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
@@ -107,9 +111,6 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
-import java.util.AbstractMap;
-import java.util.concurrent.CompletableFuture;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Handles Data of a Table
@@ -881,6 +882,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
+
         final long size = DataPage.estimateEntrySize(key, value);
         if (size > maxLogicalPageSize) {
             return FutureUtils
@@ -978,7 +980,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
-        List<CompletableFuture<LogSequenceNumber>> writes = new ArrayList<>();
+        List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
@@ -1007,42 +1009,73 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                        .whenCompleteAsync((lsn, error) -> {
-                            try {
-                                if (error == null) {
-                                    apply(pos, entry, false);
-                                }
-                            } finally {
-                                if (lockHandle != null) {
-                                    locksManager.releaseLock(lockHandle);
-                                }
-                            }
-                        }, tableSpaceManager.getCallbacksExecutor());
-                writes.add(promise);
+                writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
 
+
         if (writes.isEmpty()) {
             return CompletableFuture
                     .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
-        } else if (writes.isEmpty()) {
-            return writes.get(0).thenApply((lsn) -> {
-                return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                        update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
-            });
+        }
+
+        if (writes.size() == 1) {
+            return writes.get(0)
+                    .whenCompleteAsync((pending, error) -> {
+                        try {
+                            if (error == null) {
+                                apply(pending.pos, pending.entry, false);
+                            }
+                        } finally {
+                            if (pending.lockHandle != null) {
+                                locksManager.releaseLock(pending.lockHandle);
+                            }
+                        }
+                    }, tableSpaceManager.getCallbacksExecutor())
+                    .thenApply((pending) -> {
+                        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                                update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                    });
         } else {
             return FutureUtils
                     .collect(writes)
-                    .thenApply((lsn) -> {
+                    .whenCompleteAsync((pendings, error) -> {
+                        try {
+                            if (error == null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    apply(pending.pos, pending.entry, false);
+                                }
+                            }
+                        } finally {
+                            for (PendingLogEntryWork pending : pendings) {
+                                if (pending.lockHandle != null) {
+                                    locksManager.releaseLock(pending.lockHandle);
+                                }
+                            }
+                        }
+                    }, tableSpaceManager.getCallbacksExecutor())
+                    .thenApply((pendings) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                                 update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
                     });
         }
 
+    }
+
+    private static final class PendingLogEntryWork {
+        final LogEntry entry;
+        final CommitLogResult pos;
+        final LockHandle lockHandle;
+
+        public PendingLogEntryWork(LogEntry entry, CommitLogResult pos, LockHandle lockHandle) {
+            super();
+            this.entry = entry;
+            this.pos = pos;
+            this.lockHandle = lockHandle;
+        }
     }
 
     private CompletableFuture<StatementExecutionResult> executeDeleteAsync(DeleteStatement delete, Transaction transaction, StatementEvaluationContext context) {
@@ -1053,43 +1086,62 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long transactionId = transaction != null ? transaction.transactionId : 0;
         Predicate predicate = delete.getPredicate();
-        List<CompletableFuture<LogSequenceNumber>> writes = new ArrayList<>();
+        List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
+
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                        .whenCompleteAsync((lsn, error) -> {
-                            try {
-                                if (error == null) {
-                                    apply(pos, entry, false);
-                                }
-                            } finally {
-                                if (lockHandle != null) {
-                                    locksManager.releaseLock(lockHandle);
-                                }
-                            }
-                        }, tableSpaceManager.getCallbacksExecutor());
-                writes.add(promise);
+                writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
                 lastKey.value = actual.key;
                 lastValue.value = actual.value.data;
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
+
         if (writes.isEmpty()) {
             return CompletableFuture
                     .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
-        } else if (writes.isEmpty()) {
-            return writes.get(0).thenApply((lsn) -> {
-                return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                        delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
-            });
+        }
+
+        if (writes.size() == 1) {
+            return writes.get(0)
+                    .whenCompleteAsync((pending, error) -> {
+                        try {
+                            if (error == null) {
+                                apply(pending.pos, pending.entry, false);
+                            }
+                        } finally {
+                            if (pending.lockHandle != null) {
+                                locksManager.releaseLock(pending.lockHandle);
+                            }
+                        }
+                    }, tableSpaceManager.getCallbacksExecutor())
+                    .thenApply((pending) -> {
+                        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                    });
         } else {
             return FutureUtils
                     .collect(writes)
-                    .thenApply((lsn) -> {
+                    .whenCompleteAsync((pendings, error) -> {
+                        try {
+                            if (error == null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    apply(pending.pos, pending.entry, false);
+                                }
+                            }
+                        } finally {
+                            for (PendingLogEntryWork pending : pendings) {
+                                if (pending.lockHandle != null) {
+                                    locksManager.releaseLock(pending.lockHandle);
+                                }
+                            }
+                        }
+                    }, tableSpaceManager.getCallbacksExecutor())
+                    .thenApply((pendings) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                                 delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
                     });
@@ -2587,7 +2639,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (primaryIndexSeek) {
                     // we are expecting at most one record, no need for BatchOrderedExecutor
                     // this is the most common case for UPDATE-BY-PK and SELECT-BY-PK
-                    // no need to craete and use Streams    
+                    // no need to craete and use Streams
                     PrimaryIndexSeek seek = (PrimaryIndexSeek) indexOperation;
                     Bytes value = Bytes.from_array(seek.value.computeNewValue(null, context, tableContext));
                     Long page = keyToPage.get(value);
