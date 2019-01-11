@@ -931,6 +931,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final boolean continueWithTransactionData;
 
         public ExitLoop(boolean continueWithTransactionData) {
+            /* Disable stacktrace generation */
+            super(null, null, true, false);
+
             this.continueWithTransactionData = continueWithTransactionData;
         }
 
