@@ -21,6 +21,7 @@ package herddb.core;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
@@ -49,6 +51,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
@@ -107,9 +111,6 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
-import java.util.AbstractMap;
-import java.util.concurrent.CompletableFuture;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Handles Data of a Table
@@ -929,6 +930,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final boolean continueWithTransactionData;
 
         public ExitLoop(boolean continueWithTransactionData) {
+            /* Disable stacktrace generation */
+            super(null, null, true, false);
+
             this.continueWithTransactionData = continueWithTransactionData;
         }
 
@@ -2587,7 +2591,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (primaryIndexSeek) {
                     // we are expecting at most one record, no need for BatchOrderedExecutor
                     // this is the most common case for UPDATE-BY-PK and SELECT-BY-PK
-                    // no need to craete and use Streams    
+                    // no need to craete and use Streams
                     PrimaryIndexSeek seek = (PrimaryIndexSeek) indexOperation;
                     Bytes value = Bytes.from_array(seek.value.computeNewValue(null, context, tableContext));
                     Long page = keyToPage.get(value);
