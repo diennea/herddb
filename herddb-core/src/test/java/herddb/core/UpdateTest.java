@@ -117,7 +117,7 @@ public class UpdateTest {
                     try {
                     assertEquals(1, scan(manager,
                             "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
-                            Arrays.asList(Integer.valueOf(i), ctx)).consume().size());
+                            Arrays.asList(Integer.valueOf(i)), ctx).consume().size());
                     } catch (AssertionError e) {
 
                         throw e;
