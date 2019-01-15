@@ -237,7 +237,6 @@ public interface SQLRecordPredicateFunctions {
 
         return matcher.matches();
 
-//        return a.toString().matches(like);
     }
 
 }
