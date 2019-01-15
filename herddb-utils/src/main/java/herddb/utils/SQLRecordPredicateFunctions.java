@@ -20,6 +20,8 @@
 package herddb.utils;
 
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Predicate expressed using SQL syntax
@@ -229,7 +231,13 @@ public interface SQLRecordPredicateFunctions {
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
                 .replace("_", ".?");
-        return a.toString().matches(like);
+
+        Pattern pattern = Pattern.compile(like, Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(a.toString());
+
+        return matcher.matches();
+
+//        return a.toString().matches(like);
     }
 
 }

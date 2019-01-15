@@ -19,8 +19,6 @@
  */
 package herddb.utils;
 
-import herddb.utils.RawString;
-import herddb.utils.SQLRecordPredicateFunctions;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -37,11 +35,21 @@ public class SQLRecordPredicateFunctionsTest {
     public void testCompareAndLike() throws Exception {
         assertTrue(SQLRecordPredicateFunctions.like("test", "%est"));
         assertTrue(SQLRecordPredicateFunctions.like("test", "test%"));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%"));
         assertFalse(SQLRecordPredicateFunctions.like("test", "a%"));
         assertTrue(SQLRecordPredicateFunctions.like("test", "%test%"));
         assertTrue(SQLRecordPredicateFunctions.like("test", "%es%"));
         assertFalse(SQLRecordPredicateFunctions.like("tesst", "te_t"));
         assertTrue(SQLRecordPredicateFunctions.like("test", "te_t"));
+
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "a%"));
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%b"));
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%"));
+        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "x%"));
+        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "x%"));
+        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "%x"));
+        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "%x"));
+
         assertTrue(SQLRecordPredicateFunctions.compare(1, 2) < 0);
         assertTrue(SQLRecordPredicateFunctions.compare(1, 1) == 0);
         assertTrue(SQLRecordPredicateFunctions.compare(2, 1) > 0);
