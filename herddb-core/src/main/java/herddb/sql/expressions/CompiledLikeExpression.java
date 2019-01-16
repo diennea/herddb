@@ -19,6 +19,7 @@
  */
 package herddb.sql.expressions;
 
+import herddb.core.HerdDBInternalException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
@@ -32,13 +33,13 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
     private final boolean not;
     private final Pattern rightConstantPattern;
 
-    public CompiledLikeExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledLikeExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) throws HerdDBInternalException {
         super(left, right);
         this.not = not;   
         this.rightConstantPattern = compilePattern(right);
     }
     
-    private static Pattern compilePattern(CompiledSQLExpression exp) {
+    private static Pattern compilePattern(CompiledSQLExpression exp) throws HerdDBInternalException  {
         if (exp instanceof ConstantExpression) {
             ConstantExpression ce = (ConstantExpression) exp;
             if (ce.isNull()) {

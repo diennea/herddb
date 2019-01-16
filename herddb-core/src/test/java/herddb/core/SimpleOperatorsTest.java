@@ -287,6 +287,13 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList());) {
                 assertEquals(1, scan1.consume().size());
             }
+            
+            // bad "constant" pattern
+            herddb.utils.TestUtils.assertThrows(herddb.core.HerdDBInternalException.class, () -> {
+                scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbC(.c%'", Collections.emptyList());
+            });
+            
+            
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"));) {
                 assertEquals(1, scan1.consume().size());
             }

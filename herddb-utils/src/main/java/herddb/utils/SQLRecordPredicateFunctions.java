@@ -19,9 +19,11 @@
  */
 package herddb.utils;
 
+import herddb.core.HerdDBInternalException;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Predicate expressed using SQL syntax
@@ -222,15 +224,25 @@ public interface SQLRecordPredicateFunctions {
         return Objects.equals(a, b);
     }
 
-    public static Pattern compileLikePattern(String b) {        
+    public static Pattern compileLikePattern(String b) throws HerdDBInternalException {
         String like = b
+                .replace("\\", "\\\\")
+                .replace("[", "\\[")
                 .replace(".", "\\.")
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
+                .replace("(", "\\(")
+                .replace("+", "\\+")
+                .replace("|", "\\|")
                 .replace("_", ".?");
-
-        return Pattern.compile(like, Pattern.DOTALL);
+        System.out.println("LIKE '" + b + "' -> '" + like + "'");
+        try {
+            return Pattern.compile(like, Pattern.DOTALL);
+        } catch (IllegalArgumentException err) {
+            throw new HerdDBInternalException("Cannot compile LIKE expression '" + b + "': " + err);
+        }
     }
+
     public static boolean like(Object a, Object b) {
         if (a == null || b == null) {
             return false;
@@ -238,11 +250,11 @@ public interface SQLRecordPredicateFunctions {
         Pattern pattern = compileLikePattern(b.toString());
         return matches(a, pattern);
     }
-    
+
     public static boolean matches(Object a, Pattern pattern) {
         if (a == null) {
             return false;
-        }        
+        }
         Matcher matcher = pattern.matcher(a.toString());
         return matcher.matches();
     }
