@@ -222,21 +222,29 @@ public interface SQLRecordPredicateFunctions {
         return Objects.equals(a, b);
     }
 
-    public static boolean like(Object a, Object b) {
-        if (a == null || b == null) {
-            return false;
-        }
-        String like = b.toString()
+    public static Pattern compileLikePattern(String b) {        
+        String like = b
                 .replace(".", "\\.")
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
                 .replace("_", ".?");
 
-        Pattern pattern = Pattern.compile(like, Pattern.DOTALL);
+        return Pattern.compile(like, Pattern.DOTALL);
+    }
+    public static boolean like(Object a, Object b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        Pattern pattern = compileLikePattern(b.toString());
+        return matches(a, pattern);
+    }
+    
+    public static boolean matches(Object a, Pattern pattern) {
+        if (a == null) {
+            return false;
+        }        
         Matcher matcher = pattern.matcher(a.toString());
-
         return matcher.matches();
-
     }
 
 }
