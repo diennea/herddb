@@ -23,6 +23,8 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import herddb.core.HerdDBInternalException;
+
 /**
  * Predicate expressed using SQL syntax
  *
@@ -222,21 +224,58 @@ public interface SQLRecordPredicateFunctions {
         return Objects.equals(a, b);
     }
 
+    public static Pattern compileLikePattern(String b) throws HerdDBInternalException {
+
+        /*
+         * We presume that in string there will be 1 or 2 '%' or '_' characters. To avoid multiple array
+         * copies in standard cases we preallocate a builder size of string input size plus 6 chars per
+         * special character (4 chars for wrapping quoting sequence and 2 for pattern characters: \\E.*\\Q
+         * or \\E.?\\Q) plus 4 chars for whole string wrapping quote sequence (\\Qstring\\E).
+         */
+        final StringBuilder builder = new StringBuilder(b.length() + 18);
+
+        builder.append("\\Q");
+
+        int limit = b.length();
+        for (int idx = 0; idx < limit; ++idx) {
+            char ch = b.charAt(idx);
+            switch(ch) {
+                case '%':
+                    builder.append("\\E.*\\Q");
+                    break;
+                case '_':
+                    builder.append("\\E.{1}\\Q");
+                    break;
+                default:
+                    builder.append(ch);
+                    break;
+            }
+        }
+
+        builder.append("\\E");
+
+        String like = builder.toString();
+        try {
+            return Pattern.compile(like, Pattern.DOTALL);
+        } catch (IllegalArgumentException err) {
+            throw new HerdDBInternalException("Cannot compile LIKE expression '" + b + "': " + err);
+        }
+    }
+
     public static boolean like(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }
-        String like = b.toString()
-                .replace(".", "\\.")
-                .replace("\\*", "\\*")
-                .replace("%", ".*")
-                .replace("_", ".?");
+        Pattern pattern = compileLikePattern(b.toString());
+        return matches(a, pattern);
+    }
 
-        Pattern pattern = Pattern.compile(like, Pattern.DOTALL);
+    public static boolean matches(Object a, Pattern pattern) {
+        if (a == null) {
+            return false;
+        }
         Matcher matcher = pattern.matcher(a.toString());
-
         return matcher.matches();
-
     }
 
 }

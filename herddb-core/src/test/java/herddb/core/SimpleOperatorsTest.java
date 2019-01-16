@@ -22,6 +22,15 @@ package herddb.core;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Test;
+
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -31,12 +40,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
-import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.Collections;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 /**
  *
@@ -285,6 +288,11 @@ public class SimpleOperatorsTest {
                 assertEquals(1, scan1.consume().size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"));) {
                 assertEquals(1, scan1.consume().size());
             }
 
