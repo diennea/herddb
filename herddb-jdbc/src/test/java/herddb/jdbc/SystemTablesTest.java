@@ -19,12 +19,10 @@
  */
 package herddb.jdbc;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.model.TableSpace;
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
-import herddb.server.StaticClientSideMetadataProvider;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -33,12 +31,17 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
+import herddb.model.TableSpace;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 
 /**
  * Basic client testing
@@ -108,7 +111,7 @@ public class SystemTablesTest {
                         assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
                         assertEquals(1, records.size());
                     }
-                    try (ResultSet rs = metaData.getTables(null, null, "m%table_", null)) {
+                    try (ResultSet rs = metaData.getTables(null, null, "m_table%", null)) {
                         List<List<String>> records = new ArrayList<>();
                         while (rs.next()) {
                             List<String> record = new ArrayList<>();
