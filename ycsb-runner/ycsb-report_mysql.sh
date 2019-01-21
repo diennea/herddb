@@ -19,7 +19,7 @@ FINAL="target/"
 FINAL_REPORT="target/report_files_mysql-$DATE/"
 JDBC_PATH=$4
 MYSQL="MYSQL_"
-FORMAT=".txt" 
+FORMAT=".log" 
 mkdir $FINAL
 mkdir $FILE_TEMP
 mkdir $FINAL_REPORT

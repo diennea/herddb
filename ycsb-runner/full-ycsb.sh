@@ -6,6 +6,8 @@ YCSB_PATH=$1
 HERDDB_PATH=$(realpath $2)
 WORKLOAD=$3
 JDBC_DRIVER=$(ls $HERDDB_PATH/*jdbc*.jar)
+TYPE="load"
+TYPE_2="run"
 
 echo "Running YCSB workload $WORKLOAD from $YCSB_PATH"
 echo "Using HerdDB instance at $HERDDB_PATH"
@@ -33,7 +35,9 @@ sleep 5
 $HERDDB_PATH/bin/herddb-cli.sh -q "DROP TABLE usertable"
 $HERDDB_PATH/bin/herddb-cli.sh -q "CREATE TABLE usertable ( YCSB_KEY VARCHAR(191) NOT NULL, FIELD0 STRING, FIELD1 STRING, FIELD2 STRING, FIELD3 STRING, FIELD4 STRING, FIELD5 STRING, FIELD6 STRING, FIELD7 STRING, FIELD8 STRING, FIELD9 STRING, PRIMARY KEY (YCSB_KEY));"
 $YCSB_PATH/bin/ycsb load jdbc -P $YCSB_PATH/workloads/$WORKLOAD -P $HERE/herd.properties -cp $HERDDB_PATH/herddb-jdbc* -threads 200 -s
+./metrics.sh $WORKLOAD $TYPE
 echo "END_LOAD"
 $YCSB_PATH/bin/ycsb run jdbc -P $YCSB_PATH/workloads/$WORKLOAD -P $HERE/herd.properties -cp $HERDDB_PATH/herddb-jdbc* -threads 200 -s
+./metrics.sh $WORKLOAD $TYPE_2
 echo "END_FILE"
 $HERDDB_PATH/bin/service server stop
