@@ -10,7 +10,7 @@
         */
 #execute this command
 #JAVA_HOME=/your/java/path ./ycsb-report.sh  YCSB_PATH    HERDDB_PATH  NUMBER_OF_ATTEMPTS   LIST_OF_WORKLOAD
-#the result is saved in target/HERDDB_Benchmark-yyyy-mm-dd-HH:MM:SS.txt
+#the result is saved in target/HERDDB_Benchmark-yyyy-mm-dd-HH-MM-SS.log
 
 
 
@@ -31,23 +31,23 @@ prerequisites:
 	*/
 #execute this command
 #JAVA_HOME=/your/java/path ./ycsb-report_mysql.sh YCSB_PATH PROPERTIES_PATH MYSQL_PATH CONNECTOR NUMER_OF_ATTEMPTS LIST_OF_WORLOAD 
-#the result is saved in target/MYSQL_Benchmark-yyyy-mm-dd-HH:MM:SS.txt 
+#the result is saved in target/MYSQL_Benchmark-yyyy-mm-dd-HH-MM-SS.log
+
+ 
 
 
 
-#### DETAILS OUTPUT FILE #### 
+#### METRICS #### 
 
-1 ---> java version
-2 ---> database folder 
-3 ---> workload name 
-4 ---> operating system used 
-5 ---> memory Ram capacity 
-6 ---> numer of processor 
-7 ---> date 
-8 ---> average throughput 
-9 ---> average load phase 
-10 --> Number of attempts
+during the bench the metrics are automatically downloaded.
+the results are saved in the "target/metrics" folder.
+the load and run phase metrics are present.
 
+if you have done more "benchmark" of the same workload, the metrics of that workload are numbered
+increasingly, so the file with the largest number is the last one
+metrics downloaded.
+
+file format= workloadName_(run/load)_metrics.number.log
 
 
 

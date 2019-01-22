@@ -1,5 +1,5 @@
 #/bin/bash
-DATE=$(date '+%Y-%m-%d-%H:%M:%S')
+DATE=$(date '+%Y-%m-%d-%H-%M-%S')
 VAR=$3
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
@@ -17,8 +17,12 @@ LOG="work_files_herd-$DATE/"
 FILE_TEMP="target/$LOG"
 FINAL_REPORT="target/report_files_herd-$DATE/"
 HERDDB="HERDDB_"
-FORMAT=".txt" 
-mkdir $FINAL
+FORMAT=".log" 
+
+
+ mkdir -p  $FINAL #if not exist create a target folder
+
+
 rm -rf $FILE_TEMP
 rm -rf $FINAL_REPORT
 mkdir $FILE_TEMP
