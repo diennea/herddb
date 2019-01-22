@@ -20,11 +20,7 @@ HERDDB="HERDDB_"
 FORMAT=".log" 
 
 
-if [ ! -d $FINAL ]; #check if folder target/ does not exits
-then
-        mkdir $FINAL #if not exist create a target folder
-fi
-
+ mkdir -p  $FINAL #if not exist create a target folder
 
 
 rm -rf $FILE_TEMP

@@ -10,20 +10,9 @@ folder="target/metrics/"
 filename="metrics"
 name="$folder$workload$separator$type$separator$metrics"
 extension=".log"
-target="target/"
 
 
-if [ ! -d $target ]; #check if folder target/ does not exits
-then  
-	mkdir $target #if not exist create a target folder
-fi 
-
-
-if [ ! -d $folder ];  #check if folder target/metric does not exists 
-then
-	mkdir $folder #if not exist create a target/metrics folder  
-fi
-
+mkdir -p $folder
 
 
 wget $url  -P $folder  #dowload metrics from url and save it in target/metrics
