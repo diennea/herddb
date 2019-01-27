@@ -25,6 +25,8 @@ import java.util.Arrays;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.internal.PlatformDependent;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * A wrapper for byte[], in order to use it as keys on HashMaps
@@ -117,6 +119,13 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     public static Bytes from_array(byte[] data) {
         return new Bytes(data);
     }
+    
+    public static Bytes from_nullable_array(byte[] data) {
+        if (data == null) {
+            return null;
+        }
+        return new Bytes(data);
+    }
 
     public byte[] to_array() {
         return data;
@@ -146,6 +155,10 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public long to_long() {
         return toLong(data, 0);
+    }
+    
+    public RawString to_RawString() {
+        return RawString.newUnpooledRawString(data, 0, data.length);
     }
 
     public int to_int() {
@@ -339,6 +352,18 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         // equality
         return true;
     }
+    
+    public int getLength() {
+        return data.length;
+    }
+    
+    public byte[] getBuffer() {
+        return data;
+    }
+    
+    public int getOffset() {
+        return 0;
+    }
 
     @Override
     public String toString() {
@@ -358,6 +383,10 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return string.toString();
     }
 
+    public ByteArrayCursor newCursor() {
+        return ByteArrayCursor.wrap(data);
+    }
+    
     /**
      * Returns the next {@code Bytes} instance.
      * <p>
@@ -394,6 +423,11 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
         return new Bytes(dst);
 
+    }
+
+    public boolean startsWith(int length, byte[] prefix) {
+        //TODO: handle offset/length
+        return Bytes.startsWith(this.data, length, prefix);
     }
 
 }

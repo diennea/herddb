@@ -36,7 +36,7 @@ public class BytesCompareJavaTest {
 
         Bytes suffix = Bytes.from_long(578687L);
 
-        byte[] array = new byte[suffix.data.length + 1];
+        byte[] array = new byte[suffix.getLength() + 1];
         array[0] = 8;
 
         System.arraycopy(suffix.data, 0, array, 1, suffix.data.length);

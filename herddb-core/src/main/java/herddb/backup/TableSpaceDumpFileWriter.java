@@ -91,8 +91,8 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
         try {
             out.writeVInt(record.size());
             for (Record r : record) {
-                out.writeArray(r.key.data);
-                out.writeArray(r.value.data);
+                out.writeArray(r.key);
+                out.writeArray(r.value);
             }
             tableRecordsCount += record.size();
         } catch (IOException err) {

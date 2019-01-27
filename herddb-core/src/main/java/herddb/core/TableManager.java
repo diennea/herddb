@@ -381,7 +381,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_int((int) nextPrimaryKeyValue.getAndIncrement()).data;
+                    return Bytes.intToByteArray((int) nextPrimaryKeyValue.getAndIncrement());
                 }
 
                 @Override
@@ -393,7 +393,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_long((int) nextPrimaryKeyValue.getAndIncrement()).data;
+                    return Bytes.longToByteArray(nextPrimaryKeyValue.getAndIncrement());
                 }
 
                 @Override
@@ -896,12 +896,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 // OK, INSERT on a DELETED record inside this transaction
             } else if (transaction.recordInserted(table.name, key) != null) {
                 // ERROR, INSERT on a INSERTED record inside this transaction
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
             }
         } else if (keyToPage.containsKey(key)) {
-            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name));
+            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
         }
         if (res == null) {
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
@@ -1085,7 +1085,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
-        Holder<byte[]> lastValue = new Holder<>();
+        Holder<Bytes> lastValue = new Holder<>();
 
         long transactionId = transaction != null ? transaction.transactionId : 0;
         Predicate predicate = delete.getPredicate();
@@ -1099,7 +1099,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
                 lastKey.value = actual.key;
-                lastValue.value = actual.value.data;
+                lastValue.value = actual.value;
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
@@ -1124,7 +1124,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                                delete.isReturnValues() ? lastValue.value : null);
                     });
         } else {
             return FutureUtils
@@ -1146,7 +1146,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                                delete.isReturnValues() ? lastValue.value : null);
                     });
         }
     }
@@ -2203,7 +2203,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pageSet.checkpointDone(flushedPages);
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
-                    Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId,
+                    Bytes.longToByteArray(nextPrimaryKeyValue.get()), nextPageId,
                     pageSet.getActivePages());
 
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));

@@ -332,8 +332,8 @@ public class Transaction {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
             for (Record r : table.getValue().values()) {
-                out.writeArray(r.key.data);
-                out.writeArray(r.value.data);
+                out.writeArray(r.key);
+                out.writeArray(r.value);
             }
         }
         out.writeVInt(newRecords.size());
@@ -341,8 +341,8 @@ public class Transaction {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
             for (Record r : table.getValue().values()) {
-                out.writeArray(r.key.data);
-                out.writeArray(r.value.data);
+                out.writeArray(r.key);
+                out.writeArray(r.value);
             }
         }
         out.writeVInt(deletedRecords.size());
@@ -350,7 +350,7 @@ public class Transaction {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
             for (Bytes key : table.getValue()) {
-                out.writeArray(key.data);
+                out.writeArray(key);
             }
         }
         if (newTables == null) {

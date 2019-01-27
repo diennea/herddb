@@ -36,8 +36,8 @@ public class InsertStatement extends DMLStatement {
 
     public InsertStatement(String tableSpace, String table, Record record) {
         super(table, tableSpace);
-        this.keyFunction = new ConstValueRecordFunction(record.key.data);
-        this.valuesFunction = new ConstValueRecordFunction(record.value.data);
+        this.keyFunction = new ConstValueRecordFunction(record.key);
+        this.valuesFunction = new ConstValueRecordFunction(record.value);
     }
 
     public InsertStatement(String tableSpace, String table, RecordFunction keyFunction, RecordFunction function) {

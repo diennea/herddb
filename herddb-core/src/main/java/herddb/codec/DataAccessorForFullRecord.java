@@ -118,13 +118,13 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
             // no need to create a Map
             if (table.primaryKey.length == 1) {
                 String pkField = table.primaryKey[0];
-                Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
+                Object value = RecordSerializer.deserialize(record.key, table.getColumn(pkField).type);
                 consumer.accept(pkField, value);
                 if (value instanceof RawString) {
                     ((RawString) value).recycle();
                 }
             } else {
-                try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                try (final ByteArrayCursor din = record.key.newCursor()) {
                     for (String primaryKeyColumn : table.primaryKey) {
                         byte[] value = din.readArray();
                         Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
@@ -138,7 +138,7 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
                 }
             }
 
-            try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
+            try (ByteArrayCursor din = record.value.newCursor()) {
                 while (!din.isEof()) {
                     int serialPosition;
                     serialPosition = din.readVIntNoEOFException();

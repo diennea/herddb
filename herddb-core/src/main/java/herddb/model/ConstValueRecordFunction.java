@@ -20,6 +20,7 @@
 package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.utils.Bytes;
 
 /**
  * A Constant value for the record
@@ -33,6 +34,10 @@ public class ConstValueRecordFunction extends RecordFunction {
 
     public ConstValueRecordFunction(byte[] value) {
         this.value = value;
+    }
+    
+    public ConstValueRecordFunction(Bytes value) {
+        this.value = value.to_array();
     }
 
     @Override

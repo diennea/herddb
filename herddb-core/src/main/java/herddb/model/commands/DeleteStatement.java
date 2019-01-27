@@ -54,7 +54,7 @@ public class DeleteStatement extends DMLStatement {
             }
         }
         if (key != null) {
-            predicate.setIndexOperation(new PrimaryIndexSeek(new ConstValueRecordFunction(key.data)));
+            predicate.setIndexOperation(new PrimaryIndexSeek(new ConstValueRecordFunction(key)));
         }
         this.predicate = predicate;
     }

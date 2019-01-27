@@ -73,11 +73,11 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     private void keyAdded(Bytes key) {
-        usedMemory.addAndGet(key.data.length + ENTRY_OVERHEAD);
+        usedMemory.addAndGet(key.getLength() + ENTRY_OVERHEAD);
     }
 
     private void keyRemoved(Bytes key) {
-        usedMemory.addAndGet(-key.data.length - ENTRY_OVERHEAD);
+        usedMemory.addAndGet(-key.getLength() - ENTRY_OVERHEAD);
     }
 
     @Override
@@ -138,45 +138,45 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 throw new RuntimeException(err);
             }
             Predicate<Map.Entry<Bytes, Long>> predicate = (Map.Entry<Bytes, Long> t) -> {
-                byte[] fullrecordKey = t.getKey().data;
-                return Bytes.startsWith(fullrecordKey, prefix.length, prefix);
+                Bytes fullrecordKey = t.getKey();
+                return fullrecordKey.startsWith(prefix.length, prefix);
             };
             Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
             return baseStream.filter(predicate);
         } else if (operation instanceof PrimaryIndexRangeScan) {
 
-            byte[] refminvalue;
+            Bytes refminvalue;
             PrimaryIndexRangeScan sis = (PrimaryIndexRangeScan) operation;
             SQLRecordKeyFunction minKey = sis.minValue;
             if (minKey != null) {
-                refminvalue = minKey.computeNewValue(null, context, tableContext);
+                refminvalue = Bytes.from_nullable_array(minKey.computeNewValue(null, context, tableContext));
             } else {
                 refminvalue = null;
             }
 
-            byte[] refmaxvalue;
+            Bytes refmaxvalue;
             SQLRecordKeyFunction maxKey = sis.maxValue;
             if (maxKey != null) {
-                refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
+                refmaxvalue = Bytes.from_nullable_array(maxKey.computeNewValue(null, context, tableContext));
             } else {
                 refmaxvalue = null;
             }
             Predicate<Map.Entry<Bytes, Long>> predicate;
             if (refminvalue != null && refmaxvalue == null) {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refminvalue) >= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refminvalue) >= 0;
                 };
             } else if (refminvalue == null && refmaxvalue != null) {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refmaxvalue) <= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refmaxvalue) <= 0;
                 };
             } else if (refminvalue != null && refmaxvalue != null) {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refmaxvalue) <= 0
-                            && Bytes.compare(datum, refminvalue) >= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refmaxvalue) <= 0
+                            && datum.compareTo(refminvalue) >= 0;
                 };
             } else {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {

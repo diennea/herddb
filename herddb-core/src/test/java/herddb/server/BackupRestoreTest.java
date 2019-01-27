@@ -296,7 +296,7 @@ public class BackupRestoreTest {
             final Record update = RecordSerializer.makeRecord(table, "c", 2, "d", 22);
 
             manager.executeUpdate(new InsertStatement(TableSpace.DEFAULT, table.name, RecordSerializer.makeRecord(table, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.executeUpdate(new UpdateStatement(TableSpace.DEFAULT, table.name, new ConstValueRecordFunction(update.key.data), new ConstValueRecordFunction(update.value.data), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.executeUpdate(new UpdateStatement(TableSpace.DEFAULT, table.name, new ConstValueRecordFunction(update.key), new ConstValueRecordFunction(update.value), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             /* Now we have a dirty page in the checkpoint */
             manager.checkpoint();

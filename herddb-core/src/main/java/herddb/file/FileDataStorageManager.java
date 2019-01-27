@@ -456,7 +456,7 @@ public class FileDataStorageManager extends DataStorageManager {
             TableStatus latestStatus;
             if (lastFile == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.from_long(1).data, 1, Collections.emptyMap());
+                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -821,8 +821,8 @@ public class FileDataStorageManager extends DataStorageManager {
             dataOutput.writeVLong(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
             for (Record record : newPage) {
-                dataOutput.writeArray(record.key.data);
-                dataOutput.writeArray(record.value.data);
+                dataOutput.writeArray(record.key);
+                dataOutput.writeArray(record.value);
             }
 
             long size = hash.size();

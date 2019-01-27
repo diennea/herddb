@@ -53,6 +53,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -127,7 +128,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
         if (page == null) {
             throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
         }
-        try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(page.data);
+        //TODO: do not perform copy
+        try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(page.to_array());
             ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
             return reader.read(ein);
         } catch (IOException e) {
@@ -174,12 +176,12 @@ public class MemoryDataStorageManager extends DataStorageManager {
         TableStatus latestStatus;
         if (max == null) {
             latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                Bytes.from_long(1).data, 1, Collections.emptyMap());
+                Bytes.longToByteArray(1), 1, Collections.emptyMap());
         } else {
             byte[] data = tableStatuses.get(checkpointName(tableSpace, tableName, max));
             if (data == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.from_long(1).data, 1, Collections.emptyMap());
+                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
             } else {
                 try {
                     try (InputStream input = new SimpleByteArrayInputStream(data);
