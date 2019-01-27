@@ -456,7 +456,6 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public boolean startsWith(int length, byte[] prefix) {
-        //TODO: handle offset/length
         return Bytes.startsWith(this.buffer, this.offset, this.length, length, prefix);
     }
 

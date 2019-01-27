@@ -1736,8 +1736,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             StatementEvaluationContext context) {
         Bytes key;
         try {
-            key = Bytes.from_nullable_array(get.getKey().computeNewValue(null, context, tableContext))
-                    ;
+            key = Bytes.from_nullable_array(get.getKey().computeNewValue(null, context, tableContext));
         } catch (StatementExecutionException validationError) {
             return FutureUtils.exception(validationError);
         }
