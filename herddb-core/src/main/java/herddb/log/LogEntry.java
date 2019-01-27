@@ -61,11 +61,11 @@ public class LogEntry {
     public final short type;
     public final long transactionId;
     public final String tableName;
-    public final byte[] key;
-    public final byte[] value;
+    public final Bytes key;
+    public final Bytes value;
     public final long timestamp;
 
-    public LogEntry(long timestamp, short type, long transactionId, String tableName, byte[] key, byte[] value) {
+    public LogEntry(long timestamp, short type, long transactionId, String tableName, Bytes key, Bytes value) {
         this.timestamp = timestamp;
         this.type = type;
         this.transactionId = transactionId;
@@ -167,40 +167,40 @@ public class LogEntry {
             long transactionId = dis.readLong();
             dis.readUTF(); // in 0.2 it was 'tablespace uuid'
 
-            byte[] key = null;
-            byte[] value = null;
+            Bytes key = null;
+            Bytes value = null;
             String tableName = null;
             switch (type) {
                 case LogEntryType.UPDATE:
                     tableName = dis.readUTF();
-                    key = dis.readArray();
-                    value = dis.readArray();
+                    key = dis.readBytes();
+                    value = dis.readBytes();
                     break;
                 case LogEntryType.INSERT:
                     tableName = dis.readUTF();
-                    key = dis.readArray();
-                    value = dis.readArray();
+                    key = dis.readBytes();
+                    value = dis.readBytes();
                     break;
                 case LogEntryType.DELETE:
                     tableName = dis.readUTF();
-                    key = dis.readArray();
+                    key = dis.readBytes();
                     break;
                 case LogEntryType.DROP_TABLE:
                 case LogEntryType.TRUNCATE_TABLE:
                     tableName = dis.readUTF();
                     break;
                 case LogEntryType.DROP_INDEX:
-                    value = dis.readArray();
+                    value = dis.readBytes();
                     break;
                 case LogEntryType.CREATE_INDEX:
                     tableName = dis.readUTF();
-                    value = dis.readArray();
+                    value = dis.readBytes();
                     break;
                 case LogEntryType.CREATE_TABLE:
                 case LogEntryType.ALTER_TABLE:
                     // value contains the table definition
                     tableName = dis.readUTF();
-                    value = dis.readArray();
+                    value = dis.readBytes();
                     break;
                 case LogEntryType.BEGINTRANSACTION:
                 case LogEntryType.COMMITTRANSACTION:
@@ -223,7 +223,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + Bytes.from_array(value) + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" + type + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + key + ", value=" + value + ", timestamp=" + timestamp + '}';
     }
 
 }

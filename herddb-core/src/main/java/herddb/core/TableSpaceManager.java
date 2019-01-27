@@ -395,7 +395,7 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.CREATE_TABLE: {
-                Table table = Table.deserialize(entry.value);
+                Table table = Table.deserialize(entry.value.to_array());
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
@@ -409,7 +409,7 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.CREATE_INDEX: {
-                Index index = Index.deserialize(entry.value);
+                Index index = Index.deserialize(entry.value.to_array());
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
@@ -446,7 +446,7 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.DROP_INDEX: {
-                String indexName = Bytes.from_array(entry.value).to_string();
+                String indexName = entry.value.to_string();
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
@@ -471,7 +471,7 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.ALTER_TABLE: {
-                Table table = Table.deserialize(entry.value);
+                Table table = Table.deserialize(entry.value.to_array());
                 alterTable(table, null);
                 writeTablesOnDataStorageManager(position);
             }

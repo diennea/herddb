@@ -25,9 +25,8 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ByteArrayCursor;
-import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.Bytes;
 import herddb.utils.RawString;
-import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -126,7 +125,7 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
             } else {
                 try (final ByteArrayCursor din = record.key.newCursor()) {
                     for (String primaryKeyColumn : table.primaryKey) {
-                        byte[] value = din.readArray();
+                        Bytes value = din.readBytesNoCopy();
                         Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
                         consumer.accept(primaryKeyColumn, theValue);
                         if (theValue instanceof RawString) {

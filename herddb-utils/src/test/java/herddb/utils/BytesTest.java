@@ -45,7 +45,7 @@ public class BytesTest {
         byte[] array2 = "tesu".getBytes(StandardCharsets.UTF_8);
         System.out.println("a:" + bytes1.to_string());
         System.out.println("b:" + next.to_string());
-        assertArrayEquals(array2, next.data);
+        assertArrayEquals(array2, next.to_array());
     }
 
     @Test
@@ -57,7 +57,7 @@ public class BytesTest {
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
 
-        assertArrayEquals(nextExpected, next.data);
+        assertArrayEquals(nextExpected, next.to_array());
     }
 
     /** Check that the change propagate to next byte if 255 (-1) */
@@ -70,7 +70,7 @@ public class BytesTest {
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
 
-        assertArrayEquals(nextExpected, next.data);
+        assertArrayEquals(nextExpected, next.to_array());
     }
 
     /** Check that more than one byte is changed if needed */
@@ -83,7 +83,7 @@ public class BytesTest {
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
 
-        assertArrayEquals(nextExpected, next.data);
+        assertArrayEquals(nextExpected, next.to_array());
     }
 
     /** Checks that prefix bytes aren't touched */
@@ -96,7 +96,7 @@ public class BytesTest {
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
 
-        assertArrayEquals(nextExpected, next.data);
+        assertArrayEquals(nextExpected, next.to_array());
     }
 
     /** Checks that next fails if there is no more space */
@@ -117,11 +117,11 @@ public class BytesTest {
 
         Bytes bytes = Bytes.from_array(src);
 
-        assertArrayEquals(src, bytes.data);
+        assertArrayEquals(src, bytes.to_array());
 
         Bytes next = bytes.next();
 
-        assertEquals(bytes.data.length, next.data.length);
+        assertEquals(bytes.getLength(), next.getLength());
 
     }
 

@@ -39,7 +39,7 @@ public class BytesCompareJavaTest {
         byte[] array = new byte[suffix.getLength() + 1];
         array[0] = 8;
 
-        System.arraycopy(suffix.data, 0, array, 1, suffix.data.length);
+        System.arraycopy(suffix.getBuffer(), suffix.getOffset(), array, 1, suffix.getLength());
 
         Bytes low = Bytes.from_array(array);
 

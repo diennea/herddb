@@ -143,6 +143,50 @@ public final class RecordSerializer {
                 throw new IllegalArgumentException("bad column type " + type);
         }
     }
+    
+    public static int deserializeCompare(Bytes data, int type, Object cvalue) {
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                //TODO: not perform copy
+                return SQLRecordPredicateFunctions.compare(data.to_array(), cvalue);
+            case ColumnTypes.INTEGER: {
+                int v = data.to_int();                    
+                if (cvalue instanceof Integer) {
+                    return Integer.compare(v, (int) cvalue);
+                } else if (cvalue instanceof Long) {                    
+                    return Long.compare(v, (long) cvalue);
+                }
+                return SQLRecordPredicateFunctions.compare(v, cvalue);
+            }
+            case ColumnTypes.LONG: {
+                long v = data.to_long();
+                if (cvalue instanceof Integer) {
+                    return Long.compare(v, (int) cvalue);
+                } else if (cvalue instanceof Long) {
+                    return Long.compare(v, (long) cvalue);
+                }
+                return SQLRecordPredicateFunctions.compare(v, cvalue);
+            }
+            case ColumnTypes.STRING:
+                RawString string = data.to_RawString();
+                if (cvalue instanceof RawString) {
+                    return string.compareTo((RawString) cvalue);
+                } else if (cvalue instanceof String) {
+                    return string.compareToString(((String) cvalue));
+                }
+                return SQLRecordPredicateFunctions.compare(string, cvalue);
+            case ColumnTypes.TIMESTAMP:
+                return SQLRecordPredicateFunctions.compare(data.to_timestamp(), cvalue);
+            case ColumnTypes.NULL:
+                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+            case ColumnTypes.BOOLEAN:
+                return SQLRecordPredicateFunctions.compare(data.to_boolean(), cvalue);
+            case ColumnTypes.DOUBLE:
+                return SQLRecordPredicateFunctions.compare(data.to_double(), cvalue);
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+        }
+    }
 
     public static Object deserializeTypeAndValue(ByteArrayCursor dii) throws IOException {
         int type = dii.readVInt();
@@ -605,7 +649,7 @@ public final class RecordSerializer {
         } else {
             try (ByteArrayCursor din = key.newCursor();) {
                 for (String primaryKeyColumn : table.primaryKey) {
-                    byte[] value = din.readArray();
+                    Bytes value = din.readBytesNoCopy();
                     if (primaryKeyColumn.equals(property)) {
                         return deserialize(value, table.getColumn(primaryKeyColumn).type);
                     }
@@ -623,7 +667,7 @@ public final class RecordSerializer {
             final String cname = column.name;
             try (ByteArrayCursor din = key.newCursor();) {
                 for (String primaryKeyColumn : table.primaryKey) {
-                    byte[] value = din.readArray();
+                    Bytes value = din.readBytesNoCopy();
                     if (primaryKeyColumn.equals(cname)) {
                         return deserialize(value, table.getColumn(primaryKeyColumn).type);
                     }
@@ -636,12 +680,12 @@ public final class RecordSerializer {
     static int compareRawDataFromPrimaryKey(int index, Bytes key, Table table, Object cvalue) throws IOException {
         Column column = table.getColumn(index);
         if (table.primaryKey.length == 1) {
-            return deserializeCompare(key.data, column.type, cvalue);
+            return deserializeCompare(key, column.type, cvalue);
         } else {
             final String cname = column.name;
             try (ByteArrayCursor din = key.newCursor()) {
                 for (String primaryKeyColumn : table.primaryKey) {
-                    byte[] value = din.readArray();
+                    Bytes value = din.readBytesNoCopy();
                     if (primaryKeyColumn.equals(cname)) {
                         return deserializeCompare(value, table.getColumn(primaryKeyColumn).type, cvalue);
                     }
@@ -669,7 +713,7 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {
-        return new Bytes(serializePrimaryKeyRaw(record, table, columns));
+        return Bytes.from_array(serializePrimaryKeyRaw(record, table, columns));
     }
 
     public static byte[] serializePrimaryKeyRaw(Map<String, Object> record, ColumnsList table, String[] columns) {
@@ -722,7 +766,7 @@ public final class RecordSerializer {
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
             byte[] fieldValue = serialize(v, c.type);
-            return new Bytes(fieldValue);
+            return Bytes.from_array(fieldValue);
         } else {
             ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
@@ -743,7 +787,8 @@ public final class RecordSerializer {
             } catch (IOException err) {
                 throw new RuntimeException(err);
             }
-            return new Bytes(key.toByteArray());
+            //TODO: no copy
+            return Bytes.from_array(key.toByteArray());
         }
     }
 
@@ -815,7 +860,7 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
-        return new Bytes(serializeValueRaw(record, table, 0));
+        return Bytes.from_array(serializeValueRaw(record, table, 0));
     }
 
     public static byte[] serializeValueRaw(Map<String, Object> record, Table table, int expectedSize) {
@@ -906,7 +951,7 @@ public final class RecordSerializer {
     private static void deserializeMultiColumnPrimaryKey(Bytes data, Table table, Map<String, Object> res) {
         try (ByteArrayCursor din = data.newCursor()) {
             for (String primaryKeyColumn : table.primaryKey) {
-                byte[] value = din.readArray();
+                Bytes value = din.readBytesNoCopy();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
             }
         } catch (IOException err) {
@@ -918,7 +963,7 @@ public final class RecordSerializer {
     private static void deserializeMultiColumnPrimaryKey(Bytes data, Table table, ImmutableMap.Builder<String, Object> res) {
         try (ByteArrayCursor din = data.newCursor()) {
             for (String primaryKeyColumn : table.primaryKey) {
-                byte[] value = din.readArray();
+                Bytes value = din.readBytesNoCopy();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
             }
         } catch (IOException err) {
@@ -958,7 +1003,7 @@ public final class RecordSerializer {
             } else {
                 try (ByteArrayCursor din = key.newCursor()) {
                     for (String primaryKeyColumn : table.primaryKey) {
-                        byte[] value = din.readArray();
+                        Bytes value = din.readBytesNoCopy();
                         Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);
                         consumer.accept(primaryKeyColumn, theValue);
                     }
