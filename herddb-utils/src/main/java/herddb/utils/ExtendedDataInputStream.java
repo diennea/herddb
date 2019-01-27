@@ -216,6 +216,10 @@ public class ExtendedDataInputStream extends DataInputStream {
 
     private static final byte[] EMPTY_ARRAY = new byte[0];
 
+    public Bytes readBytes() throws IOException {
+        return Bytes.from_nullable_array(readArray());
+    }
+    
     public byte[] readArray() throws IOException {
         int len = readVInt();
         if (len == 0) {

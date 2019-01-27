@@ -29,10 +29,10 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 @SuppressFBWarnings("EI2")
 public class KeyValue {
 
-    public final byte[] key;
-    public final byte[] value;
+    public final Bytes key;
+    public final Bytes value;
 
-    public KeyValue(byte[] key, byte[] value) {
+    public KeyValue(Bytes key, Bytes value) {
         this.key = key;
         this.value = value;
     }

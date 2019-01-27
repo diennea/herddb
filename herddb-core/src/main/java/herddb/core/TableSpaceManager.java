@@ -878,7 +878,7 @@ public class TableSpaceManager {
         List<KeyValue> encodedTransactions = batch
                 .stream()
                 .map(tr -> {
-                    return new KeyValue(Bytes.longToByteArray(tr.transactionId), tr.serialize());
+                    return new KeyValue(Bytes.from_long(tr.transactionId), Bytes.from_array(tr.serialize()));
                 })
                 .collect(Collectors.toList());
         long id = _channel.generateRequestId();
@@ -896,7 +896,8 @@ public class TableSpaceManager {
     private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
         List<KeyValue> batch = new ArrayList<>();
         for (DumpedLogEntry e : txlogentries) {
-            batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
+            batch.add(new KeyValue(Bytes.from_array(e.logSequenceNumber.serialize()),
+                    Bytes.from_array(e.entryData)));
         }
         long id = _channel.generateRequestId();
         try (Pdu response_to_txlog = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(

@@ -46,7 +46,7 @@ public class LogEntryFactory {
     }
 
     public static LogEntry dropIndex(String indexName, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_INDEX, transaction != null ? transaction.transactionId : 0, null, null, Bytes.from_string(indexName).data);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_INDEX, transaction != null ? transaction.transactionId : 0, null, null, Bytes.string_to_array(indexName));
     }
 
     public static LogEntry beginTransaction(long transactionId) {
