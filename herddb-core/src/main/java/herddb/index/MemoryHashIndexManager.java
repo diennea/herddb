@@ -159,8 +159,8 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             SQLRecordKeyFunction value = sis.value;
             byte[] refvalue = value.computeNewValue(null, context, tableContext);
             Predicate<Map.Entry<Bytes, List<Bytes>>> predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                byte[] recordValue = entry.getKey().data;
-                return Bytes.startsWith(recordValue, refvalue.length, refvalue);
+                Bytes recordValue = entry.getKey();
+                return recordValue.startsWith(refvalue.length, refvalue);
             };
             return data
                     .entrySet()
@@ -170,39 +170,39 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                     .flatMap(l -> l.stream());
 
         } else if (operation instanceof SecondaryIndexRangeScan) {
-            byte[] refminvalue;
+            Bytes refminvalue;
 
             SecondaryIndexRangeScan sis = (SecondaryIndexRangeScan) operation;
             SQLRecordKeyFunction minKey = sis.minValue;
             if (minKey != null) {
-                refminvalue = minKey.computeNewValue(null, context, tableContext);
+                refminvalue = Bytes.from_nullable_array(minKey.computeNewValue(null, context, tableContext));
             } else {
                 refminvalue = null;
             }
 
-            byte[] refmaxvalue;
+            Bytes refmaxvalue;
             SQLRecordKeyFunction maxKey = sis.maxValue;
             if (maxKey != null) {
-                refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
+                refmaxvalue = Bytes.from_nullable_array(maxKey.computeNewValue(null, context, tableContext));
             } else {
                 refmaxvalue = null;
             }
             Predicate<Map.Entry<Bytes, List<Bytes>>> predicate;
             if (refminvalue != null && refmaxvalue == null) {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refminvalue) >= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refminvalue) >= 0;
                 };
             } else if (refminvalue == null && refmaxvalue != null) {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refmaxvalue) <= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refmaxvalue) <= 0;
                 };
             } else if (refminvalue != null && refmaxvalue != null) {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                    byte[] datum = entry.getKey().data;
-                    return Bytes.compare(datum, refmaxvalue) <= 0
-                            && Bytes.compare(datum, refminvalue) >= 0;
+                    Bytes datum = entry.getKey();
+                    return datum.compareTo(refmaxvalue) <= 0
+                            && datum.compareTo(refminvalue) >= 0;
                 };
             } else {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
@@ -241,11 +241,11 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             out.writeVLong(0); // flags for future implementations
             out.writeVInt(data.size());
             for (Map.Entry<Bytes, List<Bytes>> entry : data.entrySet()) {
-                out.writeArray(entry.getKey().data);
+                out.writeArray(entry.getKey());
                 List<Bytes> entrydata = entry.getValue();
                 out.writeVInt(entrydata.size());
                 for (Bytes v : entrydata) {
-                    out.writeArray(v.data);
+                    out.writeArray(v);
                     ++entries;
                 }
             }

@@ -25,9 +25,8 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ByteArrayCursor;
-import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.Bytes;
 import herddb.utils.RawString;
-import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -118,15 +117,15 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
             // no need to create a Map
             if (table.primaryKey.length == 1) {
                 String pkField = table.primaryKey[0];
-                Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
+                Object value = RecordSerializer.deserialize(record.key, table.getColumn(pkField).type);
                 consumer.accept(pkField, value);
                 if (value instanceof RawString) {
                     ((RawString) value).recycle();
                 }
             } else {
-                try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                try (final ByteArrayCursor din = record.key.newCursor()) {
                     for (String primaryKeyColumn : table.primaryKey) {
-                        byte[] value = din.readArray();
+                        Bytes value = din.readBytesNoCopy();
                         Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
                         consumer.accept(primaryKeyColumn, theValue);
                         if (theValue instanceof RawString) {
@@ -138,7 +137,7 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
                 }
             }
 
-            try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
+            try (ByteArrayCursor din = record.value.newCursor()) {
                 while (!din.isEof()) {
                     int serialPosition;
                     serialPosition = din.readVIntNoEOFException();

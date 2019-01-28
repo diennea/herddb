@@ -83,7 +83,7 @@ public class SQLRecordFunction extends RecordFunction {
                         return RecordSerializer.convert(column.type, e.evaluate(bean, context));
                     }
                 };
-                return RecordSerializer.buildRecord(previous.value != null ? previous.value.data.length : 0, table, fieldValueComputer);
+                return RecordSerializer.buildRecord(previous.value != null ? previous.value.getLength() : 0, table, fieldValueComputer);
             } else {
                 Function<String, Object> fieldValueComputer = (columnName) -> {
                     CompiledSQLExpression e = expressionsByColumnName.get(columnName);

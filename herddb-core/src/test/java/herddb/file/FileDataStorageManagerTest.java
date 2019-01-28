@@ -54,7 +54,7 @@ public class FileDataStorageManagerTest {
     @Test
     public void testReadWriteIndexPage() throws Exception {
         try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
-            byte[] page = Bytes.from_int(1).data;
+            byte[] page = Bytes.intToByteArray(1);
             man.writeIndexPage("test1", "table1", 1L, (out) -> {
                 out.writeArray(page);
             });

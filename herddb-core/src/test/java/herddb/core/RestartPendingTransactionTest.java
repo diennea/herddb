@@ -96,7 +96,7 @@ public class RestartPendingTransactionTest {
             manager.checkpoint();
 
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
-            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2.data), new ConstValueRecordFunction(key3.data), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2), new ConstValueRecordFunction(key3), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             // transaction which contains the update will be replayed at reboot
         }
@@ -209,10 +209,10 @@ public class RestartPendingTransactionTest {
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key3, key3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.checkpoint();
 
-            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2.data), new ConstValueRecordFunction(key3.data), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2), new ConstValueRecordFunction(key3), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             long tx2 = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
-            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2.data), new ConstValueRecordFunction(key3.data), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx2));
+            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2), new ConstValueRecordFunction(key3), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx2));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             // transactions which contains the update will be replayed at reboot
         }
@@ -326,7 +326,7 @@ public class RestartPendingTransactionTest {
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new DeleteStatement("tblspace1", table.name, key2, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key2, key2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
-            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2.data), new ConstValueRecordFunction(key3.data), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new UpdateStatement("tblspace1", table.name, new ConstValueRecordFunction(key2), new ConstValueRecordFunction(key3), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             // transaction which contains the update will be replayed at reboot
         }

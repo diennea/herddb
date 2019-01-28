@@ -278,9 +278,9 @@ public class FileDataStorageManager extends DataStorageManager {
             int numRecords = dataIn.readInt();
             result = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
-                byte[] key = dataIn.readArray();
-                byte[] value = dataIn.readArray();
-                result.add(new Record(new Bytes(key), new Bytes(value)));
+                Bytes key = dataIn.readBytes();
+                Bytes value = dataIn.readBytes();
+                result.add(new Record(key, value));
             }
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
@@ -307,9 +307,9 @@ public class FileDataStorageManager extends DataStorageManager {
             int numRecords = dataIn.readInt();
             result = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
-                byte[] key = dataIn.readArray();
-                byte[] value = dataIn.readArray();
-                result.add(new Record(new Bytes(key), new Bytes(value)));
+                Bytes key = dataIn.readBytes();
+                Bytes value = dataIn.readBytes();
+                result.add(new Record(key, value));
             }
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
@@ -456,7 +456,7 @@ public class FileDataStorageManager extends DataStorageManager {
             TableStatus latestStatus;
             if (lastFile == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.from_long(1).data, 1, Collections.emptyMap());
+                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -821,8 +821,8 @@ public class FileDataStorageManager extends DataStorageManager {
             dataOutput.writeVLong(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
             for (Record record : newPage) {
-                dataOutput.writeArray(record.key.data);
-                dataOutput.writeArray(record.value.data);
+                dataOutput.writeArray(record.key);
+                dataOutput.writeArray(record.value);
             }
 
             long size = hash.size();

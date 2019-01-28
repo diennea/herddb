@@ -118,10 +118,23 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
     public final void writeZLong(long l) throws IOException {
         writeSignedVLong((l >> 63) ^ (l << 1));
     }
+    
+    public void writeArray(Bytes data) throws IOException {
+        if (data == null) {
+            writeNullArray();
+        } else {
+            writeVInt(data.getLength());
+            write(data.getBuffer(), data.getOffset(), data.getLength());
+        }
+    }
 
+    public void writeNullArray() throws IOException {
+        writeVInt(-1);
+    }    
+    
     public void writeArray(byte[] data) throws IOException {
         if (data == null) {
-            writeVInt(-1);
+            writeNullArray();
         } else {
             writeVInt(data.length);
             write(data);

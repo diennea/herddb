@@ -41,7 +41,7 @@ public class XXHash64Utils {
 
     public static byte[] digest(byte[] array, int offset, int len) {
         long hash = HASHER.hash(array, offset, len, DEFAULT_SEED);
-        byte[] digest = Bytes.from_long(hash).data;
+        byte[] digest = Bytes.longToByteArray(hash);
         return digest;
     }
 

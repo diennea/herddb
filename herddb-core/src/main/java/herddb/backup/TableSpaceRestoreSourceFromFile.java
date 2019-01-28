@@ -70,8 +70,8 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
             for (int i = 0; i < numRecords; i++) {
                 long ledgerId = in.readVLong();
                 long offset = in.readVLong();
-                byte[] value = in.readArray();
-                records.add(new KeyValue(new LogSequenceNumber(ledgerId, offset).serialize(), value));
+                Bytes value = in.readBytes();
+                records.add(new KeyValue(Bytes.from_array(new LogSequenceNumber(ledgerId, offset).serialize()), value));
             }
             return records;
         } catch (IOException err) {
@@ -107,8 +107,8 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
             listener.log("sendtabledata", "sending " + numRecords + ", total " + currentTableSize, Collections.singletonMap("count", numRecords));
             List<KeyValue> records = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
-                byte[] key = in.readArray();
-                byte[] value = in.readArray();
+                Bytes key = in.readBytes();
+                Bytes value = in.readBytes();
                 records.add(new KeyValue(key, value));
             }
             currentTableSize += numRecords;

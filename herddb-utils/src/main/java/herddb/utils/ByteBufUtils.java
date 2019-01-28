@@ -38,6 +38,11 @@ public class ByteBufUtils {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
+    
+    public static final void writeArray(ByteBuf buffer, Bytes array) {
+        writeVInt(buffer, array.getLength());
+        buffer.writeBytes(array.getBuffer(), array.getOffset(), array.getLength());
+    }
 
     public static final void writeArray(ByteBuf buffer, byte[] array, int offset, int length) {
         writeVInt(buffer, length);

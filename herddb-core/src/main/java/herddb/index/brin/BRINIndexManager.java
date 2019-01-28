@@ -130,7 +130,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                         out.writeByte(blockFlags);
 
                         if (!head) {
-                            out.writeArray(md.firstKey.data);
+                            out.writeArray(md.firstKey);
                         }
                         out.writeVLong(md.blockId);
                         out.writeVLong(md.size);
@@ -144,8 +144,8 @@ public class BRINIndexManager extends AbstractIndexManager {
                 case TYPE_BLOCKDATA:
                     out.writeVInt(pageData.size());
                     for (Map.Entry<Bytes, Bytes> entry : pageData) {
-                        out.writeArray(entry.getKey().data);
-                        out.writeArray(entry.getValue().data);
+                        out.writeArray(entry.getKey());
+                        out.writeArray(entry.getValue());
                     }
                     break;
                 default:

@@ -35,6 +35,8 @@ import io.netty.util.internal.PlatformDependent;
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public static final Bytes POSITIVE_INFINITY = new Bytes(new byte[0]);
+    
+    public static final Bytes EMPTY_ARRAY = new Bytes(new byte[0]);
 
     private static final boolean UNALIGNED = PlatformDependent.isUnaligned();
     private static final boolean HAS_UNSAFE = PlatformDependent.hasUnsafe();
@@ -58,14 +60,16 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return value.length + CONSTANT_BYTE_SIZE;
     }
 
-    public final byte[] data;
+    private final byte[] buffer;
+    private final int offset;
+    private final int length;
     private int hashCode = -1;
 
     public Object deserialized;
 
     @Override
     public long getEstimatedSize() {
-        return data.length + CONSTANT_BYTE_SIZE;
+        return length + CONSTANT_BYTE_SIZE;
     }
 
     public static byte[] string_to_array(String s) {
@@ -117,9 +121,26 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     public static Bytes from_array(byte[] data) {
         return new Bytes(data);
     }
+    
+    public static Bytes from_array(byte[] data, int offset, int len) {
+        return new Bytes(data, offset, len);
+    }
+
+    public static Bytes from_nullable_array(byte[] data) {
+        if (data == null) {
+            return null;
+        }
+        return new Bytes(data);
+    }
 
     public byte[] to_array() {
-        return data;
+        if (offset == 0 && buffer.length == length) {
+            return buffer;
+        } else {
+            byte[] copy = new byte[length];
+            System.arraycopy(buffer, offset, copy, 0, length);
+            return copy;
+        }
     }
 
     public static Bytes from_int(int value) {
@@ -145,15 +166,21 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public long to_long() {
-        return toLong(data, 0);
+        assert length == 8;
+        return toLong(buffer, offset);
+    }
+
+    public RawString to_RawString() {
+        return RawString.newUnpooledRawString(buffer, offset, length);
     }
 
     public int to_int() {
-        return toInt(data, 0);
+        assert length == 4;
+        return toInt(buffer, offset);
     }
 
     public String to_string() {
-        return new String(data, 0, data.length, StandardCharsets.UTF_8);
+        return new String(buffer, offset, length, StandardCharsets.UTF_8);
     }
 
     public static String to_string(byte[] data) {
@@ -165,25 +192,36 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public java.sql.Timestamp to_timestamp() {
-        return toTimestamp(data, 0);
+        assert length == 8;
+        return toTimestamp(buffer, offset);
     }
 
     public boolean to_boolean() {
-        return toBoolean(data, 0);
+        assert length == 1;
+        return toBoolean(buffer, offset);
     }
 
     public double to_double() {
-        return toDouble(data, 0);
+        assert length == 8;
+        return toDouble(buffer, offset);
     }
 
-    public Bytes(byte[] data) {
-        this.data = data;
+    private Bytes(byte[] data) {
+        this.buffer = data;
+        this.offset = 0;
+        this.length = buffer.length;
+    }
+
+    private Bytes(byte[] data, int offset, int length) {
+        this.buffer = data;
+        this.offset = offset;
+        this.length = length;
     }
 
     @Override
     public int hashCode() {
         if (hashCode == -1) {
-            this.hashCode = Arrays.hashCode(this.data);
+            this.hashCode = CompareBytesUtils.hashCode(buffer, offset, length);
         }
         return hashCode;
 
@@ -196,13 +234,14 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         }
         try {
             final Bytes other = (Bytes) obj;
-            if (data.length != other.data.length) {
+            if (length != other.length) {
                 return false;
             }
             if (other.hashCode() != this.hashCode()) {
                 return false;
             }
-            return CompareBytesUtils.arraysEquals(data, 0, data.length, other.data, 0, data.length);
+            return CompareBytesUtils.arraysEquals(buffer, offset, length,
+                    other.buffer, other.offset, other.length);
         } catch (ClassCastException otherClass) {
             return false;
         }
@@ -327,11 +366,14 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         } else if (o == POSITIVE_INFINITY) {
             return -1;
         }
-        return CompareBytesUtils.compare(this.data, o.data);
+        return CompareBytesUtils.compare(buffer, offset, offset + length, 
+                o.buffer, o.offset, o.offset + o.length);
     }
 
-    public static boolean startsWith(byte[] left, int len, byte[] right) {
-        for (int i = 0, j = 0; i < left.length && j < right.length && i < len; i++, j++) {
+    public static boolean startsWith(byte[] left, int offset, int bufferlen, int max, byte[] right) {
+        int endleft = offset + bufferlen;
+        int endmax = offset + max;
+        for (int i = offset, j = 0; i < endleft && j < right.length && i < endmax; i++, j++) {
             if (left[i] != right[j]) {
                 return false;
             }
@@ -340,22 +382,39 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return true;
     }
 
+    public int getLength() {
+        return length;
+    }
+
+    public byte[] getBuffer() {
+        return buffer;
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
     @Override
     public String toString() {
-        if (data == null) {
+        if (buffer == null) {
             return "null";
         }
         // ONLY FOR TESTS
-        return arraytohexstring(data);
+        return arraytohexstring(buffer, offset, length);
     }
 
-    public static String arraytohexstring(byte[] bytes) {
+    public static String arraytohexstring(byte[] buffer, int offset, int length) {
         StringBuilder string = new StringBuilder();
-        for (byte b : bytes) {
+        for (int i = offset; i < offset + length; i++) {
+            byte b = buffer[i];
             String hexString = Integer.toHexString(0x00FF & b);
             string.append(hexString.length() == 1 ? "0" + hexString : hexString);
         }
         return string.toString();
+    }
+
+    public ByteArrayCursor newCursor() {
+        return ByteArrayCursor.wrap(buffer, offset, length);
     }
 
     /**
@@ -372,10 +431,10 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
      */
     public Bytes next() {
 
-        final byte[] dst = new byte[data.length];
-        System.arraycopy(data, 0, dst, 0, data.length);
+        final byte[] dst = new byte[length];
+        System.arraycopy(buffer, offset, dst, 0, length);
 
-        int idx = data.length - 1;
+        int idx = length - 1;
 
         /*
          * We alter bytes from last in a backward fashion. We could have done directly a manual copy with
@@ -394,6 +453,10 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
         return new Bytes(dst);
 
+    }
+
+    public boolean startsWith(int length, byte[] prefix) {
+        return Bytes.startsWith(this.buffer, this.offset, this.length, length, prefix);
     }
 
 }

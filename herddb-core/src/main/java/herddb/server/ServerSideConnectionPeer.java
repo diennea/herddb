@@ -620,7 +620,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             Statement statement = translatedQuery.plan.mainStatement;
                             TableAwareStatement tableStatement = (TableAwareStatement) statement;
                             Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey(), table);
                             otherData = new HashMap<>();
                             otherData.put("_key", key);
                             if (dml.getNewvalue() != null) {
@@ -745,7 +745,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                                 .getManager()
                                 .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
                         newRecord = new HashMap<>();
-                        Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                        Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey(), table);
                         newRecord.put("_key", newKey);
                         if (dml.getNewvalue() != null) {
                             newRecord.putAll(RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table));

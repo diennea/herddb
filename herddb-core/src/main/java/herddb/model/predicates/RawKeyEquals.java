@@ -38,7 +38,7 @@ public final class RawKeyEquals extends Predicate {
 
     public RawKeyEquals(Bytes value) {
         this.value = value;
-        setIndexOperation(new PrimaryIndexSeek(new ConstValueRecordFunction(value.data)));
+        setIndexOperation(new PrimaryIndexSeek(new ConstValueRecordFunction(value)));
     }
 
     @Override

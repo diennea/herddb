@@ -195,7 +195,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                             case "data": {
                                 List<Record> records = new ArrayList<>();
                                 PduCodec.TablespaceDumpData.readRecords(message, (key, value) -> {
-                                    records.add(new Record(new Bytes(key), new Bytes(value)));
+                                    records.add(new Record(Bytes.from_array(key), Bytes.from_array(value)));
                                 });
                                 receiver.receiveTableDataChunk(records);
                                 break;

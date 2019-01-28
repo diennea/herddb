@@ -40,7 +40,7 @@ public class UpdateStatement extends DMLStatement {
     private final Predicate predicate;
 
     public UpdateStatement(String tableSpace, String table, Record record, Predicate predicate) {
-        this(tableSpace, table, new ConstValueRecordFunction(record.key.data), new ConstValueRecordFunction(record.value.data), predicate);
+        this(tableSpace, table, new ConstValueRecordFunction(record.key), new ConstValueRecordFunction(record.value), predicate);
     }
 
     public UpdateStatement(String tableSpace, String table, RecordFunction key, RecordFunction function, Predicate predicate) {

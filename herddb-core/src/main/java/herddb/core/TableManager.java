@@ -381,7 +381,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_int((int) nextPrimaryKeyValue.getAndIncrement()).data;
+                    return Bytes.intToByteArray((int) nextPrimaryKeyValue.getAndIncrement());
                 }
 
                 @Override
@@ -393,7 +393,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_long((int) nextPrimaryKeyValue.getAndIncrement()).data;
+                    return Bytes.longToByteArray(nextPrimaryKeyValue.getAndIncrement());
                 }
 
                 @Override
@@ -865,7 +865,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Bytes key;
         byte[] value;
         try {
-            key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
+            key = Bytes.from_array(insert.getKeyFunction().computeNewValue(null, context, tableContext));
             value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
         } catch (StatementExecutionException validationError) {
             return FutureUtils.exception(validationError);
@@ -896,15 +896,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 // OK, INSERT on a DELETED record inside this transaction
             } else if (transaction.recordInserted(table.name, key) != null) {
                 // ERROR, INSERT on a INSERTED record inside this transaction
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
             }
         } else if (keyToPage.containsKey(key)) {
-            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name));
+            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
         }
         if (res == null) {
-            LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
+            LogEntry entry = LogEntryFactory.insert(table, key, Bytes.from_array(value), transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
                 apply(pos, entry, false);
@@ -1010,7 +1010,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return;
                 }
 
-                LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
+                LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
                 lastKey.value = actual.key;
@@ -1085,7 +1085,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
-        Holder<byte[]> lastValue = new Holder<>();
+        Holder<Bytes> lastValue = new Holder<>();
 
         long transactionId = transaction != null ? transaction.transactionId : 0;
         Predicate predicate = delete.getPredicate();
@@ -1095,11 +1095,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
+                LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
                 lastKey.value = actual.key;
-                lastValue.value = actual.value.data;
+                lastValue.value = actual.value;
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
@@ -1124,7 +1124,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                                delete.isReturnValues() ? lastValue.value : null);
                     });
         } else {
             return FutureUtils
@@ -1146,7 +1146,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                                delete.isReturnValues() ? lastValue.value : null);
                     });
         }
     }
@@ -1315,7 +1315,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
-                Bytes key = new Bytes(entry.key);
+                Bytes key = entry.key;
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -1328,8 +1328,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 break;
             }
             case LogEntryType.UPDATE: {
-                Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);
+                Bytes key = entry.key;
+                Bytes value = entry.value;
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -1342,8 +1342,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 break;
             }
             case LogEntryType.INSERT: {
-                Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);
+                Bytes key = entry.key;
+                Bytes value = entry.value;
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -1736,7 +1736,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             StatementEvaluationContext context) {
         Bytes key;
         try {
-            key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
+            key = Bytes.from_nullable_array(get.getKey().computeNewValue(null, context, tableContext));
         } catch (StatementExecutionException validationError) {
             return FutureUtils.exception(validationError);
         }
@@ -2203,7 +2203,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pageSet.checkpointDone(flushedPages);
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
-                    Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId,
+                    Bytes.longToByteArray(nextPrimaryKeyValue.get()), nextPageId,
                     pageSet.getActivePages());
 
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));

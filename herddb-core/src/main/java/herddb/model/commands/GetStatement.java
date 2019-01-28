@@ -40,7 +40,7 @@ public class GetStatement extends TableAwareStatement {
 
     public GetStatement(String tableSpace, String table, Bytes key, Predicate predicate, boolean requireLock) {
         super(table, tableSpace);
-        this.key = new ConstValueRecordFunction(key.data);
+        this.key = new ConstValueRecordFunction(key);
         this.predicate = predicate;
         this.requireLock = requireLock;
     }

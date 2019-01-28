@@ -87,7 +87,7 @@ class SingleTableDumper implements FullTableScanConsumer {
     @Override
     public void acceptRecord(Record record) {
         try {
-            batch.add(new KeyValue(record.key.data, record.value.data));
+            batch.add(new KeyValue(record.key, record.value));
             if (batch.size() == fetchSize) {
                 sendBatch();
             }

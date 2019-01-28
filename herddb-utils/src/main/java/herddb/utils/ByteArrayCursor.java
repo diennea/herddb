@@ -50,11 +50,21 @@ public class ByteArrayCursor implements Closeable {
 
     private byte[] array;
     private int position;
+    private int end;
 
     public static ByteArrayCursor wrap(byte[] array) {
         ByteArrayCursor res = RECYCLER.get();
         res.array = array;
         res.position = 0;
+        res.end = array.length;
+        return res;
+    }
+    
+    public static ByteArrayCursor wrap(byte[] array, int offset, int length) {
+        ByteArrayCursor res = RECYCLER.get();
+        res.array = array;
+        res.position = offset;
+        res.end = offset + length;
         return res;
     }
 
@@ -68,11 +78,11 @@ public class ByteArrayCursor implements Closeable {
     }
 
     public boolean isEof() {
-        return position >= array.length;
+        return position >= end;
     }
 
     public int read() {
-        if (position >= array.length) {
+        if (position >= end) {
             // EOF
             return -1;
         }
@@ -85,8 +95,8 @@ public class ByteArrayCursor implements Closeable {
     }
 
     private void checkReadable(int len) throws IOException {
-        if (position + len > array.length) {
-            throw new EOFException("array len " + array.length + ", pos " + position + ", try to read " + len + " bytes");
+        if (position + len > end) {
+            throw new EOFException("array len " + end + ", pos " + position + ", try to read " + len + " bytes");
         }
     }
 
@@ -121,7 +131,7 @@ public class ByteArrayCursor implements Closeable {
         int ch = read();
         if (ch < 0) {
             // EOF
-            position = array.length;
+            position = end;
             return -1;
         }
 
@@ -299,6 +309,19 @@ public class ByteArrayCursor implements Closeable {
         }
         byte[] res = new byte[len];
         readArray(len, res);
+        return res;
+    }
+    
+    public Bytes readBytesNoCopy() throws IOException {
+        int len = readVInt();
+        if (len == 0) {
+            return Bytes.EMPTY_ARRAY;
+        } else if (len == -1) {
+            /* NULL array */
+            return null;
+        }
+        Bytes res = Bytes.from_array(array, position, len);
+        position += len;
         return res;
     }
     
