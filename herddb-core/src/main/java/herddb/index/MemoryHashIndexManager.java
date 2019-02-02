@@ -103,14 +103,14 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                     }
                     int size = in.readVInt();
                     for (int i = 0; i < size; i++) {
-                        byte[] indexKey = in.readArray();
+                        Bytes indexKey = in.readBytesNoCopy();
                         int entrySize = in.readVInt();
                         List<Bytes> value = new ArrayList<>(entrySize);
                         for (int kk = 0; kk < entrySize; kk++) {
-                            byte[] tableKey = in.readArray();
-                            value.add(Bytes.from_array(tableKey));
+                            Bytes tableKey = in.readBytesNoCopy();
+                            value.add(tableKey);
                         }
-                        deserialized.put(Bytes.from_array(indexKey), value);
+                        deserialized.put(indexKey, value);
                     }
 
                     return deserialized;
