@@ -240,8 +240,8 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             if (other.hashCode() != this.hashCode()) {
                 return false;
             }
-            return CompareBytesUtils.arraysEquals(buffer, offset, length,
-                    other.buffer, other.offset, other.length);
+            return CompareBytesUtils.arraysEquals(buffer, offset, offset + length,
+                    other.buffer, other.offset, other.offset + other.length);
         } catch (ClassCastException otherClass) {
             return false;
         }
