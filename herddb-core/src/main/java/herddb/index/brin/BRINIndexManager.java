@@ -57,6 +57,7 @@ import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
@@ -153,7 +154,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             }
         }
 
-        static PageContents deserialize(ExtendedDataInputStream in) throws IOException {
+        static PageContents deserialize(ByteArrayCursor in) throws IOException {
             long version = in.readVLong(); // version
             long flags = in.readVLong(); // flags for future implementations
 
@@ -180,7 +181,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             /* First key is null if is the head block */
                             firstKey = null;
                         } else {
-                            firstKey = Bytes.from_array(in.readArray());
+                            firstKey = in.readBytesNoCopy();
                         }
 
                         long blockId = in.readVLong();
@@ -205,8 +206,8 @@ public class BRINIndexManager extends AbstractIndexManager {
                     int values = in.readVInt();
                     result.pageData = new ArrayList<>(values);
                     for (int i = 0; i < values; i++) {
-                        Bytes key = Bytes.from_array(in.readArray());
-                        Bytes value = Bytes.from_array(in.readArray());
+                        Bytes key = in.readBytesNoCopy();
+                        Bytes value =in.readBytesNoCopy();
                         result.pageData.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
                     }
                     break;
@@ -217,8 +218,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
 
         static PageContents deserialize(byte[] pagedata) throws IOException {
-            try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(pagedata);
-                ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
+            try (ByteArrayCursor ein = ByteArrayCursor.wrap(pagedata);) {
                 return deserialize(ein);
             }
         }

@@ -55,6 +55,7 @@ import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -444,8 +445,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
         public BLinkMetadata<Bytes> read(byte[] data) throws IOException {
 
-            try (SimpleByteArrayInputStream bis = new SimpleByteArrayInputStream(data);
-                ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
+            try (ByteArrayCursor edis = ByteArrayCursor.wrap(data)) {
 
                 long version = edis.readVLong();
 
@@ -510,7 +510,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     if (hasInf) {
                         rightsep = Bytes.POSITIVE_INFINITY;
                     } else {
-                        rightsep = Bytes.from_array(edis.readArray());
+                        rightsep = edis.readBytesNoCopy();
                     }
 
                     BLinkNodeMetadata<Bytes> node
@@ -562,7 +562,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     switch (block) {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
-                            map.put(Bytes.from_array(in.readArray()),
+                            map.put(in.readBytesNoCopy(),
                                 in.readVLong());
                             break;
 

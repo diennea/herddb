@@ -68,6 +68,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -103,13 +104,17 @@ public class FileDataStorageManager extends DataStorageManager {
 
     public static final String FILEEXTENSION_PAGE = ".page";
 
-    /** Standard buffer size for data copies */
-    public static final int COPY_BUFFERS_SIZE =
-            SystemProperties.getIntSystemProperty("herddb.file.copybuffersize", 64 * 1024);
+    /**
+     * Standard buffer size for data copies
+     */
+    public static final int COPY_BUFFERS_SIZE
+            = SystemProperties.getIntSystemProperty("herddb.file.copybuffersize", 64 * 1024);
 
-    /** Standard blocks batch number for o_direct procedures */
-    public static final int O_DIRECT_BLOCK_BATCH =
-            SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
+    /**
+     * Standard blocks batch number for o_direct procedures
+     */
+    public static final int O_DIRECT_BLOCK_BATCH
+            = SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
@@ -261,34 +266,35 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private static List<Record> rawReadDataPage(Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
-        List<Record> result;
-        long hashFromFile;
-        long hashFromDigest;
-        try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
-            /*
-             * When writing with O_DIRECT this stream will be zero padded at the end. It isn't a problem: reader
-             * known how many record has to read (numRecords) hash is written to file before zero pad
-             */
+        int size = (int) Files.size(pageFile);
+        byte[] dataPage = new byte[size];
+        int read = stream.read(dataPage);
+        if (read != size) {
+            throw new IOException("short read, read " + read + " instead of " + size + " bytes from " + pageFile);
+        }
+        try (ByteArrayCursor dataIn = ByteArrayCursor.wrap(dataPage)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             int numRecords = dataIn.readInt();
-            result = new ArrayList<>(numRecords);
+            List<Record> result = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
-                Bytes key = dataIn.readBytes();
-                Bytes value = dataIn.readBytes();
+                Bytes key = dataIn.readBytesNoCopy();
+                Bytes value = dataIn.readBytesNoCopy();
                 result.add(new Record(key, value));
             }
-            hashFromDigest = hash.hash();
-            hashFromFile = dataIn.readLong();
+            int pos = dataIn.getPosition();
+            long hashFromFile = dataIn.readLong();
+            // after the hash we will have zeroes or garbage
+            // the hash is not at the end of file, but after data
+            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+            if (hashFromDigest != hashFromFile) {
+                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            }
+            return result;
         }
-        if (hashFromDigest != hashFromFile) {
-            throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
-        }
-        return result;
     }
 
     public static List<Record> rawReadDataPage(Path pageFile) throws DataStorageManagerException,
@@ -321,11 +327,13 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private static <X> X readIndexPage(DataReader<X> reader, Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
-        X result;
-        long hashFromFile;
-        long hashFromDigest;
-        try (XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(stream);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+        int size = (int) Files.size(pageFile);
+        byte[] dataPage = new byte[size];
+        int read = stream.read(dataPage);
+        if (read != size) {
+            throw new IOException("short read, read " + read + " instead of " + size + " bytes from " + pageFile);
+        }
+        try (ByteArrayCursor dataIn = ByteArrayCursor.wrap(dataPage)) {
             /*
              * When writing with O_DIRECT this stream will be zero padded at the end. It isn't a problem: reader
              * must already handle his stop condition without reading file till the end because it contains an
@@ -336,14 +344,17 @@ public class FileDataStorageManager extends DataStorageManager {
             if (version != 1 || flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
-            result = reader.read(dataIn);
-            hashFromDigest = hash.hash();
-            hashFromFile = dataIn.readLong();
+            X result = reader.read(dataIn);
+            int pos = dataIn.getPosition();
+            long hashFromFile = dataIn.readLong();
+            // after the hash we will have zeroes or garbage
+            // the hash is not at the end of file, but after data
+            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+            if (hashFromDigest != hashFromFile) {
+                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            }
+            return result;
         }
-        if (hashFromDigest != hashFromFile) {
-            throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
-        }
-        return result;
     }
 
     @Override
@@ -696,7 +707,8 @@ public class FileDataStorageManager extends DataStorageManager {
      *
      * @param file path from which lookup parent
      * @return parent path
-     * @throws DataStorageManagerException if no parent cannot be resolved (even checking absolute Path)
+     * @throws DataStorageManagerException if no parent cannot be resolved (even
+     * checking absolute Path)
      */
     private static Path getParent(Path file) throws DataStorageManagerException {
 
@@ -802,13 +814,13 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
-
     /**
      * Write a record page
      *
      * @param newPage data to write
-     * @param file    managed file used for sync operations
-     * @param stream  output stream related to given managed file for write operations
+     * @param file managed file used for sync operations
+     * @param stream output stream related to given managed file for write
+     * operations
      * @return
      * @throws IOException
      */

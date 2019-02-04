@@ -128,9 +128,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         if (page == null) {
             throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
         }
-        //TODO: do not perform copy
-        try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(page.to_array());
-            ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
+        try (ByteArrayCursor ein = page.newCursor()) {
             return reader.read(ein);
         } catch (IOException e) {
             throw new DataStorageManagerException(e);
