@@ -325,6 +325,10 @@ public class ByteArrayCursor implements Closeable {
         return res;
     }
     
+    public Bytes readBytes() throws IOException {
+        return Bytes.from_nullable_array(readArray());
+    }
+    
     public RawString readRawStringNoCopy() throws IOException {
         int len = readVInt();
         if (len == 0) {

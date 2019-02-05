@@ -465,7 +465,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (currentPage < 0) {
                         throw new IllegalStateException();
                     }
-                    keyToPage.put(record.key, currentPage);
+                    keyToPage.put(record.key.nonShared(), currentPage);
                 }
 
                 @Override
@@ -570,6 +570,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         for (Bytes key : newPage.keySet()) {
+            // OK to use a shared array for the key
             keyToPage.put(key, pageId);
         }
         return pageId;
@@ -799,7 +800,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             Record record = records.next();
             add = page.put(record);
             if (add) {
-                keyToPage.put(record.key, page.pageId);
+                keyToPage.put(record.key.nonShared(), page.pageId);
                 records.remove();
             }
         }
@@ -1440,6 +1441,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void applyUpdate(Bytes key, Bytes value) throws DataStorageManagerException {
+        // do not want to retain shared buffers as keys
+        key = key.nonShared();
+        
         /*
          * New record to be updated, it will always updated if there aren't errors thus is simpler to create
          * the record now
@@ -1649,6 +1653,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
+        // don't want to keep strong references to shared buffers in the keyToPages
+        key = key.nonShared();
+        
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value
             long pk_logical_value;
@@ -1697,7 +1704,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Try allocate a new page if no already done */
             insertionPageId = allocateLivePage(insertionPageId);
         }
-
+        
         /* Insert  the value on keyToPage */
         keyToPage.put(key, insertionPageId);
 
