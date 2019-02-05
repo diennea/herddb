@@ -459,4 +459,17 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         return Bytes.startsWith(this.buffer, this.offset, this.length, length, prefix);
     }
 
+    /**
+     * Ensure that this value is not retaining strong references to a shared buffer
+     * @return the buffer itself or a copy
+     */
+    public Bytes nonShared() {
+        if (this.offset == 0 && this.length == buffer.length) {
+            return this;
+        }
+        byte[] array = new byte[this.length];
+        System.arraycopy(buffer, offset, array, 0, length);
+        return new Bytes(array, 0, length);
+    }
+    
 }
