@@ -34,9 +34,9 @@ import java.util.Arrays;
 @SuppressFBWarnings("EI_EXPOSE_REP")
 public class VisibleByteArrayOutputStream extends OutputStream {
 
-    protected byte buf[];
+    private byte buf[];
 
-    protected int count;
+    private int count;
 
     public VisibleByteArrayOutputStream() {
         this(32);
@@ -59,8 +59,8 @@ public class VisibleByteArrayOutputStream extends OutputStream {
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
     /**
-     * Increases the capacity to ensure that it can hold at least the number of elements specified by the minimum
-     * capacity argument.
+     * Increases the capacity to ensure that it can hold at least the number of
+     * elements specified by the minimum capacity argument.
      *
      * @param minCapacity the desired minimum capacity
      */
@@ -83,8 +83,8 @@ public class VisibleByteArrayOutputStream extends OutputStream {
             throw new OutOfMemoryError();
         }
         return (minCapacity > MAX_ARRAY_SIZE)
-            ? Integer.MAX_VALUE
-            : MAX_ARRAY_SIZE;
+                ? Integer.MAX_VALUE
+                : MAX_ARRAY_SIZE;
     }
 
     @Override
@@ -97,7 +97,7 @@ public class VisibleByteArrayOutputStream extends OutputStream {
     @Override
     public void write(byte b[], int off, int len) {
         if ((off < 0) || (off > b.length) || (len < 0)
-            || ((off + len) - b.length > 0)) {
+                || ((off + len) - b.length > 0)) {
             throw new IndexOutOfBoundsException();
         }
         ensureCapacity(count + len);
