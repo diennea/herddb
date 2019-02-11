@@ -34,9 +34,9 @@ import java.util.Arrays;
 @SuppressFBWarnings("EI_EXPOSE_REP")
 public class VisibleByteArrayOutputStream extends OutputStream {
 
-    private byte buf[];
+    byte buf[];
 
-    private int count;
+    int count;
 
     public VisibleByteArrayOutputStream() {
         this(32);
