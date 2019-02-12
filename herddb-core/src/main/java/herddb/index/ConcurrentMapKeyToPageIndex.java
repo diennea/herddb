@@ -36,6 +36,7 @@ import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.Holder;
 
 /**
  * Implementation of KeyToPageIndex which uses any ConcurrentMap
@@ -70,6 +71,31 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
         if (res == null) {
             keyAdded(key);
         }
+    }
+
+    @Override
+    public boolean put(Bytes key, Long newPage, Long expectedPage) {
+        if (expectedPage == null) {
+            final Long opage = map.putIfAbsent(key, newPage);
+            return opage == null;
+        } else {
+            /*
+             * We need to keep track if the update was really done. Reading computeIfPresent result won't
+             * suffice, it can be equal to newPage even if no replacement was done (the map contained already
+             * newPage mapping and expectedPage was different)
+             */
+            Holder<Boolean> holder = new Holder<>(Boolean.FALSE);
+            map.computeIfPresent(key, (skey, spage) -> {
+                if (spage.equals(expectedPage)) {
+                    holder.value = Boolean.TRUE;
+                    return newPage;
+                }
+                return spage;
+            });
+
+            return holder.value.booleanValue();
+        }
+
     }
 
     private void keyAdded(Bytes key) {

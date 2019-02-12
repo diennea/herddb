@@ -70,6 +70,17 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public void put(Bytes key, Long currentPage);
 
+    /**
+     * Attempt to put a new value in the index. The mapping will be update only if current mapping
+     * matches given expected one (provide null if no mapping is expected).
+     * <p>
+     * I current mapping differs it will be left untouched
+     * </p>
+     *
+     * @return {@code false} if the put wasn't executed
+     */
+    public boolean put(Bytes key, Long newPage, Long expectedPage);
+
     public boolean containsKey(Bytes key);
 
     public Long get(Bytes key);

@@ -56,6 +56,7 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.Holder;
 
 /**
  * Java implementation of b-link tree derived from Vladimir Lanin and Dennis
@@ -557,6 +558,45 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //        normalize(n, descent, 1);
 //        unlock(n, writelock)
 //    end;
+    public boolean insert(K v, V e, V expected) {
+
+        Node<K, V> n;
+        Deque<ResultCouple<K, V>> descent = new LinkedList<>();
+        Queue<CriticJob> maintenance = new LinkedList<>();
+
+        try {
+
+            n = locate_leaf(v, WRITE_LOCK, descent);  // v € coverset(n), n write-locked
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to insert " + v, ex);
+        }
+
+        boolean added;
+        try {
+
+            added = n.add_key_if(v, e, expected); // decisive
+            normalize(n, descent, 1, maintenance);
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to insert " + v, ex);
+
+        } finally {
+
+            unlock(n, WRITE_LOCK);
+        }
+
+        if (added == true && expected == null) {
+            size.increment();
+        }
+
+        handleMainenance(maintenance);
+
+        return added;
+    }
+
     public V insert(K v, V e) {
 
         Node<K, V> n;
@@ -2043,6 +2083,72 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
                 return old;
             }
+        }
+
+        /**
+         * add a key only if current mapping match with expected one, returns {@code true} if added/replaced
+         */
+        boolean add_key_if(X key, Y value, Y expected) throws IOException {
+            final Y old;
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X, Y> loadLock = loadAndLock(true);
+            try {
+
+                if (expected == null) {
+                    /* Cast to Y: is a leaf */
+                    old = (Y) map.putIfAbsent(key, value);
+
+                    /* If there was a value and we didn't expect something abort replacement */
+                    if (old != null) {
+                        return false;
+                    }
+                } else {
+                    /*
+                     * We need to keep track if the update was really done. Reading computeIfPresent result won't
+                     * suffice, it can be equal to newPage even if no replacement was done (the map contained already
+                     * newPage mapping and expectedPage was different)
+                     */
+                    Holder<Boolean> replaced = new Holder<>(Boolean.FALSE);
+                    Holder<Y> hold = new Holder<>();
+                    final boolean o;
+                    map.computeIfPresent(key, (skey, svalue) -> {
+                        if (svalue.equals(expected)) {
+                            replaced.value = Boolean.TRUE;
+                            /* Cast to Y: is a leaf */
+                            hold.value = (Y) svalue;
+                            return value;
+                        }
+
+                        return svalue;
+                    });
+
+                    /* If we didn't find expected mapping abort replacement */
+                    if (!replaced.value.booleanValue()) {
+                        return false;
+                    }
+
+                    old = hold.value;
+                }
+
+                dirty = true;
+            } finally {
+                loadLock.unlock();
+
+                if (loadLock.unload != null) {
+                    loadLock.unload();
+                }
+            }
+
+            if (old == null) {
+                ++keys;
+                size += owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+            } else {
+                /* TODO: this could be avoided if we can ensure that every value will have the same size */
+                size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+            }
+
+            return true;
         }
 
         /**
