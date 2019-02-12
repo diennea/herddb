@@ -80,7 +80,9 @@ import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SystemProperties;
+import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
+import io.netty.util.Recycler;
 
 /**
  * Data Storage on local filesystem
@@ -223,15 +225,15 @@ public class FileDataStorageManager extends DataStorageManager {
         return getTablespaceDirectory(tableSpace).resolve(indexname + ".index");
     }
 
-    private Path getPageFile(Path tableDirectory, Long pageId) {
+    private static Path getPageFile(Path tableDirectory, Long pageId) {
         return tableDirectory.resolve(pageId + FILEEXTENSION_PAGE);
     }
 
-    private Path getTableCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
+    private static Path getTableCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
         return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + EXTENSION_TABLEORINDExCHECKPOINTINFOFILE);
     }
 
-    private boolean isTableOrIndexCheckpointsFile(Path path) {
+    private static boolean isTableOrIndexCheckpointsFile(Path path) {
         Path filename = path.getFileName();
         return filename != null && filename.toString().endsWith(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE);
     }
@@ -826,8 +828,8 @@ public class FileDataStorageManager extends DataStorageManager {
      */
     private static long writePage(Collection<Record> newPage, ManagedFile file, OutputStream stream) throws IOException {
 
-        try (XXHash64Utils.HashingOutputStream hash = new XXHash64Utils.HashingOutputStream(stream);
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(hash)) {
+        try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
 
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
@@ -836,17 +838,13 @@ public class FileDataStorageManager extends DataStorageManager {
                 dataOutput.writeArray(record.key);
                 dataOutput.writeArray(record.value);
             }
-
-            long size = hash.size();
-
-            // footer
-            dataOutput.writeLong(hash.hash());
             dataOutput.flush();
-
+            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            dataOutput.writeLong(hash);
+            dataOutput.flush();
+            stream.write(oo.getBuffer(), 0, oo.size());
             file.sync();
-
-            return size;
-
+            return oo.size();
         }
 
     }
@@ -896,23 +894,18 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private static long writeIndexPage(DataWriter writer, ManagedFile file, OutputStream stream) throws IOException {
-        long size;
-        try (XXHash64Utils.HashingOutputStream hash = new XXHash64Utils.HashingOutputStream(stream);
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(hash)) {
-
+        try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
-
-            size = hash.size();
             writer.write(dataOutput);
-            size = hash.size() - size;
-
-            // footer
-            dataOutput.writeLong(hash.hash());
             dataOutput.flush();
+            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            dataOutput.writeLong(hash);
+            dataOutput.flush();
+            stream.write(oo.getBuffer(), 0, oo.size());
             file.sync();
-
-            return size;
+            return oo.size();
         }
     }
 
@@ -928,7 +921,6 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
-
         try {
             if (indexodirect) {
                 try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
@@ -1510,4 +1502,46 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    private static Recycler<RecyclableByteArrayOutputStream> WRITE_BUFFERS_RECYCLER = new Recycler<RecyclableByteArrayOutputStream>() {
+
+        @Override
+        protected RecyclableByteArrayOutputStream newObject(
+                Recycler.Handle<RecyclableByteArrayOutputStream> handle) {
+            return new RecyclableByteArrayOutputStream(handle);
+        }
+
+    };
+
+    private static RecyclableByteArrayOutputStream getWriteBuffer() {
+        RecyclableByteArrayOutputStream res = WRITE_BUFFERS_RECYCLER.get();
+        res.closed = false;
+        res.reset();
+        return res;
+    }
+
+    /**
+     * These buffers are useful only inside FileDataStorageManager, because they
+     * will eventually be mostly of about maximum page size bytes large.
+     */
+    private static final class RecyclableByteArrayOutputStream extends VisibleByteArrayOutputStream {
+
+        private final static int DEFAULT_INITIAL_SIZE = 1024 * 1024;
+        private final io.netty.util.Recycler.Handle<RecyclableByteArrayOutputStream> handle;
+        private boolean closed;
+
+        RecyclableByteArrayOutputStream(Recycler.Handle<RecyclableByteArrayOutputStream> handle) {
+            super(DEFAULT_INITIAL_SIZE);
+            this.handle = handle;
+        }
+
+        @Override
+        public void close() {
+            if (!closed) { // prevent double 'recycle'
+                super.close();
+                handle.recycle(this);
+                closed = true;
+            }
+        }
+
+    }
 }
