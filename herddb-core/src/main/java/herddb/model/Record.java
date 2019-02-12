@@ -84,9 +84,28 @@ public final class Record implements SizeAwareObject {
         this.cache = new WeakReference<>(cache);
     }
 
+    private Record(Bytes key, Bytes value, WeakReference<Map<String, Object>> cache) {
+        this.key = key;
+        this.value = value;
+        this.cache = cache;
+    }
+
     @Override
     public long getEstimatedSize() {
         return this.key.getEstimatedSize() + this.value.getEstimatedSize() + CONSTANT_BYTE_SIZE;
+    }
+
+    /**
+     * Ensure that this value is not retaining strong references to a shared buffer
+     * @return the record itself or a copy
+     */
+    public Record nonShared() {
+
+        if (key.isShared() || value.isShared()) {
+            return new Record(key.nonShared(), value.nonShared(), cache);
+        }
+
+        return this;
     }
 
     public final Map<String, Object> toBean(Table table) {

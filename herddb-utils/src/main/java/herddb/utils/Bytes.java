@@ -21,7 +21,6 @@ package herddb.utils;
 
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.internal.PlatformDependent;
@@ -35,7 +34,7 @@ import io.netty.util.internal.PlatformDependent;
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public static final Bytes POSITIVE_INFINITY = new Bytes(new byte[0]);
-    
+
     public static final Bytes EMPTY_ARRAY = new Bytes(new byte[0]);
 
     private static final boolean UNALIGNED = PlatformDependent.isUnaligned();
@@ -121,7 +120,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     public static Bytes from_array(byte[] data) {
         return new Bytes(data);
     }
-    
+
     public static Bytes from_array(byte[] data, int offset, int len) {
         return new Bytes(data, offset, len);
     }
@@ -366,7 +365,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         } else if (o == POSITIVE_INFINITY) {
             return -1;
         }
-        return CompareBytesUtils.compare(buffer, offset, offset + length, 
+        return CompareBytesUtils.compare(buffer, offset, offset + length,
                 o.buffer, o.offset, o.offset + o.length);
     }
 
@@ -464,12 +463,16 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
      * @return the buffer itself or a copy
      */
     public Bytes nonShared() {
-        if (this.offset == 0 && this.length == buffer.length) {
-            return this;
+        if (isShared()) {
+            byte[] array = new byte[this.length];
+            System.arraycopy(buffer, offset, array, 0, length);
+            return new Bytes(array, 0, length);
         }
-        byte[] array = new byte[this.length];
-        System.arraycopy(buffer, offset, array, 0, length);
-        return new Bytes(array, 0, length);
+        return this;
     }
-    
+
+    public boolean isShared() {
+        return this.offset !=0 || this.length != buffer.length;
+    }
+
 }

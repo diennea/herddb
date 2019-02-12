@@ -797,10 +797,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean add = true;
         final Iterator<Record> records = spareData.values().iterator();
         while (add && records.hasNext()) {
-            Record record = records.next();
+            Record record = records.next().nonShared();
             add = page.put(record);
             if (add) {
-                keyToPage.put(record.key.nonShared(), page.pageId);
+                keyToPage.put(record.key, page.pageId);
                 records.remove();
             }
         }
@@ -1443,7 +1443,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private void applyUpdate(Bytes key, Bytes value) throws DataStorageManagerException {
         // do not want to retain shared buffers as keys
         key = key.nonShared();
-        
+
         /*
          * New record to be updated, it will always updated if there aren't errors thus is simpler to create
          * the record now
@@ -1655,7 +1655,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
         // don't want to keep strong references to shared buffers in the keyToPages
         key = key.nonShared();
-        
+
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value
             long pk_logical_value;
@@ -1704,7 +1704,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Try allocate a new page if no already done */
             insertionPageId = allocateLivePage(insertionPageId);
         }
-        
+
         /* Insert  the value on keyToPage */
         keyToPage.put(key, insertionPageId);
 
@@ -2078,7 +2078,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     /* Flush the page if it would exceed max page size */
-                    if (bufferPageSize + DataPage.estimateEntrySize(record) > maxLogicalPageSize) {
+                    final long recordSize = DataPage.estimateEntrySize(record);
+                    if (bufferPageSize + recordSize > maxLogicalPageSize) {
                         createImmutablePage(buffer, bufferPageSize);
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
@@ -2086,8 +2087,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         buffer = new HashMap<>(buffer.size());
                     }
 
-                    buffer.put(record.key, record);
-                    bufferPageSize += DataPage.estimateEntrySize(record);
+                    Record unshared = record.nonShared();
+                    buffer.put(unshared.key, unshared);
+                    bufferPageSize += recordSize;
                 }
 
                 /* Do not continue if we have used up all configured checkpoint time */
@@ -2129,7 +2131,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 for (Record record : records) {
                     /* Flush the page if it would exceed max page size */
-                    if (bufferPageSize + DataPage.estimateEntrySize(record) > maxLogicalPageSize) {
+                    final long recordSize = DataPage.estimateEntrySize(record);
+                    if (bufferPageSize + recordSize > maxLogicalPageSize) {
                         createImmutablePage(buffer, bufferPageSize);
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
@@ -2137,8 +2140,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         buffer = new HashMap<>(buffer.size());
                     }
 
-                    buffer.put(record.key, record);
-                    bufferPageSize += DataPage.estimateEntrySize(record);
+                    Record unshared = record.nonShared();
+                    buffer.put(unshared.key, unshared);
+                    bufferPageSize += recordSize;
                 }
 
                 final long now = System.currentTimeMillis();
