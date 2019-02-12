@@ -797,10 +797,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean add = true;
         final Iterator<Record> records = spareData.values().iterator();
         while (add && records.hasNext()) {
-            Record record = records.next();
+            Record record = records.next().nonShared();
             add = page.put(record);
             if (add) {
-                keyToPage.put(record.key.nonShared(), page.pageId);
+                keyToPage.put(record.key, page.pageId);
                 records.remove();
             }
         }
