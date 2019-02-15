@@ -843,7 +843,9 @@ public class FileDataStorageManager extends DataStorageManager {
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
-            file.sync();
+            if (file != null) { // O_DIRECT does not need fsync
+                file.sync();
+            }
             return oo.size();
         }
 
@@ -865,10 +867,8 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             if (pageodirect) {
                 try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                        ManagedFile file = ManagedFile.open(odirect.getFc(), requirefsync)) {
-
-                    size = writePage(newPage, file, odirect);
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                    size = writePage(newPage, null, odirect);
                 }
 
             } else {
@@ -904,7 +904,9 @@ public class FileDataStorageManager extends DataStorageManager {
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
-            file.sync();
+            if (file != null) { // O_DIRECT does not need fsync
+                file.sync();
+            }
             return oo.size();
         }
     }
@@ -924,10 +926,8 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             if (indexodirect) {
                 try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                        ManagedFile file = ManagedFile.open(odirect.getFc(), requirefsync)) {
-
-                    size = writeIndexPage(writer, file, odirect);
+                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);) {
+                    size = writeIndexPage(writer, null, odirect);
                 }
 
             } else {
