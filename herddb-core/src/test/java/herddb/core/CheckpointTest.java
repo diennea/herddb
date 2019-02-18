@@ -21,19 +21,26 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
-import herddb.core.stats.TableManagerStats;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import herddb.core.stats.TableManagerStats;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -48,12 +55,6 @@ import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.RandomString;
 import herddb.utils.RawString;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Tests on checkpoints
@@ -266,6 +267,354 @@ public class CheckpointTest {
             assertTrue(pages <= (originalPages / 2) + (originalPages % 2));
         }
 
+    }
+
+    /**
+     * Rebuild dirty pages but don't keep rebuilt pages in memory after checkpoint
+     */
+    @Test
+    public void doNotKeepDirtyRebuiltInMemory() throws Exception {
+        String nodeId = "localhost";
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        /* Disable page compaction (avoid compaction of dirty page) */
+        config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
+
+        /* Force dirty rebuilt */
+        config.set(ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD, 0.0D);
+
+        final long pageSize = 350;
+        config.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, pageSize);
+
+
+        try (DBManager manager = new DBManager("localhost",
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config,
+                null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
+                    Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            manager.checkpoint();
+
+            TableManager table = (TableManager) manager.getTableSpaceManager("tblspace1").getTableManager("tsql");
+
+            /* Get only current and loaded page (+1 empty page for new records... we need the other one) */
+            Collection<DataPage> pages = table.getLoadedPages();
+            assertEquals(2, pages.size());
+            DataPage page = pages.stream().filter(dpage -> !dpage.writable).findFirst().get();
+            assertNotNull(page);
+
+            /* 2 records in page */
+            assertEquals(2, page.data.size());
+
+            /* No more space for other records */
+            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
+
+            /* Dirty a page with few data */
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
+                    Arrays.asList("b", "mykey")).getUpdateCount());
+
+            /*
+             * Add new record to fill working page (2 record per page, new "updated" and current insert. We
+             * expect remaining dirty record on a new page unloaded)
+             */
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            /* Force page unload after dirty it */
+
+            /* Remove from page replacement policy */
+            manager.getMemoryManager().getDataPageReplacementPolicy().remove(page);
+
+            /* Fully unload the page */
+            table.unload(page.pageId);
+
+            /* Now do a checkpoint with an unloaded dirty page */
+            manager.checkpoint();
+
+            /* New rebuilt page souldn't be in memory */
+            pages = table.getLoadedPages();
+
+            /* 1 page sould be empty */
+            assertEquals(1, pages.stream().filter(DataPage::isEmpty).count());
+
+            /* 2 pages, one empty and one contains only moved record and the new record */
+            assertEquals(2, pages.size());
+
+        }
+    }
+
+    /**
+     * Rebuild dirty pages but keep rebuilt pages in memory after checkpoint
+     */
+    @Test
+    public void keepDirtyRebuiltInMemory() throws Exception {
+        String nodeId = "localhost";
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        /* Disable page compaction (avoid compaction of dirty page) */
+        config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
+
+        /* Force dirty rebuilt */
+        config.set(ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD, 0.0D);
+
+        final long pageSize = 350;
+        config.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, pageSize);
+
+
+        try (DBManager manager = new DBManager("localhost",
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config,
+                null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
+                    Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            manager.checkpoint();
+
+            TableManager table = (TableManager) manager.getTableSpaceManager("tblspace1").getTableManager("tsql");
+
+            /* Get only current and loaded page (+1 empty page for new records... we need the other one) */
+            Collection<DataPage> pages = table.getLoadedPages();
+            assertEquals(2, pages.size());
+            DataPage page = pages.stream().filter(dpage -> !dpage.writable).findFirst().get();
+            assertNotNull(page);
+
+            /* 2 records in page */
+            assertEquals(2, page.data.size());
+
+            /* No more space for other records */
+            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
+
+            /* Dirty a page with few data */
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
+                    Arrays.asList("b", "mykey")).getUpdateCount());
+
+            /*
+             * Add new record to fill working page (2 record per page, new "updated" and current insert. We
+             * expect remaining dirty record on a new page unloaded)
+             */
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            /* Do not unload dirty page */
+
+            /* Now do a checkpoint with an unloaded dirty page */
+            manager.checkpoint();
+
+            /* New rebuilt page souldn't be in memory */
+            pages = table.getLoadedPages();
+
+            /* 1 page sould be empty */
+            assertEquals(1, pages.stream().filter(DataPage::isEmpty).count());
+
+            /*
+             * 3 pages, one empty, one contains only moved record and the new record, and one containing only
+             * one record remaining from dirty page unpack
+             */
+            assertEquals(3, pages.size());
+
+        }
+    }
+
+    /**
+     * Rebuild small pages but don't keep rebuilt pages in memory after checkpoint
+     */
+    @Test
+    public void doNotKeepSmallRebuiltInMemory() throws Exception {
+        String nodeId = "localhost";
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        /* Force page compaction */
+        final double minFillThreashod = 100.0D;
+        config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, minFillThreashod);
+
+        /* Disable dirty rebuilt */
+        config.set(ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD, 100.0D);
+
+        final long pageSize = 200;
+        config.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, pageSize);
+
+
+        try (DBManager manager = new DBManager("localhost",
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config,
+                null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
+                    Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey1", "a", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            manager.checkpoint();
+
+            TableManager table = (TableManager) manager.getTableSpaceManager("tblspace1").getTableManager("tsql");
+
+            /* Get only current and 2 loaded page (+1 empty page for new records... we need the other one) */
+            /* We need 2 small pages or small pages compaction will be avoided */
+            Collection<DataPage> pages = table.getLoadedPages();
+            assertEquals(3, pages.size());
+            DataPage page = pages.stream().filter(dpage -> !dpage.writable).findFirst().get();
+            assertNotNull(page);
+
+            /* 1 records in page */
+            assertEquals(1, page.data.size());
+
+            /* No more space for other records */
+            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
+
+            /* No more space in page BUT consider the page as small (little hacky) */
+            double compactionThresholdSize = minFillThreashod / 100 * pageSize;
+            assertTrue(compactionThresholdSize >= page.getUsedMemory());
+
+            /* Force a second checkpoint to attempt to rebuild small page */
+
+            /* Force small pages unload */
+            for (DataPage dpage : pages) {
+                if (!dpage.writable) {
+
+                    /* Remove from page replacement policy */
+                    manager.getMemoryManager().getDataPageReplacementPolicy().remove(dpage);
+
+                    /* Fully unload the page */
+                    table.unload(dpage.pageId);
+                }
+            }
+
+
+            /* Now do a checkpoint with an unloaded dirty page */
+            manager.checkpoint();
+
+            /* New rebuilt page souldn't be in memory */
+            pages = table.getLoadedPages();
+
+            /* 1 page should be empty */
+            assertEquals(1, pages.stream().filter(DataPage::isEmpty).count());
+
+            /* 1 page empty and nothing else */
+            assertEquals(1, pages.size());
+
+        }
+    }
+
+    /**
+     * Rebuild small pages but keep rebuilt pages in memory after checkpoint
+     */
+    @Test
+    public void keepSmallRebuiltInMemory() throws Exception {
+        String nodeId = "localhost";
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        /* Force page compaction */
+        final double minFillThreashod = 100.0D;
+        config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, minFillThreashod);
+
+        /* Disable dirty rebuilt */
+        config.set(ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD, 100.0D);
+
+        final long pageSize = 200;
+        config.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, pageSize);
+
+
+        try (DBManager manager = new DBManager("localhost",
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config,
+                null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
+                    Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey1", "a", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+
+                    Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            manager.checkpoint();
+
+            TableManager table = (TableManager) manager.getTableSpaceManager("tblspace1").getTableManager("tsql");
+
+            /* Get only current and 2 loaded page (+1 empty page for new records... we need the other one) */
+            /* We need 2 small pages or small pages compaction will be avoided */
+            Collection<DataPage> pages = table.getLoadedPages();
+            assertEquals(3, pages.size());
+            DataPage page = pages.stream().filter(dpage -> !dpage.writable).findFirst().get();
+            assertNotNull(page);
+
+            /* 1 records in page */
+            assertEquals(1, page.data.size());
+
+            /* No more space for other records */
+            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
+
+            /* No more space in page BUT consider the page as small (little hacky) */
+            double compactionThresholdSize = minFillThreashod / 100 * pageSize;
+            assertTrue(compactionThresholdSize >= page.getUsedMemory());
+
+            /* Force a second checkpoint to attempt to rebuild small page */
+
+            /* Do not unload dirty page */
+
+            /* Now do a checkpoint with an unloaded dirty page */
+            manager.checkpoint();
+
+            /* New rebuilt page souldn't be in memory */
+            pages = table.getLoadedPages();
+
+            /* 1 page should be empty */
+            assertEquals(1, pages.stream().filter(DataPage::isEmpty).count());
+
+            /* 3 pages, one empty, 2 containing old moved records */
+            assertEquals(3, pages.size());
+
+        }
     }
 
     @Test

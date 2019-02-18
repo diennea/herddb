@@ -553,7 +553,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * during checkpoint: <b>during "stop-the-world" procedures!</b>
      * </p>
      */
-    private long createImmutablePage(Map<Bytes, Record> newPage, long newPageSize) throws DataStorageManagerException {
+    private long createImmutablePage(Map<Bytes, Record> newPage, long newPageSize, boolean keepInMemory) throws DataStorageManagerException {
         final Long pageId = nextPageId++;
         final DataPage dataPage = buildImmutableDataPage(pageId, newPage, newPageSize);
 
@@ -561,12 +561,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, pageId, newPage.values());
         pageSet.pageCreated(pageId, dataPage);
-        pages.put(pageId, dataPage);
 
-        /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
-        final Page.Metadata unload = pageReplacementPolicy.add(dataPage);
-        if (unload != null) {
-            unload.owner.unload(unload.pageId);
+        if (keepInMemory) {
+            pages.put(pageId, dataPage);
+            /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
+            final Page.Metadata unload = pageReplacementPolicy.add(dataPage);
+            if (unload != null) {
+                unload.owner.unload(unload.pageId);
+            }
         }
 
         for (Bytes key : newPage.keySet()) {
@@ -662,6 +664,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* From this moment on the page has been published */
  /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
+    }
+
+    /**
+     * Returns currently loaded pages id. To be used only for test to inspect current pages!
+     */
+    Collection<DataPage> getLoadedPages() {
+        return pages.values();
     }
 
     @Override
@@ -2054,6 +2063,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             pageAnalysis = System.currentTimeMillis();
 
+            /* Should currently new rebuild page kept on memory or discarded? */
+            boolean keepFlushedPageInMemory = false;
+
             /* Rebuild dirty pages with only records to be kept */
             for (WeightedPage weighted : flushingDirtyPages) {
 
@@ -2061,13 +2073,23 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 flushedPages.add(weighted.pageId);
                 ++flushedDirtyPages;
 
-                final DataPage dataPage = pages.get(weighted.pageId);
+                final boolean currentPageWasInMemory;
+                final DataPage dataPage = pages.remove(weighted.pageId);
                 final Collection<Record> records;
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
+                    currentPageWasInMemory = false;
                     LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
                     records = dataPage.data.values();
+
+                    /* The page was found in memory. Currently built page should go into memory */
+                    currentPageWasInMemory = true;
+
+                    /* Current dirty record page isn't known to page replacement policy */
+                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
+                        pageReplacementPolicy.remove(dataPage);
+                    }
                 }
 
                 for (Record record : records) {
@@ -2080,12 +2102,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     /* Flush the page if it would exceed max page size */
                     final long recordSize = DataPage.estimateEntrySize(record);
                     if (bufferPageSize + recordSize > maxLogicalPageSize) {
-                        createImmutablePage(buffer, bufferPageSize);
+                        /* Do no keep in memory old untouched records */
+                        createImmutablePage(buffer, bufferPageSize, keepFlushedPageInMemory);
+
+                        /* Reset next rebuilt page status */
+                        keepFlushedPageInMemory = false;
+
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
                         /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
                         buffer = new HashMap<>(buffer.size());
                     }
+
+                    /* Current rebuilt page will be kept in memory if current page was in memory */
+                    keepFlushedPageInMemory |= currentPageWasInMemory;
 
                     Record unshared = record.nonShared();
                     buffer.put(unshared.key, unshared);
@@ -2120,25 +2150,43 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 flushedPages.add(weighted.pageId);
                 ++flushedSmallPages;
 
-                final DataPage dataPage = pages.get(weighted.pageId);
+                final boolean currentPageWasInMemory;
+                final DataPage dataPage = pages.remove(weighted.pageId);
                 final Collection<Record> records;
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
+                    currentPageWasInMemory = false;
                     LOGGER.log(Level.FINEST, "loaded small page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
                     records = dataPage.data.values();
+
+                    /* The page was found in memory. Currently built page should go into memory */
+                    currentPageWasInMemory = true;
+
+                    /* Current dirty record page isn't known to page replacement policy */
+                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
+                        pageReplacementPolicy.remove(dataPage);
+                    }
                 }
 
                 for (Record record : records) {
                     /* Flush the page if it would exceed max page size */
                     final long recordSize = DataPage.estimateEntrySize(record);
                     if (bufferPageSize + recordSize > maxLogicalPageSize) {
-                        createImmutablePage(buffer, bufferPageSize);
+                        /* Keep in memory? Actually yes */
+                        createImmutablePage(buffer, bufferPageSize, keepFlushedPageInMemory);
+
+                        /* Reset next rebuilt page status */
+                        keepFlushedPageInMemory = false;
+
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
                         /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
                         buffer = new HashMap<>(buffer.size());
                     }
+
+                    /* Current rebuilt page will be kept in memory if current page was in memory */
+                    keepFlushedPageInMemory |= currentPageWasInMemory;
 
                     Record unshared = record.nonShared();
                     buffer.put(unshared.key, unshared);
@@ -2172,7 +2220,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
                     bufferPageSize -= flushNewPageForCheckpoint(dataPage, buffer);
-//                    dataPage.makeImmutable();
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -2180,7 +2227,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             /* Flush remaining records */
             if (!buffer.isEmpty()) {
-                createImmutablePage(buffer, bufferPageSize);
+                createImmutablePage(buffer, bufferPageSize, /* best guess */ keepFlushedPageInMemory);
                 flushedRecords += buffer.size();
                 bufferPageSize = 0;
                 /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
@@ -2219,17 +2266,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));
             tablecheckpoint = System.currentTimeMillis();
-
-            /* Writes done! Unloading and removing not needed pages and keys */
-
- /* Remove flushed pages handled */
-            for (Long pageId : flushedPages) {
-                final DataPage page = pages.remove(pageId);
-                /* Current dirty record page isn't known to page replacement policy */
-                if (page != null && currentDirtyRecordsPage.get() != page.pageId) {
-                    pageReplacementPolicy.remove(page);
-                }
-            }
 
             /*
              * Can happen when at checkpoint start all pages are set as dirty or immutable (immutable or
