@@ -3,7 +3,7 @@ package herddb.index;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Suite di test base per {@link  ConcurrentMapKeyToPageIndex}
+ * Base test suite for {@link  ConcurrentMapKeyToPageIndex}
  *
  * @author diego.salvi
  */

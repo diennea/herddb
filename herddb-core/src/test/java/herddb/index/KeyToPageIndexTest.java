@@ -7,7 +7,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 
 /**
- * Suite di test base per {@link KeyToPageIndex}
+ * Base test suite for {@link KeyToPageIndex}
  *
  * @author diego.salvi
  */

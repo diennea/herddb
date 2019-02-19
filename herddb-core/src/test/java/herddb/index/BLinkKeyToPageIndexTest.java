@@ -17,7 +17,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 
 /**
- * Suite di test base per {@link  BLinkKeyToPageIndex}
+ * Base test suite for {@link  BLinkKeyToPageIndex}
  *
  * @author diego.salvi
  */

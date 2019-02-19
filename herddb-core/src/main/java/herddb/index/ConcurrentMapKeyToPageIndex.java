@@ -35,8 +35,8 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
-import herddb.utils.Holder;
 
 /**
  * Implementation of KeyToPageIndex which uses any ConcurrentMap
@@ -84,16 +84,16 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
              * suffice, it can be equal to newPage even if no replacement was done (the map contained already
              * newPage mapping and expectedPage was different)
              */
-            Holder<Boolean> holder = new Holder<>(Boolean.FALSE);
+            BooleanHolder holder = new BooleanHolder(false);
             map.computeIfPresent(key, (skey, spage) -> {
                 if (spage.equals(expectedPage)) {
-                    holder.value = Boolean.TRUE;
+                    holder.value = true;
                     return newPage;
                 }
                 return spage;
             });
 
-            return holder.value.booleanValue();
+            return holder.value;
         }
 
     }

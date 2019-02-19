@@ -56,6 +56,7 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.BooleanHolder;
 import herddb.utils.Holder;
 
 /**
@@ -2079,7 +2080,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 size += owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
                 return null;
             } else {
-                /* TODO: this could be avoided if we can ensure that every value will have the same size */
+                /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
                 size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
                 return old;
             }
@@ -2109,12 +2110,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                      * suffice, it can be equal to newPage even if no replacement was done (the map contained already
                      * newPage mapping and expectedPage was different)
                      */
-                    Holder<Boolean> replaced = new Holder<>(Boolean.FALSE);
+                    BooleanHolder replaced = new BooleanHolder(false);
                     Holder<Y> hold = new Holder<>();
-                    final boolean o;
                     map.computeIfPresent(key, (skey, svalue) -> {
                         if (svalue.equals(expected)) {
-                            replaced.value = Boolean.TRUE;
+                            replaced.value = true;
                             /* Cast to Y: is a leaf */
                             hold.value = (Y) svalue;
                             return value;
@@ -2124,7 +2124,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     });
 
                     /* If we didn't find expected mapping abort replacement */
-                    if (!replaced.value.booleanValue()) {
+                    if (!replaced.value) {
                         return false;
                     }
 
@@ -2144,7 +2144,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 ++keys;
                 size += owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
             } else {
-                /* TODO: this could be avoided if we can ensure that every value will have the same size */
+                /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
                 size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
             }
 

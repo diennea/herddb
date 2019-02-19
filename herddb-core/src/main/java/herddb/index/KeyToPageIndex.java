@@ -74,7 +74,7 @@ public interface KeyToPageIndex extends AutoCloseable {
      * Attempt to put a new value in the index. The mapping will be update only if current mapping
      * matches given expected one (provide null if no mapping is expected).
      * <p>
-     * I current mapping differs it will be left untouched
+     * If current mapping differs it will be left untouched
      * </p>
      *
      * @return {@code false} if the put wasn't executed
