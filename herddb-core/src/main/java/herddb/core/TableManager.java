@@ -2173,7 +2173,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     /* Flush the page if it would exceed max page size */
                     final long recordSize = DataPage.estimateEntrySize(record);
                     if (bufferPageSize + recordSize > maxLogicalPageSize) {
-                        /* Keep in memory? Actually yes */
+                        /* Do no keep in memory old untouched records */
                         createImmutablePage(buffer, bufferPageSize, keepFlushedPageInMemory);
 
                         /* Reset next rebuilt page status */
@@ -2225,7 +2225,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
 
-            /* Flush remaining records */
+            /*
+             * Flush remaining records.
+             *
+             * To keep or not flushed page in memory is a "best guess" here: we don't known if records that
+             * needed to be kept in memory were already be flushed during newPage filling (see
+             * flushNewPageForCheckpoint). So we still use keepFlushedPageInMemory (possibily true) even if
+             * remaining records came from an old unused page.
+             */
             if (!buffer.isEmpty()) {
                 createImmutablePage(buffer, bufferPageSize, /* best guess */ keepFlushedPageInMemory);
                 flushedRecords += buffer.size();
