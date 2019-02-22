@@ -137,6 +137,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
+    private final StatsLogger statsLogger;
 
     private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
@@ -182,9 +183,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         if (mainStatsLogger == null) {
-            mainStatsLogger = NullStatsLogger.INSTANCE;
+            this.statsLogger = NullStatsLogger.INSTANCE;
+        } else {
+            this.statsLogger = mainStatsLogger;
         }
-        this.runningStatements = new RunningStatementsStats(mainStatsLogger);
+        this.runningStatements = new RunningStatementsStats(this.statsLogger);
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
@@ -1304,6 +1307,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public ServerSidePreparedStatementCache getPreparedStatementsCache() {
         return preparedStatementsCache;
+    }
+
+    public StatsLogger getStatsLogger() {
+        return this.statsLogger;
     }
 
 }
