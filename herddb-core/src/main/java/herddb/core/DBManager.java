@@ -137,7 +137,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
-    private final StatsLogger statsLogger;
+    private final StatsLogger mainStatsLogger;
 
     private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
@@ -172,7 +172,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration,
-            StatsLogger mainStatsLogger) {
+            StatsLogger statsLogger) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
         int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
@@ -182,12 +182,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
-        if (mainStatsLogger == null) {
-            this.statsLogger = NullStatsLogger.INSTANCE;
+        if (statsLogger == null) {
+            this.mainStatsLogger = NullStatsLogger.INSTANCE;
         } else {
-            this.statsLogger = mainStatsLogger;
+            this.mainStatsLogger = statsLogger;
         }
-        this.runningStatements = new RunningStatementsStats(this.statsLogger);
+        this.runningStatements = new RunningStatementsStats(this.mainStatsLogger);
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
@@ -1310,7 +1310,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatsLogger getStatsLogger() {
-        return this.statsLogger;
+        return this.mainStatsLogger;
     }
 
 }

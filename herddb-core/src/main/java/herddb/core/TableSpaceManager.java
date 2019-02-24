@@ -126,6 +126,7 @@ import java.util.concurrent.ExecutorService;
 
 import java.util.concurrent.locks.StampedLock;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
@@ -137,7 +138,9 @@ public class TableSpaceManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
 
-    private final StatsLogger statsLogger;
+    final StatsLogger tablespaceStasLogger;
+    final OpStatsLogger checkpointTimeStats;
+
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
     private final CommitLog log;
@@ -188,7 +191,8 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
         this.tableSpaceUUID = tableSpaceUUID;
         this.virtual = virtual;
-        this.statsLogger = this.dbmanager.getStatsLogger();
+        this.tablespaceStasLogger = this.dbmanager.getStatsLogger().scope(this.tableSpaceName);
+        this.checkpointTimeStats = this.tablespaceStasLogger.getOpStatsLogger("checkpointTime");
     }
 
     private void bootSystemTables() {
@@ -1537,6 +1541,7 @@ public class TableSpaceManager {
         }
 
         long _start = System.currentTimeMillis();
+        long _stop = 0;
         LogSequenceNumber logSequenceNumber = null;
         LogSequenceNumber _logSequenceNumber = null;
         Map<String, LogSequenceNumber> checkpointsTableNameSequenceNumber = new HashMap<>();
@@ -1607,12 +1612,14 @@ public class TableSpaceManager {
                 }
             }
 
-        } finally {
-            long _stop = System.currentTimeMillis();
+            _stop = System.currentTimeMillis();
             LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
                     new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
-            statsLogger.getOpStatsLogger(this.tableSpaceName).registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
+
             return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
+
+        } finally {
+            checkpointTimeStats.registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
         }
     }
 
