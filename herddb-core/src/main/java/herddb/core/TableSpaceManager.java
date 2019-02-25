@@ -1541,7 +1541,6 @@ public class TableSpaceManager {
         }
 
         long _start = System.currentTimeMillis();
-        long _stop = 0;
         LogSequenceNumber logSequenceNumber = null;
         LogSequenceNumber _logSequenceNumber = null;
         Map<String, LogSequenceNumber> checkpointsTableNameSequenceNumber = new HashMap<>();
@@ -1611,14 +1610,12 @@ public class TableSpaceManager {
                     LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
                 }
             }
-
-            _stop = System.currentTimeMillis();
-            LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
-                    new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
-
             return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
 
         } finally {
+            long _stop = System.currentTimeMillis();
+            LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
+                    new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
             checkpointTimeStats.registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
         }
     }
