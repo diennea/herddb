@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -122,8 +123,11 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+
 import java.util.concurrent.locks.StampedLock;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.OpStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Manages a TableSet in memory
@@ -133,6 +137,9 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
 public class TableSpaceManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
+
+    final StatsLogger tablespaceStasLogger;
+    final OpStatsLogger checkpointTimeStats;
 
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
@@ -184,6 +191,8 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
         this.tableSpaceUUID = tableSpaceUUID;
         this.virtual = virtual;
+        this.tablespaceStasLogger = this.dbmanager.getStatsLogger().scope(this.tableSpaceName);
+        this.checkpointTimeStats = this.tablespaceStasLogger.getOpStatsLogger("checkpointTime");
     }
 
     private void bootSystemTables() {
@@ -1530,79 +1539,85 @@ public class TableSpaceManager {
         if (virtual) {
             return null;
         }
+
         long _start = System.currentTimeMillis();
-        LogSequenceNumber logSequenceNumber;
-        LogSequenceNumber _logSequenceNumber;
-        List<PostCheckpointAction> actions = new ArrayList<>();
+        LogSequenceNumber logSequenceNumber = null;
+        LogSequenceNumber _logSequenceNumber = null;
         Map<String, LogSequenceNumber> checkpointsTableNameSequenceNumber = new HashMap<>();
 
-        long lockStamp = 0;
-        if (!alreadLocked) {
-            lockStamp = acquireWriteLock("checkpoint");
-        }
         try {
-            logSequenceNumber = log.getLastSequenceNumber();
+            List<PostCheckpointAction> actions = new ArrayList<>();
 
-            if (logSequenceNumber.isStartOfTime()) {
-                LOGGER.log(Level.INFO, "{0} checkpoint {1} at {2}. skipped (no write ever issued to log)", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
-                return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
+
+            long lockStamp = 0;
+            if (!alreadLocked) {
+                lockStamp = acquireWriteLock("checkpoint");
             }
-            LOGGER.log(Level.INFO, "{0} checkpoint start {1} at {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
-            if (actualLogSequenceNumber == null) {
-                throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
-            }
+            try {
+                logSequenceNumber = log.getLastSequenceNumber();
 
-            // TODO: transactions checkpoint is not atomic
-            actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
-            actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true)));
+                if (logSequenceNumber.isStartOfTime()) {
+                    LOGGER.log(Level.INFO, "{0} checkpoint {1} at {2}. skipped (no write ever issued to log)", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
+                    return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
+                }
+                LOGGER.log(Level.INFO, "{0} checkpoint start {1} at {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
+                if (actualLogSequenceNumber == null) {
+                    throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
+                }
 
-            // we checkpoint all data to disk and save the actual log sequence number
-            for (AbstractTableManager tableManager : tables.values()) {
-                // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
-                // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
+                // TODO: transactions checkpoint is not atomic
+                actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
+                actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true)));
 
-                if (!tableManager.isSystemTable()) {
-                    TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
+                // we checkpoint all data to disk and save the actual log sequence number
+                for (AbstractTableManager tableManager : tables.values()) {
+                    // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
+                    // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
 
-                    if (checkpoint != null) {
-                        LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
-                        actions.addAll(checkpoint.actions);
-                        checkpointsTableNameSequenceNumber.put(checkpoint.tableName, checkpoint.sequenceNumber);
-                        if (afterTableCheckPointAction != null) {
-                            afterTableCheckPointAction.run();
+                    if (!tableManager.isSystemTable()) {
+                        TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
+
+                        if (checkpoint != null) {
+                            LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
+                            actions.addAll(checkpoint.actions);
+                            checkpointsTableNameSequenceNumber.put(checkpoint.tableName, checkpoint.sequenceNumber);
+                            if (afterTableCheckPointAction != null) {
+                                afterTableCheckPointAction.run();
+                            }
                         }
                     }
                 }
+
+                // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
+                actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
+
+                /* Indexes checkpoint is handled by TableManagers */
+                if (leader) {
+                    log.dropOldLedgers(logSequenceNumber);
+                }
+
+                _logSequenceNumber = log.getLastSequenceNumber();
+            } finally {
+                if (!alreadLocked) {
+                    releaseWriteLock(lockStamp, "checkpoint");
+                }
             }
 
-            // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
-            actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
-
-            /* Indexes checkpoint is handled by TableManagers */
-            if (leader) {
-                log.dropOldLedgers(logSequenceNumber);
+            for (PostCheckpointAction action : actions) {
+                try {
+                    action.run();
+                } catch (Exception error) {
+                    LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
+                }
             }
+            return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
 
-            _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
-            if (!alreadLocked) {
-                releaseWriteLock(lockStamp, "checkpoint");
-            }
+            long _stop = System.currentTimeMillis();
+            LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
+                    new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
+            checkpointTimeStats.registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
         }
-
-        for (PostCheckpointAction action : actions) {
-            try {
-                action.run();
-            } catch (Exception error) {
-                LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
-            }
-        }
-        long _stop = System.currentTimeMillis();
-
-        LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
-                new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
-
-        return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
     }
 
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
