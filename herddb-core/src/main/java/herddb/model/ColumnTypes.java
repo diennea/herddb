@@ -34,8 +34,11 @@ public class ColumnTypes {
     public static final int NULL = 5;
     public static final int DOUBLE = 6;
     public static final int BOOLEAN = 7;
+    public static final int STRING_NOTNULL = 9;
+    public static final int INTEGER_NOTNULL = 10;
+    public static final int LONG_NOTNULL = 11;
 
-    public static final int ANYTYPE = 10;
+    public static final int ANYTYPE = 12;
 
     public static String typeToString(int type) {
         switch (type) {
@@ -55,6 +58,12 @@ public class ColumnTypes {
                 return "double";
             case BOOLEAN:
                 return "boolean";
+            case STRING_NOTNULL:
+                return "string not null";
+            case INTEGER_NOTNULL:
+                return "integer not null";
+            case LONG_NOTNULL:
+                return "long not null";
             default:
                 return "type?" + type;
         }

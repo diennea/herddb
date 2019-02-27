@@ -150,8 +150,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         try {
             switch (type) {
                 case ColumnTypes.INTEGER:
+                case ColumnTypes.INTEGER_NOTNULL:
                     return ((Number) value).intValue();
                 case ColumnTypes.LONG:
+                case ColumnTypes.LONG_NOTNULL:
                     return ((Number) value).longValue();
                 case ColumnTypes.DOUBLE:
                     return ((Number) value).doubleValue();

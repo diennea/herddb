@@ -23,6 +23,8 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -31,7 +33,11 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
+
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+
+import herddb.utils.RawString;
 import org.junit.Test;
 
 /**
@@ -77,6 +83,54 @@ public class RecordSerializerTest {
         System.out.println("test case " + testCase + ", result:" + formattedResult);
         long delta = (expectedResult - result.getTime()) / (1000 * 60 * 60);
         assertEquals("failed for " + testCase + " delta is " + delta + " h, result is " + formattedResult, expectedResult, result.getTime());
+    }
+
+    @Test
+    public void testSerializeWithNullAndNonNullTypes() {
+        byte iBytes [] = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER);
+        byte iBytesNonNullType[] = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER_NOTNULL);
+        assertArrayEquals(iBytes, iBytesNonNullType);
+
+        byte lBytes [] = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG_NOTNULL);
+        byte lBytesNonNullType[] = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG);
+        assertArrayEquals(lBytes, lBytesNonNullType);
+
+        byte sBytes [] = RecordSerializer.serialize("test", ColumnTypes.STRING);
+        byte sBytesNonNullType[] = RecordSerializer.serialize("test", ColumnTypes.STRING_NOTNULL);
+        assertArrayEquals(sBytes, sBytesNonNullType);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSerializeThrowsExceptionOnNullObject() {
+        RecordSerializer.serialize(null, ColumnTypes.STRING);
+    }
+
+    @Test
+    public void testDeserializeWithNullAndNonNullTypes() {
+        byte iValueAsByteArray[] = ByteBuffer.allocate(4).putInt(1000).array();
+        int iValue = (int)RecordSerializer.deserialize(iValueAsByteArray, ColumnTypes.INTEGER);
+        assertEquals(iValue, 1000);
+
+        int iValueNonNullType = (int)RecordSerializer.deserialize(iValueAsByteArray, ColumnTypes.INTEGER);
+        assertEquals(iValueNonNullType, 1000);
+
+
+        byte lValueAsByteArray[] = ByteBuffer.allocate(8).putLong(2000).array();
+        long lValue = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.LONG);
+        assertEquals(lValue, 2000);
+
+        long lValueNonNullType = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.LONG_NOTNULL);
+        assertEquals(lValueNonNullType, 2000);
+
+
+
+        byte strValueAsByteArray[] = RawString.of("test").toByteArray();
+        RawString sValue = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
+        assertEquals(sValue, "test");
+
+        RawString sValueNonNullType = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING_NOTNULL);
+        assertEquals(sValueNonNullType, "test");
+
     }
 
 }
