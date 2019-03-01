@@ -20,7 +20,6 @@
 package herddb.cluster;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -77,10 +76,16 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize, Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble, BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies) throws BKNotEnoughBookiesException {
+    public PlacementResult<BookieSocketAddress> replaceBookie(int ensembleSize,
+            int writeQuorumSize,
+            int ackQuorumSize,
+            Map<String, byte[]> customMetadata,
+            List<BookieSocketAddress> currentEnsemble,
+            BookieSocketAddress bookieToReplace,
+            Set<BookieSocketAddress> excludeBookies) throws BKNotEnoughBookiesException {
         excludeBookies.addAll(currentEnsemble);
-        ArrayList<BookieSocketAddress> addresses = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
-        return addresses.get(0);
+        PlacementResult<List<BookieSocketAddress>> list = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
+        return PlacementResult.of(list.getResult().get(0), list.isStrictlyAdheringToPolicy());
     }
 
     @Override
@@ -98,7 +103,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public ArrayList<BookieSocketAddress> newEnsemble(int ensembleSize,
+    public PlacementResult<List<BookieSocketAddress>> newEnsemble(int ensembleSize,
             int writeQuorumSize,
             int ackQuorumSize,
             Map<String, byte[]> customMetadata,
@@ -107,7 +112,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
 
         ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);
         if (ensembleSize <= 0) {
-            return newBookies;
+            return PlacementResult.of(newBookies, false);
         }
         List<BookieSocketAddress> allBookies;
         synchronized (this) {
@@ -132,7 +137,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
             newBookies.add(localBookie);
             --ensembleSize;
             if (ensembleSize == 0) {
-                return newBookies;
+                return PlacementResult.of(newBookies, false);
             }
         }
 
@@ -144,7 +149,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
             newBookies.add(bookie);
             --ensembleSize;
             if (ensembleSize == 0) {
-                return newBookies;
+                return PlacementResult.of(newBookies, false);
             }
         }
 

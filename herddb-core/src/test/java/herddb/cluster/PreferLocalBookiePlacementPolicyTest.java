@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.bookkeeper.net.BookieSocketAddress;
@@ -70,8 +71,8 @@ public class PreferLocalBookiePlacementPolicyTest {
 
             assertTrue(deadBookies.isEmpty());
 
-            ArrayList<BookieSocketAddress> ensemble =
-                    policy.newEnsemble(1, 1, 1, Collections.emptyMap(), Collections.emptySet());
+            List<BookieSocketAddress> ensemble
+                    = policy.newEnsemble(1, 1, 1, Collections.emptyMap(), Collections.emptySet()).getResult();
             System.out.println(ensemble);
             assertEquals(1, ensemble.size());
             assertEquals(a, ensemble.get(0));
@@ -106,8 +107,8 @@ public class PreferLocalBookiePlacementPolicyTest {
 
             assertTrue(deadBookies.isEmpty());
 
-            ArrayList<BookieSocketAddress> ensemble =
-                    policy.newEnsemble(3, 2, 2, Collections.emptyMap(), Collections.emptySet());
+            List<BookieSocketAddress> ensemble
+                    = policy.newEnsemble(3, 2, 2, Collections.emptyMap(), Collections.emptySet()).getResult();
             System.out.println(ensemble);
             assertEquals(3, ensemble.size());
             assertEquals(c, ensemble.get(0));
