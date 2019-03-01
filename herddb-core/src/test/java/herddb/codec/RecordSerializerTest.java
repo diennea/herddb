@@ -49,7 +49,7 @@ public class RecordSerializerTest {
     public void testToBean() {
         Table table = Table.builder()
             .name("t1")
-            .column("pk", ColumnTypes.STRING)
+            .column("pk", ColumnTypes.NOTNULL_STRING)
             .column("a", ColumnTypes.STRING)
             .column("b", ColumnTypes.LONG)
             .column("c", ColumnTypes.INTEGER)

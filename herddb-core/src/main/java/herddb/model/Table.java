@@ -455,8 +455,11 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         private static boolean validatePrimaryKeyDataType(int type) {
             switch(type) {
                 case ColumnTypes.NOTNULL_INTEGER:
+                case ColumnTypes.INTEGER:
                 case ColumnTypes.NOTNULL_LONG:
+                case ColumnTypes.LONG:
                 case ColumnTypes.NOTNULL_STRING:
+                case ColumnTypes.STRING:
                 case ColumnTypes.TIMESTAMP:
                     return true;
                 default:
