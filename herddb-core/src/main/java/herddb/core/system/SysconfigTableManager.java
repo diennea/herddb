@@ -37,7 +37,7 @@ public class SysconfigTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
         .builder()
         .name("sysconfig")
-        .column("name", ColumnTypes.STRING)
+        .column("name", ColumnTypes.NOTNULL_STRING)
         .column("value", ColumnTypes.STRING)
         .primaryKey("name", false)
         .build();

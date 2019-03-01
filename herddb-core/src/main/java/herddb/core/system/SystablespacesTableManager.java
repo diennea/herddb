@@ -42,7 +42,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("systablespaces")
-            .column("tablespace_name", ColumnTypes.STRING)
+            .column("tablespace_name", ColumnTypes.NOTNULL_STRING)
             .column("uuid", ColumnTypes.STRING)
             .column("leader", ColumnTypes.STRING)
             .column("replica", ColumnTypes.STRING)

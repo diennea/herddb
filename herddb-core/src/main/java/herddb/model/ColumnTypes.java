@@ -34,9 +34,9 @@ public class ColumnTypes {
     public static final int NULL = 5;
     public static final int DOUBLE = 6;
     public static final int BOOLEAN = 7;
-    public static final int STRING_NOTNULL = 9;
-    public static final int INTEGER_NOTNULL = 10;
-    public static final int LONG_NOTNULL = 11;
+    public static final int NOTNULL_STRING = 9;
+    public static final int NOTNULL_INTEGER = 10;
+    public static final int NOTNULL_LONG = 11;
 
     public static final int ANYTYPE = 12;
 
@@ -58,11 +58,11 @@ public class ColumnTypes {
                 return "double";
             case BOOLEAN:
                 return "boolean";
-            case STRING_NOTNULL:
+            case NOTNULL_STRING:
                 return "string not null";
-            case INTEGER_NOTNULL:
+            case NOTNULL_INTEGER:
                 return "integer not null";
-            case LONG_NOTNULL:
+            case NOTNULL_LONG:
                 return "long not null";
             default:
                 return "type?" + type;

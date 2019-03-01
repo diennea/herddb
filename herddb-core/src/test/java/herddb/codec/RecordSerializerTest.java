@@ -27,11 +27,7 @@ import herddb.model.Table;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Map;
-import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -88,15 +84,15 @@ public class RecordSerializerTest {
     @Test
     public void testSerializeWithNullAndNonNullTypes() {
         byte iBytes [] = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER);
-        byte iBytesNonNullType[] = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER_NOTNULL);
+        byte iBytesNonNullType[] = RecordSerializer.serialize(new Integer(10), ColumnTypes.NOTNULL_INTEGER);
         assertArrayEquals(iBytes, iBytesNonNullType);
 
-        byte lBytes [] = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG_NOTNULL);
+        byte lBytes [] = RecordSerializer.serialize(new Long(1982), ColumnTypes.NOTNULL_LONG);
         byte lBytesNonNullType[] = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG);
         assertArrayEquals(lBytes, lBytesNonNullType);
 
         byte sBytes [] = RecordSerializer.serialize("test", ColumnTypes.STRING);
-        byte sBytesNonNullType[] = RecordSerializer.serialize("test", ColumnTypes.STRING_NOTNULL);
+        byte sBytesNonNullType[] = RecordSerializer.serialize("test", ColumnTypes.NOTNULL_STRING);
         assertArrayEquals(sBytes, sBytesNonNullType);
     }
 
@@ -119,7 +115,7 @@ public class RecordSerializerTest {
         long lValue = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.LONG);
         assertEquals(lValue, 2000);
 
-        long lValueNonNullType = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.LONG_NOTNULL);
+        long lValueNonNullType = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.NOTNULL_LONG);
         assertEquals(lValueNonNullType, 2000);
 
 
@@ -128,7 +124,7 @@ public class RecordSerializerTest {
         RawString sValue = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
         assertEquals(sValue, "test");
 
-        RawString sValueNonNullType = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING_NOTNULL);
+        RawString sValueNonNullType = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.NOTNULL_STRING);
         assertEquals(sValueNonNullType, "test");
 
     }
