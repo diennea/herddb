@@ -441,7 +441,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
                 if (!validatePrimaryKeyDataType(pk.type)) {
-                    throw new IllegalArgumentException("primary key " +pkColumn+ " must be a non null string or long or integer or timestamp");
+                    throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }
 
@@ -452,6 +452,12 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                     tablespace, auto_increment, maxSerialPosition);
         }
 
+        /**
+         * Validate whether the primary key type is valid.
+         * Note: In order to keep backward compatibility we are allowing nullable data types to be part of primary key
+         * @param type
+         * @return true if a valid primary key type or false
+         */
         private static boolean validatePrimaryKeyDataType(int type) {
             switch(type) {
                 case ColumnTypes.NOTNULL_INTEGER:

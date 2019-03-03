@@ -30,11 +30,10 @@ import java.text.SimpleDateFormat;
 import java.util.Map;
 import java.util.TimeZone;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-
 import herddb.utils.RawString;
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 /**
  *
@@ -49,7 +48,7 @@ public class RecordSerializerTest {
     public void testToBean() {
         Table table = Table.builder()
             .name("t1")
-            .column("pk", ColumnTypes.NOTNULL_STRING)
+            .column("pk", ColumnTypes.STRING)
             .column("a", ColumnTypes.STRING)
             .column("b", ColumnTypes.LONG)
             .column("c", ColumnTypes.INTEGER)
@@ -96,9 +95,9 @@ public class RecordSerializerTest {
         assertArrayEquals(sBytes, sBytesNonNullType);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testSerializeThrowsExceptionOnNullObject() {
-        RecordSerializer.serialize(null, ColumnTypes.STRING);
+        assertNull(RecordSerializer.serialize(null, ColumnTypes.STRING));
     }
 
     @Test

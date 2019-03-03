@@ -53,7 +53,7 @@ public class CreateTableTest {
                     .builder()
                     .tablespace("tblspace1")
                     .name("t1")
-                    .column("id", ColumnTypes.NOTNULL_STRING)
+                    .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
                     .primaryKey("id")
                     .build();

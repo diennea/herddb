@@ -176,7 +176,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             = USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
 
     /**
-     * Set to {@code true} when this {@link TableManage} is fully started
+     * Set to {@code true} when this {@link TableManager} is fully started
      */
     private volatile boolean started = false;
 
@@ -377,7 +377,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return table;
                 }
             };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER ||
+                table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
@@ -389,31 +390,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return table;
                 }
             };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
-            tableContext = new TableContext() {
-                @Override
-                public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.intToByteArray((int) nextPrimaryKeyValue.getAndIncrement());
-                }
-
-                @Override
-                public Table getTable() {
-                    return table;
-                }
-            };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG) {
-            tableContext = new TableContext() {
-                @Override
-                public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.longToByteArray(nextPrimaryKeyValue.getAndIncrement());
-                }
-
-                @Override
-                public Table getTable() {
-                    return table;
-                }
-            };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_LONG) {
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG ||
+                table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_LONG) {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
@@ -1671,10 +1649,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     null);
             scanner.forEach((Entry<Bytes, Long> t) -> {
                 Bytes key = t.getKey();
-                long pk_logical_value = key.to_long();
-                if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER || table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
+                long pk_logical_value;
+                if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER ||
+                        table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
                     pk_logical_value = key.to_int();
-                } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG || table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_LONG) {
+                } else {
                     pk_logical_value = key.to_long();
                 }
                 nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
@@ -1691,10 +1670,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value
-            long pk_logical_value = key.to_long();
+            long pk_logical_value;
             if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER || table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
                 pk_logical_value = key.to_int();
-            } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG || table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_LONG) {
+            } else {
                 pk_logical_value = key.to_long();
             }
             nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);

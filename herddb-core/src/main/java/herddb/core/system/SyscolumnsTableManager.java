@@ -39,8 +39,8 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("syscolumns")
-            .column("table_name", ColumnTypes.NOTNULL_STRING)
-            .column("column_name", ColumnTypes.NOTNULL_STRING)
+            .column("table_name", ColumnTypes.STRING)
+            .column("column_name", ColumnTypes.STRING)
             .column("ordinal_position", ColumnTypes.INTEGER)
             .column("is_nullable", ColumnTypes.INTEGER)
             .column("data_type", ColumnTypes.STRING)

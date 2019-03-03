@@ -304,12 +304,19 @@ public final class RecordSerializer {
 
     public static byte[] serialize(Object v, int type) {
         if (v == null) {
-            throw new IllegalArgumentException("Object to be serialized cannot be null");
+            return null;
         }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
                 return (byte[]) v;
             case ColumnTypes.INTEGER:
+                if (v instanceof Integer) {
+                    return Bytes.intToByteArray((Integer) v);
+                } else if (v instanceof Number) {
+                    return Bytes.intToByteArray(((Number) v).intValue());
+                } else {
+                    return Bytes.intToByteArray(Integer.parseInt(v.toString()));
+                }
             case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Integer) {
                     return Bytes.intToByteArray((Integer) v);
@@ -319,6 +326,13 @@ public final class RecordSerializer {
                     return Bytes.intToByteArray(Integer.parseInt(v.toString()));
                 }
             case ColumnTypes.LONG:
+                if (v instanceof Long) {
+                    return Bytes.longToByteArray((Long) v);
+                } else if (v instanceof Number) {
+                    return Bytes.longToByteArray(((Number) v).longValue());
+                } else {
+                    return Bytes.longToByteArray(Long.parseLong(v.toString()));
+                }
             case ColumnTypes.NOTNULL_LONG:
                 if (v instanceof Long) {
                     return Bytes.longToByteArray((Long) v);
@@ -328,6 +342,13 @@ public final class RecordSerializer {
                     return Bytes.longToByteArray(Long.parseLong(v.toString()));
                 }
             case ColumnTypes.STRING:
+                if (v instanceof RawString) {
+                    RawString rs = (RawString) v;
+                    // this will potentially make a copy
+                    return rs.toByteArray();
+                } else {
+                    return Bytes.string_to_array(v.toString());
+                }
             case ColumnTypes.NOTNULL_STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;

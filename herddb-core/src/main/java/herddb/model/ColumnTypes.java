@@ -34,11 +34,12 @@ public class ColumnTypes {
     public static final int NULL = 5;
     public static final int DOUBLE = 6;
     public static final int BOOLEAN = 7;
-    public static final int NOTNULL_STRING = 9;
-    public static final int NOTNULL_INTEGER = 10;
-    public static final int NOTNULL_LONG = 11;
+    public static final int ANYTYPE = 10;
 
-    public static final int ANYTYPE = 12;
+    public static final int NOTNULL_STRING = 11;
+    public static final int NOTNULL_INTEGER = 12;
+    public static final int NOTNULL_LONG = 13;
+
 
     public static String typeToString(int type) {
         switch (type) {

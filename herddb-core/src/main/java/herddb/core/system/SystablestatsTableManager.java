@@ -40,8 +40,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
         .builder()
         .name("systablestats")
-        .column("tablespace", ColumnTypes.NOTNULL_STRING)
-        .column("table_name", ColumnTypes.NOTNULL_STRING)
+        .column("tablespace", ColumnTypes.STRING)
+        .column("table_name", ColumnTypes.STRING)
         .column("systemtable", ColumnTypes.STRING)
         .column("tablesize", ColumnTypes.LONG)
         .column("loadedpages", ColumnTypes.INTEGER)
