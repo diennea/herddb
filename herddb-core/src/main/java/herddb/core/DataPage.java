@@ -131,6 +131,14 @@ public class DataPage extends Page<TableManager> {
         return true;
     }
 
+    void putNoMemoryHandle(Record record) {
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
+        }
+
+        data.put(record.key, record);
+    }
+
     boolean isEmpty() {
         return data.isEmpty();
     }
