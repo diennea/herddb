@@ -546,38 +546,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return res;
     }
 
-    /**
-     * Create a new page with given data and save it.
-     * <p>
-     * Page id should already be created.
-     * </p>
-     * <p>
-     * This procedure won't update keyToPage with new values if not required
-     * </p>
-     * <p>
-     * Will not place any lock, this method should be invoked at startup time or
-     * during checkpoint: <b>during "stop-the-world" procedures!</b>
-     * </p>
-     */
-    private void createImmutablePage(long pageId, Map<Bytes, Record> newPage, long newPageSize, boolean keepInMemory) throws DataStorageManagerException {
-
-        final DataPage dataPage = buildImmutableDataPage(pageId, newPage, newPageSize);
-
-        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
-                new Object[]{table.name, pageId, newPage.size(), newPageSize});
-        dataStorageManager.writePage(tableSpaceUUID, table.uuid, pageId, newPage.values());
-        pageSet.pageCreated(pageId, dataPage);
-
-        if (keepInMemory) {
-            pages.put(pageId, dataPage);
-            /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
-            final Page.Metadata unload = pageReplacementPolicy.add(dataPage);
-            if (unload != null) {
-                unload.owner.unload(unload.pageId);
-            }
-        }
-    }
-
     private Long allocateLivePage(Long lastKnownPageId) {
         /* This method expect that a new page actually exists! */
         nextPageLock.lock();
@@ -684,6 +652,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private DataPage createMutablePage(long newId, Map<Bytes, Record> initialData, long initiaPageSize) {
 
+        LOGGER.log(Level.FINER, "creating mutable page table {0}, pageId={1} with {2} records, {3} logical page size",
+                new Object[]{table.name, newId, initialData.size(), initiaPageSize});
+
         final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, initialData, false);
 
         pages.put(newId, newPage);
@@ -738,6 +709,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private long flushNewPageForCheckpoint(DataPage page, Map<Bytes, Record> spareData) {
         final long used = flushNewPage(page, spareData);
+
+        /* Replace the page in memory with his immutable version (faster modification checks) */
+        page = page.toImmutable();
+        pages.put(page.pageId, page);
 
         /*
          * 0 = no memory; -1 = already flushed, they are the same for checkpoint (but
@@ -904,7 +879,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             if (keepPageInMemory) {
                 /* If we must keep the page in memory we "covert" the page to immutable */
-                page = new DataPage(page.owner, page.pageId, page.maxSize, page.getUsedMemory(), page.data, true);
+                page = page.toImmutable();
                 pages.put(page.pageId, page);
 
                 /* And we load to page replacement polcy */
@@ -2009,12 +1984,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             newPageMap.put(r.key, r);
             estimatedPageSize += DataPage.estimateEntrySize(r);
         }
-        return buildImmutableDataPage(pageId, newPageMap, estimatedPageSize);
-    }
-
-    private DataPage buildImmutableDataPage(long pageId, Map<Bytes, Record> page, long estimatedPageSize) {
-        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, page, true);
-        return res;
+        return new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, newPageMap, true);
     }
 
     @Override
@@ -2129,7 +2099,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             final Map<Long, DataPageMetaData> activePages = pageSet.getActivePages();
 
-//            Map<Bytes, Record> buffer = new HashMap<>();
             long bufferPageSize = 0;
             long flushedRecords = 0;
 
