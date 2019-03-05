@@ -494,7 +494,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
-        initNewPage();
+        initNewPages();
         LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
                 new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
 
@@ -610,13 +610,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     throw new IllegalStateException("invalid last known new page id " + lastKnownPageId + ", " + newPages.keySet() + "/" + pages.keySet());
                 }
 
-                final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
-                newPages.put(newId, newPage);
-                pages.put(newId, newPage);
-
-                /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
-                currentDirtyRecordsPage.set(newId);
+                createNewPage(newId);
 
                 /*
                  * Now we must add the "lastKnownPage" to page replacement policy. There is only one page living
@@ -644,25 +638,35 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     /**
-     * Create a new page and set it as the target page for dirty records.
+     * Initialize newPages map
      * <p>
-     * Will not place any lock, this method should be invoked at startup time:
-     * <b>during "stop-the-world" procedures!</b>
+     * Will not place any lock, this method should be invoked <b>during "stop-the-world" procedures!</b>
      * </p>
      */
-    private void initNewPage() {
-
-        final Long newId = nextPageId++;
-        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
+    private void initNewPages() {
 
         if (!newPages.isEmpty()) {
             throw new IllegalStateException("invalid new page initialization, other new pages already exist: " + newPages.keySet());
         }
+
+        createNewPage(nextPageId++);
+    }
+
+    /**
+     * Create a new page and set it as the target page for dirty records.
+     * <p>
+     * Will not place any lock, this method should be invoked <b>during "stop-the-world" procedures!</b>
+     * </p>
+     */
+    private void createNewPage(long newId) {
+
+        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
+
         newPages.put(newId, newPage);
         pages.put(newId, newPage);
 
         /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+        /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -1213,7 +1217,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pages.clear();
         newPages.clear();
 
-        initNewPage();
+        initNewPages();
 
         locksManager.clear();
         keyToPage.truncate();
