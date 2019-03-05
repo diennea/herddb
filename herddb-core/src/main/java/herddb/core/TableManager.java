@@ -241,6 +241,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final long checkpointTargetTime;
 
     /**
+     * Cleanup (dirty pages) target max milliseconds
+     */
+    private final long cleanupTargetTime;
+
+    /**
      * Compaction (small pages) target max milliseconds
      */
     private final long compactionTargetTime;
@@ -360,6 +365,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 ServerConfiguration.PROPERTY_CHECKPOINT_DURATION_DEFAULT);
 
         this.checkpointTargetTime = checkpointTargetTime < 0 ? Long.MAX_VALUE : checkpointTargetTime;
+
+        long cleanupTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
+                ServerConfiguration.PROPERTY_CLEANUP_DURATION,
+                ServerConfiguration.PROPERTY_CLEANUP_DURATION_DEFAULT);
+
+        this.cleanupTargetTime = cleanupTargetTime < 0 ? Long.MAX_VALUE : cleanupTargetTime;
 
         long compactionTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
                 ServerConfiguration.PROPERTY_COMPACTION_DURATION,
@@ -2031,12 +2042,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException {
-        return checkpoint(Double.NEGATIVE_INFINITY, fillThreshold, Long.MAX_VALUE, Long.MAX_VALUE, pin);
+        return checkpoint(Double.NEGATIVE_INFINITY, fillThreshold, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, pin);
     }
 
     @Override
     public TableCheckpoint checkpoint(boolean pin) throws DataStorageManagerException {
-        return checkpoint(dirtyThreshold, fillThreshold, checkpointTargetTime, compactionTargetTime, pin);
+        return checkpoint(dirtyThreshold, fillThreshold, checkpointTargetTime, cleanupTargetTime, compactionTargetTime, pin);
     }
 
     @Override
@@ -2332,12 +2343,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @param dirtyThreshold
      * @param fillThreshold
      * @param checkpointTargetTime checkpoint target max milliseconds
+     * @param cleanupTargetTime    cleanup target max milliseconds
      * @param compactionTargetTime compaction target max milliseconds
      * @return
      * @throws DataStorageManagerException
      */
-    private TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
-            long checkpointTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
+   private TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
+           long checkpointTargetTime, long cleanupTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
         LOGGER.log(Level.INFO, "tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
@@ -2434,7 +2446,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             if (!flushingDirtyPages.isEmpty()) {
 
-                CleanAndCompactResult dirtyResult = cleanAndCompactPages(flushingDirtyPages, buildingPage, keepFlushedPageInMemory, checkpointLimitInstant);
+                final long timeLimit = Math.min(checkpointLimitInstant,
+                        sumOverflowWise(pageAnalysis, cleanupTargetTime));
+
+                /*
+                 * Do not continue if we have used up all configured cleanup or checkpoint time (but still compact
+                 * at least the smaller page (normally the leftover from last checkpoint)
+                 */
+                CleanAndCompactResult dirtyResult = cleanAndCompactPages(flushingDirtyPages, buildingPage,
+                        keepFlushedPageInMemory, timeLimit);
 
                 flushedDirtyPages = dirtyResult.flushedPages.size();
                 flushedPages.addAll(dirtyResult.flushedPages);
@@ -2477,9 +2497,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             if (!flushingSmallPages.isEmpty()) {
 
-                final long compactionLimitInstant = Math.min(checkpointLimitInstant, sumOverflowWise(dirtyPagesFlush, compactionTargetTime));
+                final long timeLimit = Math.min(checkpointLimitInstant,
+                        sumOverflowWise(dirtyPagesFlush, compactionTargetTime));
 
-                CleanAndCompactResult smallResult = cleanAndCompactPages(flushingSmallPages, buildingPage, keepFlushedPageInMemory, compactionLimitInstant);
+                /*
+                 * Do not continue if we have used up all configured compaction or checkpoint time (but still
+                 * compact at least the smaller page (normally the leftover from last checkpoint)
+                 */
+                CleanAndCompactResult smallResult = cleanAndCompactPages(flushingSmallPages, buildingPage,
+                        keepFlushedPageInMemory, timeLimit);
 
                 flushedSmallPages = smallResult.flushedPages.size();
                 flushedPages.addAll(smallResult.flushedPages);
