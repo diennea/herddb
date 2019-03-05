@@ -1,5 +1,6 @@
 package herddb.index;
 
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
@@ -136,14 +137,14 @@ public abstract class KeyToPageIndexTest {
 
         private static final ConcurrentPutIfTask[] createTasks(KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage) {
 
-            CyclicBarrier barrier = new CyclicBarrier(3);
-            CyclicBarrier barrier2 = new CyclicBarrier(3);
+            CyclicBarrier start = new CyclicBarrier(3);
+            CyclicBarrier end = new CyclicBarrier(3);
             AtomicInteger counter = new AtomicInteger(0);
 
             return new ConcurrentPutIfTask[] {
-                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, barrier, barrier2, counter),
-                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, barrier, barrier2, counter),
-                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, barrier, barrier2, counter)
+                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter),
+                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter),
+                    new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter)
                     };
 
         }
@@ -157,25 +158,25 @@ public abstract class KeyToPageIndexTest {
         private final Long newPage;
         private final Long expectedPage;
 
-        private final CyclicBarrier barrier;
-        private final CyclicBarrier barrier2;
+        private final CyclicBarrier start;
+        private final CyclicBarrier end;
         private final AtomicInteger counter;
 
-        public ConcurrentPutIfTask(KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage, CyclicBarrier barrier, CyclicBarrier barrier2, AtomicInteger counter) {
+        public ConcurrentPutIfTask(KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage, CyclicBarrier start, CyclicBarrier end, AtomicInteger counter) {
             super();
             this.index = index;
             this.key = key;
             this.newPage = newPage;
             this.expectedPage = expectedPage;
-            this.barrier = barrier;
-            this.barrier2 = barrier2;
+            this.start = start;
+            this.end = end;
             this.counter = counter;
         }
 
         @Override
         public Long call() throws RuntimeException {
 
-            awaitOnBarrier(barrier);
+            awaitOnBarrier(start);
 
             boolean put = index.put(key, newPage, expectedPage);
 
@@ -183,7 +184,7 @@ public abstract class KeyToPageIndexTest {
                 counter.incrementAndGet();
             }
 
-            awaitOnBarrier(barrier2);
+            awaitOnBarrier(end);
 
             Long page = index.get(key);
 
@@ -192,49 +193,25 @@ public abstract class KeyToPageIndexTest {
 
             return page;
 
-//            return 0L;
-
         }
-//
-//        private void awaitOnBarrier() {
-//            try {
-//                barrier.await(10, TimeUnit.SECONDS);
-//            } catch (TimeoutException e) {
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                fail("Too many time blocked on waiting");
-//            } catch (InterruptedException e) {
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                /* Interrupting */
-//                return;
-//            } catch (BrokenBarrierException e) {
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                fail("Barrier broken while waiting");
-//            }
-//        }
 
-        private void awaitOnBarrier(CyclicBarrier barrier) throws RuntimeException {
+        private void awaitOnBarrier(CyclicBarrier barrier) {
             try {
-                barrier.await();
-//                barrier.await(10, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                barrier.await(10, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                System.out.println(key.to_int() + " " + e);
+                e.printStackTrace();
+                Assert.fail("Too many time blocked on waiting");
+            } catch (InterruptedException e) {
+                System.out.println(key.to_int() + " " + e);
+                e.printStackTrace();
+                /* Interrupting */
+                return;
+            } catch (BrokenBarrierException e) {
+                System.out.println(key.to_int() + " " + e);
+                e.printStackTrace();
+                Assert.fail("Barrier broken while waiting");
             }
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                fail("Too many time blocked on waiting");
-//            } catch (InterruptedException e) {
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                /* Interrupting */
-//                return;
-//            } catch (BrokenBarrierException e) {
-//                System.out.println(key.to_int() + " " + e);
-//                e.printStackTrace();
-//                fail("Barrier broken while waiting");
-//            }
         }
 
     }
