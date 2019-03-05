@@ -30,6 +30,7 @@ import java.text.SimpleDateFormat;
 import java.util.Map;
 import java.util.TimeZone;
 
+import herddb.utils.Bytes;
 import herddb.utils.RawString;
 import org.junit.Test;
 
@@ -102,30 +103,35 @@ public class RecordSerializerTest {
 
     @Test
     public void testDeserializeWithNullAndNonNullTypes() {
-        byte iValueAsByteArray[] = ByteBuffer.allocate(4).putInt(1000).array();
-        int iValue = (int)RecordSerializer.deserialize(iValueAsByteArray, ColumnTypes.INTEGER);
+        byte[] byteValueForInt = Bytes.from_int(1000).to_array();
+        int iValue = (int)RecordSerializer.deserialize(byteValueForInt, ColumnTypes.INTEGER);
         assertEquals(iValue, 1000);
 
-        int iValueNonNullType = (int)RecordSerializer.deserialize(iValueAsByteArray, ColumnTypes.INTEGER);
+        int iValueNonNullType = (int)RecordSerializer.deserialize(byteValueForInt, ColumnTypes.NOTNULL_INTEGER);
         assertEquals(iValueNonNullType, 1000);
 
 
-        byte lValueAsByteArray[] = ByteBuffer.allocate(8).putLong(2000).array();
-        long lValue = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.LONG);
-        assertEquals(lValue, 2000);
+        byte byteValueForLong[] = Bytes.from_long(99999).to_array();
+        long lValue = (long)RecordSerializer.deserialize(byteValueForLong, ColumnTypes.LONG);
+        assertEquals(lValue, 99999);
 
-        long lValueNonNullType = (long)RecordSerializer.deserialize(lValueAsByteArray, ColumnTypes.NOTNULL_LONG);
-        assertEquals(lValueNonNullType, 2000);
+        long lValueNonNullType = (long)RecordSerializer.deserialize(byteValueForLong, ColumnTypes.NOTNULL_LONG);
+        assertEquals(lValueNonNullType, 99999);
 
 
 
-        byte strValueAsByteArray[] = RawString.of("test").toByteArray();
+        byte strValueAsByteArray[] = Bytes.from_string("test").to_array();
         RawString sValue = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
         assertEquals(sValue, "test");
 
         RawString sValueNonNullType = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.NOTNULL_STRING);
         assertEquals(sValueNonNullType, "test");
 
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSerializeThrowsExceptionOnUnknownType() {
+        RecordSerializer.serialize("test", ColumnTypes.ANYTYPE);
     }
 
 }

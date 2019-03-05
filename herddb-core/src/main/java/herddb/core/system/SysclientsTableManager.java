@@ -38,7 +38,7 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("sysclients")
-            .column("id", ColumnTypes.NOTNULL_STRING)
+            .column("id", ColumnTypes.STRING)
             .column("username", ColumnTypes.STRING)
             .column("address", ColumnTypes.STRING)
             .column("connectionts", ColumnTypes.TIMESTAMP)

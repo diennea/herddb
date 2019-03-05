@@ -19,19 +19,20 @@
  */
 package herddb.core;
 
+import java.util.Arrays;
 import java.util.Collections;
 
+import herddb.model.*;
+import herddb.sql.TranslatedQuery;
 import org.junit.Test;
 
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.ColumnTypes;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.Table;
-import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+
+
 
 /**
  * Tests on table creation
@@ -65,7 +66,7 @@ public class CreateTableTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testWithNullPrimaryKey() throws Exception {
+    public void weThrowExceptionWhenNullableDataTypeDoubleUsedasPk() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
             manager.start();
@@ -88,7 +89,7 @@ public class CreateTableTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testWithNullPrimaryKey2() throws Exception {
+    public void weThrowExceptionWhenNullableDataTypeByteArrayUsedasPk() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
             manager.start();
@@ -106,7 +107,66 @@ public class CreateTableTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
+
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
     }
+
+
+    @Test(expected = StatementExecutionException.class)
+    public void weThrowExceptionOnInsertingNullInNonNullColumn() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t1 (id,name) values(?,?)", Arrays.asList(null, 1234), true, true, false, -1);
+            manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+        }
+    }
+
+//    @Test(expected = StatementExecutionException.class)
+//    public void weThrowExceptionOnUpdatingNullInNonNullColumn() throws Exception {
+//        String nodeId = "localhost";
+//        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+//            manager.start();
+//            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+//            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+//            manager.waitForTablespace("tblspace1", 10000);
+//
+//            Table table = Table
+//                    .builder()
+//                    .tablespace("tblspace1")
+//                    .name("t1")
+//                    .column("id", ColumnTypes.STRING)
+//                    .column("name", ColumnTypes.NOTNULL_STRING)
+//                    .primaryKey("id")
+//                    .build();
+//
+//            CreateTableStatement st2 = new CreateTableStatement(table);
+//
+//            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+//
+//            //First insert items in the table.
+//            TranslatedQuery queryInsert = manager.getPlanner().translate("tblspace1", "INSERT INTO t1 (id,name) values(?,?)", Arrays.asList("test", "1234"), true, true, false, -1);
+//            manager.executePlan(queryInsert.plan, queryInsert.context, TransactionContext.NO_TRANSACTION);
+//
+//            // Try to update a non null string.
+//            TranslatedQuery queryUpdate = manager.getPlanner().translate("tblspace1", "Update t1 set name=? where id=?", Arrays.asList(null, "test"), true, true, false, -1);
+//            manager.executePlan(queryUpdate.plan, queryUpdate.context, TransactionContext.NO_TRANSACTION);
+//        }
+//    }
 }

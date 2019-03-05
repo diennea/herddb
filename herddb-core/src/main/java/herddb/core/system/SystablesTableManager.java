@@ -37,8 +37,8 @@ public class SystablesTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("systables")
-            .column("tablespace", ColumnTypes.NOTNULL_STRING)
-            .column("table_name", ColumnTypes.NOTNULL_STRING)
+            .column("tablespace", ColumnTypes.STRING)
+            .column("table_name", ColumnTypes.STRING)
             .column("table_uuid", ColumnTypes.STRING)
             .column("systemtable", ColumnTypes.STRING)
             .primaryKey("tablespace", false)

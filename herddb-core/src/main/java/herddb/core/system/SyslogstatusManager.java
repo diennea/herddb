@@ -39,8 +39,8 @@ public class SyslogstatusManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("syslogstatus")
-            .column("tablespace_uuid", ColumnTypes.NOTNULL_STRING)
-            .column("nodeid", ColumnTypes.NOTNULL_STRING)
+            .column("tablespace_uuid", ColumnTypes.STRING)
+            .column("nodeid", ColumnTypes.STRING)
             .column("tablespace_name", ColumnTypes.STRING)
             .column("ledger", ColumnTypes.LONG)
             .column("offset", ColumnTypes.LONG)

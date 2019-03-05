@@ -41,7 +41,7 @@ public class SysnodesTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("sysnodes")
-            .column("nodeid", ColumnTypes.NOTNULL_STRING)
+            .column("nodeid", ColumnTypes.STRING)
             .column("address", ColumnTypes.STRING)
             .column("ssl", ColumnTypes.INTEGER)
             .primaryKey("nodeid", false)

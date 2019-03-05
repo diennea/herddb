@@ -39,7 +39,7 @@ public class SystransactionsTableManager extends AbstractSystemTableManager {
         .builder()
         .name("systransactions")
         .column("tablespace", ColumnTypes.STRING)
-        .column("txid", ColumnTypes.NOTNULL_LONG)
+        .column("txid", ColumnTypes.LONG)
         .column("creationTimestamp", ColumnTypes.TIMESTAMP)
         .primaryKey("txid", false)
         .build();

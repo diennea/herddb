@@ -39,7 +39,7 @@ public class SysstatementsTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("sysstatements")
-            .column("id", ColumnTypes.NOTNULL_LONG)
+            .column("id", ColumnTypes.LONG)
             .column("tablespace", ColumnTypes.STRING)
             .column("query", ColumnTypes.STRING)
             .column("startts", ColumnTypes.TIMESTAMP)
