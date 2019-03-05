@@ -83,6 +83,32 @@ public class DataPage extends Page<TableManager> {
         pageLock = immutable ? null : new ReentrantReadWriteLock(false);
     }
 
+    /**
+     * Convert a {@link DataPage} to immutable.
+     * <p>
+     * Conversion can be done only after the page has been set as not writable.
+     * </p>
+     * <p>
+     * Checks on immutable pages are faster (they not have to check volatile writable flag and lock it
+     * before checking).
+     * </p>
+     *
+     * @return immutable data page version
+     */
+    DataPage toImmutable() {
+
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " already is immutable!");
+        }
+
+        if (writable) {
+            throw new IllegalStateException("page " + pageId + " cannot be converted to immutable because still writable!");
+        }
+
+        return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
+
+    }
+
     Record remove(Bytes key) {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
@@ -129,6 +155,14 @@ public class DataPage extends Page<TableManager> {
         }
 
         return true;
+    }
+
+    void putNoMemoryHandle(Record record) {
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
+        }
+
+        data.put(record.key, record);
     }
 
     boolean isEmpty() {

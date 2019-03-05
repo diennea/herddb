@@ -293,10 +293,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(ex);
         }
 
-        Bytes prev = indexpages.putIfAbsent(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
-        if (prev != null) {
-            throw new DataStorageManagerException("pages are immutable");
-        }
+        indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
     }
 
     @Override
