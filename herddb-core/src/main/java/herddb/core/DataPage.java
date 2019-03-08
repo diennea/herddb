@@ -33,7 +33,7 @@ import herddb.utils.Bytes;
  * @author enrico.olivelli
  * @author diego.salvi
  */
-public class DataPage extends Page<TableManager> {
+public final class DataPage extends Page<TableManager> {
 
     /**
      * Constant entry size take in account map entry nodes:
@@ -56,7 +56,7 @@ public class DataPage extends Page<TableManager> {
     public final long maxSize;
     public final boolean immutable;
 
-    public Map<Bytes, Record> data;
+    public final Map<Bytes, Record> data;
 
     public final AtomicLong usedMemory;
 
@@ -71,7 +71,7 @@ public class DataPage extends Page<TableManager> {
      */
     public boolean writable;
 
-    public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean immutable) {
+    DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean immutable) {
         super(owner, pageId);
         this.maxSize = maxSize;
         this.immutable = immutable;

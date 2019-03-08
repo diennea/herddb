@@ -3104,7 +3104,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             pageId = relocatedPageId;
             if (maxTrials-- == 0) {
-                throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + " after many trials");
+                if (dataPage != null) {
+                    Collection<Bytes> keysForDebug = dataPage.data.keySet(); // this may in an inconsistent state
+                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage "+dataPage+", dataPageKeys ="+keysForDebug+" after many trials");
+                } else {
+                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage = null after many trials");
+                }
             }
         }
     }
