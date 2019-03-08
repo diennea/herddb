@@ -111,6 +111,8 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Handles Data of a Table
@@ -243,6 +245,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final long compactionTargetTime;
 
     private final TableManagerStats stats;
+    
+    private final Counter checkpointProcessedDirtyRecords;
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.SEVERE, "Table " + table.name + ", receiving dump,"
@@ -361,6 +365,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 ServerConfiguration.PROPERTY_COMPACTION_DURATION_DEFAULT);
 
         this.compactionTargetTime = compactionTargetTime < 0 ? Long.MAX_VALUE : compactionTargetTime;
+        
+        
+        StatsLogger tableMetrics = tableSpaceManager.tablespaceStasLogger.scope("table_"+table.name);
+        this.checkpointProcessedDirtyRecords = tableMetrics.getCounter("checkpoint_processed_dirty_records");
     }
 
     private TableContext buildTableContext() {
@@ -2226,17 +2234,30 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                          * do not update it. (Single read&update lookup)
                          */
                         Record unshared = record.nonShared();
+                        
+                        /*
+                         * Try to move the record to the new page
+                         */
+                        buildingPage.putNoMemoryHandle(unshared);
+                        
+                        /**
+                         * If the conditional put succeedes readers will look for the record inside buildingPage
+                         */
                         boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, weighted.pageId);
 
                         /* Avoid the record if has been modified or deleted */
                         if (handled) {
-                            buildingPage.putNoMemoryHandle(unshared);
-
                             /*
                              * Handle size externally (avoid double size check because we already have to check if the page
                              * could host the data BEFORE updating PK and putting the value into page)
                              */
                             bufferPageSize += recordSize;
+                        } else {
+                            /*
+                             * The put failed, track this event, readers won't ever look for the record inside buildingPage
+                            */
+                            checkpointProcessedDirtyRecords.add(1);
+                            buildingPage.removeNoMemoryHandle(unshared);
                         }
                     }
 
@@ -3068,21 +3089,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
             if (dataPage != null) {
                 Record record = dataPage.get(key);
-                if (record == null && !dataPage.immutable) {
-                    /*
-                     * Attempt a second page read under lock. The record "should" be in this page but sometimes wasn't
-                     * already published (found on PK but still not on page [can happen during dirty page rebuild during
-                     * a concurrent checkpoint])
-                     */
-                    Lock lock = dataPage.pageLock.readLock();
-                    lock.lock();
-                    try {
-                        record = dataPage.get(key);
-                    } finally {
-                        lock.unlock();
-                    }
-                }
-
                 if (record != null) {
                     return record;
                 }
