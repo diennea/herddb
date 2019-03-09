@@ -658,12 +658,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      *
      * @return new mutable page
      */
-    private DataPage createMutablePage(long newId, Map<Bytes, Record> initialData, long initiaPageSize) {
+    private DataPage createMutablePage(long newId, int expectedSize, long initiaPageSize) {
 
         LOGGER.log(Level.FINER, "creating mutable page table {0}, pageId={1} with {2} records, {3} logical page size",
-                new Object[]{table.name, newId, initialData.size(), initiaPageSize});
+                new Object[]{table.name, newId, expectedSize, initiaPageSize});
 
-        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, initialData, false);
+        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, new ConcurrentHashMap<Bytes, Record>(expectedSize), false);
 
         pages.put(newId, newPage);
 
@@ -1986,7 +1986,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private DataPage buildImmutableDataPage(long pageId, List<Record> page) {
-        Map<Bytes, Record> newPageMap = new HashMap<>();
+        Map<Bytes, Record> newPageMap = new HashMap<>(page.size());
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
@@ -2154,7 +2154,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean keepFlushedPageInMemory = false;
 
             /* New page actually rebuilt */
-            DataPage buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(), 0);
+            DataPage buildingPage = createMutablePage(nextPageId++, 0, 0);
 
             /*
              * Lock the currently building page to blocks concurrent reads on it (has been already published on
@@ -2219,7 +2219,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             bufferPageSize = 0;
 
                             /* Get a new building page */
-                            buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(buildingPage.size()), 0);
+                            buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
 
                             /* Lock the  new currently building page */
                             buildingPageLock = buildingPage.pageLock.writeLock();
@@ -2348,7 +2348,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         bufferPageSize = 0;
 
                         /* Get a new building page */
-                        buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(buildingPage.size()), 0);
+                        buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
                     }
 
                     /* Current rebuilt page will be kept in memory if current page was in memory */
