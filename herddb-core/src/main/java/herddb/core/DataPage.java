@@ -26,6 +26,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
+import java.util.Collections;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A page of data loaded in memory
@@ -57,6 +59,8 @@ public final class DataPage extends Page<TableManager> {
     public final boolean immutable;
 
     public final Map<Bytes, Record> data;
+    // this is only for debug. NOT TO be COMMITTED
+    public final CopyOnWriteArrayList<Bytes> debugSeenKeys = new CopyOnWriteArrayList<>();
 
     public final AtomicLong usedMemory;
 
@@ -66,8 +70,8 @@ public final class DataPage extends Page<TableManager> {
     public final ReadWriteLock pageLock;
 
     /**
-     * Writability flag of mutable pages, mutable pages can switch to a not writable
-     * state when flushed, to be accessed only under {@link #pageLock}
+     * Writability flag of mutable pages, mutable pages can switch to a not
+     * writable state when flushed, to be accessed only under {@link #pageLock}
      */
     public boolean writable;
 
@@ -76,6 +80,7 @@ public final class DataPage extends Page<TableManager> {
         this.maxSize = maxSize;
         this.immutable = immutable;
         this.writable = !immutable;
+        this.debugSeenKeys.addAll(data.keySet());
 
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
@@ -89,8 +94,8 @@ public final class DataPage extends Page<TableManager> {
      * Conversion can be done only after the page has been set as not writable.
      * </p>
      * <p>
-     * Checks on immutable pages are faster (they not have to check volatile writable flag and lock it
-     * before checking).
+     * Checks on immutable pages are faster (they not have to check volatile
+     * writable flag and lock it before checking).
      * </p>
      *
      * @return immutable data page version
@@ -105,7 +110,7 @@ public final class DataPage extends Page<TableManager> {
             throw new IllegalStateException("page " + pageId + " cannot be converted to immutable because still writable!");
         }
 
-        return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
+        return new DataPage(owner, pageId, maxSize, usedMemory.get(), Collections.unmodifiableMap(data), true);
 
     }
 
@@ -132,6 +137,7 @@ public final class DataPage extends Page<TableManager> {
             throw new IllegalStateException("page " + pageId + " is immutable!");
         }
 
+        this.debugSeenKeys.add(record.key);
         final Record prev = data.put(record.key, record);
 
         final long newSize = estimateEntrySize(record);
@@ -161,10 +167,10 @@ public final class DataPage extends Page<TableManager> {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
         }
-
+        this.debugSeenKeys.add(record.key);
         data.put(record.key, record);
     }
-    
+
     void removeNoMemoryHandle(Record record) {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
@@ -194,7 +200,7 @@ public final class DataPage extends Page<TableManager> {
 
     @Override
     public String toString() {
-        return "DataPage{" + "pageId=" + pageId + ", immutable=" + immutable + ", writable=" + writable + ", usedMemory=" + usedMemory + '}';
+        return "DataPage{" + "pageId=" + pageId + ", immutable=" + immutable + ", writable=" + writable + ", usedMemory=" + usedMemory + ", debugSeenKeys " + this.debugSeenKeys + '}';
     }
 
     @Override
