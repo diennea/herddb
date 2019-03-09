@@ -2113,7 +2113,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     BooleanHolder replaced = new BooleanHolder(false);
                     Holder<Y> hold = new Holder<>();
                     map.compute(key, (skey, currentValue) -> {
-                        if (currentValue.equals(expected)) {
+                        if (expected.equals(currentValue)) {
                             replaced.value = true;
                             /* Cast to Y: is a leaf */
                             hold.value = (Y) currentValue;
