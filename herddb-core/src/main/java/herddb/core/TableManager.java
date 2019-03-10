@@ -1988,7 +1988,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private DataPage buildImmutableDataPage(long pageId, List<Record> page) {
-        Map<Bytes, Record> newPageMap = new HashMap<>(page.size());
+        Map<Bytes, Record> newPageMap = new ConcurrentHashMap<>(page.size());
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
