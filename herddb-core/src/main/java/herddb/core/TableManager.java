@@ -473,7 +473,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (currentPage < 0) {
                         throw new IllegalStateException();
                     }
-                    keyToPage.put(record.key.nonShared(), currentPage);
+                    keyToPage.put(record.key.nonShared(), currentPage, null /* PK is empty */);
                 }
 
                 @Override
@@ -487,9 +487,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             });
         } else {
-            LOGGER.log(Level.SEVERE, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
+            LOGGER.log(Level.INFO, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
-            LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+            LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
             bootSequenceNumber = tableStatus.sequenceNumber;
@@ -715,8 +715,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @param spareData old spare data to fit in the new page if possible
      * @return spare memory size used (and removed), {@code 0} if no spare used
      */
-    private long flushNewPageForCheckpoint(DataPage page, Map<Bytes, Record> spareData) {
-        final long used = flushNewPage(page, spareData);
+    private long flushNewPageForCheckpoint(DataPage page, DataPage buildingPage) {
+        final long used = flushNewPage(page, buildingPage);
 
         /* Replace the page in memory with his immutable version (faster modification checks) */
         pages.put(page.pageId, page);
@@ -738,9 +738,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * already flushed by another thread
      */
     private boolean flushNewPageForUnload(DataPage page) {
-        return flushNewPage(page, Collections.emptyMap()) != -1;
+        return flushNewPage(page, null) != -1;
     }
-
+    
     /**
      * Remove the page from {@link #newPages}, set it as "unloaded" and write it
      * to disk
@@ -750,12 +750,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * </p>
      *
      * @param page new page to flush
-     * @param spareData old spare data to fit in the new page if possible
+     * @param buildingPage old spare data to fit in the new page if possible
      * @return spare memory size used (and removed), {@code 0} if no spare used,
      * {@code -1L} if no flush has been done because the page isn't writable
      * anymore
      */
-    private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
+    private long flushNewPage(DataPage page, DataPage buildingPage) {
 
         if (page.immutable) {
             LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page " + page.pageId + " as it was mutable");
@@ -810,22 +810,27 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long usedMemory = page.getUsedMemory();
 
-        /* Flag to enable spare data addition to currently flushed page */
-        boolean add = true;
-        final Iterator<Record> records = spareData.values().iterator();
-        while (add && records.hasNext()) {
-            Record record = records.next().nonShared();
-            add = page.put(record);
-            if (add) {
-                keyToPage.put(record.key, page.pageId);
-                records.remove();
+        // Try to steal records from another temporary page
+        if (buildingPage != null) {
+            /* Flag to enable spare data addition to currently flushed page */
+            boolean add = true;
+            final Iterator<Record> records = buildingPage.getRecordsForFlush().iterator();
+            while (add && records.hasNext()) {
+                Record record = records.next().nonShared();
+                add = page.put(record);
+                if (add) {
+                    boolean moved = keyToPage.put(record.key, page.pageId, buildingPage.pageId);
+                    if (moved) {
+                        records.remove();
+                    }
+                }
             }
         }
 
         long spareUsedMemory = page.getUsedMemory() - usedMemory;
         LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
-        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
         return spareUsedMemory;
 
@@ -897,7 +902,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Set the page as a fully active page */
             pageSet.pageCreated(page.pageId, page);
 
-            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
         } finally {
 
@@ -2177,7 +2182,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         currentPageWasInMemory = false;
                         LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                     } else {
-                        records = dataPage.data.values();
+                        records = dataPage.getRecordsForFlush();
 
                         /* The page was found in memory. Currently built page should go into memory */
                         currentPageWasInMemory = true;
@@ -2315,7 +2320,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     currentPageWasInMemory = false;
                     LOGGER.log(Level.FINEST, "loaded small page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
-                    records = dataPage.data.values();
+                    records = dataPage.getRecordsForFlush();
 
                     /* The page was found in memory. Currently built page should go into memory */
                     currentPageWasInMemory = true;
@@ -2359,13 +2364,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                     buildingPage.putNoMemoryHandle(unshared);
 
-                    keyToPage.put(unshared.key, buildingPage.pageId);
-
-                    /*
-                     * Handle size externally (avoid double size check because we already have to check if the page
-                     * could host the data BEFORE updating PK and putting the value into page)
-                     */
-                    bufferPageSize += recordSize;
+                    boolean moved = keyToPage.put(unshared.key, buildingPage.pageId, weighted.pageId);
+                    if (moved) {
+                        /*
+                        * Handle size externally (avoid double size check because we already have to check if the page
+                        * could host the data BEFORE updating PK and putting the value into page)
+                        */
+                        bufferPageSize += recordSize;
+                    } else {
+                        throw new IllegalStateException("Record "+unshared.key+" was moved out from page "+weighted.pageId
+                                    +" by a thread other then the checkpoint one");
+                    }
                 }
 
                 final long now = System.currentTimeMillis();
@@ -2394,7 +2403,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPageForCheckpoint(dataPage, buildingPage.data);
+                    bufferPageSize -= flushNewPageForCheckpoint(dataPage, buildingPage);
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -3102,7 +3111,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pageId = relocatedPageId;
             if (maxTrials-- == 0) {
                 if (dataPage != null) {
-                    Collection<Bytes> keysForDebug = dataPage.data.keySet(); // this may in an inconsistent state
+                    Collection<Bytes> keysForDebug = dataPage.getKeysForDebug(); // this may in an inconsistent state
                     throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage "+dataPage+", dataPageKeys ="+keysForDebug+" after many trials");
                 } else {
                     throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage = null after many trials");
@@ -3177,7 +3186,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (!droppedColumns.isEmpty()) {
             // no lock is necessary
             pages.values().forEach(p -> {
-                p.data.values().forEach(r -> r.clearCache());
+                p.flushRecordsCache();
             });
         }
 

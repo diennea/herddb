@@ -318,10 +318,10 @@ public class CheckpointTest {
             assertNotNull(page);
 
             /* 2 records in page */
-            assertEquals(2, page.data.size());
+            assertEquals(2, page.size());
 
             /* No more space for other records */
-            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            long avgRecordSize = page.getUsedMemory() / page.size();
             assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
 
             /* Dirty a page with few data */
@@ -407,10 +407,10 @@ public class CheckpointTest {
             assertNotNull(page);
 
             /* 2 records in page */
-            assertEquals(2, page.data.size());
+            assertEquals(2, page.size());
 
             /* No more space for other records */
-            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            long avgRecordSize = page.getUsedMemory() / page.size();
             assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
 
             /* Dirty a page with few data */
@@ -496,10 +496,10 @@ public class CheckpointTest {
             assertNotNull(page);
 
             /* 1 records in page */
-            assertEquals(1, page.data.size());
+            assertEquals(1, page.size());
 
             /* No more space for other records */
-            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            long avgRecordSize = page.getUsedMemory() / page.size();
             assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
 
             /* No more space in page BUT consider the page as small (little hacky) */
@@ -588,10 +588,10 @@ public class CheckpointTest {
             assertNotNull(page);
 
             /* 1 records in page */
-            assertEquals(1, page.data.size());
+            assertEquals(1, page.size());
 
             /* No more space for other records */
-            long avgRecordSize = page.getUsedMemory() / page.data.size();
+            long avgRecordSize = page.getUsedMemory() / page.size();
             assertTrue(page.getUsedMemory() + avgRecordSize > pageSize);
 
             /* No more space in page BUT consider the page as small (little hacky) */

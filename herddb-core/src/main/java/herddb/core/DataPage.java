@@ -26,7 +26,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
-import java.util.Collections;
+import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -58,7 +59,7 @@ public final class DataPage extends Page<TableManager> {
     public final long maxSize;
     public final boolean immutable;
 
-    public final Map<Bytes, Record> data;
+    private final Map<Bytes, Record> data;
     // this is only for debug. NOT TO be COMMITTED
     public final CopyOnWriteArrayList<Bytes> debugSeenKeys = new CopyOnWriteArrayList<>();
 
@@ -159,6 +160,14 @@ public final class DataPage extends Page<TableManager> {
     int size() {
         return data.size();
     }
+       
+    Collection<Record> getRecordsForFlush() {
+        return data.values();
+    }
+    
+    Set<Bytes> getKeysForDebug() {
+        return data.keySet();
+    }
 
     long getUsedMemory() {
         return usedMemory.get();
@@ -196,6 +205,10 @@ public final class DataPage extends Page<TableManager> {
         }
         DataPage other = (DataPage) obj;
         return pageId == other.pageId;
+    }
+
+    void flushRecordsCache() {
+        data.values().forEach(r -> r.clearCache());
     }
 
 }
