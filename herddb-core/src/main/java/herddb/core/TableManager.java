@@ -719,7 +719,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final long used = flushNewPage(page, spareData);
 
         /* Replace the page in memory with his immutable version (faster modification checks) */
-        page = page.toImmutable();
         pages.put(page.pageId, page);
 
         /*
@@ -886,8 +885,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             if (keepPageInMemory) {
-                /* If we must keep the page in memory we "covert" the page to immutable */
-                page = page.toImmutable();
                 pages.put(page.pageId, page);
 
                 /* And we load to page replacement polcy */
