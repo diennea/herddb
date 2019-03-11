@@ -2373,7 +2373,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         bufferPageSize += recordSize;
                     } else {
                         throw new IllegalStateException("Record "+unshared.key+" was moved out from page "+weighted.pageId
-                                    +" by a thread other then the checkpoint one");
+                                    +" by a thread other than the checkpoint one, keyToPage says: "+keyToPage.get(unshared.key)+
+                                " I was expecting "+weighted.pageId);
                     }
                 }
 
