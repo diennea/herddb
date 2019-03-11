@@ -619,6 +619,12 @@ public final class RecordSerializer {
                     return ((RawString) value).toByteArray();
                 }
                 return value;
+            case ColumnTypes.NOTNULL_INTEGER:
+            case ColumnTypes.NOTNULL_STRING:
+            case ColumnTypes.NOTNULL_LONG:
+                if(value == null) {
+                    throw new StatementExecutionException("Cannot have null value in non null type "+ ColumnTypes.typeToString(type));
+                }
             default:
                 return value;
         }

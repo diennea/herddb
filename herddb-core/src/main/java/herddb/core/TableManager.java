@@ -996,40 +996,44 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
-        accessTableData(scan, context, new ScanResultOperation() {
-            @Override
-            public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                byte[] newValue = function.computeNewValue(actual, context, tableContext);
+        try {
+            accessTableData(scan, context, new ScanResultOperation() {
+                @Override
+                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                    byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
-                if (indexes != null) {
-                    try {
-                        DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
-                        for (AbstractIndexManager index : indexes.values()) {
-                            RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                    if (indexes != null) {
+                        try {
+                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                            for (AbstractIndexManager index : indexes.values()) {
+                                RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                            }
+                        } catch (IllegalArgumentException err) {
+                            locksManager.releaseLock(lockHandle);
+                            writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                            return;
                         }
-                    } catch (IllegalArgumentException err) {
+                    }
+                    final long size = DataPage.estimateEntrySize(actual.key, newValue);
+                    if (size > maxLogicalPageSize) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                        writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
+                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
+                                + ", max size " + maxLogicalPageSize)));
                         return;
                     }
-                }
-                final long size = DataPage.estimateEntrySize(actual.key, newValue);
-                if (size > maxLogicalPageSize) {
-                    locksManager.releaseLock(lockHandle);
-                    writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
-                            + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
-                            + ", max size " + maxLogicalPageSize)));
-                    return;
-                }
 
-                LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
-                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
-                lastKey.value = actual.key;
-                lastValue.value = newValue;
-                updateCount.incrementAndGet();
-            }
-        }, transaction, true, true);
+                    LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
+                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork (entry, pos, lockHandle)));
+                    lastKey.value = actual.key;
+                    lastValue.value = newValue;
+                    updateCount.incrementAndGet();
+                }
+            }, transaction, true, true);
+        } catch (StatementExecutionException validationError) {
+            return FutureUtils.exception(validationError);
+        }
 
 
         if (writes.isEmpty()) {

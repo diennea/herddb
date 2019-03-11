@@ -1300,12 +1300,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 case ColumnTypes.BOOLEAN:
                     return typeFactory.createSqlType(SqlTypeName.BOOLEAN);
                 case ColumnTypes.INTEGER:
+                case ColumnTypes.NOTNULL_INTEGER:
                     return typeFactory.createSqlType(SqlTypeName.INTEGER);
                 case ColumnTypes.STRING:
+                case ColumnTypes.NOTNULL_STRING:
                     return typeFactory.createSqlType(SqlTypeName.VARCHAR);
                 case ColumnTypes.BYTEARRAY:
                     return typeFactory.createSqlType(SqlTypeName.VARBINARY);
                 case ColumnTypes.LONG:
+                case ColumnTypes.NOTNULL_LONG:
                     return typeFactory.createSqlType(SqlTypeName.BIGINT);
                 case ColumnTypes.TIMESTAMP:
                     return typeFactory.createSqlType(SqlTypeName.TIMESTAMP);

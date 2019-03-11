@@ -71,7 +71,14 @@ public class ColumnTypes {
     }
 
     public static boolean isNotNullDataType(int type) {
-        return ((type & NOTNULL_INTEGER) + (type & NOTNULL_STRING) + (type & NOTNULL_LONG)) == 1;
+        switch(type) {
+            case NOTNULL_INTEGER:
+            case NOTNULL_LONG:
+            case NOTNULL_STRING:
+                return true;
+            default:
+                return false;
+        }
     }
 
 }
