@@ -237,7 +237,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, statsLogger);
+                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, (ZookeeperMetadataStorageManager) this.metadataStorageManager, statsLogger);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
                 break;

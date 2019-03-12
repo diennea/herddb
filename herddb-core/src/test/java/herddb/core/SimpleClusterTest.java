@@ -26,8 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
-import herddb.utils.Holder;
-
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,8 +49,8 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
+import herddb.utils.Holder;
 import herddb.utils.ZKTestEnv;
-import org.apache.bookkeeper.stats.NullStatsLogger;
 
 /**
  *
@@ -79,7 +78,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
     @Override
     protected MetadataStorageManager makeMetadataStorageManager() throws Exception {
-        return new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), "/tests");
+        return new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), testEnv.getPath());
     }
 
     @Override
