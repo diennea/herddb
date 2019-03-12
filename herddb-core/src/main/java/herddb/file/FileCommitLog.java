@@ -241,6 +241,14 @@ public class FileCommitLog extends CommitLog {
             this.entry = entry;
         }
 
+        @Override
+        public String toString() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("LogEntryWithSequenceNumber [logSequenceNumber=").append(logSequenceNumber)
+                    .append(", entry=").append(entry).append("]");
+            return builder.toString();
+        }
+
     }
 
     public static class CommitFileReader implements AutoCloseable {

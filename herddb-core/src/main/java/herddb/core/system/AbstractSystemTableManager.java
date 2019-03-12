@@ -20,8 +20,14 @@
 package herddb.core.system;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.stream.StreamSupport;
+
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 import herddb.core.AbstractTableManager;
 import herddb.core.MaterializedRecordSet;
@@ -48,11 +54,6 @@ import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.SQLRecordPredicateFunctions;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.StreamSupport;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * System tables
@@ -273,4 +274,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         return null;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append(getClass().getSimpleName()).append(" [table=").append(table).append("]");
+        return builder.toString();
+    }
 }

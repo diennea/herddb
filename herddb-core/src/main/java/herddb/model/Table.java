@@ -19,12 +19,11 @@
  */
 package herddb.model;
 
-import com.google.common.collect.ImmutableSet;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,8 +31,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableSet;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
@@ -41,9 +44,6 @@ import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.util.Comparator;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Table definition
@@ -345,6 +345,13 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     public Column getColumn(int index) {
         return columns[index];
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Table [name=").append(name).append(", tablespace=").append(tablespace).append("]");
+        return sb.toString();
     }
 
     public static class Builder {
