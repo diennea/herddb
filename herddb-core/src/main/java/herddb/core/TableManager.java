@@ -2079,6 +2079,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     /**
+     * Fully clean a list of pages, removing dirty records and compacting multiple pages into one (or
+     * more).
+     * <p>
+     * For page compaction will be initially used given half-full DataPage and will return a possibly
+     * half-full DataPage to continue other processess (could be even the same page). Returned DataPage
+     * will not be flushed, other filled pages will be flushed to disk.
+     * </p>
      *
      * @param workingPages            pages to handle for cleanup and compaction
      * @param buildingPage            currently building page (possibly partially filled)
@@ -2098,19 +2105,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long flushedRecords = 0;
 
         /* Rebuild dirty pages with only records to be kept */
-        for (WeightedPage weighted : workingPages) {
+        for (WeightedPage page : workingPages) {
 
             /* Page flushed */
-            flushedPages.add(weighted.pageId);
+            flushedPages.add(page.pageId);
 
             final boolean currentPageWasInMemory;
             final Collection<Record> records;
 
-            final DataPage dataPage = pages.get(weighted.pageId);
+            final DataPage dataPage = pages.get(page.pageId);
             if (dataPage == null) {
-                records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
+                records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
                 currentPageWasInMemory = false;
-                LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
+                LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
+                        new Object[] { page.pageId, records.size() });
             } else {
                 records = dataPage.getRecordsForFlush();
 
@@ -2162,7 +2170,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 /**
                  * If the conditional put succeedes readers will look for the record inside buildingPage
                  */
-                boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, weighted.pageId);
+                boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
 
                 /* Avoid the record if has been modified or deleted */
                 if (handled) {
@@ -2179,7 +2187,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             if (dataPage != null) {
-                final DataPage removedDataPage = pages.remove(weighted.pageId);
+                final DataPage removedDataPage = pages.remove(page.pageId);
                 if (removedDataPage != dataPage) {
                     throw new IllegalStateException(
                             "Failed to remove the right page from page knowledge during checkpoint. "
