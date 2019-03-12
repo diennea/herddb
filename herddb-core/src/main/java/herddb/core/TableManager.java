@@ -827,13 +827,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     records.remove();
                 }
             }
+
+            long spareUsedMemory = page.getUsedMemory() - usedMemory;
+
+            /* Fix spare page data removing used memory */
+            stealingDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
         }
 
-
-        long spareUsedMemory = page.getUsedMemory() - usedMemory;
-
-        /* Fix spare page data removing used memory */
-        stealingDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
 
         LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
