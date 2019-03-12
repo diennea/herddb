@@ -19,16 +19,15 @@
  */
 package herddb.core;
 
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
-import java.util.Collection;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A page of data loaded in memory
@@ -60,10 +59,8 @@ public final class DataPage extends Page<TableManager> {
     public final boolean immutable;
 
     private final Map<Bytes, Record> data;
-    // this is only for debug. NOT TO be COMMITTED
-    public final CopyOnWriteArrayList<Bytes> debugSeenKeys = new CopyOnWriteArrayList<>();
 
-    public final AtomicLong usedMemory;
+    private final AtomicLong usedMemory;
 
     /**
      * Access lock, exists only for mutable pages ({@code immutable == false})
@@ -81,14 +78,39 @@ public final class DataPage extends Page<TableManager> {
         this.maxSize = maxSize;
         this.immutable = immutable;
         this.writable = !immutable;
-        this.debugSeenKeys.addAll(data.keySet());
 
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
 
         pageLock = immutable ? null : new ReentrantReadWriteLock(false);
     }
-    
+
+    /**
+     * Convert a {@link DataPage} to immutable.
+     * <p>
+     * Conversion can be done only after the page has been set as not writable.
+     * </p>
+     * <p>
+     * Checks on immutable pages are faster (they not have to check volatile writable flag and lock it
+     * before checking).
+     * </p>
+     *
+     * @return immutable data page version
+     */
+    DataPage toImmutable() {
+
+         if (immutable) {
+            throw new IllegalStateException("page " + pageId + " already is immutable!");
+        }
+
+         if (writable) {
+            throw new IllegalStateException("page " + pageId + " cannot be converted to immutable because still writable!");
+        }
+
+         return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
+
+     }
+
     Record remove(Bytes key) {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
@@ -112,7 +134,6 @@ public final class DataPage extends Page<TableManager> {
             throw new IllegalStateException("page " + pageId + " is immutable!");
         }
 
-        this.debugSeenKeys.add(record.key);
         final Record prev = data.put(record.key, record);
 
         final long newSize = estimateEntrySize(record);
@@ -142,7 +163,6 @@ public final class DataPage extends Page<TableManager> {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
         }
-        this.debugSeenKeys.add(record.key);
         data.put(record.key, record);
     }
 
@@ -160,17 +180,27 @@ public final class DataPage extends Page<TableManager> {
     int size() {
         return data.size();
     }
-       
+
     Collection<Record> getRecordsForFlush() {
         return data.values();
     }
-    
+
     Set<Bytes> getKeysForDebug() {
         return data.keySet();
     }
 
     long getUsedMemory() {
         return usedMemory.get();
+    }
+
+    /**
+     * Companion method of {@link #putNoMemoryHandle(Record)} and {@link #removeNoMemoryHandle(Record)}
+     * to handle memory counts externally.
+     *
+     * @param usedMemory used memory count to set
+     */
+    void setUsedMemory(long usedMemory) {
+        this.usedMemory.set(usedMemory);
     }
 
     void clear() {
@@ -183,7 +213,7 @@ public final class DataPage extends Page<TableManager> {
 
     @Override
     public String toString() {
-        return "DataPage{" + "pageId=" + pageId + ", immutable=" + immutable + ", writable=" + writable + ", usedMemory=" + usedMemory + ", debugSeenKeys " + this.debugSeenKeys + '}';
+        return "DataPage{" + "pageId=" + pageId + ", immutable=" + immutable + ", writable=" + writable + ", usedMemory=" + usedMemory + '}';
     }
 
     @Override
