@@ -19,10 +19,6 @@
  */
 package herddb.cluster;
 
-import herddb.log.CommitLog;
-import herddb.log.CommitLogManager;
-import herddb.log.LogNotAvailableException;
-import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,10 +28,16 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.stats.StatsLogger;
+
+import herddb.log.CommitLog;
+import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -59,15 +61,15 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration, StatsLogger statsLogger) {
         this.statsLogger = statsLogger;
         config = new ClientConfiguration();
+
         config.setThrottleValue(0);
         config.setZkServers(metadataStorageManager.getZkAddress());
         config.setZkTimeout(metadataStorageManager.getZkSessionTimeout());
+        config.setZkLedgersRootPath(metadataStorageManager.getLedgersPath());
         config.setEnableParallelRecoveryRead(true);
         config.setEnableDigestTypeAutodetection(true);
-        LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
-        if (serverConfiguration.getBoolean("bookie.preferlocalbookie", false)) {
-            config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
-        }
+
+        /* Setups values from configuration */
         for (String key : serverConfiguration.keys()) {
             if (key.startsWith("bookkeeper.")) {
                 String _key = key.substring("bookkeeper.".length());
@@ -75,8 +77,13 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
                 LOG.log(Level.CONFIG, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
                 config.setProperty(_key, value);
             }
-
         }
+
+        LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
+        if (serverConfiguration.getBoolean("bookie.preferlocalbookie", false)) {
+            config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
+        }
+
         LOG.config("BookKeeper client configuration:");
         for (Iterator e = config.getKeys(); e.hasNext();) {
             Object key = e.next();

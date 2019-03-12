@@ -19,11 +19,31 @@
  */
 package herddb.server;
 
+import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.LedgerMetadata;
+import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.cluster.BookkeeperCommitLog;
 import herddb.codec.RecordSerializer;
 import herddb.core.ActivatorRunRequest;
 import herddb.core.TableSpaceManager;
-import static herddb.core.TestUtils.scan;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
@@ -37,23 +57,6 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.ZKTestEnv;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.client.LedgerHandle;
-import org.apache.bookkeeper.client.api.LedgerMetadata;
-import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.junit.After;
-import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * We are going to fence forcibly a ledger during the normal execution
@@ -83,6 +86,7 @@ public class BookkeeperFailuresTest {
     private BookKeeper createBookKeeper() throws Exception {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         clientConfiguration.setZkServers(testEnv.getAddress());
+        clientConfiguration.setZkLedgersRootPath(testEnv.getPath() + "/ledgers");
         return BookKeeper.forConfig(clientConfiguration).build();
     }
 

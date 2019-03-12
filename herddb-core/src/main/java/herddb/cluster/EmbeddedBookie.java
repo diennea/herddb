@@ -24,23 +24,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
-
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 import herddb.network.netty.NetworkUtils;
 import herddb.server.ServerConfiguration;
-import java.util.Collection;
-import java.util.stream.Collectors;
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -50,25 +49,31 @@ import org.apache.bookkeeper.stats.StatsLogger;
 public class EmbeddedBookie implements AutoCloseable {
 
     private final static Logger LOG = Logger.getLogger(EmbeddedBookie.class.getName());
-    private final ServerConfiguration configuration;
+
     private final Path baseDirectory;
-    private BookieServer bookieServer;
+    private final ServerConfiguration configuration;
+    private final ZookeeperMetadataStorageManager metadataManager;
     private final StatsLogger statsLogger;
 
-    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration) {
-        this(baseDirectory, configuration, null);
+    private BookieServer bookieServer;
+
+
+    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager) {
+        this(baseDirectory, configuration, metadataManager, null);
     }
 
-    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, StatsLogger statsLogger) {
-        this.configuration = configuration;
+    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager, StatsLogger statsLogger) {
         this.baseDirectory = baseDirectory;
+        this.configuration = configuration;
+        this.metadataManager = metadataManager;
         this.statsLogger = statsLogger != null ? statsLogger : new NullStatsLogger();
     }
 
     public void start() throws Exception {
         org.apache.bookkeeper.conf.ServerConfiguration conf = new org.apache.bookkeeper.conf.ServerConfiguration();
-        conf.setZkTimeout(configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
-        conf.setZkServers(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
+        conf.setZkTimeout(metadataManager.getZkSessionTimeout());
+        conf.setZkServers(metadataManager.getZkAddress());
+        conf.setZkLedgersRootPath(metadataManager.getLedgersPath());
         conf.setStatisticsEnabled(true);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT);
 

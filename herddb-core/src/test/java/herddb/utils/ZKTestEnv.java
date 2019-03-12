@@ -22,10 +22,12 @@ package herddb.utils;
 import java.nio.file.Path;
 
 import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.ZooDefs;
 
 public class ZKTestEnv implements AutoCloseable {
 
@@ -41,6 +43,19 @@ public class ZKTestEnv implements AutoCloseable {
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
         this.path = path;
+
+        try (ZooKeeperClient zkc = ZooKeeperClient
+                .newBuilder()
+                .connectString("localhost:1282")
+                .sessionTimeoutMs(10000)
+                .build()){
+
+            boolean rootExists = zkc.exists(getPath(), false) != null;
+
+            if (!rootExists) {
+                zkc.create(getPath(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            }
+        }
     }
 
     public void startBookie() throws Exception {
@@ -57,6 +72,7 @@ public class ZKTestEnv implements AutoCloseable {
 
         Path targetDir = path.resolve("bookie_data");
         conf.setZkServers("localhost:1282");
+        conf.setZkLedgersRootPath(getPath() + "/ledgers");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
@@ -68,11 +84,13 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setJournalSyncData(false);
 
         conf.setAllowLoopback(true);
-        conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            
+        conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms
 
         if (format) {
+            BookKeeperAdmin.initNewCluster(conf);
             BookKeeperAdmin.format(conf, false, true);
         }
+
         this.bookie = new BookieServer(conf);
         this.bookie.start();
     }
