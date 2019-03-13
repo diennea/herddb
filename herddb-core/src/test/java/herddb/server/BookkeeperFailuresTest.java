@@ -382,7 +382,7 @@ public class BookkeeperFailuresTest {
 
             Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId == transactionId).findFirst().get();
             // Transaction will synch, so every addEntry will be acked, but will not be "confirmed" yet
-            transaction.synch();
+            transaction.sync();
 
             try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(), new TransactionContext(transactionId));) {
                 assertEquals(3, scan.consume().size());

@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.EOFException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,14 +36,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.OpStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProvider;
@@ -112,7 +119,6 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
-import herddb.utils.KeyValue;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
@@ -121,13 +127,7 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-
-import java.util.concurrent.locks.StampedLock;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
-import org.apache.bookkeeper.stats.OpStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
+import herddb.utils.KeyValue;
 
 /**
  * Manages a TableSet in memory
@@ -354,7 +354,8 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id);
                 }
-                transaction.synch();
+                LogSequenceNumber commit = position.getLogSequenceNumber();
+                transaction.sync(commit);
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction, recovery);
