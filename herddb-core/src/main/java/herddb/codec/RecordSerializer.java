@@ -41,7 +41,7 @@ import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.SingleEntryMap;
 import herddb.utils.SystemProperties;
-import java.nio.charset.StandardCharsets;
+
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -65,10 +65,13 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return data.to_array();
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 return data.to_int();
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 return data.to_long();
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 return data.to_RawString();
             case ColumnTypes.TIMESTAMP:
                 return data.to_timestamp();
@@ -88,10 +91,13 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return data;
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 return Bytes.toInt(data, 0);
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 return Bytes.toLong(data, 0);
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
                 return Bytes.toTimestamp(data, 0);
@@ -111,6 +117,7 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return SQLRecordPredicateFunctions.compare(data, cvalue);
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 if (cvalue instanceof Integer) {
                     return Bytes.compareInt(data, 0, (int) cvalue);
                 } else if (cvalue instanceof Long) {
@@ -118,6 +125,7 @@ public final class RecordSerializer {
                 }
                 return SQLRecordPredicateFunctions.compare(Bytes.toInt(data, 0), cvalue);
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 if (cvalue instanceof Integer) {
                     return Bytes.compareLong(data, 0, (int) cvalue);
                 } else if (cvalue instanceof Long) {
@@ -125,6 +133,7 @@ public final class RecordSerializer {
                 }
                 return SQLRecordPredicateFunctions.compare(Bytes.toLong(data, 0), cvalue);
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 if (cvalue instanceof RawString) {
                     return RawString.compareRaw(data, 0, data.length, ((RawString) cvalue));
                 } else if (cvalue instanceof String) {
@@ -149,7 +158,8 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 //TODO: not perform copy
                 return SQLRecordPredicateFunctions.compare(data.to_array(), cvalue);
-            case ColumnTypes.INTEGER: {
+            case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER: {
                 int v = data.to_int();                    
                 if (cvalue instanceof Integer) {
                     return Integer.compare(v, (int) cvalue);
@@ -158,7 +168,8 @@ public final class RecordSerializer {
                 }
                 return SQLRecordPredicateFunctions.compare(v, cvalue);
             }
-            case ColumnTypes.LONG: {
+            case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG: {
                 long v = data.to_long();
                 if (cvalue instanceof Integer) {
                     return Long.compare(v, (int) cvalue);
@@ -168,13 +179,15 @@ public final class RecordSerializer {
                 return SQLRecordPredicateFunctions.compare(v, cvalue);
             }
             case ColumnTypes.STRING:
-                RawString string = data.to_RawString();
-                if (cvalue instanceof RawString) {
-                    return string.compareTo((RawString) cvalue);
-                } else if (cvalue instanceof String) {
-                    return string.compareToString(((String) cvalue));
+            case ColumnTypes.NOTNULL_STRING: {
+                    RawString string = data.to_RawString();
+                    if (cvalue instanceof RawString) {
+                        return string.compareTo((RawString) cvalue);
+                    } else if (cvalue instanceof String) {
+                        return string.compareToString(((String) cvalue));
+                    }
+                    return SQLRecordPredicateFunctions.compare(string, cvalue);
                 }
-                return SQLRecordPredicateFunctions.compare(string, cvalue);
             case ColumnTypes.TIMESTAMP:
                 return SQLRecordPredicateFunctions.compare(data.to_timestamp(), cvalue);
             case ColumnTypes.NULL:
@@ -194,10 +207,13 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return dii.readArray();
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 return dii.readInt();
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 return dii.readLong();
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 return dii.readRawStringNoCopy();
             case ColumnTypes.TIMESTAMP:
                 return new java.sql.Timestamp(dii.readLong());
@@ -220,10 +236,13 @@ public final class RecordSerializer {
                 return SQLRecordPredicateFunctions.compare(datum, cvalue);
             }
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 return SQLRecordPredicateFunctions.compare(dii.readInt(), cvalue);
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 return SQLRecordPredicateFunctions.compare(dii.readLong(), cvalue);
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 int len = dii.readArrayLen();
                 if (cvalue instanceof RawString) {
                     RawString _cvalue = (RawString) cvalue;
@@ -256,12 +275,15 @@ public final class RecordSerializer {
                 dii.skipArray();
                 break;
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 dii.skipInt();
                 break;
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 dii.skipLong();
                 break;
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 dii.skipArray();
                 break;
             case ColumnTypes.TIMESTAMP:
@@ -295,6 +317,14 @@ public final class RecordSerializer {
                 } else {
                     return Bytes.intToByteArray(Integer.parseInt(v.toString()));
                 }
+            case ColumnTypes.NOTNULL_INTEGER:
+                if (v instanceof Integer) {
+                    return Bytes.intToByteArray((Integer) v);
+                } else if (v instanceof Number) {
+                    return Bytes.intToByteArray(((Number) v).intValue());
+                } else {
+                    return Bytes.intToByteArray(Integer.parseInt(v.toString()));
+                }
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
                     return Bytes.longToByteArray((Long) v);
@@ -303,7 +333,23 @@ public final class RecordSerializer {
                 } else {
                     return Bytes.longToByteArray(Long.parseLong(v.toString()));
                 }
+            case ColumnTypes.NOTNULL_LONG:
+                if (v instanceof Long) {
+                    return Bytes.longToByteArray((Long) v);
+                } else if (v instanceof Number) {
+                    return Bytes.longToByteArray(((Number) v).longValue());
+                } else {
+                    return Bytes.longToByteArray(Long.parseLong(v.toString()));
+                }
             case ColumnTypes.STRING:
+                if (v instanceof RawString) {
+                    RawString rs = (RawString) v;
+                    // this will potentially make a copy
+                    return rs.toByteArray();
+                } else {
+                    return Bytes.string_to_array(v.toString());
+                }
+            case ColumnTypes.NOTNULL_STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
                     // this will potentially make a copy
@@ -351,6 +397,7 @@ public final class RecordSerializer {
                 out.writeArray((byte[]) v);
                 return;
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Integer) {
                     out.writeArray(Bytes.intToByteArray((Integer) v));
                 } else if (v instanceof Number) {
@@ -360,6 +407,7 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 if (v instanceof Long) {
                     out.writeArray(Bytes.longToByteArray((Long) v));
                 } else if (v instanceof Number) {
@@ -369,6 +417,7 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
                     out.writeArray(rs.getData(), rs.getOffset(), rs.getLength());
@@ -428,18 +477,21 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Number) {
                     return;
                 }
                 Integer.parseInt(v.toString());
                 return;
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 if (v instanceof Number) {
                     return;
                 }
                 Long.parseLong(v.toString());
                 return;
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 return;
             case ColumnTypes.BOOLEAN:
                 return;
@@ -477,6 +529,7 @@ public final class RecordSerializer {
                 oo.writeArray((byte[]) v);
                 break;
             case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Integer) {
                     oo.writeInt((Integer) v);
                 } else if (v instanceof Number) {
@@ -486,6 +539,7 @@ public final class RecordSerializer {
                 }
                 break;
             case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
                 if (v instanceof Integer) {
                     oo.writeLong((Integer) v);
                 } else if (v instanceof Number) {
@@ -495,6 +549,7 @@ public final class RecordSerializer {
                 }
                 break;
             case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
                     oo.writeArray(rs.getData(), rs.getOffset(), rs.getLength());
@@ -564,6 +619,12 @@ public final class RecordSerializer {
                     return ((RawString) value).toByteArray();
                 }
                 return value;
+            case ColumnTypes.NOTNULL_INTEGER:
+            case ColumnTypes.NOTNULL_STRING:
+            case ColumnTypes.NOTNULL_LONG:
+                if(value == null) {
+                    throw new StatementExecutionException("Cannot have null value in non null type "+ ColumnTypes.typeToString(type));
+                }
             default:
                 return value;
         }

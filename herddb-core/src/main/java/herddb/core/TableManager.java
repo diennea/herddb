@@ -176,7 +176,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             = USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
 
     /**
-     * Set to {@code true} when this {@link TableManage} is fully started
+     * Set to {@code true} when this {@link TableManager} is fully started
      */
     private volatile boolean started = false;
 
@@ -377,7 +377,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return table;
                 }
             };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER ||
+                table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
@@ -389,7 +390,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return table;
                 }
             };
-        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG) {
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG ||
+                table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_LONG) {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
@@ -1082,20 +1084,21 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                byte[] newValue = function.computeNewValue(actual, context, tableContext);
-
-                if (indexes != null) {
-                    try {
+                byte[] newValue = null;
+                try {
+                    newValue = function.computeNewValue(actual, context, tableContext);
+                    if (indexes != null) {
                         DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
                         for (AbstractIndexManager index : indexes.values()) {
                             RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                         }
-                    } catch (IllegalArgumentException err) {
-                        locksManager.releaseLock(lockHandle);
-                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
-                        return;
                     }
+                } catch (IllegalArgumentException  | StatementExecutionException err) {
+                    locksManager.releaseLock(lockHandle);
+                    writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                    return;
                 }
+
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
                     locksManager.releaseLock(lockHandle);
@@ -1113,6 +1116,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
+
 
 
         if (writes.isEmpty()) {
@@ -1733,7 +1737,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             scanner.forEach((Entry<Bytes, Long> t) -> {
                 Bytes key = t.getKey();
                 long pk_logical_value;
-                if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+                if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER ||
+                        table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
                     pk_logical_value = key.to_int();
                 } else {
                     pk_logical_value = key.to_long();
@@ -1753,7 +1758,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value
             long pk_logical_value;
-            if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+            if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER || table.getColumn(table.primaryKey[0]).type == ColumnTypes.NOTNULL_INTEGER) {
                 pk_logical_value = key.to_int();
             } else {
                 pk_logical_value = key.to_long();

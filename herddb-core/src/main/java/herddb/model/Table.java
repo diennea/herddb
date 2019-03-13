@@ -440,10 +440,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 if (pk == null) {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
-                if (pk.type != ColumnTypes.STRING
-                        && pk.type != ColumnTypes.LONG
-                        && pk.type != ColumnTypes.INTEGER
-                        && pk.type != ColumnTypes.TIMESTAMP) {
+                if (!validatePrimaryKeyDataType(pk.type)) {
                     throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }
@@ -453,6 +450,27 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             return new Table(uuid, name,
                     columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
                     tablespace, auto_increment, maxSerialPosition);
+        }
+
+        /**
+         * Validate whether the primary key type is valid.
+         * Note: In order to keep backward compatibility we are allowing nullable data types to be part of primary key
+         * @param type
+         * @return true if a valid primary key type or false
+         */
+        private static boolean validatePrimaryKeyDataType(int type) {
+            switch(type) {
+                case ColumnTypes.NOTNULL_INTEGER:
+                case ColumnTypes.INTEGER:
+                case ColumnTypes.NOTNULL_LONG:
+                case ColumnTypes.LONG:
+                case ColumnTypes.NOTNULL_STRING:
+                case ColumnTypes.STRING:
+                case ColumnTypes.TIMESTAMP:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public Builder cloning(Table tableSchema) {
@@ -465,7 +483,5 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             this.maxSerialPosition = tableSchema.maxSerialPosition;
             return this;
         }
-
     }
-
 }
