@@ -1328,6 +1328,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             forceFlushTableData = true;
         }
 
+        if (!transaction.lastSequenceNumber.after(bootSequenceNumber)) {
+            if (recovery) {
+                LOGGER.log(Level.FINER,
+                        "ignoring transaction {0} commit on recovery, {1}.{2} data is newer: transaction {3}, table {4}",
+                        new Object[] { transaction.transactionId, table.tablespace, table.name,
+                                transaction.lastSequenceNumber, bootSequenceNumber });
+                return;
+            } else {
+                throw new DataStorageManagerException("corrupted commit log " + table.tablespace + "." + table.name
+                        + " data is newer than transaction " + transaction.transactionId + " transaction "
+                        + transaction.lastSequenceNumber + " table " + bootSequenceNumber);
+            }
+        }
+
         boolean lockAcquired;
         try {
             lockAcquired = checkpointLock.asReadLock().tryLock(CHECKPOINT_LOCK_READ_TIMEOUT, SECONDS);
@@ -1805,7 +1819,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         /* Insert  the value on keyToPage */
-        keyToPage.put(key, insertionPageId);
+        if (!keyToPage.put(key, insertionPageId, null)) {
+            throw new IllegalStateException(
+                    "corrupted transaction log: key " + key + " is already present in table " + table.name);
+        }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId);
@@ -3191,4 +3208,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {
         return a.getValue().compareTo(b.getValue());
     };
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TableManager [table=").append(table).append("]");
+        return builder.toString();
+    }
 }

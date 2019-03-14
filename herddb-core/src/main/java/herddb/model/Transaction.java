@@ -21,13 +21,14 @@ package herddb.model;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import org.apache.commons.collections.map.HashedMap;
 
@@ -42,9 +43,6 @@ import herddb.utils.ILocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.util.Collection;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -116,6 +114,7 @@ public class Transaction {
 
     private boolean updateLastSequenceNumber(CommitLogResult writeResult) throws LogNotAvailableException {
         if (writeResult.deferred) {
+            deferredWrites.add(writeResult);
             return false;
         }
         LogSequenceNumber sequenceNumber = writeResult.getLogSequenceNumber();
@@ -123,7 +122,6 @@ public class Transaction {
             return true;
         }
         this.lastSequenceNumber = sequenceNumber;
-        deferredWrites.add(writeResult);
         return false;
     }
 
@@ -509,7 +507,8 @@ public class Transaction {
                 || (newTables != null && newTables.containsKey(name));
     }
 
-    public void synch() throws LogNotAvailableException {
+    /* Visible for testing */
+    public void sync() throws LogNotAvailableException {
         // wait for all writes to be synch to log
         for (CommitLogResult result : deferredWrites) {
             LogSequenceNumber number = result.getLogSequenceNumber();
@@ -517,6 +516,16 @@ public class Transaction {
                 lastSequenceNumber = number;
             }
         }
+    }
+
+    public void sync(LogSequenceNumber sequenceNumber) throws LogNotAvailableException {
+        sync();
+
+        /* Check that given transaction position isn't smaller than last seen sequence number */
+        if (lastSequenceNumber != null && !sequenceNumber.after(lastSequenceNumber)) {
+            throw new IllegalStateException("Corrupted transaction, syncing on a position smaller than transaction last sequence number");
+        }
+        lastSequenceNumber = sequenceNumber;
     }
 
 }
