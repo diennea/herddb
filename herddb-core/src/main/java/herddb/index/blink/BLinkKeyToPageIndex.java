@@ -57,9 +57,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
 import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 
 /**
@@ -231,7 +229,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public long getUsedMemory() {
-        return 0;
+        return getTree().getUsedMemory();
     }
 
     @Override

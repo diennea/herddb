@@ -26,6 +26,79 @@ public abstract class KeyToPageIndexTest {
 
     abstract KeyToPageIndex createIndex();
 
+
+    @Test
+    public void getUsedMemory() {
+
+        try (KeyToPageIndex index = createIndex()) {
+
+            final Bytes key = Bytes.from_int(1);
+
+            index.start(LogSequenceNumber.START_OF_TIME);
+
+            Assert.assertEquals(0, index.getUsedMemory());
+
+            /* Test put */
+            index.put(key, 1L);
+
+            Assert.assertTrue(index.getUsedMemory() > 0);
+
+            /* Test remove after put */
+            index.remove(key);
+
+            Assert.assertEquals(0, index.getUsedMemory());
+
+
+            /* Test put if */
+            index.put(key, 1L, null);
+
+            Assert.assertTrue(index.getUsedMemory() > 0);
+
+            /* Test remove after put if */
+            index.remove(key);
+
+            Assert.assertEquals(0, index.getUsedMemory());
+
+        }
+
+    }
+
+    @Test
+    public void size() {
+
+        try (KeyToPageIndex index = createIndex()) {
+
+            final Bytes key = Bytes.from_int(1);
+
+            index.start(LogSequenceNumber.START_OF_TIME);
+
+            Assert.assertEquals(0, index.size());
+
+            /* Test put */
+            index.put(key, 1L);
+
+            Assert.assertEquals(1, index.size());
+
+            /* Test remove after put */
+            index.remove(key);
+
+            Assert.assertEquals(0, index.size());
+
+
+            /* Test put if */
+            index.put(key, 1L, null);
+
+            Assert.assertEquals(1, index.size());
+
+            /* Test remove after put if */
+            index.remove(key);
+
+            Assert.assertEquals(0, index.size());
+
+        }
+
+    }
+
     /** This test failed with the error
      * <pre>
      * herddb.storage.DataStorageManagerException: pages are immutable

@@ -134,6 +134,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     private final AtomicBoolean closed;
 
     private final LongAdder size;
+    private final LongAdder usedMemory;
 
     /**
      * Support structure to evaluates memory byte size occupancy of keys and
@@ -185,6 +186,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         this.nextID = new AtomicLong(1L);
         this.closed = new AtomicBoolean(false);
         this.size = new LongAdder();
+        this.usedMemory = new LongAdder();
 
         this.nodes = new ConcurrentHashMap<>();
 
@@ -218,6 +220,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         this.closed = new AtomicBoolean(false);
         this.size = new LongAdder();
         size.add(metadata.values);
+
+        this.usedMemory = new LongAdder();
 
         this.nodes = new ConcurrentHashMap<>();
 
@@ -326,6 +330,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     }
 
     /**
+     * Returns the actually used memory in bytes (only data currently loaded will be accounted).
+     *
+     * @return current memory occupancy of the tree
+     */
+    public long getUsedMemory() {
+        return usedMemory.sum();
+    }
+
+    /**
      * Returns the current nodes count.
      *
      * @return current tree nodes count
@@ -335,8 +348,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     }
 
     /* ******************** */
- /* *** PAGE LOADING *** */
- /* ******************** */
+    /* *** PAGE LOADING *** */
+    /* ******************** */
     @Override
     public void unload(long pageId) {
         nodes.get(pageId).unload(true, false);
@@ -359,7 +372,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
              * the page later after releasing his load lock
              */
 
- /* Attempt to unload metadata if a lock can be acquired */
+            /* Attempt to unload metadata if a lock can be acquired */
             return nodes.get(unload.pageId).unload(true, true);
 
         } else {
@@ -1755,8 +1768,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
 
         /* ********************************* */
- /* *** FOR BOTH LEAVES AND NODES *** */
- /* ********************************* */
+        /* *** FOR BOTH LEAVES AND NODES *** */
+        /* ********************************* */
         boolean empty() {
             return empty;
         }
@@ -1828,6 +1841,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     right.map.clear();
                     right.map = newNodeMap();
 
+                    // add copied size
+                    size += right.size - NODE_CONSTANT_SIZE; // just one node!
+
+                    /*
+                     * To track tree memory used we just need to update this value before any eventual node unload (so
+                     * unload will reduced used memory accordingly)
+                     */
+                    right.size = NODE_CONSTANT_SIZE;
+
                 } finally {
 
                     /*
@@ -1836,7 +1858,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                      * usable). So we load unlock first and then we unload to avoid deadlocking
                      */
 
- /* Unlock pages */
+                    /* Unlock pages */
                     if (thisLoadLock != null) {
                         thisLoadLock.unlock();
                     }
@@ -1859,12 +1881,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 throw new IOException("failed to half merge " + right.pageId + " into " + pageId, e);
 
             }
-            // add copied keys and size
-            keys += right.keys;
-            size += right.size - NODE_CONSTANT_SIZE; // just one node!
 
+            // add copied keys
+            keys += right.keys;
             right.keys = 0;
-            right.size = 0;
 
             // the rightlink of l is directed to the target of the rightlink in r
             rightlink = right.rightlink;
@@ -1946,6 +1966,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             right.size = size - keeping;
             size = keeping + NODE_CONSTANT_SIZE;
 
+            /* We need to count the added node constant size into used memory */
+            owner.usedMemory.add(NODE_CONSTANT_SIZE);
+
             // if n and new are leaves, their separators are set equal to the largest keys in them
             right.rightsep = rightsep;
 
@@ -1957,8 +1980,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
 
         /* ****************** */
- /* *** FOR LEAVES *** */
- /* ****************** */
+        /* *** FOR LEAVES *** */
+        /* ****************** */
         /**
          * Copy ranged values
          */
@@ -2077,11 +2100,19 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             if (old == null) {
                 ++keys;
-                size += owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                final long added = owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                size += added;
+                /* Increase traced tree used memory */
+                owner.usedMemory.add(added);
+
                 return null;
             } else {
                 /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
-                size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                size += added;
+                /* Increase traced tree used memory */
+                owner.usedMemory.add(added);
+
                 return old;
             }
         }
@@ -2142,10 +2173,16 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             if (old == null) {
                 ++keys;
-                size += owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                final long added = owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                size += added;
+                /* Increase traced tree used memory */
+                owner.usedMemory.add(added);
             } else {
                 /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
-                size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                size += added;
+                /* Increase traced tree used memory */
+                owner.usedMemory.add(added);
             }
 
             return true;
@@ -2181,14 +2218,18 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 return null;
             } else {
                 --keys;
-                size -= owner.evaluator.evaluateAll(key, old) + ENTRY_CONSTANT_SIZE;
+                final long removed = owner.evaluator.evaluateAll(key, old) + ENTRY_CONSTANT_SIZE;
+                size -= removed;
+                /* Decrease traced tree used memory */
+                owner.usedMemory.add(-removed);
+
                 return old;
             }
         }
 
         /* ***************** */
- /* *** FOR NODES *** */
- /* ***************** */
+        /* *** FOR NODES *** */
+        /* ***************** */
         @SuppressWarnings("unchecked")
         Node<X, Y> leftmost_child() throws IOException {
 
@@ -2220,6 +2261,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             /* positiveInfinity being singleton is practically considered 0 size */
             size += ENTRY_CONSTANT_SIZE;
+
+            /* Increase traced tree used memory */
+            owner.usedMemory.add(ENTRY_CONSTANT_SIZE);
         }
 
         /**
@@ -2293,7 +2337,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             }
 
             ++keys;
-            size += owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+            final long added = owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+            size += added;
+            /* Increase traced tree used memory */
+            owner.usedMemory.add(added);
             return true;
         }
 
@@ -2339,7 +2386,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     dirty = true;
 
                     --keys;
-                    size -= owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+                    final long removed = owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+                    size -= removed;
+                    /* Decrease traced tree used memory */
+                    owner.usedMemory.add(-removed);
 
                     return true;
 
@@ -2358,8 +2408,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
 
         /* ******************** */
- /* *** PAGE LOADING *** */
- /* ******************** */
+        /* *** PAGE LOADING *** */
+        /* ******************** */
         /**
          * With {@code doUload} parameter to {@code true} will attempt to unload
          * eventual pages before exit from this method.
@@ -2507,6 +2557,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 if (LOGGER.isLoggable(Level.FINE)) {
                     LOGGER.fine("unloaded node " + pageId);
                 }
+
+                /* Truly unloaded, remove loaded memory count */
+                owner.usedMemory.add(-size);
 
                 return true;
 
@@ -2708,6 +2761,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     map.put(x, node);
                 });
             }
+
+            /* Loaded, add loaded memory count */
+            owner.usedMemory.add(size);
         }
 
         private void readLeafPage(long pageId) throws IOException {
@@ -2722,6 +2778,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     size += owner.evaluator.evaluateAll(x, (Y) y) + ENTRY_CONSTANT_SIZE;
                 });
             }
+
+            /* Loaded, add loaded memory count */
+            owner.usedMemory.add(size);
         }
 
         @Override

@@ -77,7 +77,13 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     public boolean put(Bytes key, Long newPage, Long expectedPage) {
         if (expectedPage == null) {
             final Long opage = map.putIfAbsent(key, newPage);
-            return opage == null;
+
+            if (opage == null) {
+                keyAdded(key);
+                return true;
+            }
+
+            return false;
         } else {
             /*
              * We need to keep track if the update was really done. Reading computeIfPresent result won't
@@ -93,7 +99,12 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 return spage;
             });
 
-            return holder.value;
+            if (holder.value) {
+                keyAdded(key);
+                return true;
+            }
+
+            return false;
         }
 
     }
