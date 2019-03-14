@@ -803,11 +803,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             lock.unlock();
         }
 
-        final long usedMemory = page.getUsedMemory();
-        final long buildingPageMemory = page.getUsedMemory();
-
         // Try to steal records from another temporary page
         if (stealingDataPage != null) {
+            /* Save current memory size */
+            final long usedMemory = page.getUsedMemory();
+            final long buildingPageMemory = stealingDataPage.getUsedMemory();
+
             /* Flag to enable spare data addition to currently flushed page */
             boolean add = true;
             final Iterator<Record> records = stealingDataPage.getRecordsForFlush().iterator();
