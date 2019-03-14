@@ -55,7 +55,7 @@ public final class PageSet {
         public DataPageMetaData(DataPage page) {
             super();
             this.size = page.getUsedMemory();
-            this.avgRecordSize = size / page.data.size();
+            this.avgRecordSize = size / page.size();
             this.dirt = new LongAdder();
         }
 

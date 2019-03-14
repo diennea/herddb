@@ -2143,15 +2143,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                      */
                     BooleanHolder replaced = new BooleanHolder(false);
                     Holder<Y> hold = new Holder<>();
-                    map.computeIfPresent(key, (skey, svalue) -> {
-                        if (svalue.equals(expected)) {
+                    map.computeIfPresent(key, (skey, currentValue) -> {
+                        if (expected.equals(currentValue)) {
                             replaced.value = true;
                             /* Cast to Y: is a leaf */
-                            hold.value = (Y) svalue;
+                            hold.value = (Y) currentValue;
                             return value;
                         }
 
-                        return svalue;
+                        return currentValue;
                     });
 
                     /* If we didn't find expected mapping abort replacement */

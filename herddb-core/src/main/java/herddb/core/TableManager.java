@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
@@ -244,6 +247,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private final TableManagerStats stats;
 
+    private final Counter checkpointProcessedDirtyRecords;
+
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.SEVERE, "Table " + table.name + ", receiving dump,"
                 + "done at external logPosition " + dumpLogSequenceNumber);
@@ -361,6 +366,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 ServerConfiguration.PROPERTY_COMPACTION_DURATION_DEFAULT);
 
         this.compactionTargetTime = compactionTargetTime < 0 ? Long.MAX_VALUE : compactionTargetTime;
+
+
+        StatsLogger tableMetrics = tableSpaceManager.tablespaceStasLogger.scope("table_"+table.name);
+        this.checkpointProcessedDirtyRecords = tableMetrics.getCounter("checkpoint_processed_dirty_records");
     }
 
     private TableContext buildTableContext() {
@@ -467,7 +476,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (currentPage < 0) {
                         throw new IllegalStateException();
                     }
-                    keyToPage.put(record.key.nonShared(), currentPage);
+                    keyToPage.put(record.key.nonShared(), currentPage, null /* PK is empty */);
                 }
 
                 @Override
@@ -481,9 +490,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             });
         } else {
-            LOGGER.log(Level.SEVERE, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
+            LOGGER.log(Level.INFO, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
-            LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+            LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
             bootSequenceNumber = tableStatus.sequenceNumber;
@@ -652,12 +661,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      *
      * @return new mutable page
      */
-    private DataPage createMutablePage(long newId, Map<Bytes, Record> initialData, long initiaPageSize) {
+    private DataPage createMutablePage(long newId, int expectedSize, long initiaPageSize) {
 
         LOGGER.log(Level.FINER, "creating mutable page table {0}, pageId={1} with {2} records, {3} logical page size",
-                new Object[]{table.name, newId, initialData.size(), initiaPageSize});
+                new Object[]{table.name, newId, expectedSize, initiaPageSize});
 
-        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, initialData, false);
+        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, new HashMap<Bytes, Record>(expectedSize), false);
 
         pages.put(newId, newPage);
 
@@ -706,22 +715,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * </p>
      *
      * @param page new page to flush
-     * @param spareData old spare data to fit in the new page if possible
-     * @return spare memory size used (and removed), {@code 0} if no spare used
+     * @param spareDataPage old spare data to fit in the new page if possible
      */
-    private long flushNewPageForCheckpoint(DataPage page, Map<Bytes, Record> spareData) {
-        final long used = flushNewPage(page, spareData);
+    private void flushNewPageForCheckpoint(DataPage page, DataPage spareDataPage) {
+        final boolean flushed = flushNewPage(page, spareDataPage);
+
+        if (!flushed) {
+            throw new IllegalStateException("Concurrently flushed a new page during checkpoint! Page " + page);
+        }
 
         /* Replace the page in memory with his immutable version (faster modification checks) */
-        page = page.toImmutable();
-        pages.put(page.pageId, page);
-
-        /*
-         * 0 = no memory; -1 = already flushed, they are the same for checkpoint (but
-         * checkpoint need to known how much data has been used so 0 bytes has been used
-         * if the page was already flushed)
-         */
-        return used > 0L ? used : 0L;
+        pages.put(page.pageId, page.toImmutable());
     }
 
     /**
@@ -733,27 +737,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * already flushed by another thread
      */
     private boolean flushNewPageForUnload(DataPage page) {
-        return flushNewPage(page, Collections.emptyMap()) != -1;
+        return flushNewPage(page, null);
     }
 
     /**
-     * Remove the page from {@link #newPages}, set it as "unloaded" and write it
-     * to disk
+     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
      * <p>
-     * Add as much spare data as possible to fillup the page. If added must
-     * change key to page pointers too for spare data
+     * Add as much spare data as possible to fillup the page. If added must change key to page pointers
+     * too for spare data
      * </p>
      *
-     * @param page new page to flush
-     * @param spareData old spare data to fit in the new page if possible
-     * @return spare memory size used (and removed), {@code 0} if no spare used,
-     * {@code -1L} if no flush has been done because the page isn't writable
-     * anymore
+     * @param page         new page to flush
+     * @param spareDataPage old spare data to fit in the new page if possible
+     * @return {@code false} if no flush has been done because the page isn't writable anymore,
+     *         {@code true} otherwise
      */
-    private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
+    private boolean flushNewPage(DataPage page, DataPage spareDataPage) {
 
         if (page.immutable) {
-            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page " + page.pageId + " as it was mutable");
+            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page {0} as it was mutable", page.pageId);
             throw new IllegalStateException("page " + page.pageId + " is not a new page!");
         }
 
@@ -761,7 +763,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
 
             if (!page.writable) {
-                return -1L;
+                return false;
             }
 
         } finally {
@@ -776,8 +778,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         lock.lock();
         try {
             if (!page.writable) {
-                LOGGER.log(Level.INFO, "Mutable page " + page.pageId + " already flushed in a concurrent thread");
-                return -1L;
+                LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
+                return false;
             }
 
             /*
@@ -792,8 +794,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Remove it from "new" pages */
             DataPage remove = newPages.remove(page.pageId);
             if (remove == null) {
-                LOGGER.log(Level.SEVERE,
-                        "Detected concurrent flush of page " + page.pageId + ", writable: " + page.writable);
+                LOGGER.log(Level.SEVERE, "Detected concurrent flush of page {0}, writable: {1}",
+                        new Object[] { page.pageId, page.writable });
                 throw new IllegalStateException("page " + page.pageId + " is not a new page!");
             }
 
@@ -803,27 +805,46 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             lock.unlock();
         }
 
-        long usedMemory = page.getUsedMemory();
+        // Try to steal records from another temporary page
+        if (spareDataPage != null) {
+            /* Save current memory size */
+            final long usedMemory = page.getUsedMemory();
+            final long buildingPageMemory = spareDataPage.getUsedMemory();
 
-        /* Flag to enable spare data addition to currently flushed page */
-        boolean add = true;
-        final Iterator<Record> records = spareData.values().iterator();
-        while (add && records.hasNext()) {
-            Record record = records.next().nonShared();
-            add = page.put(record);
-            if (add) {
-                keyToPage.put(record.key, page.pageId);
-                records.remove();
+            /* Flag to enable spare data addition to currently flushed page */
+            boolean add = true;
+            final Iterator<Record> records = spareDataPage.getRecordsForFlush().iterator();
+            while (add && records.hasNext()) {
+                Record record = records.next().nonShared();
+                add = page.put(record);
+                if (add) {
+                    boolean moved = keyToPage.put(record.key, page.pageId, spareDataPage.pageId);
+                    if (!moved) {
+                        LOGGER.log(Level.SEVERE,
+                                "Detected a dirty page as spare data page while flushing new page. Flushing new page {0}. Spare data page {1}",
+                                new Object[] { page, spareDataPage });
+                        throw new IllegalStateException(
+                                "Expected a clean page for stealing records, got a dirty record " + record.key
+                                        + ". Flushing new page " + page.pageId + ". Spare data page "
+                                        + spareDataPage.pageId);
+                    }
+
+                    /* We remove "cleaned" record from the stealingDataPage */
+                    records.remove();
+                }
             }
+
+            long spareUsedMemory = page.getUsedMemory() - usedMemory;
+
+            /* Fix spare page data removing used memory */
+            spareDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
         }
 
-        long spareUsedMemory = page.getUsedMemory() - usedMemory;
         LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
-        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
-        return spareUsedMemory;
-
+        return true;
     }
 
     /**
@@ -881,8 +902,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             if (keepPageInMemory) {
                 /* If we must keep the page in memory we "covert" the page to immutable */
-                page = page.toImmutable();
-                pages.put(page.pageId, page);
+                pages.put(page.pageId, page.toImmutable());
 
                 /* And we load to page replacement polcy */
                 final Page.Metadata unload = pageReplacementPolicy.add(page);
@@ -894,7 +914,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Set the page as a fully active page */
             pageSet.pageCreated(page.pageId, page);
 
-            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
         } finally {
 
@@ -2000,7 +2020,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private DataPage buildImmutableDataPage(long pageId, List<Record> page) {
-        Map<Bytes, Record> newPageMap = new HashMap<>();
+        Map<Bytes, Record> newPageMap = new HashMap<>(page.size());
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
@@ -2035,18 +2055,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, table.uuid, sequenceNumber);
     }
 
-    private static final class WeightedPage {
+    private static final class CheckpointingPage {
 
-        public static final Comparator<WeightedPage> ASCENDING_ORDER = (a, b) -> Long.compare(a.weight, b.weight);
-        public static final Comparator<WeightedPage> DESCENDING_ORDER = (a, b) -> Long.compare(b.weight, a.weight);
+        public static final Comparator<CheckpointingPage> ASCENDING_ORDER = (a, b) -> Long.compare(a.weight, b.weight);
+        public static final Comparator<CheckpointingPage> DESCENDING_ORDER = (a, b) -> Long.compare(b.weight, a.weight);
 
         private final Long pageId;
         private final long weight;
+        private final boolean dirty;
 
-        public WeightedPage(Long pageId, long weight) {
+        public CheckpointingPage(Long pageId, long weight, boolean dirty) {
             super();
             this.pageId = pageId;
             this.weight = weight;
+            this.dirty = dirty;
         }
 
         @Override
@@ -2063,6 +2085,245 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final long sumOverflowWise(long a, long b) {
         long total = a + b;
         return total < 0 ? Long.MAX_VALUE : total;
+    }
+
+    private static final class CleanAndCompactResult {
+
+        private final DataPage buildingPage;
+        private final boolean keepFlushedPageInMemory;
+        private final List<Long> flushedPages;
+        private final long flushedRecords;
+
+        public CleanAndCompactResult(DataPage buildingPage, boolean keepFlushedPageInMemory, List<Long> flushedPages, long flushedRecords) {
+            super();
+            this.buildingPage = buildingPage;
+            this.keepFlushedPageInMemory = keepFlushedPageInMemory;
+            this.flushedPages = flushedPages;
+            this.flushedRecords = flushedRecords;
+        }
+
+    }
+
+    /**
+     * Fully clean a list of pages, removing dirty records and compacting multiple pages into one (or
+     * more).
+     * <p>
+     * For page compaction will be initially used given half-full DataPage and will return a possibly
+     * half-full DataPage to continue other processess (could be even the same page). Returned DataPage
+     * will not be flushed, other filled pages will be flushed to disk.
+     * </p>
+     *
+     * @param workingPages            pages to handle for cleanup and compaction
+     * @param buildingPage            currently building page (possibly partially filled)
+     * @param keepFlushedPageInMemory should currently (provided) building page kept on memory or
+     *                                discarded?
+     * @param processLimitInstant     timestamp at which blocking method invocation and return a result
+     *                                (at least a page will be handled)
+     *
+     * @return clean and compact result object
+     */
+    private CleanAndCompactResult cleanAndCompactPages(List<CheckpointingPage> workingPages, DataPage buildingPage,
+                                                       boolean keepFlushedPageInMemory, long processLimitInstant) {
+
+        long flushedRecords = 0;
+        List<Long> flushedPages = new ArrayList<>();
+
+        long buildingPageSize = buildingPage.getUsedMemory();
+
+        /* Building page lock (not needed on clean small pages) */
+        Lock lock = null;
+
+        try {
+
+
+            /* Rebuild dirty pages with only records to be kept */
+            for (CheckpointingPage page : workingPages) {
+
+                /* Page flushed */
+                flushedPages.add(page.pageId);
+
+                if (lock == null) {
+
+                    /*
+                     * Lock the building page if we know that checkpointing page has some dirty record and the building page wasn't
+                     * already locked.
+                     *
+                     * We need to lock building page when the checkpoint page is dirty because we have to push the key
+                     * on the PK before pushing it on buildingPage map, with no lock a concurrent reader would find the
+                     * record on the PK but then fail to read from page (not already pushed on it).
+                     *
+                     * If the page isn't dirty we can safely write any record on the DataPage and then on the PK (every
+                     * record is a good one!)
+                     */
+
+                    if (page.dirty) {
+                        lock = buildingPage.pageLock.writeLock();
+                        lock.lock();
+                    }
+
+                } else {
+
+                    /*
+                     * Unlock the building page if it was locked and we known that checkpointing page is clean. The lock
+                     * has been held enough dirty records from previous page has been already handled and correctly
+                     * pushed on both page and PK
+                     */
+                    if (!page.dirty) {
+                        lock.unlock();
+                        lock = null;
+                    }
+
+                }
+
+                final boolean currentPageWasInMemory;
+                final Collection<Record> records;
+
+                final DataPage dataPage = pages.get(page.pageId);
+                if (dataPage == null) {
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
+                    currentPageWasInMemory = false;
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
+                            new Object[] { page.pageId, records.size() });
+                } else {
+                    records = dataPage.getRecordsForFlush();
+
+                    /* The page was found in memory. Currently built page should go into memory */
+                    currentPageWasInMemory = true;
+
+                    /* Current dirty record page isn't known to page replacement policy */
+                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
+                        pageReplacementPolicy.remove(dataPage);
+                    }
+                }
+
+                for (Record record : records) {
+
+                    /* Flush the page if it would exceed max page size */
+                    final long recordSize = DataPage.estimateEntrySize(record);
+
+                    if (buildingPageSize + recordSize > maxLogicalPageSize) {
+
+                        /* Set forcefully used memory to evaluated size */
+                        buildingPage.setUsedMemory(buildingPageSize);
+
+                        /* If there was an active lock unlock the page */
+                        if (lock != null) {
+                            lock.unlock();
+                            lock = null;
+                        }
+
+                        flushMutablePage(buildingPage, keepFlushedPageInMemory);
+
+                        /* Reset next rebuilt page status */
+                        keepFlushedPageInMemory = false;
+
+                        flushedRecords += buildingPage.size();
+                        buildingPageSize = 0;
+
+                        /* Get a new building page */
+                        buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
+
+                        /* And if needed lock again the new building page */
+                        if (page.dirty && lock == null) {
+                            lock = buildingPage.pageLock.writeLock();
+                            lock.lock();
+                        }
+
+                    }
+
+                    /* Current rebuilt page will be kept in memory if current page was in memory */
+                    keepFlushedPageInMemory |= currentPageWasInMemory;
+
+                    Record unshared = record.nonShared();
+
+                    if (page.dirty) {
+
+                        /*
+                         * Attempt to update PK references (if are still valid). If KeyToPage have another [newer]
+                         * mapping do not update it. (Single read&update lookup). If the conditional put succedes
+                         * readers will look for the record inside buildingPage
+                         */
+                        boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
+
+                        /* Avoid the record if has been modified or deleted */
+                        if (handled) {
+
+                            /* Move the record to the new page */
+                            buildingPage.putNoMemoryHandle(unshared);
+
+                            /*
+                             * Handle size externally (avoid double size check because we already have to check if the
+                             * page could host the data BEFORE updating PK and putting the value into page)
+                             */
+                            buildingPageSize += recordSize;
+                        } else {
+
+                            /*
+                             * The put failed, track this event, readers won't ever look for the record inside
+                             * buildingPage
+                             */
+                            checkpointProcessedDirtyRecords.add(1);
+                        }
+
+                    } else {
+
+                        /* Move the record to the new page */
+                        buildingPage.putNoMemoryHandle(unshared);
+
+                        /*
+                         * Handle size externally (avoid double size check because we already have to check if the page
+                         * could host the data BEFORE updating PK and putting the value into page)
+                         */
+                        buildingPageSize += recordSize;
+
+                        /*
+                         * If the conditional put succeedes readers will look for the record inside buildingPage,
+                         * otherwise we fail the procedure, the record should be clean!!!
+                         */
+                        boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
+                        if (!handled) {
+                            LOGGER.log(Level.SEVERE,
+                                    "Data inconsistency! Found a clean page with dirty records based on PK data. "
+                                            + "It could be a key to page inconsistency (broken PK) or a page metadata "
+                                            + "inconsistency (failed to track dirty record on page metadata). "
+                                            + "Page: {0}, Record {1}",
+                                    new Object[] { page, unshared });
+                            throw new IllegalStateException("");
+                        }
+
+                    }
+
+                }
+
+                if (dataPage != null) {
+                    final DataPage removedDataPage = pages.remove(page.pageId);
+                    if (removedDataPage != dataPage) {
+                        throw new IllegalStateException(
+                                "Failed to remove the right page from page knowledge during checkpoint. "
+                                        + "The page changed in a concurrent process. Expected page " + dataPage
+                                        + ", found page " + removedDataPage);
+                    }
+                }
+
+                /* Do not continue if we have used up all given time */
+                if (processLimitInstant <= System.currentTimeMillis()) {
+                    break;
+                }
+            }
+
+        } finally {
+
+            /* Unlock if there is a lock left open */
+            if (lock != null) {
+                lock.unlock();
+            }
+        }
+
+        /* Set forcefully used memory to evaluated size (returns a page with aligned data) */
+        buildingPage.setUsedMemory(buildingPageSize);
+
+        return new CleanAndCompactResult(buildingPage, keepFlushedPageInMemory, flushedPages, flushedRecords);
+
     }
 
     /**
@@ -2121,13 +2382,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             final Map<Long, DataPageMetaData> activePages = pageSet.getActivePages();
 
-            long bufferPageSize = 0;
             long flushedRecords = 0;
 
-            final List<WeightedPage> flushingDirtyPages = new ArrayList<>();
-            final List<WeightedPage> flushingSmallPages = new ArrayList<>();
+            List<CheckpointingPage> flushingDirtyPages = new ArrayList<>();
+            List<CheckpointingPage> flushingSmallPages = new ArrayList<>();
 
-            final List<Long> flushedPages = new ArrayList<>();
+            final Set<Long> flushedPages = new HashSet<>();
             int flushedDirtyPages = 0;
             int flushedSmallPages = 0;
 
@@ -2138,29 +2398,26 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 final long dirt = metadata.dirt.sum();
 
-                /*
-                 * Check dirtiness (flush here even small pages if dirty. Small pages flush IGNORES dirty data
-                 * handling).
-                 */
-                if (dirt > 0 && (dirt >= dirtyPageThreshold || metadata.size <= fillPageThreshold)) {
-                    flushingDirtyPages.add(new WeightedPage(pageId, dirt));
+                /* Check dirtiness (flush here even small pages if enough dirty) */
+                if (dirt > 0 && dirt >= dirtyPageThreshold) {
+                    flushingDirtyPages.add(new CheckpointingPage(pageId, dirt, dirt > 0));
                     continue;
                 }
 
                 /* Check emptiness (with a really dirty check to avoid to rewrite an unfillable page) */
                 if (metadata.size <= fillPageThreshold
                         && maxLogicalPageSize - metadata.avgRecordSize >= fillPageThreshold) {
-                    flushingSmallPages.add(new WeightedPage(pageId, metadata.size));
+                    flushingSmallPages.add(new CheckpointingPage(pageId, metadata.size, dirt > 0));
                     continue;
                 }
 
             }
 
             /* Clean dirtier first */
-            flushingDirtyPages.sort(WeightedPage.DESCENDING_ORDER);
+            flushingDirtyPages.sort(CheckpointingPage.DESCENDING_ORDER);
 
             /* Clean smaller first */
-            flushingSmallPages.sort(WeightedPage.ASCENDING_ORDER);
+            flushingSmallPages.sort(CheckpointingPage.ASCENDING_ORDER);
 
             pageAnalysis = System.currentTimeMillis();
 
@@ -2168,224 +2425,76 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean keepFlushedPageInMemory = false;
 
             /* New page actually rebuilt */
-            DataPage buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(), 0);
+            DataPage buildingPage = createMutablePage(nextPageId++, 0, 0);
+
+
+            /* **************************** */
+            /* *** Dirty pages handling *** */
+            /* **************************** */
+
+            if (!flushingDirtyPages.isEmpty()) {
+
+                CleanAndCompactResult dirtyResult = cleanAndCompactPages(flushingDirtyPages, buildingPage, keepFlushedPageInMemory, checkpointLimitInstant);
+
+                flushedDirtyPages = dirtyResult.flushedPages.size();
+                flushedPages.addAll(dirtyResult.flushedPages);
+                flushedRecords += dirtyResult.flushedRecords;
+                keepFlushedPageInMemory = dirtyResult.keepFlushedPageInMemory;
+
+                buildingPage = dirtyResult.buildingPage;
+
+            }
+
+            dirtyPagesFlush = System.currentTimeMillis();
+
+
+            /* **************************** */
+            /* *** Small pages handling *** */
+            /* **************************** */
 
             /*
-             * Lock the currently building page to blocks concurrent reads on it (has been already published on
-             * pages and will appear in some time in PK too)
+             * Small pages could be dirty pages too so we need to check every page if has been already handled
+             * during dirty pages cleanup. Small pages should be a really small set (normally just last flushed
+             * page), the filter is then no critical or heavy to require some optimization
              */
-            Lock buildingPageLock = buildingPage.pageLock.writeLock();
-            buildingPageLock.lock();
 
-            try {
-
-                /* Rebuild dirty pages with only records to be kept */
-                for (WeightedPage weighted : flushingDirtyPages) {
-
-                    /* Page flushed */
-                    flushedPages.add(weighted.pageId);
-                    ++flushedDirtyPages;
-
-                    final boolean currentPageWasInMemory;
-                    final DataPage dataPage = pages.remove(weighted.pageId);
-                    final Collection<Record> records;
-                    if (dataPage == null) {
-                        records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
-                        currentPageWasInMemory = false;
-                        LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
-                    } else {
-                        records = dataPage.data.values();
-
-                        /* The page was found in memory. Currently built page should go into memory */
-                        currentPageWasInMemory = true;
-
-                        /* Current dirty record page isn't known to page replacement policy */
-                        if (currentDirtyRecordsPage.get() != dataPage.pageId) {
-                            pageReplacementPolicy.remove(dataPage);
-                        }
-                    }
-
-                    for (Record record : records) {
-
-                        /* Flush the page if it would exceed max page size */
-                        final long recordSize = DataPage.estimateEntrySize(record);
-
-                        if (bufferPageSize + recordSize > maxLogicalPageSize) {
-
-                            /* Set forcefully used memory to evaluated size */
-                            buildingPage.usedMemory.set(bufferPageSize);
-
-                            /*
-                             * Unlock old current building page before flusing it: it won't modified anymore AND
-                             * unlocking here and not after we don't keep the page locked while writing data
-                             */
-                            buildingPageLock.unlock();
-
-                            /* Set current lock to null (avoit double unlock if flushMutablePages fails) */
-                            buildingPageLock = null;
-
-                            flushMutablePage(buildingPage, keepFlushedPageInMemory);
-
-                            /* Reset next rebuilt page status */
-                            keepFlushedPageInMemory = false;
-
-                            flushedRecords += buildingPage.size();
-                            bufferPageSize = 0;
-
-                            /* Get a new building page */
-                            buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(buildingPage.size()), 0);
-
-                            /* Lock the  new currently building page */
-                            buildingPageLock = buildingPage.pageLock.writeLock();
-                            buildingPageLock.lock();
-                        }
-
-                        /* Current rebuilt page will be kept in memory if current page was in memory */
-                        keepFlushedPageInMemory |= currentPageWasInMemory;
-
-                        /*
-                         * Attempt to update pk references (if are still valid). If KeyToPage have another [newer] mapping
-                         * do not update it. (Single read&update lookup)
-                         */
-                        Record unshared = record.nonShared();
-                        boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, weighted.pageId);
-
-                        /* Avoid the record if has been modified or deleted */
-                        if (handled) {
-                            buildingPage.putNoMemoryHandle(unshared);
-
-                            /*
-                             * Handle size externally (avoid double size check because we already have to check if the page
-                             * could host the data BEFORE updating PK and putting the value into page)
-                             */
-                            bufferPageSize += recordSize;
-                        }
-                    }
-
-                    /* Do not continue if we have used up all configured checkpoint time */
-                    if (checkpointLimitInstant <= System.currentTimeMillis()) {
-                        break;
-                    }
-                }
-
-                dirtyPagesFlush = System.currentTimeMillis();
-
-            } finally {
-
-                /*
-                 * Building page can be unlocked now.
-                 *
-                 * Small and new pages procedures handle records in a way that doesn't generate problems with
-                 * concurrent reads:
-                 *
-                 * - small pages: it write the record on the building page and then updates the PK
-                 *
-                 * - new pages: it add the record on a new page then it update the PK and then it remove the record
-                 * from building page.
-                 *
-                 * The lock was needed during dirty pages cleanup because the procedure updated the PK prior to move
-                 * the record on the new page
-                 */
-                if (buildingPageLock != null) {
-                    buildingPageLock.unlock();
-                }
-            }
+            /* Filter out dirty pages flushed from flushing small pages (a page could be "small" and "dirty") */
+            flushingSmallPages = flushingSmallPages.stream()
+                    .filter(wp -> !flushedPages.contains(wp.pageId)).collect(Collectors.toList());
 
             /*
-             * If there is only one small page without additional data to add rebuilding the page make no sense:
-             * is too probable to rebuild an identical page!
+             * If there is only one clean small page without additional data to add rebuilding the page make no
+             * sense: is too probable to rebuild an identical page!
              */
-            if (flushingSmallPages.size() == 1 && buildingPage.isEmpty()) {
-                boolean hasNewPagesData = newPages.values().stream().filter(p -> !p.isEmpty()).findAny().isPresent();
-                if (!hasNewPagesData) {
-                    flushingSmallPages.clear();
-                }
+            if (/* Just one small page */ flushingSmallPages.size() == 1
+                    /* Not dirty */ && !flushingSmallPages.get(0).dirty
+                    /* No spare data remaining */ && buildingPage.isEmpty()
+                    /* No new data */ && !newPages.values().stream().filter(p -> !p.isEmpty()).findAny().isPresent()) {
+
+                /* Avoid small page compaction */
+                flushingSmallPages.clear();
             }
 
-            final long compactionLimitInstant = sumOverflowWise(dirtyPagesFlush, compactionTargetTime);
+            if (!flushingSmallPages.isEmpty()) {
 
-            /* Rebuild too small pages */
-            for (WeightedPage weighted : flushingSmallPages) {
+                final long compactionLimitInstant = Math.min(checkpointLimitInstant, sumOverflowWise(dirtyPagesFlush, compactionTargetTime));
 
-                /* Page flushed */
-                flushedPages.add(weighted.pageId);
-                ++flushedSmallPages;
+                CleanAndCompactResult smallResult = cleanAndCompactPages(flushingSmallPages, buildingPage, keepFlushedPageInMemory, compactionLimitInstant);
 
-                final boolean currentPageWasInMemory;
-                final DataPage dataPage = pages.remove(weighted.pageId);
-                final Collection<Record> records;
-                if (dataPage == null) {
-                    records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
-                    currentPageWasInMemory = false;
-                    LOGGER.log(Level.FINEST, "loaded small page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
-                } else {
-                    records = dataPage.data.values();
+                flushedSmallPages = smallResult.flushedPages.size();
+                flushedPages.addAll(smallResult.flushedPages);
+                flushedRecords += smallResult.flushedRecords;
+                keepFlushedPageInMemory = smallResult.keepFlushedPageInMemory;
 
-                    /* The page was found in memory. Currently built page should go into memory */
-                    currentPageWasInMemory = true;
-
-                    /* Current dirty record page isn't known to page replacement policy */
-                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
-                        pageReplacementPolicy.remove(dataPage);
-                    }
-                }
-
-                for (Record record : records) {
-
-                    /* Flush the page if it would exceed max page size */
-                    final long recordSize = DataPage.estimateEntrySize(record);
-
-                    if (bufferPageSize + recordSize > maxLogicalPageSize) {
-
-                        /* Set forcefully used memory to evaluated size */
-                        buildingPage.usedMemory.set(bufferPageSize);
-
-                        flushMutablePage(buildingPage, keepFlushedPageInMemory);
-
-                        /* Reset next rebuilt page status */
-                        keepFlushedPageInMemory = false;
-
-                        flushedRecords += buildingPage.size();
-                        bufferPageSize = 0;
-
-                        /* Get a new building page */
-                        buildingPage = createMutablePage(nextPageId++, new ConcurrentHashMap<>(buildingPage.size()), 0);
-                    }
-
-                    /* Current rebuilt page will be kept in memory if current page was in memory */
-                    keepFlushedPageInMemory |= currentPageWasInMemory;
-
-                    /*
-                     * Smallpages are "clean" with no old data, we just need to update the PK without check if current
-                     * record is an "old" version of another "newer" one
-                     */
-                    Record unshared = record.nonShared();
-
-                    buildingPage.putNoMemoryHandle(unshared);
-
-                    keyToPage.put(unshared.key, buildingPage.pageId);
-
-                    /*
-                     * Handle size externally (avoid double size check because we already have to check if the page
-                     * could host the data BEFORE updating PK and putting the value into page)
-                     */
-                    bufferPageSize += recordSize;
-                }
-
-                final long now = System.currentTimeMillis();
-
-                /*
-                 * Do not continue if we have used up all configured compaction or checkpoint time (but still compact at
-                 * least the smaller page (normally the leftover from last checkpoint)
-                 */
-                if (compactionLimitInstant <= now || checkpointLimitInstant <= now) {
-                    break;
-                }
+                buildingPage = smallResult.buildingPage;
             }
-
-            flushingSmallPages.clear();
 
             smallPagesFlush = System.currentTimeMillis();
+
+
+            /* ************************** */
+            /* *** New pages handling *** */
+            /* ************************** */
 
             /*
              * Flush dirty records (and remaining records from previous step).
@@ -2398,11 +2507,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPageForCheckpoint(dataPage, buildingPage.data);
+                    flushNewPageForCheckpoint(dataPage, buildingPage);
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
             }
+
+
+            /* ************************************* */
+            /* *** Remaining spare data handling *** */
+            /* ************************************* */
 
             /*
              * Flush remaining records.
@@ -2413,9 +2527,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * remaining records came from an old unused page.
              */
             if (!buildingPage.isEmpty()) {
-
-                /* Set forcefully used memory to evaluated size */
-                buildingPage.usedMemory.set(bufferPageSize);
 
                 flushMutablePage(buildingPage, keepFlushedPageInMemory);
 
@@ -3090,23 +3201,32 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
             if (dataPage != null) {
                 Record record = dataPage.get(key);
-                if (record == null && !dataPage.immutable) {
-                    /*
-                     * Attempt a second page read under lock. The record "should" be in this page but sometimes wasn't
-                     * already published (found on PK but still not on page [can happen during dirty page rebuild during
-                     * a concurrent checkpoint])
-                     */
-                    Lock lock = dataPage.pageLock.readLock();
-                    lock.lock();
-                    try {
-                        record = dataPage.get(key);
-                    } finally {
-                        lock.unlock();
-                    }
-                }
-
                 if (record != null) {
+                    /* Record found */
                     return record;
+                } else {
+
+                    /*
+                     * If not found and current page is not immutable lock the page and check for the record again. It
+                     * can happen during checkpoint that a record has been published on PK but not on datapage, we have
+                     * to wait for datapage publish.
+                     *
+                     * This second attempt should be attempted only around checkpoint
+                     */
+                    if (!dataPage.immutable) {
+                        final Lock lock = dataPage.pageLock.readLock();
+                        lock.lock();
+
+                        try {
+                            record = dataPage.get(key);
+                            if (record != null) {
+                                /* Record found on second attempt */
+                                return record;
+                            }
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
                 }
             }
 
@@ -3120,7 +3240,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             pageId = relocatedPageId;
             if (maxTrials-- == 0) {
-                throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + " after many trials");
+                if (dataPage != null) {
+                    Collection<Bytes> keysForDebug = dataPage.getKeysForDebug(); // this may in an inconsistent state
+                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage "+dataPage+", dataPageKeys ="+keysForDebug+" after many trials");
+                } else {
+                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage = null after many trials");
+                }
             }
         }
     }
@@ -3191,7 +3316,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (!droppedColumns.isEmpty()) {
             // no lock is necessary
             pages.values().forEach(p -> {
-                p.data.values().forEach(r -> r.clearCache());
+                p.flushRecordsCache();
             });
         }
 

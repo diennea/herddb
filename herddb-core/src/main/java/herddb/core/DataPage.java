@@ -19,7 +19,9 @@
  */
 package herddb.core;
 
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -33,7 +35,7 @@ import herddb.utils.Bytes;
  * @author enrico.olivelli
  * @author diego.salvi
  */
-public class DataPage extends Page<TableManager> {
+public final class DataPage extends Page<TableManager> {
 
     /**
      * Constant entry size take in account map entry nodes:
@@ -56,9 +58,9 @@ public class DataPage extends Page<TableManager> {
     public final long maxSize;
     public final boolean immutable;
 
-    public Map<Bytes, Record> data;
+    private final Map<Bytes, Record> data;
 
-    public final AtomicLong usedMemory;
+    private final AtomicLong usedMemory;
 
     /**
      * Access lock, exists only for mutable pages ({@code immutable == false})
@@ -66,12 +68,12 @@ public class DataPage extends Page<TableManager> {
     public final ReadWriteLock pageLock;
 
     /**
-     * Writability flag of mutable pages, mutable pages can switch to a not writable
-     * state when flushed, to be accessed only under {@link #pageLock}
+     * Writability flag of mutable pages, mutable pages can switch to a not
+     * writable state when flushed, to be accessed only under {@link #pageLock}
      */
     public boolean writable;
 
-    public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean immutable) {
+    DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean immutable) {
         super(owner, pageId);
         this.maxSize = maxSize;
         this.immutable = immutable;
@@ -97,17 +99,17 @@ public class DataPage extends Page<TableManager> {
      */
     DataPage toImmutable() {
 
-        if (immutable) {
+         if (immutable) {
             throw new IllegalStateException("page " + pageId + " already is immutable!");
         }
 
-        if (writable) {
+         if (writable) {
             throw new IllegalStateException("page " + pageId + " cannot be converted to immutable because still writable!");
         }
 
-        return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
+         return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
 
-    }
+     }
 
     Record remove(Bytes key) {
         if (immutable) {
@@ -161,8 +163,14 @@ public class DataPage extends Page<TableManager> {
         if (immutable) {
             throw new IllegalStateException("page " + pageId + " is immutable!");
         }
-
         data.put(record.key, record);
+    }
+
+    void removeNoMemoryHandle(Record record) {
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
+        }
+        data.remove(record.key);
     }
 
     boolean isEmpty() {
@@ -173,8 +181,26 @@ public class DataPage extends Page<TableManager> {
         return data.size();
     }
 
+    Collection<Record> getRecordsForFlush() {
+        return data.values();
+    }
+
+    Set<Bytes> getKeysForDebug() {
+        return data.keySet();
+    }
+
     long getUsedMemory() {
         return usedMemory.get();
+    }
+
+    /**
+     * Companion method of {@link #putNoMemoryHandle(Record)} and {@link #removeNoMemoryHandle(Record)}
+     * to handle memory counts externally.
+     *
+     * @param usedMemory used memory count to set
+     */
+    void setUsedMemory(long usedMemory) {
+        this.usedMemory.set(usedMemory);
     }
 
     void clear() {
@@ -209,6 +235,10 @@ public class DataPage extends Page<TableManager> {
         }
         DataPage other = (DataPage) obj;
         return pageId == other.pageId;
+    }
+
+    void flushRecordsCache() {
+        data.values().forEach(r -> r.clearCache());
     }
 
 }
