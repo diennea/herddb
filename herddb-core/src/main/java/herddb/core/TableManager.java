@@ -713,10 +713,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * </p>
      *
      * @param page new page to flush
-     * @param stealingDataPage old spare data to fit in the new page if possible
+     * @param spareDataPage old spare data to fit in the new page if possible
      */
-    private void flushNewPageForCheckpoint(DataPage page, DataPage stealingDataPage) {
-        final boolean flushed = flushNewPage(page, stealingDataPage);
+    private void flushNewPageForCheckpoint(DataPage page, DataPage spareDataPage) {
+        final boolean flushed = flushNewPage(page, spareDataPage);
 
         if (!flushed) {
             throw new IllegalStateException("Concurrently flushed a new page during checkpoint! Page " + page);
@@ -746,14 +746,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * </p>
      *
      * @param page         new page to flush
-     * @param stealingDataPage old spare data to fit in the new page if possible
+     * @param spareDataPage old spare data to fit in the new page if possible
      * @return {@code false} if no flush has been done because the page isn't writable anymore,
      *         {@code true} otherwise
      */
-    private boolean flushNewPage(DataPage page, DataPage stealingDataPage) {
+    private boolean flushNewPage(DataPage page, DataPage spareDataPage) {
 
         if (page.immutable) {
-            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page " + page.pageId + " as it was mutable");
+            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page {0} as it was mutable", page.pageId);
             throw new IllegalStateException("page " + page.pageId + " is not a new page!");
         }
 
@@ -776,7 +776,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         lock.lock();
         try {
             if (!page.writable) {
-                LOGGER.log(Level.INFO, "Mutable page " + page.pageId + " already flushed in a concurrent thread");
+                LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
                 return false;
             }
 
@@ -792,8 +792,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Remove it from "new" pages */
             DataPage remove = newPages.remove(page.pageId);
             if (remove == null) {
-                LOGGER.log(Level.SEVERE,
-                        "Detected concurrent flush of page " + page.pageId + ", writable: " + page.writable);
+                LOGGER.log(Level.SEVERE, "Detected concurrent flush of page {0}, writable: {1}",
+                        new Object[] { page.pageId, page.writable });
                 throw new IllegalStateException("page " + page.pageId + " is not a new page!");
             }
 
@@ -804,27 +804,30 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         // Try to steal records from another temporary page
-        if (stealingDataPage != null) {
+        if (spareDataPage != null) {
             /* Save current memory size */
             final long usedMemory = page.getUsedMemory();
-            final long buildingPageMemory = stealingDataPage.getUsedMemory();
+            final long buildingPageMemory = spareDataPage.getUsedMemory();
 
             /* Flag to enable spare data addition to currently flushed page */
             boolean add = true;
-            final Iterator<Record> records = stealingDataPage.getRecordsForFlush().iterator();
+            final Iterator<Record> records = spareDataPage.getRecordsForFlush().iterator();
             while (add && records.hasNext()) {
                 Record record = records.next().nonShared();
                 add = page.put(record);
                 if (add) {
-                    boolean moved = keyToPage.put(record.key, page.pageId, stealingDataPage.pageId);
+                    boolean moved = keyToPage.put(record.key, page.pageId, spareDataPage.pageId);
                     if (!moved) {
-                        /*
-                         * The put failed, track this event, readers won't ever look for the record inside
-                         * stealingDataPage
-                         */
-                        checkpointProcessedDirtyRecords.add(1);
+                        LOGGER.log(Level.SEVERE,
+                                "Detected a dirty page as spare data page while flushing new page. Flushing new page {0}. Spare data page {1}",
+                                new Object[] { page, spareDataPage });
+                        throw new IllegalStateException(
+                                "Expected a clean page for stealing records, got a dirty record " + record.key
+                                        + ". Flushing new page " + page.pageId + ". Spare data page "
+                                        + spareDataPage.pageId);
                     }
-                    /* Added or not we remove "cleaned" record from the stealingDataPage */
+
+                    /* We remove "cleaned" record from the stealingDataPage */
                     records.remove();
                 }
             }
@@ -832,16 +835,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long spareUsedMemory = page.getUsedMemory() - usedMemory;
 
             /* Fix spare page data removing used memory */
-            stealingDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
+            spareDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
         }
-
 
         LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
         return true;
-
     }
 
     /**
@@ -2032,18 +2033,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, table.uuid, sequenceNumber);
     }
 
-    private static final class WeightedPage {
+    private static final class CheckpointingPage {
 
-        public static final Comparator<WeightedPage> ASCENDING_ORDER = (a, b) -> Long.compare(a.weight, b.weight);
-        public static final Comparator<WeightedPage> DESCENDING_ORDER = (a, b) -> Long.compare(b.weight, a.weight);
+        public static final Comparator<CheckpointingPage> ASCENDING_ORDER = (a, b) -> Long.compare(a.weight, b.weight);
+        public static final Comparator<CheckpointingPage> DESCENDING_ORDER = (a, b) -> Long.compare(b.weight, a.weight);
 
         private final Long pageId;
         private final long weight;
+        private final boolean dirty;
 
-        public WeightedPage(Long pageId, long weight) {
+        public CheckpointingPage(Long pageId, long weight, boolean dirty) {
             super();
             this.pageId = pageId;
             this.weight = weight;
+            this.dirty = dirty;
         }
 
         @Override
@@ -2097,109 +2100,200 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      *
      * @return clean and compact result object
      */
-    private CleanAndCompactResult cleanAndCompactPages(List<WeightedPage> workingPages, DataPage buildingPage,
+    private CleanAndCompactResult cleanAndCompactPages(List<CheckpointingPage> workingPages, DataPage buildingPage,
                                                        boolean keepFlushedPageInMemory, long processLimitInstant) {
+
+        long flushedRecords = 0;
+        List<Long> flushedPages = new ArrayList<>();
 
         long buildingPageSize = buildingPage.getUsedMemory();
 
-        List<Long> flushedPages = new ArrayList<>();
-        long flushedRecords = 0;
+        /* Building page lock (not needed on clean small pages) */
+        Lock lock = null;
 
-        /* Rebuild dirty pages with only records to be kept */
-        for (WeightedPage page : workingPages) {
+        try {
 
-            /* Page flushed */
-            flushedPages.add(page.pageId);
 
-            final boolean currentPageWasInMemory;
-            final Collection<Record> records;
+            /* Rebuild dirty pages with only records to be kept */
+            for (CheckpointingPage page : workingPages) {
 
-            final DataPage dataPage = pages.get(page.pageId);
-            if (dataPage == null) {
-                records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
-                currentPageWasInMemory = false;
-                LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
-                        new Object[] { page.pageId, records.size() });
-            } else {
-                records = dataPage.getRecordsForFlush();
+                /* Page flushed */
+                flushedPages.add(page.pageId);
 
-                /* The page was found in memory. Currently built page should go into memory */
-                currentPageWasInMemory = true;
+                if (lock == null) {
 
-                /* Current dirty record page isn't known to page replacement policy */
-                if (currentDirtyRecordsPage.get() != dataPage.pageId) {
-                    pageReplacementPolicy.remove(dataPage);
-                }
-            }
-
-            for (Record record : records) {
-
-                /* Flush the page if it would exceed max page size */
-                final long recordSize = DataPage.estimateEntrySize(record);
-
-                if (buildingPageSize + recordSize > maxLogicalPageSize) {
-
-                    /* Set forcefully used memory to evaluated size */
-                    buildingPage.setUsedMemory(buildingPageSize);
-
-                    flushMutablePage(buildingPage, keepFlushedPageInMemory);
-
-                    /* Reset next rebuilt page status */
-                    keepFlushedPageInMemory = false;
-
-                    flushedRecords += buildingPage.size();
-                    buildingPageSize = 0;
-
-                    /* Get a new building page */
-                    buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
-                }
-
-                /* Current rebuilt page will be kept in memory if current page was in memory */
-                keepFlushedPageInMemory |= currentPageWasInMemory;
-
-                /*
-                 * Attempt to update pk references (if are still valid). If KeyToPage have another [newer] mapping
-                 * do not update it. (Single read&update lookup)
-                 */
-                Record unshared = record.nonShared();
-
-                /*
-                 * Try to move the record to the new page
-                 */
-                buildingPage.putNoMemoryHandle(unshared);
-
-                /**
-                 * If the conditional put succeedes readers will look for the record inside buildingPage
-                 */
-                boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
-
-                /* Avoid the record if has been modified or deleted */
-                if (handled) {
                     /*
-                     * Handle size externally (avoid double size check because we already have to check if the page
-                     * could host the data BEFORE updating PK and putting the value into page)
+                     * Lock the building page if we know that checkpointing page has some dirty record and the building page wasn't
+                     * already locked.
+                     *
+                     * We need to lock building page when the checkpoint page is dirty because we have to push the key
+                     * on the PK before pushing it on buildingPage map, with no lock a concurrent reader would find the
+                     * record on the PK but then fail to read from page (not already pushed on it).
+                     *
+                     * If the page isn't dirty we can safely write any record on the DataPage and then on the PK (every
+                     * record is a good one!)
                      */
-                    buildingPageSize += recordSize;
+
+                    if (page.dirty) {
+                        lock = buildingPage.pageLock.writeLock();
+                        lock.lock();
+                    }
+
                 } else {
-                    /* The put failed, track this event, readers won't ever look for the record inside buildingPage */
-                    checkpointProcessedDirtyRecords.add(1);
-                    buildingPage.removeNoMemoryHandle(unshared);
+
+                    /*
+                     * Unlock the building page if it was locked and we known that checkpointing page is clean. The lock
+                     * has been held enough dirty records from previous page has been already handled and correctly
+                     * pushed on both page and PK
+                     */
+                    if (!page.dirty) {
+                        lock.unlock();
+                        lock = null;
+                    }
+
+                }
+
+                final boolean currentPageWasInMemory;
+                final Collection<Record> records;
+
+                final DataPage dataPage = pages.get(page.pageId);
+                if (dataPage == null) {
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
+                    currentPageWasInMemory = false;
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
+                            new Object[] { page.pageId, records.size() });
+                } else {
+                    records = dataPage.getRecordsForFlush();
+
+                    /* The page was found in memory. Currently built page should go into memory */
+                    currentPageWasInMemory = true;
+
+                    /* Current dirty record page isn't known to page replacement policy */
+                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
+                        pageReplacementPolicy.remove(dataPage);
+                    }
+                }
+
+                for (Record record : records) {
+
+                    /* Flush the page if it would exceed max page size */
+                    final long recordSize = DataPage.estimateEntrySize(record);
+
+                    if (buildingPageSize + recordSize > maxLogicalPageSize) {
+
+                        /* Set forcefully used memory to evaluated size */
+                        buildingPage.setUsedMemory(buildingPageSize);
+
+                        /* If there was an active lock unlock the page */
+                        if (lock != null) {
+                            lock.unlock();
+                            lock = null;
+                        }
+
+                        flushMutablePage(buildingPage, keepFlushedPageInMemory);
+
+                        /* Reset next rebuilt page status */
+                        keepFlushedPageInMemory = false;
+
+                        flushedRecords += buildingPage.size();
+                        buildingPageSize = 0;
+
+                        /* Get a new building page */
+                        buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
+
+                        /* And if needed lock again the new building page */
+                        if (page.dirty && lock == null) {
+                            lock = buildingPage.pageLock.writeLock();
+                            lock.lock();
+                        }
+
+                    }
+
+                    /* Current rebuilt page will be kept in memory if current page was in memory */
+                    keepFlushedPageInMemory |= currentPageWasInMemory;
+
+                    Record unshared = record.nonShared();
+
+                    if (page.dirty) {
+
+                        /*
+                         * Attempt to update PK references (if are still valid). If KeyToPage have another [newer]
+                         * mapping do not update it. (Single read&update lookup). If the conditional put succedes
+                         * readers will look for the record inside buildingPage
+                         */
+                        boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
+
+                        /* Avoid the record if has been modified or deleted */
+                        if (handled) {
+
+                            /* Move the record to the new page */
+                            buildingPage.putNoMemoryHandle(unshared);
+
+                            /*
+                             * Handle size externally (avoid double size check because we already have to check if the
+                             * page could host the data BEFORE updating PK and putting the value into page)
+                             */
+                            buildingPageSize += recordSize;
+                        } else {
+
+                            /*
+                             * The put failed, track this event, readers won't ever look for the record inside
+                             * buildingPage
+                             */
+                            checkpointProcessedDirtyRecords.add(1);
+                        }
+
+                    } else {
+
+                        /* Move the record to the new page */
+                        buildingPage.putNoMemoryHandle(unshared);
+
+                        /*
+                         * Handle size externally (avoid double size check because we already have to check if the page
+                         * could host the data BEFORE updating PK and putting the value into page)
+                         */
+                        buildingPageSize += recordSize;
+
+                        /*
+                         * If the conditional put succeedes readers will look for the record inside buildingPage,
+                         * otherwise we fail the procedure, the record should be clean!!!
+                         */
+                        boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
+                        if (!handled) {
+                            LOGGER.log(Level.SEVERE,
+                                    "Data inconsistency! Found a clean page with dirty records based on PK data. "
+                                            + "It could be a key to page inconsistency (broken PK) or a page metadata "
+                                            + "inconsistency (failed to track dirty record on page metadata). "
+                                            + "Page: {0}, Record {1}",
+                                    new Object[] { page, unshared });
+                            throw new IllegalStateException("");
+                        }
+
+                    }
+
+                }
+
+                if (dataPage != null) {
+                    final DataPage removedDataPage = pages.remove(page.pageId);
+                    if (removedDataPage != dataPage) {
+                        throw new IllegalStateException(
+                                "Failed to remove the right page from page knowledge during checkpoint. "
+                                        + "The page changed in a concurrent process. Expected page " + dataPage
+                                        + ", found page " + removedDataPage);
+                    }
+                }
+
+                /* Do not continue if we have used up all given time */
+                if (processLimitInstant <= System.currentTimeMillis()) {
+                    break;
                 }
             }
 
-            if (dataPage != null) {
-                final DataPage removedDataPage = pages.remove(page.pageId);
-                if (removedDataPage != dataPage) {
-                    throw new IllegalStateException(
-                            "Failed to remove the right page from page knowledge during checkpoint. "
-                                    + "The page changed in a concurrent process. Expected page " + dataPage
-                                    + ", found page " + removedDataPage);
-                }
-            }
+        } finally {
 
-            /* Do not continue if we have used up all given time */
-            if (processLimitInstant <= System.currentTimeMillis()) {
-                break;
+            /* Unlock if there is a lock left open */
+            if (lock != null) {
+                lock.unlock();
             }
         }
 
@@ -2268,8 +2362,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             long flushedRecords = 0;
 
-            List<WeightedPage> flushingDirtyPages = new ArrayList<>();
-            List<WeightedPage> flushingSmallPages = new ArrayList<>();
+            List<CheckpointingPage> flushingDirtyPages = new ArrayList<>();
+            List<CheckpointingPage> flushingSmallPages = new ArrayList<>();
 
             final Set<Long> flushedPages = new HashSet<>();
             int flushedDirtyPages = 0;
@@ -2284,24 +2378,24 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 /* Check dirtiness (flush here even small pages if enough dirty) */
                 if (dirt > 0 && dirt >= dirtyPageThreshold) {
-                    flushingDirtyPages.add(new WeightedPage(pageId, dirt));
+                    flushingDirtyPages.add(new CheckpointingPage(pageId, dirt, dirt > 0));
                     continue;
                 }
 
                 /* Check emptiness (with a really dirty check to avoid to rewrite an unfillable page) */
                 if (metadata.size <= fillPageThreshold
                         && maxLogicalPageSize - metadata.avgRecordSize >= fillPageThreshold) {
-                    flushingSmallPages.add(new WeightedPage(pageId, metadata.size));
+                    flushingSmallPages.add(new CheckpointingPage(pageId, metadata.size, dirt > 0));
                     continue;
                 }
 
             }
 
             /* Clean dirtier first */
-            flushingDirtyPages.sort(WeightedPage.DESCENDING_ORDER);
+            flushingDirtyPages.sort(CheckpointingPage.DESCENDING_ORDER);
 
             /* Clean smaller first */
-            flushingSmallPages.sort(WeightedPage.ASCENDING_ORDER);
+            flushingSmallPages.sort(CheckpointingPage.ASCENDING_ORDER);
 
             pageAnalysis = System.currentTimeMillis();
 
@@ -2344,17 +2438,19 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             /* Filter out dirty pages flushed from flushing small pages (a page could be "small" and "dirty") */
             flushingSmallPages = flushingSmallPages.stream()
-                    .filter(wp -> flushedPages.contains(wp.pageId)).collect(Collectors.toList());
+                    .filter(wp -> !flushedPages.contains(wp.pageId)).collect(Collectors.toList());
 
             /*
-             * If there is only one small page without additional data to add rebuilding the page make no sense:
-             * is too probable to rebuild an identical page!
+             * If there is only one clean small page without additional data to add rebuilding the page make no
+             * sense: is too probable to rebuild an identical page!
              */
-            if (flushingSmallPages.size() == 1 && buildingPage.isEmpty()) {
-                boolean hasNewPagesData = newPages.values().stream().filter(p -> !p.isEmpty()).findAny().isPresent();
-                if (!hasNewPagesData) {
-                    flushingSmallPages.clear();
-                }
+            if (/* Just one small page */ flushingSmallPages.size() == 1
+                    /* Not dirty */ && !flushingSmallPages.get(0).dirty
+                    /* No spare data remaining */ && buildingPage.isEmpty()
+                    /* No new data */ && !newPages.values().stream().filter(p -> !p.isEmpty()).findAny().isPresent()) {
+
+                /* Avoid small page compaction */
+                flushingSmallPages.clear();
             }
 
             if (!flushingSmallPages.isEmpty()) {
@@ -3084,7 +3180,31 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (dataPage != null) {
                 Record record = dataPage.get(key);
                 if (record != null) {
+                    /* Record found */
                     return record;
+                } else {
+
+                    /*
+                     * If not found and current page is not immutable lock the page and check for the record again. It
+                     * can happen during checkpoint that a record has been published on PK but not on datapage, we have
+                     * to wait for datapage publish.
+                     *
+                     * This second attempt should be attempted only around checkpoint
+                     */
+                    if (!dataPage.immutable) {
+                        final Lock lock = dataPage.pageLock.readLock();
+                        lock.lock();
+
+                        try {
+                            record = dataPage.get(key);
+                            if (record != null) {
+                                /* Record found on second attempt */
+                                return record;
+                            }
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
                 }
             }
 
