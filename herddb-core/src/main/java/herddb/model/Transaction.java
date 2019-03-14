@@ -507,6 +507,7 @@ public class Transaction {
                 || (newTables != null && newTables.containsKey(name));
     }
 
+    /* Visible for testing */
     public void sync() throws LogNotAvailableException {
         // wait for all writes to be synch to log
         for (CommitLogResult result : deferredWrites) {
