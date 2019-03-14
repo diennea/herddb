@@ -168,6 +168,17 @@ public final class ServerConfiguration {
 
     /**
      * Maximum target time in milliseconds to spend during standard checkpoint
+     * operations on clening dirty pages. Is should be less than the
+     * maximum checkpoint duration configured by
+     * {@link #PROPERTY_CHECKPOINT_DURATION}. If set to -1 checkpoints won't
+     * have a time limit. Regardless his value at least one page will be
+     * compacted for each checkpoint. By default, the value is 1000 ms.
+     */
+    public static final String PROPERTY_CLEANUP_DURATION = "server.checkpoint.cleanup";
+    public static final long PROPERTY_CLEANUP_DURATION_DEFAULT = 1000L;
+
+    /**
+     * Maximum target time in milliseconds to spend during standard checkpoint
      * operations on compacting smaller pages. Is should be less than the
      * maximum checkpoint duration configured by
      * {@link #PROPERTY_CHECKPOINT_DURATION}. If set to -1 checkpoints won't
