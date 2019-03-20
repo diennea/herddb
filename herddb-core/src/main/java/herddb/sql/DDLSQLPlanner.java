@@ -353,7 +353,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 int type;
                 String dataType = cf.getColDataType().getDataType();
                 type = sqlDataTypeToColumnType(dataType, cf.getColDataType().getArgumentsStringList());
-                tablebuilder.column(columnName, type, position++);
 
                 if (cf.getColumnSpecStrings() != null) {
                     List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecStrings());
@@ -365,7 +364,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     if (auto_increment && primaryKey.contains(cf.getColumnName())) {
                         tablebuilder.primaryKey(columnName, auto_increment);
                     }
+
+                    if(String.join("_",columnSpecs).equals("NOT_NULL")) {
+                        type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
+                    }
                 }
+
+                tablebuilder.column(columnName, type, position++);
+
             }
 
             if (!foundPk) {

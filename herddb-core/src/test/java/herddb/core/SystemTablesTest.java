@@ -24,6 +24,7 @@ import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.sql.DatabaseMetaData;
 import java.util.Collections;
 import java.util.List;
 
@@ -51,7 +52,7 @@ public class SystemTablesTest {
     @Test
     public void testSysTables() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -350,5 +351,80 @@ public class SystemTablesTest {
 
         }
     }
+
+    @Test
+    public void testSystemTablesForNonNullColumnTypes() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int,s1 string not null)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key auto_increment,n1 int not null,l1 long not null,s1 string not null)", Collections.emptyList());
+            execute(manager, "CREATE BRIN INDEX index1 on tblspace1.tsql2 (s1,n1)", Collections.emptyList());
+            execute(manager, "CREATE HASH INDEX index2 on tblspace1.tsql2 (n1)", Collections.emptyList());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.syscolumns", Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                                && t.get("column_name").equals("k1")
+                                && t.get("data_type").equals("string")
+                                && t.get("auto_increment").equals(1)
+                        ).findAny().isPresent());
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                                && t.get("column_name").equals("n1")
+                                && t.get("data_type").equals("integer")
+                        ).findAny().isPresent());
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                                && t.get("column_name").equals("s1")
+                                && t.get("data_type").equals("string not null")
+                                && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
+                        ).findAny().isPresent());
+
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                                && t.get("column_name").equals("k1")
+                                && t.get("data_type").equals("string")
+                                && t.get("auto_increment").equals(1)
+                        ).findAny().isPresent());
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                                && t.get("column_name").equals("n1")
+                                && t.get("data_type").equals("integer not null")
+                                && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
+                        ).findAny().isPresent());
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                                && t.get("column_name").equals("s1")
+                                && t.get("data_type").equals("string not null")
+                                && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
+                        ).findAny().isPresent());
+
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                                && t.get("column_name").equals("l1")
+                                && t.get("data_type").equals("long not null")
+                                && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
+                        ).findAny().isPresent());
+            }
+        }
+    }
+
 
 }

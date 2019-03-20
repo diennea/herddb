@@ -70,7 +70,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "table_name", t.name,
                         "column_name", c.name,
                         "ordinal_position", pos++,
-                        "is_nullable", (pk || nonNullCType) ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
+                        "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
                         "data_type", data_type,
                         "auto_increment", (pk && t.auto_increment)?1:0
                 ));

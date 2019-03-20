@@ -81,4 +81,17 @@ public class ColumnTypes {
         }
     }
 
+    public static int getNonNullTypeForPrimitiveType(int type) {
+        switch(type) {
+            case STRING:
+                return NOTNULL_STRING;
+            case INTEGER:
+                return NOTNULL_INTEGER;
+            case LONG:
+                return NOTNULL_LONG;
+            default:
+                return type;
+        }
+    }
+
 }
