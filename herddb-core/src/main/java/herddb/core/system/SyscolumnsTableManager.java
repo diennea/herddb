@@ -19,6 +19,7 @@
  */
 package herddb.core.system;
 
+import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,6 +62,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             int pos = 1;
             for (Column c : t.columns) {
                 boolean pk = t.isPrimaryKeyColumn(c.name);
+                boolean nonNullCType = pk ? true : ColumnTypes.isNotNullDataType(c.type);
                 String data_type = ColumnTypes.typeToString(c.type);
 
                 result.add(RecordSerializer.makeRecord(
@@ -68,7 +70,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "table_name", t.name,
                         "column_name", c.name,
                         "ordinal_position", pos++,
-                        "is_nullable", pk ? 0 : 1,
+                        "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
                         "data_type", data_type,
                         "auto_increment", (pk && t.auto_increment)?1:0
                 ));
