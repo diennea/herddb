@@ -732,10 +732,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final boolean flushed = flushNewPage(page, spareDataPage);
 
         if (!flushed) {
-            throw new IllegalStateException("Concurrently flushed a new page during checkpoint! Page " + page);
+            LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
         }
 
-        /* Replace the page in memory with his immutable version (faster modification checks) */
+        /*
+         * Replace the page in memory with his immutable version (faster modification checks). We can
+         * replace the page even if we didn't flush it (i.e.:flushed by some other thread) because we are
+         * running during a checkpoint and no other page write could happen (thus our page copy is fully
+         * equivalent to really flushed one)
+         */
         pages.put(page.pageId, page.toImmutable());
     }
 
