@@ -28,15 +28,12 @@ import java.sql.DatabaseMetaData;
 import java.util.Collections;
 import java.util.List;
 
+import herddb.model.*;
 import org.junit.Test;
 
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.DataScanner;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
@@ -426,5 +423,27 @@ public class SystemTablesTest {
         }
     }
 
+    @Test(expected = StatementExecutionException.class)
+    public void testForNonSupportedTypesWithNotNullConstraints() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
 
-}
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int,d1 double not null)", Collections.emptyList());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.syscolumns", Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                assertTrue(records.stream()
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                                && t.get("column_name").equals("k1")
+                                && t.get("data_type").equals("string")
+                                && t.get("auto_increment").equals(1)
+                        ).findAny().isPresent());
+            }
+        }
+
+    }
+ }

@@ -112,7 +112,7 @@ public class SimpleIndexAccessTest {
                 + "  MSG_ID           BIGINT        NOT NULL,\n"
                 + "  SID              TINYINT       NOT NULL,  \n"
                 + "  STATUS           INT           NOT NULL,\n"
-                + "  TIMESTAMP        TIMESTAMP NOT NULL,\n"
+                + "  TIMESTAMP        TIMESTAMP,\n"
                 + "  STATUSLINE       VARCHAR(2000) NULL,\n"
                 + "  IDBOUNCECATEGORY SMALLINT      NULL,\n"
                 + "  PRIMARY KEY  (MSG_ID, SID)\n"
