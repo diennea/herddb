@@ -433,16 +433,6 @@ public class SystemTablesTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int,d1 double not null)", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.syscolumns", Collections.emptyList());) {
-                List<DataAccessor> records = scan.consume();
-                assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql")
-                                && t.get("column_name").equals("k1")
-                                && t.get("data_type").equals("string")
-                                && t.get("auto_increment").equals(1)
-                        ).findAny().isPresent());
-            }
         }
 
     }
