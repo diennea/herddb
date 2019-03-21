@@ -39,7 +39,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -105,6 +104,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.BatchOrderedExecutor;
+import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
@@ -686,9 +686,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     /**
-     * Returns currently loaded pages id. To be used only for test to inspect current pages!
+     * Returns currently loaded pages. To be used only for test to inspect current pages!
      */
-    Collection<DataPage> getLoadedPages() {
+    public Collection<DataPage> getLoadedPages() {
         return pages.values();
     }
 
@@ -916,21 +916,26 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
 
+            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
+
+            /* Set the page as a fully active page */
+            pageSet.pageCreated(page.pageId, page);
+
             if (keepPageInMemory) {
                 /* If we must keep the page in memory we "covert" the page to immutable */
                 pages.put(page.pageId, page.toImmutable());
 
-                /* And we load to page replacement polcy */
+                /*
+                 * And we load to page replacement policy. This is a critic point: after adding page to page
+                 * replacement policy knowledge it can be unloaded from another thread, we should finished any work
+                 * on the page before of that.
+                 */
                 final Page.Metadata unload = pageReplacementPolicy.add(page);
                 if (unload != null) {
                     unload.owner.unload(unload.pageId);
                 }
             }
 
-            /* Set the page as a fully active page */
-            pageSet.pageCreated(page.pageId, page);
-
-            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
         } finally {
 
@@ -1949,26 +1954,40 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     }
 
+    /**
+     * Just read a page from {@link DataStorageManager} and return it as an immutable page.
+     *
+     * @param pageId id of page to be loaded
+     * @return loaded page
+     * @throws DataStorageManagerException   if requested page cannot be read
+     */
     private DataPage temporaryLoadPageToMemory(Long pageId) throws DataStorageManagerException {
-        long _start = System.currentTimeMillis();
-        List<Record> page;
+
+        long start = System.currentTimeMillis();
+
         maxCurrentPagesLoads.acquireUninterruptibly();
+
+        long ioStart = System.currentTimeMillis();
+
+        final List<Record> page;
         try {
             page = dataStorageManager.readPage(tableSpaceUUID, table.uuid, pageId);
-        } catch (DataPageDoesNotExistException ex) {
+        } catch (DataPageDoesNotExistException e) {
             return null;
         } finally {
             maxCurrentPagesLoads.release();
         }
-        long _io = System.currentTimeMillis();
-        DataPage result = buildImmutableDataPage(pageId, page);
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.FINEST, "tmp table " + table.name + ","
-                    + "loaded " + result.size() + " records from page " + pageId
-                    + " in " + (_stop - _start) + " ms"
-                    + ", (" + (_io - _start) + " ms read)");
+
+        long ioStop = System.currentTimeMillis();
+
+        final DataPage result = buildImmutableDataPage(pageId, page);
+
+        if (LOGGER.isLoggable(Level.FINE)) {
+            long stop = System.currentTimeMillis();
+            LOGGER.log(Level.FINE, "table {0}, temporary loaded {1} records from page {2} in {3} ms, ({4} ms read)",
+                    new Object[] { result.size(), pageId, (stop - start), (ioStop - ioStart) });
         }
+
         return result;
     }
 
@@ -1981,12 +2000,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long _start = System.currentTimeMillis();
         long _ioAndLock = 0;
-        AtomicBoolean computed = new AtomicBoolean();
+        BooleanHolder computed = new BooleanHolder(false);
 
         try {
             result = pages.computeIfAbsent(pageId, (id) -> {
                 try {
-                    computed.set(true);
+                    computed.value = true;
                     List<Record> page;
                     maxCurrentPagesLoads.acquireUninterruptibly();
                     try {
@@ -2002,7 +2021,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     throw new RuntimeException(err);
                 }
             });
-            if (computed.get()) {
+            if (computed.value) {
                 _ioAndLock = System.currentTimeMillis();
 
                 final Page.Metadata unload = pageReplacementPolicy.add(result);
@@ -2023,14 +2042,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             throw new DataStorageManagerException(error);
         }
-        if (computed.get()) {
+        if (computed.value && LOGGER.isLoggable(Level.FINE)) {
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.FINE,
-                    "table " + table.name + ","
-                    + "loaded " + result.size() + " records from page " + pageId
-                    + " in " + (_stop - _start) + " ms"
-                    + ", (" + (_ioAndLock - _start) + " ms read + plock"
-                    + ", " + (_stop - _ioAndLock) + " ms unlock)");
+                    "table {0}, loaded {1} records from page {2} in {3} ms, ({4} ms read + plock, {5} ms unlock)",
+                    new Object[] { result.size(), pageId, (_stop - _start), (_ioAndLock - _start),
+                            (_stop - _ioAndLock) });
         }
         return result;
     }
@@ -2161,8 +2178,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (lock == null) {
 
                     /*
-                     * Lock the building page if we know that checkpointing page has some dirty record and the building page wasn't
-                     * already locked.
+                     * Lock the building page if we know that checkpointing page has some dirty record and the building
+                     * page wasn't already locked.
                      *
                      * We need to lock building page when the checkpoint page is dirty because we have to push the key
                      * on the PK before pushing it on buildingPage map, with no lock a concurrent reader would find the
