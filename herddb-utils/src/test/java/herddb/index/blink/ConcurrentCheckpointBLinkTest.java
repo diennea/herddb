@@ -537,7 +537,7 @@ public class ConcurrentCheckpointBLinkTest {
         boolean debugDeleters = false;
 
         long minKey = 0;
-        long maxKey = 50000;
+        long maxKey = 25000;
 
         long blockKeySize = 100;
 
