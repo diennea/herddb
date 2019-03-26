@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import herddb.model.StatementExecutionException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -223,6 +224,23 @@ public class SystemTablesTest {
                         assertFalse(rs.next());
 
                     }
+                }
+            }
+        }
+    }
+
+    @Test(expected = StatementExecutionException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Double() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
+
                 }
             }
         }
