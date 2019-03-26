@@ -411,7 +411,22 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                  * Do not checkpoint empty nodes. They aren't needed at all and because no modification
                  * operations is occurring currently seen empty node aren't referenced by anyone.
                  */
-                if (node.empty) {
+                if (node.empty()) {
+
+                    /* If the node existed in policy remove it and unload */
+                    if (policy.remove(node)) {
+                        node.unload(false, false);
+                    }
+
+                    /*
+                     * Remove the node from nodes knowledge: it is a safe operation, if a node is empty it will not be
+                     * used anymore and it has just an outlink from a possibly real node. If there is a concurrent
+                     * traversal it will continue anyway (nodes reachable through links). Nodes memory is needed only
+                     * for page unload and close and truncate operations (the page was just unloaded and close and
+                     * truncate will deal with remaining "live" nodes).
+                     */
+                    nodes.remove(node.pageId);
+
                     continue;
                 }
             } finally {
@@ -1695,8 +1710,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         Node<X, Y> rightlink;
 
-        boolean empty;
-
         boolean loaded;
 
         volatile boolean dirty;
@@ -1709,8 +1722,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.flushId = BLinkIndexDataStorage.NEW_PAGE;
 
             this.leaf = leaf;
-
-            this.empty = false;
 
             this.rightsep = rightsep;
 
@@ -1750,8 +1761,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             this.leaf = metadata.leaf;
 
-            this.empty = metadata.empty;
-
             this.rightsep = metadata.rightsep;
 
             this.lock = new ReentrantReadWriteLock(false);
@@ -1771,7 +1780,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /* *** FOR BOTH LEAVES AND NODES *** */
         /* ********************************* */
         boolean empty() {
-            return empty;
+            return outlink != null;
         }
 
         boolean too_sparse() {
@@ -1836,8 +1845,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                     dirty = true;
 
-                    // r is marked empty
-                    right.empty = true;
+                    // let JVM reclaim map memory
                     right.map.clear();
                     right.map = newNodeMap();
 
@@ -1894,6 +1902,18 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             // If l is a leaf, its separator is set to the largest key in it
             rightsep = right.rightsep;
+
+            /*
+             * Right data page not needed anymore, unload it NOW. Removing from policy now has 2 benefits:
+             *
+             * 1) open space for real data pages on policy as soon as possible
+             *
+             * 2) avoid an unloading racing condition while checkpointing (concurrent unload attempt on pages
+             * unfortunately already removed from nodes knowledge)
+             */
+            if (owner.policy.remove(right)) {
+                right.unload(false, false);
+            }
 
             // the previous value of the rightmost separator in l is returned.
             return half_merge;
@@ -2667,7 +2687,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         leaf,
                         pageId,
                         storeId,
-                        empty,
                         keys,
                         size,
                         outlink == null ? BLinkNodeMetadata.NO_LINK : outlink.pageId,
@@ -2787,7 +2806,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         public String toString() {
             return "Node [id=" + pageId
                     + ", leaf=" + leaf
-                    + ", empty=" + empty
                     + ", nkeys=" + keys
                     + ", size=" + size
                     + ", outlink=" + (outlink == null ? null : outlink.pageId)

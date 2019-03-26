@@ -96,8 +96,6 @@ public final class BLinkMetadata<K> {
         final long id;
         final long storeId;
 
-        final boolean empty;
-
         final int keys;
         final long bytes;
 
@@ -106,12 +104,11 @@ public final class BLinkMetadata<K> {
 
         final K rightsep;
 
-        public BLinkNodeMetadata(boolean leaf, long id, long storeId, boolean empty, int keys, long size, long outlink, long rightlink, K rightsep) {
+        public BLinkNodeMetadata(boolean leaf, long id, long storeId, int keys, long size, long outlink, long rightlink, K rightsep) {
             super();
             this.leaf = leaf;
             this.id = id;
             this.storeId = storeId;
-            this.empty = empty;
             this.keys = keys;
             this.bytes = size;
             this.outlink = outlink;
@@ -124,7 +121,6 @@ public final class BLinkMetadata<K> {
             return "BLinkNodeMetadata [leaf=" + leaf +
                     ", id=" + id +
                     ", storeId=" + storeId +
-                    ", empty=" + empty +
                     ", keys=" + keys +
                     ", size=" + bytes +
                     ", outlink=" + outlink +

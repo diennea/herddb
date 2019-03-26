@@ -384,7 +384,14 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
          */
         private static final long VERSION_1 = 1L;
 
-        public static final long CURRENT_VERSION = VERSION_1;
+        /**
+         * Removed empty field in BLinkNodeMetadata
+         *
+         * @since 0.9.0
+         */
+        private static final long VERSION_2 = 2L;
+
+        public static final long CURRENT_VERSION = VERSION_2;
 
         private static final long NO_FLAGS = 0L;
 
@@ -419,8 +426,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                     edos.writeVLong(node.id);
                     edos.writeVLong(node.storeId);
-
-                    edos.writeBoolean(node.empty);
 
                     edos.writeVInt(node.keys);
                     edos.writeVLong(node.bytes);
@@ -458,7 +463,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                  */
                 boolean recalculateSize = version == VERSION_0;
 
-                /* flags for future implementations, actually unused (exists from version 1)*/
+                /* flags for future implementations, actually unused (exists from version 1) */
                 @SuppressWarnings("unused")
                 long flags = version > VERSION_0 ? edis.readVLong() : NO_FLAGS;
 
@@ -489,41 +494,107 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                         throw new IOException("Wrong block type " + block);
                     }
 
-                    final boolean leaf = edis.readBoolean();
+                    BLinkNodeMetadata<Bytes> node;
 
-                    long id = edis.readVLong();
-                    long storeId = edis.readVLong();
+                    if (version == VERSION_2) {
+                        node = readV2(edis, recalculateSize);
 
-                    boolean empty = edis.readBoolean();
+                    } else if (version == VERSION_1) {
+                        node = readV1(edis, recalculateSize);
 
-                    int keys = edis.readVInt();
-                    long bytes = edis.readVLong();
+                    } else if (version == VERSION_0) {
+                        node = readV0(edis, recalculateSize);
 
-                    if (recalculateSize) {
-                        /* Set size to unknown to force node size recalculation */
-                        bytes = BLink.UNKNOWN_SIZE;
-                    }
-
-                    long outlink = edis.readZLong();
-                    long rightlink = edis.readZLong();
-
-                    boolean hasInf = edis.readBoolean();
-
-                    Bytes rightsep;
-                    if (hasInf) {
-                        rightsep = Bytes.POSITIVE_INFINITY;
                     } else {
-                        rightsep = edis.readBytesNoCopy();
+                        throw new IllegalArgumentException("Unknown BLink node metadata version " + version);
                     }
-
-                    BLinkNodeMetadata<Bytes> node
-                        = new BLinkNodeMetadata<>(leaf, id, storeId, empty, keys, bytes, outlink, rightlink, rightsep);
 
                     nodes.add(node);
                 }
 
                 return new BLinkMetadata<>(nextID, fast, fastheight, top, topheight, first, values, nodes);
             }
+
+        }
+
+
+        /**
+         * Read node metadata V2
+         */
+        public BLinkNodeMetadata<Bytes> readV2(ByteArrayCursor cursor, boolean recalculateSize) throws IOException {
+
+            final boolean leaf = cursor.readBoolean();
+
+            long id = cursor.readVLong();
+            long storeId = cursor.readVLong();
+
+            int keys = cursor.readVInt();
+            long bytes = cursor.readVLong();
+
+            if (recalculateSize) {
+                /* Set size to unknown to force node size recalculation */
+                bytes = BLink.UNKNOWN_SIZE;
+            }
+
+            long outlink = cursor.readZLong();
+            long rightlink = cursor.readZLong();
+
+            boolean hasInf = cursor.readBoolean();
+
+            Bytes rightsep;
+            if (hasInf) {
+                rightsep = Bytes.POSITIVE_INFINITY;
+            } else {
+                rightsep = cursor.readBytes();
+            }
+
+            return new BLinkNodeMetadata<>(leaf, id, storeId, keys, bytes, outlink, rightlink, rightsep);
+
+        }
+
+        /**
+         * Read node metadata V1
+         */
+        public BLinkNodeMetadata<Bytes> readV1(ByteArrayCursor cursor, boolean recalculateSize) throws IOException {
+            /* Actually node metadata v0 and v1 are identical, this method exists only to be more explicit */
+            return readV0(cursor,recalculateSize);
+        }
+
+        /**
+         * Read node metadata V0
+         */
+        public BLinkNodeMetadata<Bytes> readV0(ByteArrayCursor cursor, boolean recalculateSize) throws IOException {
+
+            final boolean leaf = cursor.readBoolean();
+
+            long id = cursor.readVLong();
+            long storeId = cursor.readVLong();
+
+            /* Boolean read, we don't need "empty" flag anymore but still exists in this version */
+            @SuppressWarnings("unused")
+            boolean empty = cursor.readBoolean();
+
+            int keys = cursor.readVInt();
+            long bytes = cursor.readVLong();
+
+            if (recalculateSize) {
+                /* Set size to unknown to force node size recalculation */
+                bytes = BLink.UNKNOWN_SIZE;
+            }
+
+            long outlink = cursor.readZLong();
+            long rightlink = cursor.readZLong();
+
+            boolean hasInf = cursor.readBoolean();
+
+            Bytes rightsep;
+            if (hasInf) {
+                rightsep = Bytes.POSITIVE_INFINITY;
+            } else {
+                rightsep = cursor.readBytes();
+            }
+
+            return new BLinkNodeMetadata<>(leaf, id, storeId, keys, bytes, outlink, rightlink, rightsep);
 
         }
     }
@@ -565,7 +636,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     switch (block) {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
-                            map.put(in.readBytesNoCopy(),
+                            map.put(in.readBytes(),
                                 in.readVLong());
                             break;
 

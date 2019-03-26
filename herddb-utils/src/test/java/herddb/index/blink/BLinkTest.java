@@ -42,7 +42,6 @@ import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.utils.Holder;
-import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
 
 /**
@@ -52,7 +51,7 @@ import herddb.utils.Sized;
  */
 public class BLinkTest {
 
-    static final class DummyBLinkIndexDataStorage<K extends Comparable<K> & SizeAwareObject, V> implements BLinkIndexDataStorage<K, V> {
+    static final class DummyBLinkIndexDataStorage<K extends Comparable<K>, V> implements BLinkIndexDataStorage<K, V> {
 
         AtomicLong newPageId = new AtomicLong();
         AtomicLong swapIn = new AtomicLong();
@@ -224,7 +223,6 @@ public class BLinkTest {
                     node.leaf,
                     node.id,
                     node.storeId,
-                    node.empty,
                     node.keys,
                     BLink.UNKNOWN_SIZE,
                     node.outlink,
