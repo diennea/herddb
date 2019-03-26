@@ -419,11 +419,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     }
 
                     /*
-                     * Remove the node from nodes knowledge: it is a safe operation, if a node is empty it will not used
-                     * anymore and it has just an outlink from a possibly real node. If there is a concurrent traversal
-                     * it will continue anyway (nodes reachable though links). Nodes memory is needed only for page
-                     * unload and close and truncate operations (the page was just unloaded and close and truncate will
-                     * deal with remaining "live" nodes).
+                     * Remove the node from nodes knowledge: it is a safe operation, if a node is empty it will not be
+                     * used anymore and it has just an outlink from a possibly real node. If there is a concurrent
+                     * traversal it will continue anyway (nodes reachable through links). Nodes memory is needed only
+                     * for page unload and close and truncate operations (the page was just unloaded and close and
+                     * truncate will deal with remaining "live" nodes).
                      */
                     nodes.remove(node.pageId);
 

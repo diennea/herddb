@@ -545,7 +545,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             if (hasInf) {
                 rightsep = Bytes.POSITIVE_INFINITY;
             } else {
-                rightsep = cursor.readBytesNoCopy();
+                rightsep = cursor.readBytes();
             }
 
             return new BLinkNodeMetadata<>(leaf, id, storeId, keys, bytes, outlink, rightlink, rightsep);
@@ -591,7 +591,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             if (hasInf) {
                 rightsep = Bytes.POSITIVE_INFINITY;
             } else {
-                rightsep = cursor.readBytesNoCopy();
+                rightsep = cursor.readBytes();
             }
 
             return new BLinkNodeMetadata<>(leaf, id, storeId, keys, bytes, outlink, rightlink, rightsep);
@@ -636,7 +636,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     switch (block) {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
-                            map.put(in.readBytesNoCopy(),
+                            map.put(in.readBytes(),
                                 in.readVLong());
                             break;
 
