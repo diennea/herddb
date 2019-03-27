@@ -476,7 +476,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 _channel.sendReplyMessage(message.messageId, error);
 
             }
-        } catch (DataScannerException | RuntimeException err) {
+        } catch (DataScannerException  | StatementExecutionException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
             scanners.remove(scannerId);
             ByteBuf error = composeErrorResponse(message.messageId, err);
@@ -668,7 +668,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             server.getManager().executePlanAsync(firstTranslatedQuery.plan, firstTranslatedQuery.context, transactionContext)
                     .whenComplete(new ComputeNext(1));
 
-        } catch (HerdDBInternalException err) {
+        } catch (HerdDBInternalException  err) {
             ByteBuf response = composeErrorResponse(message.messageId, err);
             _channel.sendReplyMessage(message.messageId, response);
             message.close();
@@ -702,8 +702,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
         RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tablespace, "", 1);
         TransactionContext transactionContext = new TransactionContext(txId);
-        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tablespace,
-                query, parameters, false, true, returnValues, -1);
+        TranslatedQuery translatedQuery = null;
+        try {
+            translatedQuery = server.getManager().getPlanner().translate(tablespace,
+                    query, parameters, false, true, returnValues, -1);
+        } catch (StatementExecutionException ex) {
+            ByteBuf error = composeErrorResponse(message.messageId, ex);
+            _channel.sendReplyMessage(message.messageId, error);
+            message.close();
+            return;
+        }
+
         Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
         RunningStatementsStats runningStatements = server.getManager().getRunningStatements();

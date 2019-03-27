@@ -23,10 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -229,7 +226,7 @@ public class SystemTablesTest {
         }
     }
 
-    @Test(expected = StatementExecutionException.class)
+    @Test(expected = SQLException.class)
     public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Double() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
@@ -240,7 +237,134 @@ public class SystemTablesTest {
                      Connection con = dataSource.getConnection();
                      Statement statement = con.createStatement();) {
                      statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
+                }
+            }
+        }
+    }
 
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Float() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                    statement.execute("CREATE TABLE mytable (key string primary key, name string,f1 float not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_BOOLEAN() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,b1 boolean not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_TimeStamp() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,t1 timestamp not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_DateTime() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,dt datetime not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_byteArray() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,t1 timestamp not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Blob() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,b1 blob not null)");
+                }
+            }
+        }
+    }
+
+    @Test(expected = SQLException.class)
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Image() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,i1 image not null)");
+                }
+            }
+        }
+    }
+
+    @Test
+    public void ensureSupportedTypesWithNullConstraintsWorkDuringTableCreation() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();) {
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string not null,i1 int not null, l1 long not null)");
                 }
             }
         }
