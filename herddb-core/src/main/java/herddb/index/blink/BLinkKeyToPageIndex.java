@@ -326,7 +326,20 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
 
         /**
-         * Siongleton INSTANCE
+         * <pre>
+         * java.lang.Long object internals:
+         *  OFFSET  SIZE   TYPE DESCRIPTION                               VALUE
+         *       0    12        (object header)                           N/A
+         *      12     4        (alignment/padding gap)
+         *      16     8   long Long.value                                N/A
+         * Instance size: 24 bytes
+         * Space losses: 4 bytes internal + 0 bytes external = 4 bytes total
+         * </pre>
+         */
+        private static final long DATA_SIZE = 24L;
+
+        /**
+         * Singleton INSTANCE
          */
         public static final SizeEvaluator<Bytes, Long> INSTANCE = new SizeEvaluatorImpl();
 
@@ -342,24 +355,23 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         @Override
+        public boolean isValueSizeConstant() {
+            return true;
+        }
+
+        @Override
+        public long constantValueSize() throws UnsupportedOperationException {
+            return DATA_SIZE;
+        }
+
+        @Override
         public long evaluateValue(Long value) {
-            /**
-             * <pre>
-             * java.lang.Long object internals:
-             *  OFFSET  SIZE   TYPE DESCRIPTION                               VALUE
-             *       0    12        (object header)                           N/A
-             *      12     4        (alignment/padding gap)
-             *      16     8   long Long.value                                N/A
-             * Instance size: 24 bytes
-             * Space losses: 4 bytes internal + 0 bytes external = 4 bytes total
-             * </pre>
-             */
-            return 24L;
+            return DATA_SIZE;
         }
 
         @Override
         public long evaluateAll(Bytes key, Long value) {
-            return key.getEstimatedSize() + 24L;
+            return key.getEstimatedSize() + DATA_SIZE;
         }
 
         @Override
