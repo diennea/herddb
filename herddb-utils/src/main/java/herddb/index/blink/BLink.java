@@ -116,6 +116,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      */
     private static final int CRITIC_MIN_CHILDREN = 2;
 
+    /**
+     * Size value for {@link #constantKeySize} {@link #constantValueSize} and {@link #constantFullSize}
+     * to signal that size isn't constant.
+     *
+     * @see SizeEvaluator#constantKeySize()
+     * @see SizeEvaluator#constantValueSize()
+     */
+    private static final long VARIABLE_SIZE = -1L;
+
     private final Anchor<K, V> anchor;
 
     private final ConcurrentMap<Long, Node<K, V>> nodes;
@@ -125,6 +134,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     private final K positiveInfinity;
     private final long maxSize;
     private final long minSize;
+
+    private final long constantKeySize;
+    private final long constantValueSize;
+    private final long constantFullSize;
 
     private final SizeEvaluator<K, V> evaluator;
 
@@ -160,6 +173,50 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         public long evaluateAll(X key, Y value);
 
         /**
+         * Check if handled keys have a constant byte size or it changes from key to key.
+         *
+         * @return {@code true} if key size is constant, {@code false} otherwise
+         */
+        default public boolean isKeySizeConstant() {
+            return false;
+        }
+
+        /**
+         * Returns constant key size if key size doesn't changes.
+         *
+         * @return constant key size
+         *
+         * @throws UnsupportedOperationException if key size isn't constant
+         *
+         * @see #isKeySizeConstant()
+         */
+        default public long constantKeySize() throws UnsupportedOperationException {
+            throw new UnsupportedOperationException("Method constantKeySize not supported");
+        }
+
+        /**
+         * Check if handled value have a constant byte size or it changes from value to value.
+         *
+         * @return {@code true} if value size is constant, {@code false} otherwise
+         */
+        default public boolean isValueSizeConstant() {
+            return false;
+        }
+
+        /**
+         * Returns constant value size if value size doesn't changes.
+         *
+         * @return constant value size
+         *
+         * @throws UnsupportedOperationException if value size isn't constant
+         *
+         * @see #isValueSizeConstant()
+         */
+        default public long constantValueSize() throws UnsupportedOperationException {
+            throw new UnsupportedOperationException("Method constantValueSize not supported");
+        }
+
+        /**
          * Returns a value which is greater than all of the other values.
          * Code will check using '==', so this value must be a singleton.
          *
@@ -175,6 +232,33 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         if (this.positiveInfinity != evaluator.getPosiviveInfinityKey()) {
             throw new IllegalStateException("getPosiviveInfinityKey must always return the same value");
         }
+
+        if (evaluator.isKeySizeConstant()) {
+            constantKeySize = evaluator.constantKeySize();
+            if (constantKeySize <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid constant key size " + constantKeySize + ". It must be greater than 0");
+            }
+        } else {
+            constantKeySize = -1L;
+        }
+
+        if (evaluator.isValueSizeConstant()) {
+            constantValueSize = evaluator.constantValueSize();
+            if (constantValueSize <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid constant value size " + constantValueSize + ". It must be greater than 0");
+            }
+        } else {
+            constantValueSize = -1L;
+        }
+
+        if (evaluator.isKeySizeConstant() && evaluator.isValueSizeConstant()) {
+            constantFullSize = constantKeySize + constantValueSize;
+        } else {
+            constantFullSize = -1L;
+        }
+
         this.maxSize = maxSize;
         this.minSize = maxSize / 2;
 
@@ -206,6 +290,32 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         this.positiveInfinity = evaluator.getPosiviveInfinityKey();
         if (this.positiveInfinity != evaluator.getPosiviveInfinityKey()) {
             throw new IllegalStateException("getPosiviveInfinityKey must always return the same value");
+        }
+
+        if (evaluator.isKeySizeConstant()) {
+            constantKeySize = evaluator.constantKeySize();
+            if (constantKeySize <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid constant key size " + constantKeySize + ". It must be greater than 0");
+            }
+        } else {
+            constantKeySize = -1L;
+        }
+
+        if (evaluator.isValueSizeConstant()) {
+            constantValueSize = evaluator.constantValueSize();
+            if (constantValueSize <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid constant data size " + constantValueSize + ". It must be greater than 0");
+            }
+        } else {
+            constantValueSize = -1L;
+        }
+
+        if (evaluator.isKeySizeConstant() && evaluator.isValueSizeConstant()) {
+            constantFullSize = constantKeySize + constantValueSize;
+        } else {
+            constantFullSize = -1L;
         }
 
         this.maxSize = maxSize;
@@ -1959,9 +2069,13 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     } else {
                         ++count;
                         if (leaf) {
-                            keeping += owner.evaluator.evaluateAll(entry.getKey(), (Y) entry.getValue()) + ENTRY_CONSTANT_SIZE;
+                            keeping += owner.constantFullSize == VARIABLE_SIZE
+                                    ? owner.evaluator.evaluateAll(entry.getKey(), (Y) entry.getValue()) + ENTRY_CONSTANT_SIZE
+                                    : owner.constantFullSize + ENTRY_CONSTANT_SIZE;
                         } else {
-                            keeping += owner.evaluator.evaluateKey(entry.getKey()) + ENTRY_CONSTANT_SIZE;
+                            keeping += owner.constantKeySize == VARIABLE_SIZE
+                                    ? owner.evaluator.evaluateKey(entry.getKey()) + ENTRY_CONSTANT_SIZE
+                                    : owner.constantKeySize + ENTRY_CONSTANT_SIZE;
                         }
                         if (keeping >= limit) {
                             toright = true;
@@ -2120,21 +2234,22 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             if (old == null) {
                 ++keys;
-                final long added = owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                final long added = owner.constantFullSize == VARIABLE_SIZE
+                        ? owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE
+                        : owner.constantFullSize + ENTRY_CONSTANT_SIZE;
                 size += added;
                 /* Increase traced tree used memory */
                 owner.usedMemory.add(added);
-
-                return null;
             } else {
-                /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
-                final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
-                size += added;
-                /* Increase traced tree used memory */
-                owner.usedMemory.add(added);
-
-                return old;
+                if (owner.constantValueSize == VARIABLE_SIZE) {
+                    final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                    size += added;
+                    /* Increase traced tree used memory */
+                    owner.usedMemory.add(added);
+                }
             }
+
+            return old;
         }
 
         /**
@@ -2193,16 +2308,19 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             if (old == null) {
                 ++keys;
-                final long added = owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE;
+                final long added = owner.constantFullSize == VARIABLE_SIZE
+                        ? owner.evaluator.evaluateAll(key, value) + ENTRY_CONSTANT_SIZE
+                        : owner.constantFullSize + ENTRY_CONSTANT_SIZE;
                 size += added;
                 /* Increase traced tree used memory */
                 owner.usedMemory.add(added);
             } else {
-                /* TODO: this could be avoided if we can ensure that every value will have the same size (GitHub #341) */
-                final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
-                size += added;
-                /* Increase traced tree used memory */
-                owner.usedMemory.add(added);
+                if (owner.constantValueSize == VARIABLE_SIZE) {
+                    final long added = owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                    size += added;
+                    /* Increase traced tree used memory */
+                    owner.usedMemory.add(added);
+                }
             }
 
             return true;
@@ -2238,7 +2356,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 return null;
             } else {
                 --keys;
-                final long removed = owner.evaluator.evaluateAll(key, old) + ENTRY_CONSTANT_SIZE;
+                final long removed = owner.constantFullSize == VARIABLE_SIZE
+                        ? owner.evaluator.evaluateAll(key, old) + ENTRY_CONSTANT_SIZE
+                        : owner.constantFullSize + ENTRY_CONSTANT_SIZE;
                 size -= removed;
                 /* Decrease traced tree used memory */
                 owner.usedMemory.add(-removed);
@@ -2357,7 +2477,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             }
 
             ++keys;
-            final long added = owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+            final long added = owner.constantKeySize == VARIABLE_SIZE
+                    ? owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE
+                    : owner.constantKeySize + ENTRY_CONSTANT_SIZE;
             size += added;
             /* Increase traced tree used memory */
             owner.usedMemory.add(added);
@@ -2406,7 +2528,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     dirty = true;
 
                     --keys;
-                    final long removed = owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+                    final long removed = owner.constantKeySize == VARIABLE_SIZE
+                            ? owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE
+                            : owner.constantKeySize + ENTRY_CONSTANT_SIZE;
                     size -= removed;
                     /* Decrease traced tree used memory */
                     owner.usedMemory.add(-removed);
@@ -2769,7 +2893,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         /* positiveInfinity being singleton is practically considered 0 size */
                         entrySize = ENTRY_CONSTANT_SIZE;
                     } else {
-                        entrySize = owner.evaluator.evaluateKey(x) + ENTRY_CONSTANT_SIZE;
+                        entrySize = owner.constantKeySize == VARIABLE_SIZE
+                                ? owner.evaluator.evaluateKey(x) + ENTRY_CONSTANT_SIZE
+                                : owner.constantKeySize + ENTRY_CONSTANT_SIZE;
                     }
                     size += entrySize;
                 });
@@ -2792,10 +2918,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             /* Recalculate size if needed */
             if (size == UNKNOWN_SIZE) {
                 size = NODE_CONSTANT_SIZE;
-                /* Avoid a double entries loop and both put and evaluate in one loop */
-                map.forEach((x, y) -> {
-                    size += owner.evaluator.evaluateAll(x, (Y) y) + ENTRY_CONSTANT_SIZE;
-                });
+                if (owner.constantFullSize == VARIABLE_SIZE) {
+                    /* Avoid a double entries loop and both put and evaluate in one loop */
+                    map.forEach((x, y) -> {
+                        size += owner.evaluator.evaluateAll(x, (Y) y) + ENTRY_CONSTANT_SIZE;
+                    });
+                } else {
+                    size += (owner.constantFullSize + ENTRY_CONSTANT_SIZE) * map.size();
+                }
             }
 
             /* Loaded, add loaded memory count */
