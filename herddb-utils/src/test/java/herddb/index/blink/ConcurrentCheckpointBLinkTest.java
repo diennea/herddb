@@ -527,9 +527,9 @@ public class ConcurrentCheckpointBLinkTest {
     @Test
     public void concurrentReadWithManyEmptyNodes() throws Exception {
 
-        int concurrentReaders = 16;
-        int concurrentWriters = 2;
-        int concurrentDeleters = 4;
+        int concurrentReaders = 4;
+        int concurrentWriters = 1;
+        int concurrentDeleters = 2;
 
         boolean debugCheckpointers = false;
         boolean debugReaders = false;
