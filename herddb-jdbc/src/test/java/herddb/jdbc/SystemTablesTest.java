@@ -23,15 +23,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import herddb.model.StatementExecutionException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -223,6 +221,52 @@ public class SystemTablesTest {
                         assertFalse(rs.next());
 
                     }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Double() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try {
+                     BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement();
+                     statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
+                } catch(SQLException ex) {
+                    assertTrue(ex.getMessage().contains("StatementExecutionException"));
+                    assertTrue(ex.getMessage().contains("Not null constraints not supported for column type 6"));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void ensureWeThrowAppropriateExceptionWhenNotNullConstraintViolated_AddBatch_ExecuteBatch() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try {
+                    BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();
+                    statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string not null)");
+                    PreparedStatement insertPs = con.prepareStatement("INSERT INTO mytable (name) values(?)");
+                    for (int i = 0; i < 10; i++) {
+                        insertPs.setString(1, null);
+                        insertPs.addBatch();
+                    }
+                    insertPs.executeBatch();
+                } catch(SQLException ex) {
+                    assertTrue(ex.getMessage().contains("StatementExecutionException"));
+                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string not null"));
                 }
             }
         }
