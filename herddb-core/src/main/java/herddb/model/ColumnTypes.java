@@ -60,11 +60,11 @@ public class ColumnTypes {
             case BOOLEAN:
                 return "boolean";
             case NOTNULL_STRING:
-                return "string not null";
+                return "string";
             case NOTNULL_INTEGER:
-                return "integer not null";
+                return "integer";
             case NOTNULL_LONG:
-                return "long not null";
+                return "long";
             default:
                 return "type?" + type;
         }
