@@ -101,7 +101,7 @@ public class FileCommitLog extends CommitLog {
 
     private final int maxUnsyncedBatchSize;
     private final int maxUnsyncedBatchBytes;
-    private final int maxSyncTime;
+    private final long maxSyncTime;
     private final boolean requireSync;
     private final boolean enableO_DIRECT;
 
@@ -348,7 +348,7 @@ public class FileCommitLog extends CommitLog {
     ) {
         this.maxUnsyncedBatchSize = maxUnsynchedBatchSize;
         this.maxUnsyncedBatchBytes = maxUnsynchedBatchBytes;
-        this.maxSyncTime = maxSyncTime;
+        this.maxSyncTime = TimeUnit.MILLISECONDS.toNanos(maxSyncTime);
         this.requireSync = requireSync;
         this.enableO_DIRECT = enableO_DIRECT && OpenFileUtils.isO_DIRECT_Supported();
         this.onClose = onClose;
@@ -443,7 +443,7 @@ public class FileCommitLog extends CommitLog {
                 long unsyncedBytes = 0;
                 int unsyncedCount = 0;
                 while (!closed || !writeQueue.isEmpty()) {
-                    LogEntryHolderFuture entry = writeQueue.poll(maxSyncTime, TimeUnit.MICROSECONDS);
+                    LogEntryHolderFuture entry = writeQueue.poll(maxSyncTime, TimeUnit.NANOSECONDS);
                     boolean timedOut = false;
                     if (entry != null) {
                         if (entry.entry == null) {
