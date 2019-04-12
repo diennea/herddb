@@ -45,6 +45,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             .column("ordinal_position", ColumnTypes.INTEGER)
             .column("is_nullable", ColumnTypes.INTEGER)
             .column("data_type", ColumnTypes.STRING)
+            .column("type_name", ColumnTypes.STRING)
             .column("auto_increment", ColumnTypes.INTEGER)
             .primaryKey("column_name", false)
             .primaryKey("table_name", false)
@@ -71,7 +72,8 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "column_name", c.name,
                         "ordinal_position", pos++,
                         "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
-                        "data_type", data_type,
+                        "data_type",  ColumnTypes.sqlDataType(c.type),
+                        "type_name", data_type,
                         "auto_increment", (pk && t.auto_increment)?1:0
                 ));
             }

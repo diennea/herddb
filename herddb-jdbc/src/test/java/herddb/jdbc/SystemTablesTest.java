@@ -63,7 +63,7 @@ public class SystemTablesTest {
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE INDEX mytableindex ON mytable(name)");
-                    statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string, ts timestamp)");
+                    statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string not null, ts timestamp)");
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
 
@@ -266,7 +266,7 @@ public class SystemTablesTest {
                     insertPs.executeBatch();
                 } catch(SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
-                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string"));
+                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string not null"));
                 }
             }
         }

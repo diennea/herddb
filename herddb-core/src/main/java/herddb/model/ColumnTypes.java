@@ -60,11 +60,11 @@ public class ColumnTypes {
             case BOOLEAN:
                 return "boolean";
             case NOTNULL_STRING:
-                return "string";
+                return "string not null";
             case NOTNULL_INTEGER:
-                return "integer";
+                return "integer not null";
             case NOTNULL_LONG:
-                return "long";
+                return "long not null";
             default:
                 return "type?" + type;
         }
@@ -103,6 +103,33 @@ public class ColumnTypes {
             case NULL:
             default:
                 throw new StatementExecutionException("Not null constraints not supported for column type "+ type);
+        }
+    }
+
+
+    public static String sqlDataType(int type) {
+        switch (type) {
+            case STRING:
+            case NOTNULL_STRING:
+                return "string";
+            case LONG:
+            case NOTNULL_LONG:
+                return "long";
+            case INTEGER:
+            case NOTNULL_INTEGER:
+                return "integer";
+            case BYTEARRAY:
+                return "bytearray";
+            case TIMESTAMP:
+                return "timestamp";
+            case NULL:
+                return "null";
+            case DOUBLE:
+                return "double";
+            case BOOLEAN:
+                return "boolean";
+            default:
+                return "type?" + type;
         }
     }
 

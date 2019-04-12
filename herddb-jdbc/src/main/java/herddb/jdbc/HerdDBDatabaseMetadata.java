@@ -947,7 +947,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
 
-        String query = "SELECT table_name,column_name,data_type,auto_increment,is_nullable,ordinal_position FROM SYSCOLUMNS WHERE 1=1 ";
+        String query = "SELECT table_name,column_name,data_type,type_name,auto_increment,is_nullable,ordinal_position FROM SYSCOLUMNS WHERE 1=1 ";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
             query = query + " AND table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
         }
