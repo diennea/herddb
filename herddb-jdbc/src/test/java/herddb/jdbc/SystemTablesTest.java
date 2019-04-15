@@ -131,6 +131,11 @@ public class SystemTablesTest {
                             for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
                                 String value = rs.getString(i + 1);
                                 record.add(value);
+                                // Assert that name column has the appropriate data type and type names
+                                if(value != null && value.equalsIgnoreCase("name")) {
+                                    assertTrue(rs.getString("DATA_TYPE").equalsIgnoreCase("string"));
+                                    assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
+                                } 
                             }
                             records.add(record);
                         }
@@ -141,6 +146,12 @@ public class SystemTablesTest {
                         assertTrue(records.stream().filter(s
                                 -> s.contains("name") && s.contains("string")
                         ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("name") && s.contains("string")
+                                && s.contains("string not null")
+                        ).findAny().isPresent());
+
                         assertTrue(records.stream().filter(s
                                 -> s.contains("ts") && s.contains("timestamp")
                         ).findAny().isPresent());
@@ -266,7 +277,7 @@ public class SystemTablesTest {
                     insertPs.executeBatch();
                 } catch(SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
-                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string not null"));
+                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string"));
                 }
             }
         }
