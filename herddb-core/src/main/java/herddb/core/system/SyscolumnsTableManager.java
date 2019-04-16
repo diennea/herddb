@@ -64,8 +64,6 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             for (Column c : t.columns) {
                 boolean pk = t.isPrimaryKeyColumn(c.name);
                 boolean nonNullCType = pk ? true : ColumnTypes.isNotNullDataType(c.type);
-                String data_type = ColumnTypes.typeToString(c.type);
-
                 result.add(RecordSerializer.makeRecord(
                         table,
                         "table_name", t.name,
@@ -73,7 +71,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "ordinal_position", pos++,
                         "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
                         "data_type",  ColumnTypes.sqlDataType(c.type),
-                        "type_name", data_type,
+                        "type_name", ColumnTypes.typeToString(c.type),
                         "auto_increment", (pk && t.auto_increment)?1:0
                 ));
             }
