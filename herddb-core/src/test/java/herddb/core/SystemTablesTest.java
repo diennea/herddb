@@ -383,7 +383,8 @@ public class SystemTablesTest {
                         .filter(t
                                 -> t.get("table_name").equals("tsql")
                                 && t.get("column_name").equals("s1")
-                                && t.get("data_type").equals("string not null")
+                                && t.get("data_type").equals("string")
+                                && t.get("type_name").equals("string not null")
                                 && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
                         ).findAny().isPresent());
 
@@ -400,7 +401,8 @@ public class SystemTablesTest {
                         .filter(t
                                 -> t.get("table_name").equals("tsql2")
                                 && t.get("column_name").equals("n1")
-                                && t.get("data_type").equals("integer not null")
+                                && t.get("data_type").equals("integer")
+                                && t.get("type_name").equals("integer not null")
                                 && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
                         ).findAny().isPresent());
 
@@ -408,7 +410,8 @@ public class SystemTablesTest {
                         .filter(t
                                 -> t.get("table_name").equals("tsql2")
                                 && t.get("column_name").equals("s1")
-                                && t.get("data_type").equals("string not null")
+                                && t.get("data_type").equals("string")
+                                && t.get("type_name").equals("string not null")
                                 && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
                         ).findAny().isPresent());
 
@@ -416,7 +419,8 @@ public class SystemTablesTest {
                         .filter(t
                                 -> t.get("table_name").equals("tsql2")
                                 && t.get("column_name").equals("l1")
-                                && t.get("data_type").equals("long not null")
+                                && t.get("data_type").equals("long")
+                                && t.get("type_name").equals("long not null")
                                 && t.get("is_nullable").equals(DatabaseMetaData.columnNoNulls)
                         ).findAny().isPresent());
             }

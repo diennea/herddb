@@ -63,7 +63,9 @@ public class SystemTablesTest {
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE INDEX mytableindex ON mytable(name)");
-                    statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string, ts timestamp)");
+                    statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string not null, ts timestamp)");
+                    statement.execute("CREATE TABLE mytable3 (n2 int primary key auto_increment, age int not null, phone long not null, salary double, married bool)");
+
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
 
@@ -74,6 +76,7 @@ public class SystemTablesTest {
                         }
                         assertTrue(tables.contains("mytable"));
                         assertTrue(tables.contains("mytable2"));
+                        assertTrue(tables.contains("mytable3"));
 
                     }
 
@@ -90,6 +93,7 @@ public class SystemTablesTest {
                         }
                         assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("mytable2")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("mytable3")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("systables")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("syscolumns")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("sysstatements")).findAny().isPresent());
@@ -121,7 +125,8 @@ public class SystemTablesTest {
                         }
                         assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("mytable2")).findAny().isPresent());
-                        assertEquals(2, records.size());
+                        assertTrue(records.stream().filter(s -> s.contains("mytable3")).findAny().isPresent());
+                        assertEquals(3, records.size());
                     }
 
                     try (ResultSet rs = metaData.getColumns(null, null, "mytable2", null)) {
@@ -131,6 +136,11 @@ public class SystemTablesTest {
                             for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
                                 String value = rs.getString(i + 1);
                                 record.add(value);
+                                // Assert that name column has the appropriate data type and type names
+                                if(value != null && value.equalsIgnoreCase("name")) {
+                                    assertTrue(rs.getString("DATA_TYPE").equalsIgnoreCase("string"));
+                                    assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
+                                }
                             }
                             records.add(record);
                         }
@@ -141,8 +151,50 @@ public class SystemTablesTest {
                         assertTrue(records.stream().filter(s
                                 -> s.contains("name") && s.contains("string")
                         ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("name") && s.contains("string")
+                                && s.contains("string not null")
+                        ).findAny().isPresent());
+
                         assertTrue(records.stream().filter(s
                                 -> s.contains("ts") && s.contains("timestamp")
+                        ).findAny().isPresent());
+                    }
+
+                    try (ResultSet rs = metaData.getColumns(null, null, "mytable3", null)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertEquals(5, records.size());
+                        assertTrue(records.stream().filter(s -> s.contains("n2")
+                                && s.contains("integer")
+                        ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("age") && s.contains("integer")
+                                && s.contains("integer not null")
+                        ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("phone") && s.contains("long")
+                                && s.contains("long not null")
+                        ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("salary") && s.contains("double")
+                                && s.contains("double")
+                        ).findAny().isPresent());
+
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("married") && s.contains("boolean")
+                                && s.contains("boolean")
                         ).findAny().isPresent());
                     }
 
@@ -185,7 +237,7 @@ public class SystemTablesTest {
                             records.add(record);
                         }
                         // this is to be incremented at every new systable
-                        assertEquals(21, records.size());
+                        assertEquals(22, records.size());
                     }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();
@@ -266,7 +318,7 @@ public class SystemTablesTest {
                     insertPs.executeBatch();
                 } catch(SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
-                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string not null"));
+                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string"));
                 }
             }
         }

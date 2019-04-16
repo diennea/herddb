@@ -819,6 +819,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         "TABLE_NAME",
         "COLUMN_NAME",
         "DATA_TYPE",
+        "TYPE_NAME",
         "COLUMN_SIZE",
         "BUFFER_LENGTH",
         "DECIMAL_DIGITS",
@@ -947,7 +948,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
 
-        String query = "SELECT table_name,column_name,data_type,auto_increment,is_nullable,ordinal_position FROM SYSCOLUMNS WHERE 1=1 ";
+        String query = "SELECT table_name,column_name,data_type,type_name,auto_increment,is_nullable,ordinal_position FROM SYSCOLUMNS WHERE 1=1 ";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
             query = query + " AND table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
         }
@@ -962,6 +963,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 String table_name = rs.getString("table_name");
                 String column_name = rs.getString("column_name");
                 String data_type = rs.getString("data_type");
+                String type_name = rs.getString("type_name");
                 int auto_increment = rs.getInt("auto_increment");
                 int is_nullable = rs.getInt("is_nullable");
                 int ordinal_position = rs.getInt("ordinal_position");
@@ -971,6 +973,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 data.put("TABLE_SCHEM", tableSpace);
                 data.put("TABLE_NAME", table_name);
                 data.put("COLUMN_NAME", column_name);
+                data.put("TYPE_NAME", type_name);
                 data.put("DATA_TYPE", data_type);
                 data.put("COLUMN_SIZE", 0);
                 data.put("BUFFER_LENGTH", 0);

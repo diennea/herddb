@@ -623,7 +623,7 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_STRING:
             case ColumnTypes.NOTNULL_LONG:
                 if(value == null) {
-                    throw new StatementExecutionException("Cannot have null value in non null type "+ ColumnTypes.typeToString(type));
+                    throw new StatementExecutionException("Cannot have null value in non null type "+ ColumnTypes.sqlDataType(type));
                 }
             default:
                 return value;

@@ -106,4 +106,31 @@ public class ColumnTypes {
         }
     }
 
+
+    public static String sqlDataType(int type) {
+        switch (type) {
+            case STRING:
+            case NOTNULL_STRING:
+                return "string";
+            case LONG:
+            case NOTNULL_LONG:
+                return "long";
+            case INTEGER:
+            case NOTNULL_INTEGER:
+                return "integer";
+            case BYTEARRAY:
+                return "bytearray";
+            case TIMESTAMP:
+                return "timestamp";
+            case NULL:
+                return "null";
+            case DOUBLE:
+                return "double";
+            case BOOLEAN:
+                return "boolean";
+            default:
+                return "type?" + type;
+        }
+    }
+
 }
