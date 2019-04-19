@@ -65,7 +65,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         config.setThrottleValue(0);
         config.setZkServers(metadataStorageManager.getZkAddress());
         config.setZkTimeout(metadataStorageManager.getZkSessionTimeout());
-        config.setZkLedgersRootPath(metadataStorageManager.getLedgersPath());
+        config.setZkLedgersRootPath(serverConfiguration.getString(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH,
+                ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT));
         config.setEnableParallelRecoveryRead(true);
         config.setEnableDigestTypeAutodetection(true);
 

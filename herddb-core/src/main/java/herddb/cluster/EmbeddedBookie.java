@@ -57,7 +57,6 @@ public class EmbeddedBookie implements AutoCloseable {
 
     private BookieServer bookieServer;
 
-
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager) {
         this(baseDirectory, configuration, metadataManager, null);
     }
@@ -73,7 +72,7 @@ public class EmbeddedBookie implements AutoCloseable {
         org.apache.bookkeeper.conf.ServerConfiguration conf = new org.apache.bookkeeper.conf.ServerConfiguration();
         conf.setZkTimeout(metadataManager.getZkSessionTimeout());
         conf.setZkServers(metadataManager.getZkAddress());
-        conf.setZkLedgersRootPath(metadataManager.getLedgersPath());
+        conf.setZkLedgersRootPath(configuration.getString(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH, ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT));
         conf.setStatisticsEnabled(true);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT);
 
@@ -119,7 +118,7 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
         long _start = System.currentTimeMillis();
-        LOG.severe("Booting Apache Bookkeeper on port " + port);
+        LOG.severe("Booting Apache Bookkeeper on port " + port + ",  base directory: " + bookie_dir);
 
         Files.createDirectories(bookie_dir);
         dumpBookieConfiguration(bookie_dir, conf);
