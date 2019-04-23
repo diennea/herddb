@@ -122,6 +122,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookkeeper.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
+    
+    public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH = "server.bookkeeper.ledgers.path";
+    public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT = "/ledgers";
 
     public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble.size";
     public static final int PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;

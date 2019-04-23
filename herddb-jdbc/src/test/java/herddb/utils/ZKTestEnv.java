@@ -49,12 +49,12 @@ public class ZKTestEnv implements AutoCloseable {
             throw new Exception("bookie already started");
         }
         ServerConfiguration conf = new ServerConfiguration();
-        conf.setBookiePort(5621);
+        conf.setBookiePort(0);
         conf.setUseHostNameAsBookieID(true);
 
         Path targetDir = path.resolve("bookie_data");
         conf.setZkServers("localhost:1282");
-        conf.setZkLedgersRootPath(getPath() + "/ledgers");
+        conf.setZkLedgersRootPath("/ledgers");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);

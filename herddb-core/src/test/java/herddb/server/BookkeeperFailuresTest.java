@@ -86,7 +86,7 @@ public class BookkeeperFailuresTest {
     private BookKeeper createBookKeeper() throws Exception {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         clientConfiguration.setZkServers(testEnv.getAddress());
-        clientConfiguration.setZkLedgersRootPath(testEnv.getPath() + "/ledgers");
+        clientConfiguration.setZkLedgersRootPath(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         return BookKeeper.forConfig(clientConfiguration).build();
     }
 

@@ -21,6 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
+import herddb.client.ZookeeperClientSideMetadataProvider;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
@@ -81,7 +82,8 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
             serverConfiguration.readJdbcUrl(url);
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
             if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
-                    || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)) {
+                    || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)
+                    || (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode) && startServer)) {
                 LOGGER.log(Level.INFO, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
                 server = new Server(serverConfiguration, statsLogger);
                 try {
@@ -90,7 +92,10 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
                     if (waitForTableSpaceTimeout > 0) {
                         server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
                     }
-                    client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                    if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
+                            || ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode)) {
+                        client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                    }
                 } catch (Exception ex) {
                     throw new SQLException("Cannot boot embedded server " + ex, ex);
                 }

@@ -86,11 +86,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     public int getZkSessionTimeout() {
         return zkSessionTimeout;
-    }
-
-    public String getLedgersPath() {
-        return ledgersPath;
-    }
+    }   
 
     private synchronized void restartZooKeeper() throws IOException, InterruptedException {
         ZooKeeper old = zooKeeper;

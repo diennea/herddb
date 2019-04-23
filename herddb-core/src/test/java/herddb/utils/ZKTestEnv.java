@@ -72,7 +72,7 @@ public class ZKTestEnv implements AutoCloseable {
 
         Path targetDir = path.resolve("bookie_data");
         conf.setZkServers("localhost:1282");
-        conf.setZkLedgersRootPath(getPath() + "/ledgers");
+        conf.setZkLedgersRootPath(herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
