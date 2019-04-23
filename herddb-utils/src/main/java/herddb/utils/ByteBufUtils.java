@@ -30,15 +30,11 @@ import io.netty.buffer.ByteBuf;
  */
 public class ByteBufUtils {
 
-    private static final boolean READ_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.read.folded", false);
-    private static final boolean WRITE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.write.folded", false);
-
-
     public static final void writeArray(ByteBuf buffer, byte[] array) {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
-    
+
     public static final void writeArray(ByteBuf buffer, Bytes array) {
         writeVInt(buffer, array.getLength());
         buffer.writeBytes(array.getBuffer(), array.getOffset(), array.getLength());
@@ -90,15 +86,7 @@ public class ByteBufUtils {
         buffer.skipBytes(len);
     }
 
-    public static final void writeVInt(ByteBuf buffer, int i) {
-        if (WRITE_FOLDED_VAR_INT) {
-            writeVIntFolded(buffer, i);
-        } else {
-            writeVIntUnfolded(buffer, i);
-        }
-    }
-
-    protected static final void writeVIntUnfolded(ByteBuf buffer, int i) {
+    public static final void writeVInt(ByteBuf buffer, int i) {      
         if ((i & ~0x7F) != 0) {
             buffer.writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -122,19 +110,7 @@ public class ByteBufUtils {
         buffer.writeByte((byte) i);
     }
 
-    protected static final void writeVIntFolded(ByteBuf buffer, int i) {
-        while ((i & ~0x7F) != 0) {
-            buffer.writeByte((byte) ((i & 0x7F) | 0x80));
-            i >>>= 7;
-        }
-        buffer.writeByte((byte) i);
-    }
-
     public static final int readVInt(ByteBuf buffer) {
-        return READ_FOLDED_VAR_INT ? readVIntFolded(buffer) : readVIntUnfolded(buffer);
-    }
-
-    protected static final int readVIntUnfolded(ByteBuf buffer) {
         byte b = buffer.readByte();
         int i = b & 0x7F;
 
@@ -156,16 +132,6 @@ public class ByteBufUtils {
                     }
                 }
             }
-        }
-        return i;
-    }
-
-    protected static final int readVIntFolded(ByteBuf buffer) {
-        byte b = buffer.readByte();
-        int i = b & 0x7F;
-        for (int shift = 7; (b & 0x80) != 0; shift += 7) {
-            b = buffer.readByte();
-            i |= (b & 0x7F) << shift;
         }
         return i;
     }

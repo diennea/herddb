@@ -35,8 +35,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  */
 public class ExtendedDataInputStream extends DataInputStream {
 
-    private static final boolean USE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.read.folded",false);
-
     public ExtendedDataInputStream(InputStream in) {
         super(in);
     }
@@ -49,18 +47,10 @@ public class ExtendedDataInputStream extends DataInputStream {
      * @throws java.io.IOException
      */
     public int readVInt() throws IOException {
-        return USE_FOLDED_VAR_INT ? readVIntFolded(readByte()) : readVIntUnfolded(readByte());
+        return readVInt(readByte());
     }
-    
-    int readVIntFolded() throws IOException {
-        return readVIntFolded(readByte());
-    }
-    
-    int readVIntUnfolded() throws IOException {
-        return readVIntUnfolded(readByte());
-    }
-
-    protected int readVIntUnfolded(byte first) throws IOException {
+        
+    protected int readVInt(byte first) throws IOException {
         byte b = first;
         int i = b & 0x7F;
 
@@ -86,15 +76,6 @@ public class ExtendedDataInputStream extends DataInputStream {
         return i;
     }
 
-    protected int readVIntFolded(byte first) throws IOException {
-        byte b = first;
-        int i = b & 0x7F;
-        for (int shift = 7; (b & 0x80) != 0; shift += 7) {
-            b = readByte();
-            i |= (b & 0x7F) << shift;
-        }
-        return i;
-    }
 
     private boolean eof;
 
@@ -121,7 +102,7 @@ public class ExtendedDataInputStream extends DataInputStream {
             return -1;
         }
 
-        return USE_FOLDED_VAR_INT ? readVIntFolded((byte) (ch)) : readVIntUnfolded((byte) (ch));
+        return readVInt((byte) (ch));
     }
 
     /**
@@ -205,7 +186,7 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
 
     public int readZInt() throws IOException {
-        int i = readVInt();
+        int i = ExtendedDataInputStream.this.readVInt();
         return (i >>> 1) ^ -(i & 1);
     }
 
@@ -221,7 +202,7 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
     
     public byte[] readArray() throws IOException {
-        int len = readVInt();
+        int len = ExtendedDataInputStream.this.readVInt();
         if (len == 0) {
             return EMPTY_ARRAY;
         } else if (len == -1) {
@@ -235,7 +216,7 @@ public class ExtendedDataInputStream extends DataInputStream {
 
     @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipArray() throws IOException {
-        int len = readVInt();
+        int len = ExtendedDataInputStream.this.readVInt();
         if (len == 0) {
             return;
         }

@@ -33,8 +33,6 @@ import java.io.OutputStream;
  */
 public final class ExtendedDataOutputStream extends DataOutputStream {
 
-    private static final boolean USE_FOLDED_VAR_INT = SystemProperties.getBooleanSystemProperty("herddb.vint.write.folded", false);
-
     public static final ExtendedDataOutputStream NULL = new ExtendedDataOutputStream(NullOutputStream.INSTANCE);
 
     public ExtendedDataOutputStream(OutputStream out) {
@@ -47,16 +45,7 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
      * @param i
      * @throws java.io.IOException
      */
-    public final void writeVInt(int i) throws IOException {
-        if (USE_FOLDED_VAR_INT) {
-            writeVIntFolded(i);
-        } else {
-            writeVIntUnfolded(i);
-        }
-    }
-
-    protected final void writeVIntUnfolded(int i) throws IOException {
-
+    public final void writeVInt(int i) throws IOException {        
         if ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -77,14 +66,6 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
             }
         }
 
-        writeByte((byte) i);
-    }
-
-    protected final void writeVIntFolded(int i) throws IOException {
-        while ((i & ~0x7F) != 0) {
-            writeByte((byte) ((i & 0x7F) | 0x80));
-            i >>>= 7;
-        }
         writeByte((byte) i);
     }
 

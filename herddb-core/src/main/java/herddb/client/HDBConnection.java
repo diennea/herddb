@@ -89,7 +89,7 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public void close() {
-        LOGGER.log(Level.SEVERE, "{0} close ", this);
+        LOGGER.log(Level.FINER, "{0} close ", this);
         closed = true;
         routes.forEach((n, b) -> {
             for (RoutedClientSideConnection cc : b) {
