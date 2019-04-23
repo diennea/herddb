@@ -27,6 +27,16 @@ public class ExtendedDataOutputStreamTest {
         checkAndCompareVInt(new byte[] { -1, -1, -1, -1, 7 }, Integer.MAX_VALUE);
 
     }
+    
+    
+    protected final void writeVIntFolded(ExtendedDataOutputStream oo, int i) throws IOException {
+        while ((i & ~0x7F) != 0) {
+            oo.writeByte((byte) ((i & 0x7F) | 0x80));
+            i >>>= 7;
+        }
+        oo.writeByte((byte) i);
+    }
+
 
     private void checkAndCompareVInt(byte[] expected, int data) throws IOException {
 
@@ -37,7 +47,7 @@ public class ExtendedDataOutputStreamTest {
         try (VisibleByteArrayOutputStream vos = new VisibleByteArrayOutputStream(expected.length);
                 ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
 
-            os.writeVIntFolded(data);
+            writeVIntFolded(os, data);
 
             folded = vos.buf;
         }
@@ -45,7 +55,7 @@ public class ExtendedDataOutputStreamTest {
         try (VisibleByteArrayOutputStream vos = new VisibleByteArrayOutputStream(expected.length);
                 ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
 
-            os.writeVIntUnfolded(data);
+            os.writeVInt(data);
 
             unfolded = vos.buf;
         }

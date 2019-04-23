@@ -21,25 +21,35 @@ public class ExtendedDataInputStreamTest {
     @Test
     public void testReadVInt() throws IOException {
 
-        checkAndCompareVInt(0, new byte[] { 0 });
-        checkAndCompareVInt(1, new byte[] { 1 });
-        checkAndCompareVInt(-1, new byte[] { -1, -1, -1, -1, 15 });
-        checkAndCompareVInt(Integer.MIN_VALUE, new byte[] { -128, -128, -128, -128, 8 });
-        checkAndCompareVInt(Integer.MAX_VALUE, new byte[] { -1, -1, -1, -1, 7 });
+        checkAndCompareVInt(0, new byte[]{0});
+        checkAndCompareVInt(1, new byte[]{1});
+        checkAndCompareVInt(-1, new byte[]{-1, -1, -1, -1, 15});
+        checkAndCompareVInt(Integer.MIN_VALUE, new byte[]{-128, -128, -128, -128, 8});
+        checkAndCompareVInt(Integer.MAX_VALUE, new byte[]{-1, -1, -1, -1, 7});
 
+    }
+
+    protected int readVIntFolded(byte first, ExtendedDataInputStream ii) throws IOException {
+        byte b = first;
+        int i = b & 0x7F;
+        for (int shift = 7; (b & 0x80) != 0; shift += 7) {
+            b = ii.readByte();
+            i |= (b & 0x7F) << shift;
+        }
+        return i;
     }
 
     private void checkAndCompareVInt(int expected, byte[] data) throws IOException {
 
         try (ExtendedDataInputStream is = new ExtendedDataInputStream(new ByteArrayInputStream(data))) {
             is.mark(5);
-            int folded = is.readVIntFolded();
+            int folded = readVIntFolded(is.readByte(), is);
 
             is.reset();
-            int unfolded = is.readVIntUnfolded();
+            int unfolded = is.readVInt();
 
-            Assert.assertEquals(expected,unfolded);
-            Assert.assertEquals(expected,folded);
+            Assert.assertEquals(expected, unfolded);
+            Assert.assertEquals(expected, folded);
         }
 
     }

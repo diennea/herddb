@@ -248,7 +248,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     }
 
     public void close() {
-        LOGGER.log(Level.SEVERE, "{0} - close", this);
+        LOGGER.log(Level.FINER, "{0} - close", this);
 
         connectionLock.writeLock().lock();
         try {
@@ -687,7 +687,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         try {
             while (true) {
                 String entryType = source.nextEntryType();
-                LOGGER.log(Level.SEVERE, "restore, entryType:{0}", entryType);
+                LOGGER.log(Level.FINEST, "restore, entryType:{0}", entryType);
                 switch (entryType) {
 
                     case BackupFileConstants.ENTRY_TYPE_START: {
