@@ -184,12 +184,19 @@ public class SimpleClientServerTest {
                     assertTrue(ok.getMessage().contains(MissingJDBCParameterException.class.getName()));
                 }
 
+                // simple rollback
+                long txToRollback = connection.beginTransaction(TableSpace.DEFAULT);
+                long countInsertToRollback = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", txToRollback, false, true, Arrays.asList("test123", 7, 8)).updateCount;
+                Assert.assertEquals(1, countInsertToRollback);
+                connection.rollbackTransaction(TableSpace.DEFAULT, txToRollback);
             }
         }
     }
 
     /**
-     * Testing that if the server discards the query the client will resend the PREPARE_STATEMENT COMMAND
+     * Testing that if the server discards the query the client will resend the
+     * PREPARE_STATEMENT COMMAND
      *
      * @throws Exception
      */

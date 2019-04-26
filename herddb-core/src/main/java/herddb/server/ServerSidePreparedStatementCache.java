@@ -36,7 +36,7 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class ServerSidePreparedStatementCache {
+public final class ServerSidePreparedStatementCache {
 
     private final AtomicLong idGenerator = new AtomicLong();
     private final Cache<String, Long> preparedStatements;
@@ -77,11 +77,7 @@ public class ServerSidePreparedStatementCache {
                 })
                 .build();
     }
-
-    public void registerQueryId(String tableSpace, String text, long id) {
-        preparedStatements.put(tableSpace + "#" + text, id);
-    }
-
+   
     long prepare(String tableSpace, String text) {
         try {
             return preparedStatements.get(tableSpace + "#" + text, () -> {
