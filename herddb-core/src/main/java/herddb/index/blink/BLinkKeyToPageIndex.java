@@ -583,8 +583,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             long storeId = cursor.readVLong();
 
             /* Boolean read, we don't need "empty" flag anymore but still exists in this version */
-            @SuppressWarnings("unused")
-            boolean empty = cursor.readBoolean();
+            cursor.readBoolean();
 
             int keys = cursor.readVInt();
             long bytes = cursor.readVLong();
