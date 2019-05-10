@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.cluster;
 
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
@@ -36,6 +36,8 @@ import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 

@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.cluster;
 
 import herddb.cluster.BookkeeperCommitLog;
 import static org.junit.Assert.assertEquals;
@@ -37,7 +37,6 @@ import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
 import herddb.core.TableSpaceManager;
-import herddb.log.CommitLog;
 import herddb.log.LogSequenceNumber;
 import herddb.model.ColumnTypes;
 import herddb.model.DMLStatementExecutionResult;
@@ -54,6 +53,8 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;

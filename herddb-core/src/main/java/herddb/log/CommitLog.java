@@ -44,7 +44,21 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
 
-    public abstract void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException;
+    public static interface FollowerContext extends AutoCloseable {
+
+        @Override
+        public default void close() {
+        }
+    }
+
+    public <T extends FollowerContext> T startFollowing(LogSequenceNumber lastPosition) {
+        return null;
+    }
+
+    public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            FollowerContext context) throws LogNotAvailableException {
+            // useful only on cluster
+    }
 
     public abstract LogSequenceNumber getLastSequenceNumber();
 
