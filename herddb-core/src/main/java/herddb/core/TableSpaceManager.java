@@ -943,17 +943,11 @@ public class TableSpaceManager {
         public void run() {
             try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
-                    log.followTheLeader(actualLogSequenceNumber, new BiConsumer< LogSequenceNumber, LogEntry>() {
-                        @Override
-                        public void accept(LogSequenceNumber num, LogEntry u
-                        ) {
-                            try {
-                                apply(new CommitLogResult(num, false, true), u, false);
-                                LOGGER.info("followed "+u+" at "+num+" now ALSN "+actualLogSequenceNumber);
-                                
-                            } catch (Throwable t) {
-                                throw new RuntimeException(t);
-                            }
+                    log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                        try {
+                            apply(new CommitLogResult(num, false, true), u, false);
+                        } catch (Throwable t) {
+                            throw new RuntimeException(t);
                         }
                     }, context );
                 }

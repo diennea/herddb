@@ -538,7 +538,9 @@ public class BookkeeperCommitLog extends CommitLog {
 
                 if (currentLedger.isClosed() && currentLedger.getLastAddConfirmed()
                         == nextEntryToRead - 1) {
-                    LOGGER.info(tableSpaceDescription() + " ledger " + currentLedger.getId() + " is closed and we have fully read it");
+                    if (LOGGER.isLoggable(Level.FINER)) {
+                        LOGGER.finer(tableSpaceDescription() + " ledger " + currentLedger.getId() + " is closed and we have fully read it");
+                    }
                 } else {
                     if (LOGGER.isLoggable(Level.FINER)) {
                         LOGGER.finer(tableSpaceDescription() + " seekToNextLedger keep current handle " + currentLedger.getId() + " nextEntry " + nextEntryToRead);
@@ -686,7 +688,7 @@ public class BookkeeperCommitLog extends CommitLog {
         } catch (EOFException | org.apache.bookkeeper.client.api.BKException err) {
             LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
             throw new LogNotAvailableException(err);
-        } catch (InterruptedException err) {            
+        } catch (InterruptedException err) {
             LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
