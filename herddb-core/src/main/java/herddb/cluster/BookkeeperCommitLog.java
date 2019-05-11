@@ -63,6 +63,8 @@ public class BookkeeperCommitLog extends CommitLog {
     private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
     // Max number for entry to read while tailing
     private static final int MAX_ENTRY_TO_TAIL = 5000;
+    // Max time to wait for an entry to arrive
+    private static final int LONG_POLL_TIMEOUT = 1000;
     private final String sharedSecret = "herddb";
     private final BookKeeper bookKeeper;
     private final BookkeeperCommitLogManager parent;
@@ -534,7 +536,12 @@ public class BookkeeperCommitLog extends CommitLog {
                     // not the same ledger of currentPosition, need to read from 0
                     nextEntryToRead = 0;
                 }
-                currentLedger.tryReadLastAddConfirmed();
+                if (currentLedger.getLastAddConfirmed() < nextEntryToRead) {
+                    // let's see if there is new data on the ledger
+                    // tryReadLastAddConfirmed will perform and RPC to bookie
+                    // to read the current LAC
+                    currentLedger.tryReadLastAddConfirmed();
+                }
 
                 if (currentLedger.isClosed() && currentLedger.getLastAddConfirmed()
                         == nextEntryToRead - 1) {
@@ -659,7 +666,7 @@ public class BookkeeperCommitLog extends CommitLog {
             }
 
             ReadHandle lh = fContext.currentLedger;
-            try (LastConfirmedAndEntry entryAndLac = lh.readLastAddConfirmedAndEntry(nextEntry, 1000, false);) {
+            try (LastConfirmedAndEntry entryAndLac = lh.readLastAddConfirmedAndEntry(nextEntry, LONG_POLL_TIMEOUT, false);) {
                 if (entryAndLac.hasEntry()) {
                     org.apache.bookkeeper.client.api.LedgerEntry e = entryAndLac.getEntry();
                     acceptEntryForFollower(e, consumer);
