@@ -713,7 +713,7 @@ public class TableSpaceManager {
         Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
         tablesNeedingCheckPoint.clear();
         for (String table : tablesToDo) {
-            LOGGER.log(Level.SEVERE, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
+            LOGGER.log(Level.INFO, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
             AbstractTableManager tableManager = tables.get(table);
             if (tableManager != null) {
                 try {
