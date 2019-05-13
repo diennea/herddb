@@ -713,7 +713,7 @@ public class TableSpaceManager {
         Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
         tablesNeedingCheckPoint.clear();
         for (String table : tablesToDo) {
-            LOGGER.log(Level.SEVERE, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
+            LOGGER.log(Level.INFO, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
             AbstractTableManager tableManager = tables.get(table);
             if (tableManager != null) {
                 try {
@@ -941,19 +941,15 @@ public class TableSpaceManager {
 
         @Override
         public void run() {
-            try {
+            try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
-                    log.followTheLeader(actualLogSequenceNumber, new BiConsumer< LogSequenceNumber, LogEntry>() {
-                        @Override
-                        public void accept(LogSequenceNumber num, LogEntry u
-                        ) {
-                            try {
-                                apply(new CommitLogResult(num, false, true), u, false);
-                            } catch (Throwable t) {
-                                throw new RuntimeException(t);
-                            }
+                    log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                        try {
+                            apply(new CommitLogResult(num, false, true), u, false);
+                        } catch (Throwable t) {
+                            throw new RuntimeException(t);
                         }
-                    });
+                    }, context );
                 }
             } catch (Throwable t) {
                 LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);

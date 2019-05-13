@@ -91,10 +91,6 @@ public class MemoryCommitLogManager extends CommitLogManager {
             }
 
             @Override
-            public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
-            }
-
-            @Override
             public void startWriting() throws LogNotAvailableException {
             }
 

@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.cluster;
 
 import herddb.client.ClientConfiguration;
 import herddb.client.GetResult;
@@ -32,6 +32,8 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;

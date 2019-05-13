@@ -638,11 +638,6 @@ public class FileCommitLog extends CommitLog {
     }
 
     @Override
-    public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
-        // we are always the leader!
-    }
-
-    @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
         LOGGER.log(Level.INFO, "recovery {1}, snapshotSequenceNumber: {0}", new Object[]{snapshotSequenceNumber, tableSpaceName});
         // no lock is needed, we are at boot time

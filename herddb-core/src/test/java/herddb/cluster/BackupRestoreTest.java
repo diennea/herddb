@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.cluster;
 
 import static org.junit.Assert.assertEquals;
 
@@ -54,6 +54,8 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
 

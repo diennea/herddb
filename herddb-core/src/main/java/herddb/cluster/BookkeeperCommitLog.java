@@ -29,7 +29,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
@@ -46,9 +45,13 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import io.netty.buffer.ByteBuf;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
+import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
+import org.apache.bookkeeper.client.api.LedgerEntries;
+import org.apache.bookkeeper.client.api.ReadHandle;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -58,7 +61,10 @@ import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 public class BookkeeperCommitLog extends CommitLog {
 
     private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
-
+    // Max number for entry to read while tailing
+    private static final int MAX_ENTRY_TO_TAIL = 5000;
+    // Max time to wait for an entry to arrive
+    private static final int LONG_POLL_TIMEOUT = 1000;
     private final String sharedSecret = "herddb";
     private final BookKeeper bookKeeper;
     private final BookkeeperCommitLogManager parent;
@@ -154,22 +160,22 @@ public class BookkeeperCommitLog extends CommitLog {
 
         @Override
         public void close() throws LogNotAvailableException {
-            LedgerHandle _out = out;
-            if (_out == null) {
-                return;
-            }
-            try {
-                LOGGER.log(Level.SEVERE, "Closing ledger " + _out.getId()
-                        + ", with LastAddConfirmed=" + _out.getLastAddConfirmed()
-                        + ", LastAddPushed=" + _out.getLastAddPushed()
-                        + " length=" + _out.getLength()
-                        + ", errorOccurred:" + errorOccurredDuringWrite);
 
-                _out.close();
-            } catch (InterruptedException | BKException err) {
-                throw new LogNotAvailableException(err);
-            } finally {
-                out = null;
+            LedgerHandle _out = out;
+            if (_out != null) {
+                try {
+                    LOGGER.log(Level.INFO, "Closing ledger " + _out.getId()
+                            + ", with LastAddConfirmed=" + _out.getLastAddConfirmed()
+                            + ", LastAddPushed=" + _out.getLastAddPushed()
+                            + " length=" + _out.getLength()
+                            + ", errorOccurred:" + errorOccurredDuringWrite);
+
+                    _out.close();
+                } catch (InterruptedException | BKException err) {
+                    throw new LogNotAvailableException(err);
+                } finally {
+                    out = null;
+                }
             }
         }
 
@@ -302,7 +308,7 @@ public class BookkeeperCommitLog extends CommitLog {
             closeCurrentWriter();
             writer = new CommitFileWriter();
             currentLedgerId = writer.getLedgerId();
-            LOGGER.log(Level.SEVERE, "Tablespace {1}, opened new ledger:{0}", new Object[]{currentLedgerId, tableSpaceDescription()});
+            LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}", new Object[]{currentLedgerId, tableSpaceDescription()});
             if (actualLedgersList.getFirstLedger() < 0) {
                 actualLedgersList.setFirstLedger(currentLedgerId);
             }
@@ -317,11 +323,11 @@ public class BookkeeperCommitLog extends CommitLog {
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
         String tableSpaceDescription = tableSpaceDescription();
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
-        LOGGER.log(Level.SEVERE, "Actual ledgers list:{0} tableSpace {1}", new Object[]{actualLedgersList, tableSpaceDescription});
+        LOGGER.log(Level.INFO, "Actual ledgers list:{0} tableSpace {1}", new Object[]{actualLedgersList, tableSpaceDescription});
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         this.lastSequenceNumber.set(snapshotSequenceNumber.offset);
-        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:{0} tableSpace {1}, node {2}, fencing {3}", new Object[]{snapshotSequenceNumber, tableSpaceDescription, localNodeId, fencing});
+        LOGGER.log(Level.INFO, "recovery from latest snapshotSequenceNumber:{0} tableSpace {1}, node {2}, fencing {3}", new Object[]{snapshotSequenceNumber, tableSpaceDescription, localNodeId, fencing});
         if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId) && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
             // TODO: download snapshot from another remote broker
             throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + " tablespace " + tableSpaceDescription));
@@ -348,7 +354,7 @@ public class BookkeeperCommitLog extends CommitLog {
                         first = snapshotSequenceNumber.offset;
                         if (first == -1) {
                             // this can happen if checkpoint  happened while starting to follow a new ledger but actually no entry was ever read
-                            LOGGER.log(Level.SEVERE, "Tablespace " + tableSpaceDescription + ", recovering from latest snapshot ledger " + ledgerId + ", first entry " + first + " is not valid. Adjusting to 0");
+                            LOGGER.log(Level.INFO, "Tablespace " + tableSpaceDescription + ", recovering from latest snapshot ledger " + ledgerId + ", first entry " + first + " is not valid. Adjusting to 0");
                             first = 0;
                         }
                         LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription + ", recovering from latest snapshot ledger " + ledgerId + ", starting from entry " + first);
@@ -434,22 +440,22 @@ public class BookkeeperCommitLog extends CommitLog {
         if (ledgersRetentionPeriod <= 0) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}, tablespace {4}, actualLedgersList {5}",
+        LOGGER.log(Level.INFO, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}, tablespace {4}, actualLedgersList {5}",
                 new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId, tableSpaceDescription(), actualLedgersList});
         long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
         List<Long> oldLedgers = actualLedgersList.getOldLedgers(min_timestamp);
-        LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3} tablespace {4}",
+        LOGGER.log(Level.INFO, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3} tablespace {4}",
                 new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers, tableSpaceDescription()});
         oldLedgers.remove(this.currentLedgerId);
         oldLedgers.remove(this.lastLedgerId);
         if (oldLedgers.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "dropOldLedgers no ledger to drop now, tablespace {0}",
+            LOGGER.log(Level.INFO, "dropOldLedgers no ledger to drop now, tablespace {0}",
                     new Object[]{tableSpaceDescription()});
             return;
         }
         for (long ledgerId : oldLedgers) {
             try {
-                LOGGER.log(Level.SEVERE, "dropping ledger {0}, tablespace {1}", new Object[]{ledgerId, tableSpaceDescription()});
+                LOGGER.log(Level.INFO, "dropping ledger {0}, tablespace {1}", new Object[]{ledgerId, tableSpaceDescription()});
                 actualLedgersList.removeLedger(ledgerId);
                 try {
                     bookKeeper.deleteLedger(ledgerId);
@@ -457,7 +463,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace " + tableSpaceDescription(), error);
                 }
                 metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
-                LOGGER.log(Level.SEVERE, "dropping ledger {0}, finished, tablespace {1}", new Object[]{ledgerId, tableSpaceDescription()});
+                LOGGER.log(Level.INFO, "dropping ledger {0}, finished, tablespace {1}", new Object[]{ledgerId, tableSpaceDescription()});
             } catch (BKException | InterruptedException error) {
                 LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace " + tableSpaceDescription(), error);
                 throw new LogNotAvailableException(error);
@@ -485,11 +491,10 @@ public class BookkeeperCommitLog extends CommitLog {
 
     private void closeCurrentWriter() {
         if (writer != null) {
-
             try {
                 writer.close();
-            } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error while closing ledger", err);
+            } catch (LogNotAvailableException err) {
+                LOGGER.log(Level.SEVERE, "error while closing ledger during write", err);
             } finally {
                 writer = null;
             }
@@ -506,72 +511,213 @@ public class BookkeeperCommitLog extends CommitLog {
         return failed;
     }
 
-    @Override
-    public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
+    private final class BKFollowerContext implements FollowerContext {
 
-        List<Long> actualList = metadataManager.getActualLedgersList(tableSpaceUUID).getActiveLedgers();
+        volatile ReadHandle currentLedger;
+        volatile long nextEntryToRead;
+        volatile long ledgerToTail;
 
-        List<Long> toRead = actualList;
-        if (skipPast.ledgerId != -1) {
-            toRead = toRead.stream().filter(l -> l >= skipPast.ledgerId).collect(Collectors.toList());
+        BKFollowerContext(LogSequenceNumber lastPosition) {
+            ledgerToTail = lastPosition.ledgerId;
+            nextEntryToRead = lastPosition.offset + 1;
+            LOGGER.info(tableSpaceDescription() + " start following, fist position is " + lastPosition);
         }
-        try {
-            long nextEntry = skipPast.offset + 1;
-//            LOGGER.log(Level.SEVERE, "followTheLeader "+tableSpace+" skipPast:{0} toRead: {1} actualList:{2}, nextEntry:{3}", new Object[]{skipPast, toRead, actualList, nextEntry});
-            for (Long previous : toRead) {
-                //LOGGER.log(Level.SEVERE, "followTheLeader openLedger " + previous + " nextEntry:" + nextEntry);
-                LedgerHandle lh;
-                try {
-                    lh = bookKeeper.openLedgerNoRecovery(previous,
-                            BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
-                } catch (BKException.BKLedgerRecoveryException e) {
-                    LOGGER.log(Level.SEVERE, "error", e);
+
+        void ensureOpenReader(LogSequenceNumber currentPosition) throws org.apache.bookkeeper.client.api.BKException,
+                InterruptedException, LogNotAvailableException {
+            if (LOGGER.isLoggable(Level.FINER)) {
+                LOGGER.finer(tableSpaceDescription() + " seekToNextLedger currentPosition=" + currentPosition + " ledgerToTail " + ledgerToTail);
+            }
+            // we are alreading tailing the good ledger, but it may not be the same of "currentPosition"
+            if (currentLedger != null && currentLedger.getId() == ledgerToTail) {
+                if (currentPosition.ledgerId == ledgerToTail) {
+                    nextEntryToRead = currentPosition.offset + 1;
+                } else {
+                    // not the same ledger of currentPosition, need to read from 0
+                    nextEntryToRead = 0;
+                }
+                if (currentLedger.getLastAddConfirmed() < nextEntryToRead) {
+                    // let's see if there is new data on the ledger
+                    // tryReadLastAddConfirmed will perform and RPC to bookie
+                    // to read the current LAC
+                    currentLedger.tryReadLastAddConfirmed();
+                }
+
+                if (currentLedger.isClosed() && currentLedger.getLastAddConfirmed()
+                        == nextEntryToRead - 1) {
+                    if (LOGGER.isLoggable(Level.FINER)) {
+                        LOGGER.finer(tableSpaceDescription() + " ledger " + currentLedger.getId() + " is closed and we have fully read it");
+                    }
+                } else {
+                    if (LOGGER.isLoggable(Level.FINER)) {
+                        LOGGER.finer(tableSpaceDescription() + " seekToNextLedger keep current handle " + currentLedger.getId() + " nextEntry " + nextEntryToRead);
+                    }
                     return;
                 }
-                try {
-                    long lastAddConfirmed = lh.getLastAddConfirmed();
-//                    LOGGER.log(Level.INFO, "followTheLeader {3} openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry, tableSpaceDescription()});
-                    if (nextEntry > lastAddConfirmed) {
-                        nextEntry = 0;
-                        continue;
-                    }
-                    Enumeration<LedgerEntry> entries
-                            = lh.readEntries(nextEntry, lastAddConfirmed);
+            }
+            // current ledgers list
+            List<Long> actualList = metadataManager.getActualLedgersList(tableSpaceUUID).getActiveLedgers();
+            Collections.sort(actualList);
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.fine(tableSpaceDescription() + " ledgers list " + actualList);
+            }
+            if (actualList.isEmpty()) {
+                LOGGER.severe(tableSpaceDescription() + " no ledger in list?");
+                return;
+            }
+            if (ledgerToTail == -1) {
+                // we are not booting from a snapshot, start from the start of time
+                ledgerToTail = actualList.get(0);
+            }
+            if (!actualList.contains(ledgerToTail)) {
+                throw new LogNotAvailableException(tableSpaceDescription() + " First Ledger to open " + ledgerToTail + ", is not in the activer ledgers list " + actualList);
+            }
+            // no ledger opened, we are booting
+            if (currentLedger == null) {
+                currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
+                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.fine(tableSpaceDescription() + " opened direct ledger " + ledgerToTail);
+                }
+                nextEntryToRead = currentPosition.offset + 1;
+                return;
+            }
 
-                    while (entries.hasMoreElements()) {
-                        LedgerEntry e = entries.nextElement();
-                        long entryId = e.getEntryId();
-
-                        byte[] entryData = e.getEntry();
-                        LogEntry statusEdit = LogEntry.deserialize(entryData);
-//                        LOGGER.log(Level.SEVERE, "" + tableSpaceUUID + " followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
-                        LogSequenceNumber number = new LogSequenceNumber(previous, entryId);
-                        if (lastLedgerId == number.ledgerId) {
-                            lastSequenceNumber.accumulateAndGet(number.offset, EnsureLongIncrementAccumulator.INSTANCE);
-                        } else {
-                            lastSequenceNumber.set(number.offset);
-                        }
-                        lastLedgerId = number.ledgerId;
-                        currentLedgerId = number.ledgerId;
-                        consumer.accept(number, statusEdit);
-                    }
-                } finally {
-                    try {
-                        lh.close();
-                    } catch (BKException err) {
-                        LOGGER.log(Level.SEVERE, "error while closing ledger", err);
-                    } catch (InterruptedException err) {
-                        LOGGER.log(Level.SEVERE, "error while closing ledger", err);
-                        Thread.currentThread().interrupt();
-                    }
+            // find the next ledger in the list
+            long nextLedger = -1;
+            for (long lId : actualList) {
+                if (lId > ledgerToTail) {
+                    ledgerToTail = lId;
+                    break;
                 }
             }
+            if (nextLedger == -1) {
+                // no more ledger to tail by now
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.finer(tableSpaceDescription() + " no more ledgers after " + ledgerToTail);
+                }
+                currentLedger = null;
+                return;
+            }
+
+            ledgerToTail = nextLedger;
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.fine(tableSpaceDescription() + " start tailing " + ledgerToTail);
+            }
+            if (currentLedger != null) {
+                currentLedger.close();
+            }
+            currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
+                    BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+            nextEntryToRead = 0;
+        }
+
+        @Override
+        public void close() {
+            if (currentLedger != null) {
+                try {
+                    currentLedger.close();
+                } catch (org.apache.bookkeeper.client.api.BKException ex) {
+                    // not really a problem
+                    LOGGER.log(Level.FINE, null, ex);
+                } catch (InterruptedException ex) {
+                    // not really a problem
+                    Thread.currentThread().interrupt();
+                } finally {
+                    currentLedger = null;
+                }
+            }
+        }
+
+    }
+
+    @Override
+    public FollowerContext startFollowing(LogSequenceNumber lastPosition) throws LogNotAvailableException {
+        return new BKFollowerContext(lastPosition);
+    }
+
+    @Override
+    public void followTheLeader(LogSequenceNumber lastPosition, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            FollowerContext context) throws LogNotAvailableException {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.finer(tableSpaceDescription() + " followTheLeader lastPosition:" + lastPosition);
+        }
+        BKFollowerContext fContext = (BKFollowerContext) context;
+        try {
+            fContext.ensureOpenReader(lastPosition);
+
+            if (fContext.currentLedger == null) {
+                // no data to read
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.finer(tableSpaceDescription() + " no more data to read for now");
+                }
+                return;
+            }
+            long nextEntry = fContext.nextEntryToRead;
+            long lastAddConfirmed = fContext.currentLedger.getLastAddConfirmed();
+            if (LOGGER.isLoggable(Level.FINER)) {
+                LOGGER.finer(tableSpaceDescription() + " next entry to read " + nextEntry + " from ledger " + fContext.currentLedger.getId() + " lastAddConfiremd " + lastAddConfirmed);
+            }
+            if (lastAddConfirmed < nextEntry) {
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.finer(tableSpaceDescription() + " ledger not closed but there is nothing to read by now");
+                }
+                return;
+            }
+
+            ReadHandle lh = fContext.currentLedger;
+            try (LastConfirmedAndEntry entryAndLac = lh.readLastAddConfirmedAndEntry(nextEntry, LONG_POLL_TIMEOUT, false);) {
+                if (entryAndLac.hasEntry()) {
+                    org.apache.bookkeeper.client.api.LedgerEntry e = entryAndLac.getEntry();
+                    acceptEntryForFollower(e, consumer);
+                    long startEntry = nextEntry + 1;
+                    long endEntry = entryAndLac.getLastAddConfirmed();
+                    if (startEntry > endEntry) {
+                        return;
+                    }
+                    // if we know there are already entries ready
+                    // to be read then read them
+                    if (endEntry - startEntry > MAX_ENTRY_TO_TAIL) {
+                        // put a bound on the max entries to read per round
+                        endEntry = startEntry + MAX_ENTRY_TO_TAIL;
+                    }
+                    try (LedgerEntries entries = lh.read(startEntry, endEntry)) {
+                        for (org.apache.bookkeeper.client.api.LedgerEntry ee : entries) {
+                            acceptEntryForFollower(ee, consumer);
+                        }
+                    }
+                }
+
+            }
+
         } catch (BKClientClosedException err) {
-            LOGGER.log(Level.INFO, "stop following " + tableSpaceDescription() + " due to " + err);
-        } catch (InterruptedException | EOFException | BKException err) {
-            LOGGER.log(Level.SEVERE, "internal error", err);
+            LOGGER.log(Level.FINE, "stop following " + tableSpaceDescription(), err);
+        } catch (EOFException | org.apache.bookkeeper.client.api.BKException err) {
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
+            throw new LogNotAvailableException(err);
+        } catch (InterruptedException err) {
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
+            Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
         }
+    }
+
+    private void acceptEntryForFollower(org.apache.bookkeeper.client.api.LedgerEntry e, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws EOFException {
+        long entryId = e.getEntryId();
+        byte[] entryData = e.getEntryBytes();
+        LogEntry statusEdit = LogEntry.deserialize(entryData);
+        LogSequenceNumber number = new LogSequenceNumber(e.getLedgerId(), entryId);
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.finer(tableSpaceDescription() + " follow entry " + number);
+        }
+        if (lastLedgerId == number.ledgerId) {
+            lastSequenceNumber.accumulateAndGet(number.offset, EnsureLongIncrementAccumulator.INSTANCE);
+        } else {
+            lastSequenceNumber.set(number.offset);
+        }
+        lastLedgerId = number.ledgerId;
+        currentLedgerId = number.ledgerId;
+        consumer.accept(number, statusEdit);
     }
 
     @Override
