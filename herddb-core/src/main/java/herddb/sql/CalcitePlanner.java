@@ -22,15 +22,11 @@ package herddb.sql;
 import static herddb.model.Column.column;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-
+import java.util.stream.Collectors;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
@@ -158,7 +154,6 @@ import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.SQLUtils;
 import herddb.utils.SystemProperties;
-import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.core.Sort;
 
@@ -281,6 +276,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
 
             }
+
+            if(query.startsWith("SHOW")) {
+                return calculateShowCreateTable(query, parameters);
+
+            }
             PlannerResult plan = runPlanner(defaultTableSpace, query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues)
@@ -339,6 +339,81 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
         }
+    }
+
+    private TranslatedQuery calculateShowCreateTable(String query, List<Object> parameters) {
+        String items[] = { "SHOW","CREATE", "TABLE"};
+        if(Arrays.stream(items).allMatch(query::contains)) {
+            query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length());
+            String tableSpace = "herd";
+            String tableName;
+            if (query.contains(".")) {
+                String tokens[] = query.split(".");
+                tableSpace = tokens[0].trim();
+                tableName = tokens[1].trim();
+            } else {
+                tableName = query.trim();
+            }
+            Table t = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable();
+            if (t != null) {
+                StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
+                StringJoiner joiner = new StringJoiner(",","(", ")");
+                for(Column c : t.getColumns()) {
+                    joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
+                }
+                if(t.getPrimaryKey().length > 0) {
+                    joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
+                }
+                sb.append(joiner.toString());
+
+                ValuesOp values = new ValuesOp(manager.getNodeId(),
+                        new String[]{"tabledef"},
+                        new Column[]{
+                                column("tabledef", ColumnTypes.STRING)},
+                        Arrays.asList(
+                                Arrays.asList(
+                                        new ConstantExpression(sb.toString())
+                                )
+                        )
+                );
+                ExecutionPlan executionPlan = ExecutionPlan.simple(
+                        new SQLPlannedOperationStatement(values),
+                        values
+                );
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            } else {
+                ValuesOp values = new ValuesOp(manager.getNodeId(),
+                        new String[]{"error"},
+                        new Column[]{
+                                column("error", ColumnTypes.STRING)},
+                        Arrays.asList(
+                                Arrays.asList(
+                                        new ConstantExpression("Table not found")
+                                )
+                        )
+                );
+                ExecutionPlan executionPlan = ExecutionPlan.simple(
+                        new SQLPlannedOperationStatement(values),
+                        values
+                );
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            }
+        }
+        ValuesOp values = new ValuesOp(manager.getNodeId(),
+                new String[]{"error"},
+                new Column[]{
+                        column("error", ColumnTypes.STRING)},
+                Arrays.asList(
+                        Arrays.asList(
+                                new ConstantExpression("Incorrect Syntax for SHOW CREATE TABLE tablespace.tablename")
+                        )
+                )
+        );
+        ExecutionPlan executionPlan = ExecutionPlan.simple(
+                new SQLPlannedOperationStatement(values),
+                values
+        );
+        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
     }
 
     private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) throws MetadataStorageManagerException {
