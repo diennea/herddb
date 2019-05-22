@@ -344,11 +344,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private TranslatedQuery calculateShowCreateTable(String query, List<Object> parameters) {
         String items[] = { "SHOW","CREATE", "TABLE"};
         if(Arrays.stream(items).allMatch(query::contains)) {
-            query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length());
+            query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length()).trim();
             String tableSpace = "herd";
             String tableName;
             if (query.contains(".")) {
-                String tokens[] = query.split(".");
+                String tokens[] = query.split("\\.");
                 tableSpace = tokens[0].trim();
                 tableName = tokens[1].trim();
             } else {

@@ -464,6 +464,26 @@ public class CalcitePlannerTest {
     }
 
     @Test
+    public void showCreateTableTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.test (k1 string primary key,"
+                    + "s1 string not null)", Collections.emptyList());
+
+            manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test",Collections.emptyList(),
+                    true, false, true, -1);
+
+
+        }
+    }
+
+    @Test
     public void zeroCopyProjectionTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
