@@ -354,34 +354,37 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             } else {
                 tableName = query.trim();
             }
-            Table t = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable();
-            if (t != null) {
-                StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
-                StringJoiner joiner = new StringJoiner(",","(", ")");
-                for(Column c : t.getColumns()) {
-                    joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
-                }
-                if(t.getPrimaryKey().length > 0) {
-                    joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
-                }
-                sb.append(joiner.toString());
+            try {
+                Table t = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable();
+                if (t != null) {
+                    StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
+                    StringJoiner joiner = new StringJoiner(",","(", ")");
+                    for(Column c : t.getColumns()) {
+                        joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
+                    }
+                    if(t.getPrimaryKey().length > 0) {
+                        joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
+                    }
+                    sb.append(joiner.toString());
 
-                ValuesOp values = new ValuesOp(manager.getNodeId(),
-                        new String[]{"tabledef"},
-                        new Column[]{
-                                column("tabledef", ColumnTypes.STRING)},
-                        Arrays.asList(
-                                Arrays.asList(
-                                        new ConstantExpression(sb.toString())
-                                )
-                        )
-                );
-                ExecutionPlan executionPlan = ExecutionPlan.simple(
-                        new SQLPlannedOperationStatement(values),
-                        values
-                );
-                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
-            } else {
+                    ValuesOp values = new ValuesOp(manager.getNodeId(),
+                            new String[]{"tabledef"},
+                            new Column[]{
+                                    column("tabledef", ColumnTypes.STRING)},
+                            Arrays.asList(
+                                    Arrays.asList(
+                                            new ConstantExpression(sb.toString())
+                                    )
+                            )
+                    );
+                    ExecutionPlan executionPlan = ExecutionPlan.simple(
+                            new SQLPlannedOperationStatement(values),
+                            values
+                    );
+                    return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+                }
+
+            }catch (NullPointerException ex) {
                 ValuesOp values = new ValuesOp(manager.getNodeId(),
                         new String[]{"error"},
                         new Column[]{
