@@ -346,6 +346,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
 
+
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
@@ -370,6 +371,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (t.getPrimaryKey().length > 0) {
                 joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
             }
+
+            List<Index> indexes = tableManager.getAvailableIndexes();
+
+            if (!indexes.isEmpty()) {
+                indexes.forEach( idx -> {
+                    joiner.add("Index "+idx.name + "("+Arrays.stream(idx.columnNames).collect(Collectors.joining(",")) + ")");
+                });
+            }
+
             sb.append(joiner.toString());
 
             ValuesOp values = new ValuesOp(manager.getNodeId(),
