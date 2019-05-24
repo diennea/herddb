@@ -268,6 +268,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if(query.startsWith("SHOW")) {
                 return calculateShowCreateTable(query,defaultTableSpace, parameters);
             }
+
             PlannerResult plan = runPlanner(defaultTableSpace, query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues)
@@ -352,9 +353,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
             AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
 
-            if (tableManager == null) {
+            if (tableManager == null || tableManager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
+
 
             Table t  = tableManager.getTable();
             if (t == null) {
