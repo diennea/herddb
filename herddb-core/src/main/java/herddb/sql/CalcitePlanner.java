@@ -267,7 +267,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
             if(query.startsWith("SHOW")) {
                 return calculateShowCreateTable(query,defaultTableSpace, parameters);
-
             }
             PlannerResult plan = runPlanner(defaultTableSpace, query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
