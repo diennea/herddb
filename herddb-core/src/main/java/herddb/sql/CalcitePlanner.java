@@ -27,6 +27,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import herddb.core.*;
+import herddb.model.*;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
@@ -95,10 +98,6 @@ import org.apache.calcite.util.ImmutableBitSet;
 
 import com.google.common.collect.ImmutableList;
 
-import herddb.core.AbstractIndexManager;
-import herddb.core.AbstractTableManager;
-import herddb.core.DBManager;
-import herddb.core.TableSpaceManager;
 import herddb.index.IndexOperation;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexRangeScan;
@@ -107,17 +106,6 @@ import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
-import herddb.model.Column;
-import herddb.model.ColumnTypes;
-import herddb.model.ColumnsList;
-import herddb.model.DMLStatement;
-import herddb.model.ExecutionPlan;
-import herddb.model.Predicate;
-import herddb.model.Projection;
-import herddb.model.RecordFunction;
-import herddb.model.StatementExecutionException;
-import herddb.model.Table;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -278,7 +266,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             if(query.startsWith("SHOW")) {
-                return calculateShowCreateTable(query, parameters);
+                return calculateShowCreateTable(query,defaultTableSpace, parameters);
 
             }
             PlannerResult plan = runPlanner(defaultTableSpace, query);
@@ -341,11 +329,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private TranslatedQuery calculateShowCreateTable(String query, List<Object> parameters) {
-        String items[] = { "SHOW","CREATE", "TABLE"};
-        if(Arrays.stream(items).allMatch(query::contains)) {
+
+    private TranslatedQuery calculateShowCreateTable(String query, String defaultTablespace, List<Object> parameters) {
+        String items[] = {"SHOW","CREATE", "TABLE"};
+        if (Arrays.stream(items).allMatch(query::contains)) {
             query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length()).trim();
-            String tableSpace = "herd";
+            String tableSpace = defaultTablespace;
             String tableName;
             if (query.contains(".")) {
                 String tokens[] = query.split("\\.");
@@ -354,69 +343,53 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             } else {
                 tableName = query.trim();
             }
-            try {
-                Table t = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable();
-                if (t != null) {
-                    StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
-                    StringJoiner joiner = new StringJoiner(",","(", ")");
-                    for(Column c : t.getColumns()) {
-                        joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
-                    }
-                    if(t.getPrimaryKey().length > 0) {
-                        joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
-                    }
-                    sb.append(joiner.toString());
 
-                    ValuesOp values = new ValuesOp(manager.getNodeId(),
-                            new String[]{"tabledef"},
-                            new Column[]{
-                                    column("tabledef", ColumnTypes.STRING)},
-                            Arrays.asList(
-                                    Arrays.asList(
-                                            new ConstantExpression(sb.toString())
-                                    )
-                            )
-                    );
-                    ExecutionPlan executionPlan = ExecutionPlan.simple(
-                            new SQLPlannedOperationStatement(values),
-                            values
-                    );
-                    return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
-                }
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
 
-            }catch (NullPointerException ex) {
-                ValuesOp values = new ValuesOp(manager.getNodeId(),
-                        new String[]{"error"},
-                        new Column[]{
-                                column("error", ColumnTypes.STRING)},
-                        Arrays.asList(
-                                Arrays.asList(
-                                        new ConstantExpression("Table not found")
-                                )
-                        )
-                );
-                ExecutionPlan executionPlan = ExecutionPlan.simple(
-                        new SQLPlannedOperationStatement(values),
-                        values
-                );
-                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
+
+            AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+
+            if (tableManager == null) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
+            }
+
+            Table t  = tableManager.getTable();
+            if (t == null) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
+            }
+
+            StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
+            StringJoiner joiner = new StringJoiner(",","(", ")");
+            for(Column c : t.getColumns()) {
+                joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
+            }
+
+            if (t.getPrimaryKey().length > 0) {
+                joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
+            }
+            sb.append(joiner.toString());
+
+            ValuesOp values = new ValuesOp(manager.getNodeId(),
+                    new String[]{"tabledef"},
+                    new Column[]{
+                            column("tabledef", ColumnTypes.STRING)},
+                    Arrays.asList(
+                            Arrays.asList(
+                                    new ConstantExpression(sb.toString())
+                            )
+                    )
+            );
+            ExecutionPlan executionPlan = ExecutionPlan.simple(
+                    new SQLPlannedOperationStatement(values),
+                    values
+            );
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        } else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for SHOW CREATE TABLE tablespace.tablename"));
         }
-        ValuesOp values = new ValuesOp(manager.getNodeId(),
-                new String[]{"error"},
-                new Column[]{
-                        column("error", ColumnTypes.STRING)},
-                Arrays.asList(
-                        Arrays.asList(
-                                new ConstantExpression("Incorrect Syntax for SHOW CREATE TABLE tablespace.tablename")
-                        )
-                )
-        );
-        ExecutionPlan executionPlan = ExecutionPlan.simple(
-                new SQLPlannedOperationStatement(values),
-                values
-        );
-        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
     }
 
     private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) throws MetadataStorageManagerException {
