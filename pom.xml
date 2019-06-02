@@ -186,11 +186,23 @@
                     </exclusion>
                     <exclusion>
                         <artifactId>*</artifactId>
-                        <groupId>netty</groupId>
+                        <groupId>io.netty</groupId>
                     </exclusion>
                     <exclusion>
                         <artifactId>jline</artifactId>
                         <groupId>jline</groupId>
+                    </exclusion>                
+                    <exclusion>
+                        <artifactId>*</artifactId>
+                        <groupId>org.apache.yetus</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>*</artifactId>
+                        <groupId>com.googlecode.json-simple</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>*</artifactId>
+                        <groupId>log4j</groupId>
                     </exclusion>                
                 </exclusions>
             </dependency>
@@ -596,6 +608,14 @@
                 <module>herddb-backward-compatibility</module>
             </modules>           
             <build>     
+                <pluginManagement>
+                    <plugins>   
+                        <plugin>
+                            <artifactId>maven-jar-plugin</artifactId>
+                            <version>3.1.2</version>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
                 <plugins>   
                     <plugin>
                         <groupId>org.eluder.coveralls</groupId>
