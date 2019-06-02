@@ -70,7 +70,7 @@
         <libs.calcite>1.17.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-        <libs.zookeeper>3.5.4-beta</libs.zookeeper>
+        <libs.zookeeper>3.5.5</libs.zookeeper>
         <libs.jsqlparser>0.9.7</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>        
@@ -179,28 +179,25 @@
                 <groupId>org.apache.zookeeper</groupId>
                 <artifactId>zookeeper</artifactId>
                 <version>${libs.zookeeper}</version>
-                <exclusions>
-                    <exclusion>
-                        <artifactId>jms</artifactId>
-                        <groupId>javax.jms</groupId>
-                    </exclusion>
-                    <exclusion>
-                        <artifactId>jmxtools</artifactId>
-                        <groupId>com.sun.jdmk</groupId>
-                    </exclusion>
-                    <exclusion>
-                        <artifactId>jmxri</artifactId>
-                        <groupId>com.sun.jmx</groupId>
-                    </exclusion>
+                <exclusions>                    
                     <exclusion>
                         <artifactId>slf4j-log4j12</artifactId>
                         <groupId>org.slf4j</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>*</artifactId>
+                        <groupId>netty</groupId>
                     </exclusion>
                     <exclusion>
                         <artifactId>jline</artifactId>
                         <groupId>jline</groupId>
                     </exclusion>                
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.zookeeper</groupId>
+                <artifactId>zookeeper-jute</artifactId>
+                <version>${libs.zookeeper}</version>                
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
@@ -283,6 +280,10 @@
                     <exclusion>
                         <groupId>jna</groupId>
                         <artifactId>net.java.dev.jna</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.zookeeper</groupId>
+                        <artifactId>*</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>

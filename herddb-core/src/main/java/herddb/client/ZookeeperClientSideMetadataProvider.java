@@ -64,18 +64,19 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                 CountDownLatch waitForConnection = new CountDownLatch(1);
                 ZooKeeper zk = new ZooKeeper(zkAddress, zkSessionTimeout, new Watcher() {
                     @Override
-                    @SuppressFBWarnings(value = "SF_SWITCH_NO_DEFAULT")
                     public void process(WatchedEvent event) {
-                        LOG.log(Level.SEVERE, "zk client event " + event);
                         switch (event.getState()) {
                             case SyncConnected:
                             case ConnectedReadOnly:
                                 waitForConnection.countDown();
                                 break;
+                            default:
+                                LOG.log(Level.INFO, "zk client event {0}", event);
+                                break;
                         }
                     }
                 });
-                boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.SECONDS);
+                waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.SECONDS);
                 return zk;
             } catch (Exception err) {
                 LOG.log(Level.SEVERE, "zk client error " + err, err);
@@ -137,7 +138,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         }
 
         throw new ClientSideMetadataProviderException(
-            "Could not find a leader for tablespace " + tableSpace + " in time");
+                "Could not find a leader for tablespace " + tableSpace + " in time");
     }
 
     private String readAsTableSpace(ZooKeeper zooKeeper, String tableSpace) throws IOException, InterruptedException, KeeperException {
