@@ -51,6 +51,7 @@ import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableDoesNotExistException;
+import herddb.sql.functions.ShowCreateTableCalculator;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
@@ -283,7 +284,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                         values
                 );
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
-
             }
 
             if(query.startsWith("SHOW")) {
@@ -357,6 +357,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length()).trim();
             String tableSpace = defaultTablespace;
             String tableName;
+            boolean showCreateIndex = query.contains("WITH INDEXES");
+            if (showCreateIndex) {
+                query = query.substring(0, query.indexOf("WITH INDEXES"));
+            }
+
             if (query.contains(".")) {
                 String tokens[] = query.split("\\.");
                 tableSpace = tokens[0].trim();
@@ -366,7 +371,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-
 
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
@@ -378,39 +382,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
 
-
-            Table t  = tableManager.getTable();
-            if (t == null) {
-                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
-            }
-
-            StringBuilder sb = new StringBuilder("CREATE TABLE "+tableSpace+"."+tableName);
-            StringJoiner joiner = new StringJoiner(",","(", ")");
-            for(Column c : t.getColumns()) {
-                joiner.add(c.name + " "+ColumnTypes.typeToString(c.type));
-            }
-
-            if (t.getPrimaryKey().length > 0) {
-                joiner.add("Primary key("+ Arrays.stream(t.getPrimaryKey()).collect(Collectors.joining(",")) + ")");
-            }
-
-            List<Index> indexes = tableManager.getAvailableIndexes();
-
-            if (!indexes.isEmpty()) {
-                indexes.forEach( idx -> {
-                    joiner.add("Index "+idx.name + "("+Arrays.stream(idx.columnNames).collect(Collectors.joining(",")) + ")");
-                });
-            }
-
-            sb.append(joiner.toString());
-
+            String showCreateResult = ShowCreateTableCalculator.calculate(showCreateIndex, tableName, tableSpace, tableManager);
             ValuesOp values = new ValuesOp(manager.getNodeId(),
                     new String[]{"tabledef"},
                     new Column[]{
                             column("tabledef", ColumnTypes.STRING)},
                     Arrays.asList(
                             Arrays.asList(
-                                    new ConstantExpression(sb.toString())
+                                    new ConstantExpression(showCreateResult)
                             )
                     )
             );

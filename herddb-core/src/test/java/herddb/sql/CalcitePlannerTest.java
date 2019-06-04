@@ -36,7 +36,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import herddb.model.*;
+import herddb.model.DataScanner;
+import herddb.model.Projection;
+import herddb.model.ScanResult;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TransactionContext;
+import herddb.model.Tuple;
+import herddb.model.TupleComparator;
 import herddb.model.commands.ScanStatement;
 import herddb.server.ServerSideScannerPeer;
 import herddb.utils.TuplesList;
@@ -492,7 +502,7 @@ public class CalcitePlannerTest {
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple)records.get(0);
-                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null,Primary key(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
             translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test22", Collections.emptyList(),
@@ -531,7 +541,7 @@ public class CalcitePlannerTest {
 
             execute(manager, "CREATE INDEX ixn1s1 on tblspace1.test23(n1,s1)", Collections.emptyList());
 
-            TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23", Collections.emptyList(),
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23 WITH INDEXES", Collections.emptyList(),
                     true, false, true, -1);
             if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
                     || translatedQuery.plan.mainStatement instanceof ScanStatement) {
@@ -545,7 +555,7 @@ public class CalcitePlannerTest {
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple)records.get(0);
-                assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary key(k1,n1),Index ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
+                assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary KEY(k1,n1),INDEX ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
         }
