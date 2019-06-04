@@ -21,6 +21,7 @@ package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static herddb.core.TestUtils.beginTransaction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -35,6 +36,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import herddb.model.DataScanner;
+import herddb.model.Projection;
+import herddb.model.ScanResult;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TransactionContext;
+import herddb.model.Tuple;
+import herddb.model.TupleComparator;
+import herddb.model.commands.ScanStatement;
+import herddb.server.ServerSideScannerPeer;
+import herddb.utils.TuplesList;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,13 +58,6 @@ import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.DataScanner;
-import herddb.model.Projection;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.TableSpace;
-import herddb.model.TransactionContext;
-import herddb.model.TupleComparator;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.planner.BindableTableScanOp;
@@ -462,6 +470,146 @@ public class CalcitePlannerTest {
             }
         }
     }
+
+    @Test
+    public void showCreateTableTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.test (k1 string primary key,"
+                    + "s1 string not null)", Collections.emptyList());
+
+            execute(manager, "CREATE TABLE tblspace1.test22 (k1 string not null ,"
+                    + "s1 string not null, n1 int, primary key(k1,n1))", Collections.emptyList());
+
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test", Collections.emptyList(),
+                    true, false, true, -1);
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
+                ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
+                DataScanner dataScanner = scanResult.dataScanner;
+
+                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+
+                String[] columns = dataScanner.getFieldNames();
+                List<DataAccessor> records = dataScanner.consume(2);
+                TuplesList tuplesList = new TuplesList(columns, records);
+                assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
+                Tuple values = (Tuple)records.get(0);
+                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+            }
+
+            translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test22", Collections.emptyList(),
+                    true, false, true, -1);
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
+                ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
+                DataScanner dataScanner = scanResult.dataScanner;
+
+                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+
+                String[] columns = dataScanner.getFieldNames();
+                List<DataAccessor> records = dataScanner.consume(2);
+                TuplesList tuplesList = new TuplesList(columns, records);
+                assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
+                Tuple values = (Tuple)records.get(0);
+                assertTrue("CREATE TABLE tblspace1.test22(k1 string not null,s1 string not null,n1 integer,Primary key(k1,n1))".equalsIgnoreCase(values.get("tabledef").toString()));
+            }
+
+        }
+    }
+
+    @Test
+    public void showCreateTableTest_with_Indexes() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+
+            execute(manager, "CREATE TABLE tblspace1.test23 (k1 string not null ,"
+                    + "s1 string not null, n1 int, primary key(k1,n1))", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX ixn1s1 on tblspace1.test23(n1,s1)", Collections.emptyList());
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23 WITH INDEXES", Collections.emptyList(),
+                    true, false, true, -1);
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
+                ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
+                DataScanner dataScanner = scanResult.dataScanner;
+
+                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+
+                String[] columns = dataScanner.getFieldNames();
+                List<DataAccessor> records = dataScanner.consume(2);
+                TuplesList tuplesList = new TuplesList(columns, records);
+                assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
+                Tuple values = (Tuple)records.get(0);
+                assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary KEY(k1,n1),INDEX ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
+            }
+
+        }
+
+    }
+
+
+        @Test(expected = TableDoesNotExistException.class)
+    public void showCreateTable_Non_Existent_Table() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("herd", "SHOW CREATE TABLE tblspace1.test223", Collections.emptyList(),
+                    true, false, true, -1);
+        }
+    }
+
+    @Test(expected = TableSpaceDoesNotExistException.class)
+    public void showCreateTable_Non_Existent_TableSpace() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("herd", "SHOW CREATE TABLE tblspace1.test223", Collections.emptyList(),
+                    true, false, true, -1);
+        }
+    }
+
+    @Test(expected = TableDoesNotExistException.class)
+    public void showCreateTable_Within_TransactionContext() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            long tx = beginTransaction(manager, "tblspace1");
+
+            execute(manager, "CREATE TABLE tblspace1.test (k1 string primary key,"
+                    + "s1 string not null)", Collections.emptyList(), new TransactionContext(tx));
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("herd", "SHOW CREATE TABLE tblspace1.test", Collections.emptyList(),
+                    true, false, true, -1);
+        }
+    }
+
 
     @Test
     public void zeroCopyProjectionTest() throws Exception {

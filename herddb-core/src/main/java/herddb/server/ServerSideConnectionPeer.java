@@ -41,25 +41,7 @@ import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
-import herddb.model.DDLStatementExecutionResult;
-import herddb.model.DMLStatementExecutionResult;
-import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.Index;
-import herddb.model.NotLeaderException;
-import herddb.model.Record;
-import herddb.model.ScanResult;
-import herddb.model.Statement;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
-import herddb.model.Table;
-import herddb.model.TableAwareStatement;
-import herddb.model.Transaction;
-import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
+import herddb.model.*;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.RollbackTransactionStatement;
@@ -421,6 +403,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             _channel.sendReplyMessage(message.messageId, error);
             return;
         }
+
         long scannerId = PduCodec.OpenScanner.readScannerId(message);
 
         int fetchSize = PduCodec.OpenScanner.readFetchSize(message);
@@ -474,7 +457,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             } else {
                 ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan);
                 _channel.sendReplyMessage(message.messageId, error);
-
             }
         } catch (DataScannerException  | StatementExecutionException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);

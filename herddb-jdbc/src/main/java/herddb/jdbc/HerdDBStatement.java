@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
  */
 public class HerdDBStatement implements java.sql.Statement {
 
-    protected static final Pattern EXPECTS_RESULTSET = Pattern.compile("[\\s]*(SELECT|EXPLAIN).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    protected static final Pattern EXPECTS_RESULTSET = Pattern.compile("[\\s]*(SELECT|EXPLAIN|SHOW).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     protected final HerdDBConnection parent;
     protected int maxRows;
