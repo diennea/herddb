@@ -1,3 +1,23 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
+
 package herddb.sql.functions;
 
 import herddb.core.AbstractTableManager;
@@ -6,7 +26,17 @@ import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
-import herddb.model.*;
+import herddb.model.DDLException;
+import herddb.model.DataScanner;
+import herddb.model.Index;
+import herddb.model.Record;
+import herddb.model.Statement;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
+import herddb.model.Transaction;
+import herddb.model.ColumnTypes;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -14,17 +44,9 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
 
 
 
@@ -179,19 +201,32 @@ public class ShowCreateTableCalculatorTest {
         AbstractTableManager tm = new MockTableManager(t, new ArrayList<>());
         assertTrue(ShowCreateTableCalculator.calculate(false, "test3", "ts1", tm).equals("CREATE TABLE ts1.test3(k1 integer,s1 string,PRIMARY KEY(k1))"));
 
-
         t = Table.builder()
                 .uuid("1234")
                 .column("k1", ColumnTypes.INTEGER, 0)
                 .column("s1", ColumnTypes.STRING, 1)
-                .primaryKey("k1")
+                .column("s2", ColumnTypes.NOTNULL_STRING, 2)
+                .primaryKey("k1", true)
+                .primaryKey("s2")
                 .tablespace("ts1")
                 .name("test3")
                 .build();
 
         tm = new MockTableManager(t, new ArrayList<>());
-        assertTrue(ShowCreateTableCalculator.calculate(false, "test3", "ts1", tm).equals("CREATE TABLE ts1.test3(k1 integer,s1 string,PRIMARY KEY(k1))"));
+        assertTrue(ShowCreateTableCalculator.calculate(false, "test3", "ts1", tm).equals("CREATE TABLE ts1.test3(k1 integer auto_increment,s1 string,s2 string not null,PRIMARY KEY(k1,s2))"));
 
+        t = Table.builder()
+                .uuid("1234")
+                .column("k1", ColumnTypes.INTEGER, 0)
+                .column("s1", ColumnTypes.NOTNULL_STRING, 1)
+                .column("l1", ColumnTypes.NOTNULL_LONG,2)
+                .column("i1", ColumnTypes.NOTNULL_INTEGER,3)
+                .primaryKey("k1", true)
+                .tablespace("ts1")
+                .name("test3")
+                .build();
 
+        tm = new MockTableManager(t, new ArrayList<>());
+        assertTrue(ShowCreateTableCalculator.calculate(false, "test3", "ts1", tm).equals("CREATE TABLE ts1.test3(k1 integer auto_increment,s1 string not null,l1 long not null,i1 integer not null,PRIMARY KEY(k1))"));
     }
 }

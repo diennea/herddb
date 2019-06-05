@@ -556,14 +556,86 @@ public class CalcitePlannerTest {
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple)records.get(0);
                 assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary KEY(k1,n1),INDEX ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
+
+                // Drop the table and indexes and recreate them again.
+                String showCreateCommandOutput = values.get("tabledef").toString();
+
+                //drop the table
+                execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
+
+                //ensure table has been dropped
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                    assertTrue(scan.consume().isEmpty());
+                }
+
+                //ensure index has been dropped
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList());) {
+                    assertTrue(scan.consume().isEmpty());
+                }
+
+                execute(manager, showCreateCommandOutput, Collections.emptyList());
+                // Ensure the table is getting created
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                    assertFalse(scan.consume().isEmpty());
+                }
+                // Ensure index got created as well.
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList());) {
+                    assertFalse(scan.consume().isEmpty());
+                }
             }
-
         }
-
     }
 
+    @Test
+    public void showCreateTable_with_recreating_table_from_command_output() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
 
-        @Test(expected = TableDoesNotExistException.class)
+            execute(manager, "CREATE TABLE tblspace1.test23 (k1 int auto_increment ,"
+                    + "s1 string not null, n1 int, primary key(k1))", Collections.emptyList());
+
+            TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23", Collections.emptyList(),
+                    true, false, true, -1);
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
+                ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
+                DataScanner dataScanner = scanResult.dataScanner;
+
+                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+
+                String[] columns = dataScanner.getFieldNames();
+                List<DataAccessor> records = dataScanner.consume(2);
+                TuplesList tuplesList = new TuplesList(columns, records);
+                assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
+                Tuple values = (Tuple)records.get(0);
+                assertTrue("CREATE TABLE tblspace1.test23(k1 integer auto_increment,s1 string not null,n1 integer,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+
+                //drop the table
+                execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
+
+                //ensure table has been dropped
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                    assertTrue(scan.consume().isEmpty());
+                }
+
+                //recreate table
+                String showCreateTableResult = values.get("tabledef").toString();
+                execute(manager, showCreateTableResult, Collections.emptyList());
+                // Ensure the table is getting created
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                    assertFalse(scan.consume().isEmpty());
+                }
+
+            }
+        }
+    }
+
+    @Test(expected = TableDoesNotExistException.class)
     public void showCreateTable_Non_Existent_Table() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
