@@ -19,8 +19,6 @@
  */
 package herddb.core;
 
-import herddb.core.Page;
-import herddb.core.PageReplacementPolicy;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
