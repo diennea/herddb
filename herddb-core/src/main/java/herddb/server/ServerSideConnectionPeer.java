@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -729,7 +730,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         err = err.getCause();
                     }
                     if (err instanceof DuplicatePrimaryKeyException) {
-                        ByteBuf error = composeErrorResponse(message.messageId, err);
+                        ByteBuf error =  PduCodec.ErrorResponse.writeSqlIntegrityConstraintsViolation(message.messageId,new SQLIntegrityConstraintViolationException(err));
                         _channel.sendReplyMessage(message.messageId, error);
                     } else if (err instanceof NotLeaderException) {
                         ByteBuf error = composeErrorResponse(message.messageId, err);

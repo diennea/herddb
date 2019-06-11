@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -609,6 +610,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     void handleGenericError(final Pdu reply, final long statementId, final boolean release) throws HDBException, ClientSideMetadataProviderException {
         boolean notLeader = PduCodec.ErrorResponse.readIsNotLeader(reply);
         boolean missingPreparedStatement = ErrorResponse.readIsMissingPreparedStatementError(reply);
+        boolean sqlIntegrityViolation = ErrorResponse.readIsSqlIntegrityViolationError(reply);
         String msg = PduCodec.ErrorResponse.readError(reply);
         if (release) {
             reply.close();
@@ -620,9 +622,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             LOGGER.log(Level.INFO, "Statement was flushed from server side cache " + msg);
             preparedStatements.invalidate(statementId);
             throw new RetryRequestException(msg);
-        } else {
-            throw new HDBException(msg);
+        } else if (sqlIntegrityViolation) {
+            LOGGER.log(Level.INFO, "SQLIntegrityViolationException: " + msg);
         }
+        throw new HDBException(msg);
     }
 
     ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {

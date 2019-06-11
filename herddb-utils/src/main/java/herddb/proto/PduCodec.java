@@ -393,24 +393,29 @@ public abstract class PduCodec {
         public static final byte FLAG_NONE = 0;
         public static final byte FLAG_NOT_LEADER = 1;
         public static final byte FLAG_MISSING_PREPARED_STATEMENT = 2;
+        public static final byte FLAG_DUPLICATEPRIMARY_KEY_ERROR = 4;
 
         public static ByteBuf write(long messageId, String error) {
-            return write(messageId, error, false, false);
+            return write(messageId, error, false, false, false);
         }
 
         public static ByteBuf writeNotLeaderError(long messageId, String message) {
-            return write(messageId, message, true, false);
+            return write(messageId, message, true, false, false);
         }
 
         public static ByteBuf writeMissingPreparedStatementError(long messageId, String message) {
-            return write(messageId, message, false, true);
+            return write(messageId, message, false, true, false);
         }
 
         public static ByteBuf writeNotLeaderError(long messageId, Throwable message) {
-            return write(messageId, message, true, false);
+            return write(messageId, message.toString(), true, false, false);
         }
 
-        private static ByteBuf write(long messageId, String error, boolean notLeader, boolean missingPreparedStatement) {
+        public static ByteBuf writeSqlIntegrityConstraintsViolation(long messageId, Throwable message) {
+            return write(messageId, message.toString(), false, false, true);
+        }
+
+        private static ByteBuf write(long messageId, String error, boolean notLeader, boolean missingPreparedStatement, boolean sqlIntegrityConstraintViolation) {
             if (error == null) {
                 error = "";
             }
@@ -433,6 +438,9 @@ public abstract class PduCodec {
             if (missingPreparedStatement) {
                 flags = (byte) (flags | FLAG_MISSING_PREPARED_STATEMENT);
             }
+            if (sqlIntegrityConstraintViolation) {
+                flags = (byte) (flags | FLAG_DUPLICATEPRIMARY_KEY_ERROR);
+            }
             byteBuf.writeByte(flags);
             ByteBufUtils.writeString(byteBuf, error);
             return byteBuf;
@@ -441,7 +449,7 @@ public abstract class PduCodec {
         public static ByteBuf write(long messageId, Throwable error, boolean notLeader, boolean missingPreparedStatementError) {
             StringWriter writer = new StringWriter();
             error.printStackTrace(new PrintWriter(writer));
-            return write(messageId, writer.toString(), notLeader, missingPreparedStatementError);
+            return write(messageId, writer.toString(), notLeader, missingPreparedStatementError, false);
         }
 
         public static ByteBuf write(long messageId, Throwable error) {
@@ -477,6 +485,14 @@ public abstract class PduCodec {
             return (read & FLAG_MISSING_PREPARED_STATEMENT) == FLAG_MISSING_PREPARED_STATEMENT;
         }
 
+        public static boolean readIsSqlIntegrityViolationError(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            byte read = buffer.getByte(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE);
+            return (read & FLAG_DUPLICATEPRIMARY_KEY_ERROR) == FLAG_DUPLICATEPRIMARY_KEY_ERROR;
+        }
     }
 
     public static abstract class TxCommand {
