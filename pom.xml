@@ -120,6 +120,11 @@
                         <exclude>nbproject/**</exclude>
                         <exclude>nbproject/**</exclude>
                         <exclude>nb-configuration.xml</exclude>
+
+                        <!-- Eclipse -->
+                        <exclude>**/.classpath</exclude>
+                        <exclude>**/.project</exclude>
+                        <exclude>**/.settings/*</exclude>
                     </excludes>
                 </configuration>
             </plugin>
