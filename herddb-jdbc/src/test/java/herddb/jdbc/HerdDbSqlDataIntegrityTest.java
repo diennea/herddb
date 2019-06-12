@@ -32,10 +32,12 @@ import org.junit.rules.TemporaryFolder;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Statement;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -72,6 +74,53 @@ public class HerdDbSqlDataIntegrityTest {
                     statement.executeUpdate();
                 } catch (SQLIntegrityConstraintViolationException ex) {
                     Assert.assertTrue(ex instanceof  SQLIntegrityConstraintViolationException);
+                }
+            }
+        }
+    }
+
+    @Test()
+    public void basic_test_with_transactions() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                Connection con = dataSource.getConnection();
+                con.setAutoCommit(false);
+
+                Statement create = con.createStatement();
+                create.execute("CREATE TABLE test_t1 (n1 int primary key, name string)");
+
+                Statement statement = con.createStatement();
+                statement.executeUpdate("INSERT INTO test_t1(n1,name) values(100,'test100')");
+
+                try {
+                    statement.executeUpdate("INSERT INTO test_t1(n1,name) values(100,'test10220')");
+                } catch (SQLIntegrityConstraintViolationException ex) {
+                    Assert.assertTrue(ex instanceof  SQLIntegrityConstraintViolationException);
+                }
+                statement.executeUpdate("INSERT INTO test_t1(n1,name) values(101,'test101')");
+                con.commit();
+
+                try (ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM test_t1")) {
+                    assertTrue(rs.next());
+                    assertEquals(2, rs.getLong(1));
+                }
+
+                try (ResultSet rs = statement.executeQuery("SELECT * FROM test_t1")) {
+                    int i=0;
+                    while(rs.next()) {
+                        if (i==0) {
+                            i++;
+                            Assert.assertEquals(100,rs.getLong(1));
+                            Assert.assertEquals("test100",rs.getString(2));
+                        } else {
+                            Assert.assertEquals(101,rs.getLong(1));
+                            Assert.assertEquals("test101",rs.getString(2));
+                        }
+                    }
                 }
             }
         }
