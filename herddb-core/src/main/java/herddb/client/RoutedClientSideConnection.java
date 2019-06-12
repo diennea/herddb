@@ -624,8 +624,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             throw new RetryRequestException(msg);
         } else if (sqlIntegrityViolation) {
             LOGGER.log(Level.INFO, "SQLIntegrityViolationException: " + msg);
+            throw new HDBException(msg, new SQLIntegrityConstraintViolationException(msg));
+        } else {
+            throw new HDBException(msg);
         }
-        throw new HDBException(msg);
     }
 
     ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
