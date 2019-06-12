@@ -21,6 +21,7 @@ package herddb.jdbc.utils;
 
 import herddb.client.HDBException;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.concurrent.CompletionException;
 
 /**
@@ -35,7 +36,10 @@ public class SQLExceptionUtils {
             exception = exception.getCause();
         }
         SQLException res;
-        if (exception instanceof HDBException) {
+
+        if(exception instanceof HDBException && exception.getCause() instanceof SQLIntegrityConstraintViolationException) {
+            res = new SQLIntegrityConstraintViolationException(exception.getMessage());
+        } else if (exception instanceof HDBException) {
             HDBException ex = (HDBException) exception;
             res = new SQLException(ex.getMessage(), ex);
         } else {

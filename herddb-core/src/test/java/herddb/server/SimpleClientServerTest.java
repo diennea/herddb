@@ -41,7 +41,6 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.model.MissingJDBCParameterException;
-import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.utils.RawString;
@@ -371,6 +370,57 @@ public class SimpleClientServerTest {
                     assertEquals(1, executeUpdates.size());
                     assertEquals(1, executeUpdates.get(0).updateCount);
 
+                }
+
+            }
+        }
+    }
+
+    @Test
+    public void testSQLIntegrityViolation() throws Exception {
+        Path baseDir = folder.newFolder().toPath();;
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1,"test1")).updateCount;
+                Assert.assertEquals(1, countInsert);
+                try {
+                    connection.executeUpdate(TableSpace.DEFAULT,
+                            "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1, "test2"));
+                } catch (Exception ex) {
+                    Assert.assertTrue(ex.getMessage().contains("SQLIntegrityConstraintViolationException"));
+                }
+                connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(2, "test2"));
+
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
+
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.emptyList(), 0, 0, 10);) {
+                    List<Map<String, Object>> rows = scan.consume();
+                    int i=0;
+                    for (Map<String, Object> row : rows) {
+                        if(i==0) {
+                            i++;
+                            Assert.assertEquals(row.get("id"),1);
+                            Assert.assertEquals(row.get("s1"),"test1");
+                        } else {
+                            Assert.assertEquals(row.get("id"),2);
+                            Assert.assertEquals(row.get("s1"),"test2");
+                        }
+                    }
                 }
 
             }
