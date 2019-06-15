@@ -19,6 +19,11 @@
  */
 package herddb.cli;
 
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -28,6 +33,7 @@ import herddb.backup.BackupUtils;
 import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
+import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileCommitLog;
 import herddb.file.FileCommitLog.CommitFileReader;
 import herddb.file.FileCommitLog.LogEntryWithSequenceNumber;
@@ -38,6 +44,7 @@ import herddb.index.blink.BLinkMetadata;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.jdbc.PreparedStatementAsync;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
@@ -112,6 +119,8 @@ import org.jline.terminal.TerminalBuilder;
 import herddb.storage.IndexStatus;
 import herddb.utils.DataAccessor;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * HerdDB command line interface
@@ -161,6 +170,7 @@ public class HerdDBCLI {
             options.addOption("lt", "list-tables", false, "List tablespace tables (needs -s option)");
             options.addOption("st", "show-table", false, "Show full informations about a table (needs -s and -t options)");
 
+            options.addOption("sl", "set-leader", false, "Set the leader for a tablespace (needs -s and -nl options)");
             options.addOption("ar", "add-replica", false, "Add a replica to the tablespace (needs -s and -r options)");
             options.addOption("rr", "remove-replica", false, "Remove a replica from the tablespace (needs -s and -r options)");
             options.addOption("adt", "create-tablespace", false, "Create a tablespace (needs -ns and -nl options)");
@@ -284,6 +294,19 @@ public class HerdDBCLI {
                 }
 
             }
+            boolean setLeader = commandLine.hasOption("set-leader");
+            if (setLeader) {
+                if (leader.isEmpty()) {
+                    println("Specify the node (-nl <nodeid>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (commandLine.getOptionValue("schema", null) == null) {
+                    println("Cowardly refusing to assume the default schema in an alter command. Explicitly use \"-s " + TableSpace.DEFAULT + "\" instead");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
             boolean addReplica = commandLine.hasOption("add-replica");
             if (addReplica) {
                 if (commandLine.getOptionValue("schema", null) == null) {
@@ -312,10 +335,13 @@ public class HerdDBCLI {
             }
 
             TableSpaceMapper tableSpaceMapper = buildTableSpaceMapper(tablespacemapperfile);
+            ZookeeperMetadataStorageManager metadataStorageManager = null;
             try (HerdDBDataSource datasource = new HerdDBDataSource()) {
                 datasource.setUrl(url);
                 datasource.setUsername(username);
                 datasource.setPassword(password);
+                
+                metadataStorageManager = buildMetadataStorageManager(datasource);
 
                 try (Connection connection = datasource.getConnection();
                         Statement statement = connection.createStatement()) {
@@ -345,7 +371,9 @@ public class HerdDBCLI {
                         listTables(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
                     } else if (showTable) {
                         printTableInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema, table);
-                    } else if (addReplica) {
+                    } else if (setLeader) {
+                        setLeader(metadataStorageManager, schema, leader);
+                    } if (addReplica) {
                         changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.ADD);
                     } else if (removeReplica) {
                         changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.REMOVE);
@@ -366,15 +394,27 @@ public class HerdDBCLI {
                     println("error:" + error);
                 }
                 exitCode = 1;
+            } finally {
+                if (metadataStorageManager != null) {
+                    try {
+                        metadataStorageManager.close();
+                    } catch (MetadataStorageManagerException ex) {                        
+                    }
+                }
             }
         } finally {
             System.exit(exitCode);
         }
     }
 
+    private static boolean checkNodeExistence(ZookeeperMetadataStorageManager metadataStorageManager,
+            String nodeId) throws MetadataStorageManagerException {
+            return metadataStorageManager.listNodes().stream().filter(n->n.nodeId.equals(nodeId)).findAny().isPresent();
+    }
+    
     private static boolean checkNodeExistence(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
             String nodeId) throws SQLException, ScriptException {
-
+        
         ExecuteStatementResult check = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes where nodeid='" + nodeId + "'", statement, tableSpaceMapper, true, false);
         return !check.results.isEmpty();
     }
@@ -513,10 +553,45 @@ public class HerdDBCLI {
                 || uppercase.startsWith("UNLOCK");
     }
 
+    private static ZookeeperMetadataStorageManager buildMetadataStorageManager(HerdDBDataSource datasource) {
+        ClientConfiguration configuration = datasource.getClient().getConfiguration();
+        String zkAddress = configuration.getString(PROPERTY_ZOOKEEPER_ADDRESS, PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT);
+        String zkPath = configuration.getString(PROPERTY_ZOOKEEPER_PATH, PROPERTY_ZOOKEEPER_PATH_DEFAULT);
+        int sessionTimeout = configuration.getInt(PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, 60000);
+        return new ZookeeperMetadataStorageManager(zkAddress, sessionTimeout, zkPath);
+    }
+
     private enum ChangeReplicaAction {
         ADD, REMOVE
     }
 
+    private static void setLeader(ZookeeperMetadataStorageManager metadataStorageManager, String schema, String nodeId) throws SQLException, ScriptException, MetadataStorageManagerException {
+        if (metadataStorageManager == null) {
+            println("You are not managing a cluster. This command cannot be used");
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
+        if (!checkNodeExistence(metadataStorageManager, nodeId)) {
+            println("Unknown node " + nodeId);
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
+        TableSpace tableSpace = metadataStorageManager.describeTableSpace(schema);
+        if (!tableSpace.replicas.contains(nodeId)) {
+            println("Node " + nodeId+" is not in replica list: "+tableSpace.replicas);
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
+        TableSpace newMetadata = TableSpace
+                .builder()
+                .cloning(tableSpace)
+                .leader(nodeId).build();
+        metadataStorageManager.updateTableSpace(newMetadata, tableSpace);
+        println("Action perfomed with success");
+    };
     private static void changeReplica(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
             String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
 
