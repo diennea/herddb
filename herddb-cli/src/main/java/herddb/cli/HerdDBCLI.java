@@ -47,9 +47,11 @@ import herddb.jdbc.PreparedStatementAsync;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.NodeMetadata;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.TableSpaceReplicaState;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.IntHolder;
@@ -118,9 +120,8 @@ import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import herddb.storage.IndexStatus;
 import herddb.utils.DataAccessor;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * HerdDB command line interface
@@ -341,10 +342,11 @@ public class HerdDBCLI {
                 datasource.setUsername(username);
                 datasource.setPassword(password);
                 
-                metadataStorageManager = buildMetadataStorageManager(datasource);
-
                 try (Connection connection = datasource.getConnection();
                         Statement statement = connection.createStatement()) {
+
+                    metadataStorageManager = buildMetadataStorageManager(datasource);
+
                     connection.setSchema(schema);
                     if (sqlconsole) {
                         runSqlConsole(connection, statement, PRETTY_PRINT);
@@ -362,21 +364,21 @@ public class HerdDBCLI {
                     } else if (!script.isEmpty()) {
                         executeScript(connection, datasource, statement, script);
                     } else if (listTablespaces) {
-                        printTableSpaces(verbose, ignoreerrors, statement, tableSpaceMapper);
+                        printTableSpaces(verbose, ignoreerrors, statement, tableSpaceMapper, metadataStorageManager);
                     } else if (listNodes) {
-                        printNodes(verbose, ignoreerrors, statement, tableSpaceMapper);
+                        printNodes(verbose, ignoreerrors, statement, tableSpaceMapper, metadataStorageManager);
                     } else if (showTablespace) {
-                        printTableSpaceInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
+                        printTableSpaceInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema, metadataStorageManager);
                     } else if (listTables) {
                         listTables(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
                     } else if (showTable) {
                         printTableInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema, table);
                     } else if (setLeader) {
                         setLeader(metadataStorageManager, schema, leader);
-                    } if (addReplica) {
-                        changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.ADD);
+                    } else if (addReplica) {
+                        changeReplica(metadataStorageManager, schema, nodeId, ChangeReplicaAction.ADD);
                     } else if (removeReplica) {
-                        changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.REMOVE);
+                        changeReplica(metadataStorageManager, schema, nodeId, ChangeReplicaAction.REMOVE);
                     } else if (createTablespace) {
                         createTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, newschema, leader);
                     } else if (alterTablespace) {
@@ -553,12 +555,18 @@ public class HerdDBCLI {
                 || uppercase.startsWith("UNLOCK");
     }
 
-    private static ZookeeperMetadataStorageManager buildMetadataStorageManager(HerdDBDataSource datasource) {
+    private static ZookeeperMetadataStorageManager buildMetadataStorageManager(HerdDBDataSource datasource) throws MetadataStorageManagerException {
         ClientConfiguration configuration = datasource.getClient().getConfiguration();
+        if (!datasource.getUrl().contains(":zookeeper:")) {
+            //not cluster
+            return null;
+        }
         String zkAddress = configuration.getString(PROPERTY_ZOOKEEPER_ADDRESS, PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT);
         String zkPath = configuration.getString(PROPERTY_ZOOKEEPER_PATH, PROPERTY_ZOOKEEPER_PATH_DEFAULT);
         int sessionTimeout = configuration.getInt(PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, 60000);
-        return new ZookeeperMetadataStorageManager(zkAddress, sessionTimeout, zkPath);
+        ZookeeperMetadataStorageManager zk =  new ZookeeperMetadataStorageManager(zkAddress, sessionTimeout, zkPath);
+        zk.start(false /* formatIfNeeded */);        
+        return zk;
     }
 
     private enum ChangeReplicaAction {
@@ -579,6 +587,12 @@ public class HerdDBCLI {
             return;
         }
         TableSpace tableSpace = metadataStorageManager.describeTableSpace(schema);
+        if (tableSpace == null) {
+            println("Cannot find tablespace "+schema);
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
         if (!tableSpace.replicas.contains(nodeId)) {
             println("Node " + nodeId+" is not in replica list: "+tableSpace.replicas);
             exitCode = 1;
@@ -592,29 +606,34 @@ public class HerdDBCLI {
         metadataStorageManager.updateTableSpace(newMetadata, tableSpace);
         println("Action perfomed with success");
     };
-    private static void changeReplica(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-            String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
-
-        if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, nodeId)) {
+    private static void changeReplica(
+            ZookeeperMetadataStorageManager clusterManager, String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
+        if (clusterManager == null) {
+            println("Not in cluster mode!");
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        if (!checkNodeExistence(clusterManager, nodeId)) {
             println("Unknown node " + nodeId);
             exitCode = 1;
             System.exit(exitCode);
         }
 
-        ExecuteStatementResult replicaNodes = executeStatement(verbose, ignoreerrors, false, false,
-                "select * from systablespaces where tablespace_name='" + schema + "'", statement, tableSpaceMapper, true, false);
-
-        String replicaNodesStr = (String) replicaNodes.results.get(0).get("replica");
-        List<String> nodes = new ArrayList<>(Arrays.asList(replicaNodesStr.split(",")));
-
+        TableSpace tableSpace = clusterManager.describeTableSpace(schema);
+        if (tableSpace == null) {
+            println("Unknown tablespace " + schema);
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        TableSpace.Builder cloning = TableSpace.builder().cloning(tableSpace);
         switch (action) {
             case ADD:
-                if (nodes.contains(nodeId)) {
+                if (tableSpace.replicas.contains(nodeId)) {
                     println("Node " + nodeId + " is already a replica for tablespace " + schema);
                     exitCode = 1;
                     System.exit(exitCode);
                 }
-                nodes.add(nodeId);
+                cloning.replica(nodeId);
                 break;
             case REMOVE:
                 if (!nodes.contains(nodeId)) {
@@ -636,86 +655,156 @@ public class HerdDBCLI {
         }
     }
 
-    private static void printTableSpaces(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
+    private static void printTableSpaces(boolean verbose, boolean ignoreerrors, Statement statement,
+            TableSpaceMapper tableSpaceMapper, ZookeeperMetadataStorageManager clusterManager) throws SQLException, ScriptException, MetadataStorageManagerException {
 
-        ExecuteStatementResult tablespaces = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespaces", statement, tableSpaceMapper, true, false);
-
-        println("");
-        if (tablespaces == null || tablespaces.results.isEmpty()) {
-            throw new RuntimeException("Impossibile");
-        }
-        println(" Tablespaces:");
-        println("");
-        for (Map<String, Object> row : tablespaces.results) {
-            println("   " + row.get("tablespace_name"));
-        }
-        println("");
-
-    }
-
-    private static void printNodes(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
-
-        ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes", statement, tableSpaceMapper, true, false);
-
-        println("");
-        println(" Nodes:");
-        println("");
-        if (nodes.results.isEmpty()) {
-            println("   No nodes to show");
-        }
-        for (Map<String, Object> row : nodes.results) {
-            println("   Node: " + row.get("nodeid"));
-            println("   Address: " + row.get("address"));
-            println("   SSL: " + row.get("ssl"));
+        if (clusterManager != null) {
+            Collection<String> tablespaces   = clusterManager.listTableSpaces();
+            
+            println(" Tablespaces:");
             println("");
-        }
-
-    }
-
-    private static void printTableSpaceInfos(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
-
-        ExecuteStatementResult tablespace = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespaces where tablespace_name='" + schema + "'", statement, tableSpaceMapper, true, false);
-        ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespacereplicastate where tablespace_name='" + schema + "'", statement, tableSpaceMapper, true, false);
-        // no tablespace where neeeded in this query
-        ExecuteStatementResult ntables = executeStatement(verbose, ignoreerrors, false, false, "select count(*) ntables from systables where systemtable=false", statement, tableSpaceMapper, true, false);
-        if (tablespace.results.isEmpty()) {
-            println("Unknown tablespace " + schema);
-            exitCode = 1;
-            System.exit(exitCode);
-        }
-
-        println("");
-
-        Map<String, Object> ts = tablespace.results.get(0);
-        println(" Tablespace: " + ts.get("tablespace_name"));
-        println(" User tables: " + ntables.results.get(0).get("ntables"));
-        println(" Leader node: " + ts.get("leader"));
-        println(" Replication nodes: " + ts.get("replica"));
-        println(" Expected replica count: " + ts.get("expectedreplicacount"));
-        println(" Max leader inactivity time: " + (Float.valueOf((String) ts.get("maxleaderinactivitytime")) / 1000) + "s");
-        println(" UUID: " + ts.get("uuid"));
-
-        if (nodes != null) {
+            for (String row : tablespaces) {
+                println("   " + row);
+            }
+            println("");
+        } else {
+            ExecuteStatementResult tablespaces = executeStatement(verbose, ignoreerrors, false, false,
+                    "select * from systablespaces", statement, tableSpaceMapper, true, false);
 
             println("");
-            println(" Replication nodes:");
+            if (tablespaces == null || tablespaces.results.isEmpty()) {
+                throw new RuntimeException("Impossibile");
+            }
+            println(" Tablespaces:");
+            println("");
+            for (Map<String, Object> row : tablespaces.results) {
+                println("   " + row.get("tablespace_name"));
+            }
+            println("");
+        }
+    }
 
-            if (nodes.results.isEmpty()) {
-                println("");
+    private static void printNodes(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
+            ZookeeperMetadataStorageManager clusterManager) throws SQLException, ScriptException, MetadataStorageManagerException {
+        if (clusterManager != null) {
+            println("");
+            println(" Nodes:");
+            println("");
+            List<NodeMetadata> listNodes = clusterManager.listNodes();
+            if (listNodes.isEmpty()) {
                 println("   No nodes to show");
             }
-            for (Map<String, Object> node : nodes.results) {
+            for (NodeMetadata row : listNodes) {
+                println("   Node: " + row.nodeId);
+                println("   Address: " + row.host+":"+row.port);
+                println("   SSL: " + row.ssl);
                 println("");
-                println("   Node ID: " + node.get("nodeid"));
-                println("   Mode: " + node.get("mode"));
-                println("   Last activity: " + node.get("timestamp"));
-                println("   Inactivity time: " + (Float.valueOf((String) node.get("inactivitytime")) / 1000) + "s");
-                println("   Max leader inactivity time: " + (Float.valueOf((String) node.get("maxleaderinactivitytime")) / 1000) + "s");
+            }
+        } else {
+            ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false,
+                    "select * from sysnodes", statement, tableSpaceMapper, true, false);
+
+            println("");
+            println(" Nodes:");
+            println("");
+            if (nodes.results.isEmpty()) {
+                println("   No nodes to show");
+            }
+            for (Map<String, Object> row : nodes.results) {
+                println("   Node: " + row.get("nodeid"));
+                println("   Address: " + row.get("address"));
+                println("   SSL: " + row.get("ssl"));
+                println("");
             }
         }
 
-        println("");
+    }
 
+    private static void printTableSpaceInfos(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema,
+            ZookeeperMetadataStorageManager clusterManager) throws SQLException, ScriptException, MetadataStorageManagerException {
+        if (clusterManager != null) {
+            TableSpace tablespace = clusterManager.describeTableSpace(schema);
+            if (tablespace == null) {
+                println("Unknown tablespace " + schema);
+                exitCode = 1;
+                System.exit(exitCode);
+            }
+
+            List<TableSpaceReplicaState> nodes =
+                    clusterManager.getTableSpaceReplicaState(tablespace.uuid);
+            
+            println(" Tablespace: " + tablespace.name);
+            println(" Leader node: " + tablespace.leaderId);
+            println(" Replication nodes: " + tablespace.replicas);
+            println(" Expected replica count: " + tablespace.expectedReplicaCount);
+            println(" Max leader inactivity time: " + (tablespace.maxLeaderInactivityTime / 1000) + "s");
+            println(" UUID: " + tablespace.uuid);
+
+            if (nodes != null) {
+
+                println("");
+                println(" Replication nodes:");
+
+                if (nodes.isEmpty()) {
+                    println("");
+                    println("   No nodes to show");
+                }
+                for (TableSpaceReplicaState node : nodes) {
+                    println("");
+                    println("   Node ID: " + node.nodeId);
+                    println("   Mode: " + node.mode);
+                    println("   Last activity: " + new java.sql.Timestamp(node.timestamp));
+                    println("   Inactivity time: " + (Float.valueOf(System.currentTimeMillis() - node.timestamp) / 1000) + "s");                    
+                }
+            }
+
+            println("");
+        } else {
+            ExecuteStatementResult tablespace = executeStatement(verbose, ignoreerrors, false, false,
+                    "select * from systablespaces where tablespace_name='" + schema + "'", statement, tableSpaceMapper,
+                    true, false);
+            ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false,
+                    "select * from systablespacereplicastate where tablespace_name='" + schema + "'", statement,
+                    tableSpaceMapper, true, false);
+            if (tablespace.results.isEmpty()) {
+                println("Unknown tablespace " + schema);
+                exitCode = 1;
+                System.exit(exitCode);
+            }
+
+            println("");
+
+            Map<String, Object> ts = tablespace.results.get(0);
+            println(" Tablespace: " + ts.get("tablespace_name"));
+            println(" Leader node: " + ts.get("leader"));
+            println(" Replication nodes: " + ts.get("replica"));
+            println(" Expected replica count: " + ts.get("expectedreplicacount"));
+            println(" Max leader inactivity time: " + (Float.valueOf((String) ts.get("maxleaderinactivitytime")) / 1000)
+                    + "s");
+            println(" UUID: " + ts.get("uuid"));
+
+            if (nodes != null) {
+
+                println("");
+                println(" Replication nodes:");
+
+                if (nodes.results.isEmpty()) {
+                    println("");
+                    println("   No nodes to show");
+                }
+                for (Map<String, Object> node : nodes.results) {
+                    println("");
+                    println("   Node ID: " + node.get("nodeid"));
+                    println("   Mode: " + node.get("mode"));
+                    println("   Last activity: " + node.get("timestamp"));
+                    println("   Inactivity time: " + (Float.valueOf((String) node.get("inactivitytime")) / 1000) + "s");
+                    println("   Max leader inactivity time: " + (Float.valueOf((String) node.get(
+                            "maxleaderinactivitytime")) / 1000) + "s");
+                }
+            }
+
+            println("");
+        }
     }
 
     private static void listTables(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
