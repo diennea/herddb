@@ -382,7 +382,7 @@ public class HerdDBCLI {
                     } else if (createTablespace) {
                         createTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, newschema, leader);
                     } else if (alterTablespace) {
-                        alterTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, schema, param, values);
+                        alterTablespace(metadataStorageManager, schema, param, values);
                     } else {
                         failAndPrintHelp(options);
                         return;
@@ -438,13 +438,55 @@ public class HerdDBCLI {
         }
     }
 
-    private static void alterTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-            String schema, String param, String values) throws SQLException, ScriptException {
+    private static void alterTablespace(ZookeeperMetadataStorageManager clusterManager,
+            String schema, String param, String values) throws SQLException, ScriptException, MetadataStorageManagerException {
 
-        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-                "EXECUTE ALTERTABLESPACE '" + schema + "','" + param + ":" + values + "'", statement, tableSpaceMapper, true, false);
-
-        if (res != null && res.updateCount > 0) {
+        if (clusterManager == null) {
+            println("You are not managing a cluster. This command cannot be used");
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
+        TableSpace tableSpace = clusterManager.describeTableSpace(schema);
+        if (tableSpace == null) {
+            println("Cannot find tablespace "+schema);
+            exitCode = 1;
+            System.exit(exitCode);
+            return;
+        }
+       
+        TableSpace.Builder newMetadata = TableSpace
+                .builder()
+                .cloning(tableSpace);
+        switch (param) {
+            case "expectedreplicacount":
+                int expectedreplicacount = Integer.parseInt(values);
+                if (expectedreplicacount < 0 || expectedreplicacount > 10) {
+                    println("Bad value for parameter " + param);
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                newMetadata.expectedReplicaCount(expectedreplicacount);
+                break;
+            case "maxleaderinactivitytime":
+                int maxleaderinactivitytime = Integer.parseInt(values);
+                if (maxleaderinactivitytime < 0) {
+                    println("Bad value for parameter " + param);
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                newMetadata.maxLeaderInactivityTime(maxleaderinactivitytime);
+                break;
+            default:
+                println("Bad parameter "+param+", only 'expectedreplicacount' and 'maxleaderinactivitytime' are supported from this interface.");
+                exitCode = 1;
+                System.exit(exitCode);
+                return;
+        }
+        boolean ok = clusterManager.updateTableSpace(newMetadata.build(), tableSpace);
+        if (!ok) {
+            println("Failed to alter " + schema + " tablespace");
+        } else {
             println("Successfully altered " + schema + " tablespace");
         }
     }
@@ -747,7 +789,7 @@ public class HerdDBCLI {
             if (nodes != null) {
 
                 println("");
-                println(" Replication nodes:");
+                println(" Replication nodes (systablespacereplicastate):");
 
                 if (nodes.isEmpty()) {
                     println("");
@@ -755,7 +797,11 @@ public class HerdDBCLI {
                 }
                 for (TableSpaceReplicaState node : nodes) {
                     println("");
-                    println("   Node ID: " + node.nodeId);
+                    if (!tablespace.replicas.contains(node.nodeId))  {
+                        println("   Node ID: " + node.nodeId+" (no more in replica list)");
+                    } else {
+                        println("   Node ID: " + node.nodeId);
+                    }
                     println("   Mode: " + node.mode);
                     println("   Last activity: " + new java.sql.Timestamp(node.timestamp));
                     println("   Inactivity time: " + (Float.valueOf(System.currentTimeMillis() - node.timestamp) / 1000) + "s");                    
@@ -790,7 +836,7 @@ public class HerdDBCLI {
             if (nodes != null) {
 
                 println("");
-                println(" Replication nodes:");
+                println(" Replication nodes (systablespacereplicastate):");
 
                 if (nodes.results.isEmpty()) {
                     println("");
