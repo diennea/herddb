@@ -573,20 +573,20 @@ public class HerdDBCLI {
         ADD, REMOVE
     }
 
-    private static void setLeader(ZookeeperMetadataStorageManager metadataStorageManager, String schema, String nodeId) throws SQLException, ScriptException, MetadataStorageManagerException {
-        if (metadataStorageManager == null) {
+    private static void setLeader(ZookeeperMetadataStorageManager clusterManager, String schema, String nodeId) throws SQLException, ScriptException, MetadataStorageManagerException {
+        if (clusterManager == null) {
             println("You are not managing a cluster. This command cannot be used");
             exitCode = 1;
             System.exit(exitCode);
             return;
         }
-        if (!checkNodeExistence(metadataStorageManager, nodeId)) {
+        if (!checkNodeExistence(clusterManager, nodeId)) {
             println("Unknown node " + nodeId);
             exitCode = 1;
             System.exit(exitCode);
             return;
         }
-        TableSpace tableSpace = metadataStorageManager.describeTableSpace(schema);
+        TableSpace tableSpace = clusterManager.describeTableSpace(schema);
         if (tableSpace == null) {
             println("Cannot find tablespace "+schema);
             exitCode = 1;
@@ -599,15 +599,19 @@ public class HerdDBCLI {
             System.exit(exitCode);
             return;
         }
-        TableSpace newMetadata = TableSpace
+        TableSpace.Builder newMetadata = TableSpace
                 .builder()
                 .cloning(tableSpace)
-                .leader(nodeId).build();
-        metadataStorageManager.updateTableSpace(newMetadata, tableSpace);
-        println("Action perfomed with success");
+                .leader(nodeId);
+        boolean ok = clusterManager.updateTableSpace(newMetadata.build(), tableSpace);
+        if (!ok) {
+            println("Failed to alter " + schema + " tablespace");
+        } else {
+            println("Successfully altered " + schema + " tablespace");
+        }
     };
     private static void changeReplica(
-            ZookeeperMetadataStorageManager clusterManager, String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
+            ZookeeperMetadataStorageManager clusterManager, String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException, MetadataStorageManagerException {
         if (clusterManager == null) {
             println("Not in cluster mode!");
             exitCode = 1;
@@ -625,7 +629,7 @@ public class HerdDBCLI {
             exitCode = 1;
             System.exit(exitCode);
         }
-        TableSpace.Builder cloning = TableSpace.builder().cloning(tableSpace);
+        TableSpace.Builder newMetadata = TableSpace.builder().cloning(tableSpace);
         switch (action) {
             case ADD:
                 if (tableSpace.replicas.contains(nodeId)) {
@@ -633,24 +637,24 @@ public class HerdDBCLI {
                     exitCode = 1;
                     System.exit(exitCode);
                 }
-                cloning.replica(nodeId);
+                newMetadata.replica(nodeId);
                 break;
             case REMOVE:
-                if (!nodes.contains(nodeId)) {
+                if (!tableSpace.replicas.contains(nodeId)) {
                     println("Node " + nodeId + " is not a replica for tablespace " + schema);
                     exitCode = 1;
                     System.exit(exitCode);
                 }
-                nodes.remove(nodeId);
+                Set<String> copy = new HashSet<>(tableSpace.replicas);
+                copy.remove(nodeId);
+                newMetadata.replicas(copy);
                 break;
         }
 
-        replicaNodesStr = nodes.stream().collect(Collectors.joining(","));
-
-        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-                "EXECUTE ALTERTABLESPACE '" + schema + "','replica:" + replicaNodesStr + "'", statement, tableSpaceMapper, true, false);
-
-        if (res != null && res.updateCount > 0) {
+        boolean ok = clusterManager.updateTableSpace(newMetadata.build(), tableSpace);
+        if (!ok) {
+            println("Failed to alter " + schema + " tablespace");
+        } else {
             println("Successfully altered " + schema + " tablespace");
         }
     }

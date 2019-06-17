@@ -67,7 +67,9 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                     public void process(WatchedEvent event) {
                         switch (event.getState()) {
                             case SyncConnected:
+                            case SaslAuthenticated:
                             case ConnectedReadOnly:
+                                LOG.log(Level.FINE, "zk client event {0}", event);
                                 waitForConnection.countDown();
                                 break;
                             default:
@@ -76,10 +78,19 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                         }
                     }
                 });
-                waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.SECONDS);
+
+                boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.MILLISECONDS);
+                if (!waitResult) {
+                    LOG.log(Level.SEVERE, "ZK session to ZK did not establish within "
+                            + (zkSessionTimeout * 2L) + " ms");
+                }
                 return zk;
-            } catch (Exception err) {
+            } catch (IOException err) {
                 LOG.log(Level.SEVERE, "zk client error " + err, err);
+                return null;
+            } catch (InterruptedException err) {
+                LOG.log(Level.SEVERE, "zk client error " + err, err);
+                Thread.currentThread().interrupt();
                 return null;
             }
         });
