@@ -141,14 +141,19 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
-    public synchronized void start() throws MetadataStorageManagerException {
+    public void start() throws MetadataStorageManagerException {
+        start(true);
+    }
+    public synchronized void start(boolean formatIfNeeded) throws MetadataStorageManagerException {   
         if (started) {
             return;
         }
         LOGGER.log(Level.SEVERE, "start, zkAddress " + zkAddress + ", zkSessionTimeout:" + zkSessionTimeout + ", basePath:" + basePath);
         try {
             restartZooKeeper();
-            ensureRoot();
+            if (formatIfNeeded) {
+                ensureRoot();
+            }
             started = true;
         } catch (IOException | InterruptedException | KeeperException err) {
             throw new MetadataStorageManagerException(err);
