@@ -19,14 +19,15 @@
  */
 package herddb.network;
 
-import herddb.proto.Pdu;
-import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+
+import herddb.proto.Pdu;
+import io.netty.buffer.ByteBuf;
 
 /**
  * Abstract for two-way async comunication channels

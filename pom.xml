@@ -110,7 +110,8 @@
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
                 <version>0.13</version>
-                <configuration>                            
+                <configuration>
+                    <consoleOutput>true</consoleOutput>
                     <excludes>
                         <!-- markdown -->
                         <exclude>.github/**/*</exclude>                                                                        
@@ -118,7 +119,7 @@
                                 
                         <exclude>docs/*.graphml</exclude>
                         <exclude>nbproject/**</exclude>
-                        <exclude>nbproject/**</exclude>
+                        <exclude>nbactions.xml</exclude>
                         <exclude>nb-configuration.xml</exclude>
 
                         <!-- Eclipse -->
