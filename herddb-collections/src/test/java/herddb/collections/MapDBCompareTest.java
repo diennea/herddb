@@ -40,28 +40,53 @@ public class MapDBCompareTest {
 
     static class MyPojo implements Serializable {
 
-        // NO NEED FOR equals/hashCode, we are storing a serialized version of the object
         private final int wrapped;
 
         public MyPojo(int wrapped) {
             this.wrapped = wrapped;
         }
 
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 17 * hash + this.wrapped;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final MyPojo other = (MyPojo) obj;
+            if (this.wrapped != other.wrapped) {
+                return false;
+            }
+            return true;
+        }
+
     }
 
     @Test
-//    @Ignore
+    @Ignore
     public void testObjectMapDefaultKeySerializer() throws Exception {
 
-        int warmupIterations = 1_000_000;
+        int warmupIterations = 10_000;
         int testIterations = 100_000;
 
         try (CollectionsManager manager = CollectionsManager
                 .builder()
-                .maxMemory(10 * 1024 * 1024)
+                .maxMemory(10 * 1024 * 1024) // Max 10M of heap
                 .tmpDirectory(tmpDir.newFolder().toPath())
                 .build()) {
-            try (DB db = DBMaker.fileDB(tmpDir.newFolder())
+            try (DB db = DBMaker
+                    .tempFileDB()
                     .fileMmapEnableIfSupported()
                     .make();) {
                 manager.start();
@@ -80,6 +105,7 @@ public class MapDBCompareTest {
                 }
                 long _stopHerd = System.currentTimeMillis();
 
+                System.out.println("TIME WARMUP HERDDB: " + (_stopHerd - _start));
                 try (HTreeMap tmpMap =
                         db
                                 .hashMap("tmpmap", Serializer.ELSA, Serializer.STRING)
@@ -92,7 +118,6 @@ public class MapDBCompareTest {
                     }
                 }
                 long _stopMapDb = System.currentTimeMillis();
-                System.out.println("TIME WARMUP HERDDB: " + (_stopHerd - _start));
                 System.out.println("TIME WARMUP MAPDB: " + (_stopMapDb - _stopHerd));
             }
 
