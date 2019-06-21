@@ -74,15 +74,15 @@ public class MapDBCompareTest {
     }
 
     @Test
-    @Ignore
+//    @Ignore
     public void testObjectMapDefaultKeySerializer() throws Exception {
 
-        int warmupIterations = 10_000;
+        int warmupIterations = 1_000_000;
         int testIterations = 100_000;
 
         try (CollectionsManager manager = CollectionsManager
                 .builder()
-                .maxMemory(10 * 1024 * 1024) // Max 10M of heap
+                .maxMemory(1024 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
                 .build()) {
             try (DB db = DBMaker

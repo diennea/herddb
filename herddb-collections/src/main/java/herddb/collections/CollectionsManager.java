@@ -160,8 +160,9 @@ public final class CollectionsManager implements AutoCloseable {
 
         private ValueSerializer<V> valueSerializer = DEFAULT_VALUE_SERIALIZER;
         private int expectedValueSize = 64;
+        private boolean threadsafe = false;
 
-        public class IntTmpMapBuilder <VI extends V> {
+        public class IntTmpMapBuilder<VI extends V> {
 
             public IntTmpMapBuilder withValueSerializer(ValueSerializer<V> valueSerializer) {
                 TmpMapBuilder.this.valueSerializer = valueSerializer;
@@ -171,12 +172,12 @@ public final class CollectionsManager implements AutoCloseable {
             public TmpMap<Integer, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
                         Bytes::from_int, valueSerializer);
             }
         }
 
-        public class StringTmpMapBuilder  <VI extends V> {
+        public class StringTmpMapBuilder<VI extends V> {
 
             public StringTmpMapBuilder withValueSerializer(ValueSerializer<V> valueSerializer) {
                 TmpMapBuilder.this.valueSerializer = valueSerializer;
@@ -186,7 +187,7 @@ public final class CollectionsManager implements AutoCloseable {
             public TmpMap<String, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
                         Bytes::from_string, valueSerializer);
             }
         }
@@ -208,9 +209,14 @@ public final class CollectionsManager implements AutoCloseable {
             public TmpMap<K, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.BYTEARRAY);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
                         keySerializer, valueSerializer);
             }
+        }
+
+        public TmpMapBuilder<V> threadsafe(boolean threadsafe) {
+            this.threadsafe = threadsafe;
+            return this;
         }
 
         public TmpMapBuilder<V> withValueSerializer(ValueSerializer<V> valueSerializer) {
@@ -232,7 +238,7 @@ public final class CollectionsManager implements AutoCloseable {
         }
 
         public <K> ObjectTmpMapBuilder<K, V> withObjectKeys(Class<K> clazz) {
-            return new ObjectTmpMapBuilder<K, V>();
+            return new ObjectTmpMapBuilder<>();
         }
     }
 
@@ -290,11 +296,14 @@ public final class CollectionsManager implements AutoCloseable {
         private final Function<K, Bytes> keySerializer;
         private final ValueSerializer valuesSerializer;
         private final int expectedValueSize;
+        private final boolean threadsafe;
 
         public TmpMapImpl(String tmpTableName,
                 int expectedValueSize,
+                boolean concurrent,
                 Function<K, Bytes> keySerializer,
                 ValueSerializer valuesSerializer) {
+            this.threadsafe = concurrent;
             this.tmpTableName = tmpTableName;
             this.keySerializer = keySerializer;
             this.valuesSerializer = valuesSerializer;
@@ -317,22 +326,37 @@ public final class CollectionsManager implements AutoCloseable {
             Record record = new Record(keySerializer.apply(key), valueSerialized);
 
             InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, record);
-            long tx = ((TransactionResult) tableSpaceManager.executeStatement(BEGIN_TRANSACTION_STATEMENT, context,
-                    TransactionContext.NO_TRANSACTION)).transactionId;
-            TransactionContext transactionContext = new TransactionContext(tx);
-            try {
-                tableSpaceManager.executeStatement(insert,
-                        new StatementEvaluationContext(), transactionContext);
-            } catch (DuplicatePrimaryKeyException alreadyExists) {
-                tableSpaceManager.executeStatement(
-                        new UpdateStatement(TableSpace.DEFAULT, tmpTableName, record, null),
-                        context,
-                        transactionContext
-                );
-            } finally {
-                tableSpaceManager.executeStatement(
-                        new CommitTransactionStatement(TableSpace.DEFAULT, tx), context,
-                        TransactionContext.NO_TRANSACTION);
+
+            if (threadsafe) {
+
+                long tx = ((TransactionResult) tableSpaceManager.executeStatement(BEGIN_TRANSACTION_STATEMENT, context,
+                        TransactionContext.NO_TRANSACTION)).transactionId;
+                TransactionContext transactionContext = new TransactionContext(tx);
+                try {
+                    tableSpaceManager.executeStatement(insert,
+                            context, transactionContext);
+                } catch (DuplicatePrimaryKeyException alreadyExists) {
+                    tableSpaceManager.executeStatement(
+                            new UpdateStatement(TableSpace.DEFAULT, tmpTableName, record, null),
+                            context,
+                            transactionContext
+                    );
+                } finally {
+                    tableSpaceManager.executeStatement(
+                            new CommitTransactionStatement(TableSpace.DEFAULT, tx), context,
+                            TransactionContext.NO_TRANSACTION);
+                }
+            } else {
+                // no concurrent access, no need to create a transaction
+                try {
+                    tableSpaceManager.executeStatement(insert,
+                            context, TransactionContext.NO_TRANSACTION);
+                } catch (DuplicatePrimaryKeyException alreadyExists) {
+                    tableSpaceManager.executeStatement(
+                            new UpdateStatement(TableSpace.DEFAULT, tmpTableName, record, null),
+                            context, TransactionContext.NO_TRANSACTION
+                    );
+                }
             }
         }
 
