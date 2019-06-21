@@ -58,8 +58,7 @@
 #end
 
             <div class="footer">
-                <div class="separator"><img src="media/separator.png"></div>
-                <div class="text">&copy; 2017 Diennea S.r.l.</div>
+                <div class="separator"><img src="media/separator.png"></div>                
                 <div class="links">
                     <a href="http://www.diennea.com/" target="_blank">Diennea</a>&nbsp; | &nbsp;
                     <a href="http://www.magnews.com/" target="_blank">MagNews</a>&nbsp; | &nbsp;
