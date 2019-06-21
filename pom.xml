@@ -401,6 +401,7 @@
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
+                <module>herddb-collections</module>
                 <module>herddb-ui</module>
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
@@ -499,6 +500,7 @@
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>                
+                <module>herddb-collections</module>                
             </modules>
             <distributionManagement>
                 <snapshotRepository>
@@ -600,6 +602,7 @@
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
+                <module>herddb-collections</module>
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
                 <module>herddb-ui</module>

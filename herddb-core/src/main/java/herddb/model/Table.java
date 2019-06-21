@@ -474,6 +474,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 case ColumnTypes.NOTNULL_STRING:
                 case ColumnTypes.STRING:
                 case ColumnTypes.TIMESTAMP:
+                case ColumnTypes.BYTEARRAY:
                     return true;
                 default:
                     return false;
