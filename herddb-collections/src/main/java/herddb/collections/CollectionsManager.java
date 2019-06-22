@@ -25,22 +25,12 @@ import herddb.file.FileDataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
-import herddb.model.commands.BeginTransactionStatement;
-import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
-import herddb.model.commands.DropTableStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.InsertStatement;
-import herddb.model.commands.UpdateStatement;
 import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
@@ -63,7 +53,6 @@ public final class CollectionsManager implements AutoCloseable {
 
     private static final AtomicLong TABLE_NAME_GENERATOR = new AtomicLong();
 
-    private final DBManager server;
     private static final ValueSerializer DEFAULT_VALUE_SERIALIZER = new ValueSerializer() {
         @Override
         public void serialize(Object object, OutputStream oo) throws Exception {
@@ -82,24 +71,35 @@ public final class CollectionsManager implements AutoCloseable {
         }
 
     };
-    ;
-    private TableSpaceManager tableSpaceManager;
-
-    public static interface ValueSerializer<K> {
-
-        public void serialize(K object, OutputStream outputStream) throws Exception;
-
-        public K deserialize(Bytes bytes) throws Exception;
-    }
 
     public static Builder builder() {
         return new Builder();
     }
 
+    private static <K> Function<K, byte[]> DEFAULT_KEY_SERIALIZER(ValueSerializer<K> serializer) {
+        return (K key) -> {
+            try {
+                VisibleByteArrayOutputStream serializedKey = new VisibleByteArrayOutputStream(32);
+                serializer.serialize(key, serializedKey);
+                return serializedKey.toByteArray();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        };
+    }
+
+    private static String generateTmpTableName() {
+        return "tmp" + TABLE_NAME_GENERATOR.incrementAndGet();
+    }
+    private final DBManager server;
+    private TableSpaceManager tableSpaceManager;
+
     private CollectionsManager(long maxMemory, Path tmpDirectory) {
         ServerConfiguration configuration = new ServerConfiguration();
 
         configuration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, maxMemory);
+        configuration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, maxMemory / 2);
+        configuration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, maxMemory / 2);
 
         server = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
@@ -123,6 +123,23 @@ public final class CollectionsManager implements AutoCloseable {
         server.close();
     }
 
+    public <V> TmpMapBuilder<V> newMap() {
+        return new TmpMapBuilder<>();
+    }
+
+    private void createTable(String tmpTableName, int pkType) throws StatementExecutionException {
+        Table table = Table
+                .builder()
+                .name(tmpTableName)
+                .column("pk", pkType)
+                .primaryKey("pk")
+                .tablespace(TableSpace.DEFAULT)
+                .build();
+        CreateTableStatement createTable = new CreateTableStatement(table);
+        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(),
+                TransactionContext.NO_TRANSACTION);
+    }
+
     public static final class Builder {
 
         private long maxMemory = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
@@ -144,18 +161,6 @@ public final class CollectionsManager implements AutoCloseable {
 
     }
 
-    private static <K> Function<K, Bytes> DEFAULT_KEY_SERIALIZER(ValueSerializer<K> serializer) {
-        return (K key) -> {
-            try {
-                VisibleByteArrayOutputStream serializedKey = new VisibleByteArrayOutputStream(32);
-                serializer.serialize(key, serializedKey);
-                return Bytes.from_array(serializedKey.getBuffer(), 0, serializedKey.size());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        };
-    }
-
     public class TmpMapBuilder<V> {
 
         private ValueSerializer<V> valueSerializer = DEFAULT_VALUE_SERIALIZER;
@@ -173,7 +178,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
                 return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
-                        Bytes::from_int, valueSerializer);
+                        Bytes::intToByteArray, valueSerializer, tableSpaceManager);
             }
         }
 
@@ -188,15 +193,15 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
                 return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
-                        Bytes::from_string, valueSerializer);
+                        Bytes::string_to_array, valueSerializer, tableSpaceManager);
             }
         }
 
         public class ObjectTmpMapBuilder<K, VI extends V> {
 
-            private Function<K, Bytes> keySerializer = DEFAULT_KEY_SERIALIZER(DEFAULT_VALUE_SERIALIZER);
+            private Function<K, byte[]> keySerializer = DEFAULT_KEY_SERIALIZER(DEFAULT_VALUE_SERIALIZER);
 
-            public ObjectTmpMapBuilder<K, VI> withKeySerializer(Function<K, Bytes> keySerializer) {
+            public ObjectTmpMapBuilder<K, VI> withKeySerializer(Function<K, byte[]> keySerializer) {
                 this.keySerializer = keySerializer;
                 return this;
             }
@@ -210,7 +215,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.BYTEARRAY);
                 return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
-                        keySerializer, valueSerializer);
+                        keySerializer, valueSerializer, tableSpaceManager);
             }
         }
 
@@ -239,137 +244,6 @@ public final class CollectionsManager implements AutoCloseable {
 
         public <K> ObjectTmpMapBuilder<K, V> withObjectKeys(Class<K> clazz) {
             return new ObjectTmpMapBuilder<>();
-        }
-    }
-
-    public <V> TmpMapBuilder<V> newMap() {
-        return new TmpMapBuilder<V>();
-    }
-
-    private void createTable(String tmpTableName, int pkType) throws StatementExecutionException {
-        Table table = Table
-                .builder()
-                .name(tmpTableName)
-                .column("pk", pkType)
-                .primaryKey("pk")
-                .tablespace(TableSpace.DEFAULT)
-                .build();
-        CreateTableStatement createTable = new CreateTableStatement(table);
-        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(),
-                TransactionContext.NO_TRANSACTION);
-    }
-
-    private Object executeGet(Bytes serializedKey, String tmpTableName) throws StatementExecutionException, Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, serializedKey, null,
-                false);
-        GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                new StatementEvaluationContext(),
-                herddb.model.TransactionContext.NO_TRANSACTION);
-        if (!getResult.found()) {
-            return null;
-        } else {
-            return DEFAULT_VALUE_SERIALIZER
-                    .deserialize(getResult.getRecord().value);
-        }
-    }
-
-    private boolean executeContainsKey(Bytes serializedKey, String tmpTableName) throws StatementExecutionException,
-            Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, serializedKey, null,
-                false);
-        GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                new StatementEvaluationContext(),
-                herddb.model.TransactionContext.NO_TRANSACTION);
-        return getResult.found();
-    }
-
-    private static final BeginTransactionStatement BEGIN_TRANSACTION_STATEMENT =
-            new BeginTransactionStatement(TableSpace.DEFAULT);
-
-    private static String generateTmpTableName() {
-        return "tmp" + TABLE_NAME_GENERATOR.incrementAndGet();
-    }
-
-    private class TmpMapImpl<K, V> implements TmpMap<K, V> {
-
-        private final String tmpTableName;
-        private final Function<K, Bytes> keySerializer;
-        private final ValueSerializer valuesSerializer;
-        private final int expectedValueSize;
-        private final boolean threadsafe;
-
-        public TmpMapImpl(String tmpTableName,
-                int expectedValueSize,
-                boolean concurrent,
-                Function<K, Bytes> keySerializer,
-                ValueSerializer valuesSerializer) {
-            this.threadsafe = concurrent;
-            this.tmpTableName = tmpTableName;
-            this.keySerializer = keySerializer;
-            this.valuesSerializer = valuesSerializer;
-            this.expectedValueSize = expectedValueSize;
-        }
-
-        @Override
-        public void close() {
-            DropTableStatement drop = new DropTableStatement(TableSpace.DEFAULT, tmpTableName, true);
-            tableSpaceManager.executeStatement(drop, new StatementEvaluationContext(),
-                    herddb.model.TransactionContext.NO_TRANSACTION);
-        }
-
-        @Override
-        public void put(K key, V value) throws Exception {
-            VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream(expectedValueSize);
-            valuesSerializer.serialize(value, buffer);
-            Bytes valueSerialized = Bytes.from_array(buffer.getBuffer(), 0, buffer.size());
-            StatementEvaluationContext context = new StatementEvaluationContext();
-            Record record = new Record(keySerializer.apply(key), valueSerialized);
-
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, record);
-
-            if (threadsafe) {
-
-                long tx = ((TransactionResult) tableSpaceManager.executeStatement(BEGIN_TRANSACTION_STATEMENT, context,
-                        TransactionContext.NO_TRANSACTION)).transactionId;
-                TransactionContext transactionContext = new TransactionContext(tx);
-                try {
-                    tableSpaceManager.executeStatement(insert,
-                            context, transactionContext);
-                } catch (DuplicatePrimaryKeyException alreadyExists) {
-                    tableSpaceManager.executeStatement(
-                            new UpdateStatement(TableSpace.DEFAULT, tmpTableName, record, null),
-                            context,
-                            transactionContext
-                    );
-                } finally {
-                    tableSpaceManager.executeStatement(
-                            new CommitTransactionStatement(TableSpace.DEFAULT, tx), context,
-                            TransactionContext.NO_TRANSACTION);
-                }
-            } else {
-                // no concurrent access, no need to create a transaction
-                try {
-                    tableSpaceManager.executeStatement(insert,
-                            context, TransactionContext.NO_TRANSACTION);
-                } catch (DuplicatePrimaryKeyException alreadyExists) {
-                    tableSpaceManager.executeStatement(
-                            new UpdateStatement(TableSpace.DEFAULT, tmpTableName, record, null),
-                            context, TransactionContext.NO_TRANSACTION
-                    );
-                }
-            }
-        }
-
-        @Override
-        public V get(K key) throws Exception {
-            Bytes serializedKey = keySerializer.apply(key);
-            return (V) executeGet(serializedKey, tmpTableName);
-        }
-
-        @Override
-        public boolean containsKey(K key) throws Exception {
-            Bytes serializedKey = keySerializer.apply(key);
-            return executeContainsKey(serializedKey, tmpTableName);
         }
     }
 

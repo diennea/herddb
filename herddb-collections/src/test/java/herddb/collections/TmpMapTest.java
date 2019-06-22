@@ -26,7 +26,6 @@ import static org.junit.Assert.assertTrue;
 
 import herddb.utils.Bytes;
 import java.io.Serializable;
-import java.util.function.Function;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -153,7 +152,7 @@ public class TmpMapTest {
                     .<String>newMap()
                     .withExpectedValueSize(8)
                     .withObjectKeys(MyPojo.class)
-                    .withKeySerializer((MyPojo k) -> Bytes.from_int(k.wrapped))
+                    .withKeySerializer((MyPojo k) -> Bytes.intToByteArray(k.wrapped))
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
                     tmpMap.put(new MyPojo(i), "foo" + i);

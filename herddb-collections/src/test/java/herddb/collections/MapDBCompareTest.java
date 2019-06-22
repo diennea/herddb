@@ -77,7 +77,7 @@ public class MapDBCompareTest {
 //    @Ignore
     public void testObjectMapDefaultKeySerializer() throws Exception {
 
-        int warmupIterations = 1_000_000;
+        int warmupIterations = 100_000;
         int testIterations = 100_000;
 
         try (CollectionsManager manager = CollectionsManager
