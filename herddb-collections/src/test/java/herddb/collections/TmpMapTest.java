@@ -25,6 +25,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import herddb.utils.Bytes;
+import java.io.OutputStream;
 import java.io.Serializable;
 import org.junit.Rule;
 import org.junit.Test;
@@ -48,38 +49,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
                     .newMap()
-                    .withIntKeys()
-                    .build()) {
-                for (int i = 0; i < 1000; i++) {
-                    tmpMap.put(i, "foo" + i);
-                }
-                for (int i = 0; i < 1000; i++) {
-                    assertTrue(tmpMap.containsKey(i));
-                }
-                for (int i = 0; i < 1000; i++) {
-                    assertEquals("foo" + i, tmpMap.get(i));
-                }
-
-                // negative tests
-                assertNull(tmpMap.get(-1234));
-                assertFalse(tmpMap.containsKey(-1234));
-            }
-        }
-    }
-
-    
-    
-    @Test
-    public void testNoThreadSafeMap() throws Exception {
-        try (CollectionsManager manager = CollectionsManager
-                .builder()
-                .maxMemory(10 * 1024 * 1024)                
-                .tmpDirectory(tmpDir.newFolder().toPath())
-                .build()) {
-            manager.start();
-            try (TmpMap<Integer, String> tmpMap = manager
-                    .newMap()
-                    .threadsafe(false)
                     .withIntKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
@@ -124,17 +93,88 @@ public class TmpMapTest {
                 // negative tests
                 assertNull(tmpMap.get(-1234));
                 assertFalse(tmpMap.containsKey(-1234));
+                for (int i = 0; i < 1000; i++) {
+                    tmpMap.remove(i);
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertFalse(tmpMap.containsKey(i));
+                }
+
+            }
+        }
+    }
+
+    @Test
+    public void testCustomSerializer() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Integer, MyPojo> tmpMap = manager
+                    .<MyPojo>newMap()
+                    .withValueSerializer(new ValueSerializer<MyPojo>() {
+                        @Override
+                        public void serialize(MyPojo object, OutputStream outputStream) throws Exception {
+                            outputStream.write(Bytes.intToByteArray(object.wrapped));
+                        }
+
+                        @Override
+                        public MyPojo deserialize(Bytes bytes) throws Exception {
+                            return new MyPojo(bytes.to_int());
+                        }
+                    })
+                    .withIntKeys()
+                    .build()) {
+                for (int i = 0; i < 1000; i++) {
+                    tmpMap.put(i, new MyPojo(i));
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertTrue(tmpMap.containsKey(i));
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertEquals(new MyPojo(i), tmpMap.get(i));
+                }
+
+                // negative tests
+                assertNull(tmpMap.get(-1234));
+                assertFalse(tmpMap.containsKey(-1234));
             }
         }
     }
 
     static class MyPojo implements Serializable {
 
-        // NO NEED FOR equals/hashCode, we are storing a serialized version of the object
         private final int wrapped;
 
         public MyPojo(int wrapped) {
             this.wrapped = wrapped;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 89 * hash + this.wrapped;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final MyPojo other = (MyPojo) obj;
+            if (this.wrapped != other.wrapped) {
+                return false;
+            }
+            return true;
         }
 
     }

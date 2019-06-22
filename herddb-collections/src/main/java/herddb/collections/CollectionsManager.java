@@ -47,7 +47,17 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 
 /**
  * Entry Point for HerdDB Collections. A Collections Manager manages a set of Collections, these Collections will share
- * the same pool of memory. It is expected to have only one CollectionsManager per JVM.
+ * the same pool of memory.
+ * <p>
+ * It is expected to have only one CollectionsManager per JVM.
+ * <p>
+ * All of the collections created from a CollectionsManager share common data structures.
+ * <p>
+ * In case of low memory the system will swap out to disk (or simply onload from memory) unused data. The system uses
+ * the default data placement policy of the underlying HerdDB database.
+ * <p>
+ * Every collection is supposed not to be thread safe, but do not try to wrap them with custom synchronization
+ * mechanisms because this may lead to deadlocks.
  */
 public final class CollectionsManager implements AutoCloseable {
 
@@ -98,8 +108,20 @@ public final class CollectionsManager implements AutoCloseable {
         ServerConfiguration configuration = new ServerConfiguration();
 
         configuration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, maxMemory);
-        configuration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, maxMemory / 2);
-        configuration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, maxMemory / 2);
+        if (maxMemory > 0) {
+            // HerdDB ergonomics keep into consideration a lot of stuff we are not using
+            // here. So we can force the distribution of the max memory limit.
+            // Maybe in the future we could make this more tunable.
+            configuration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, maxMemory / 2);
+            configuration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, maxMemory / 2);
+        }
+
+        // do not use additional threads
+        // this is very important
+        // because by default HerdDB deals with Netty and BookKeeper
+        // here we are not using network or async commit logs....
+        // so it is better to perform every operation on the same thread
+        configuration.set(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS, -1);
 
         server = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
@@ -132,6 +154,7 @@ public final class CollectionsManager implements AutoCloseable {
                 .builder()
                 .name(tmpTableName)
                 .column("pk", pkType)
+                // no need to define other columns
                 .primaryKey("pk")
                 .tablespace(TableSpace.DEFAULT)
                 .build();
@@ -145,16 +168,35 @@ public final class CollectionsManager implements AutoCloseable {
         private long maxMemory = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
         private Path tmpDirectory;
 
+        /**
+         * Max memory to use. This is an upper bound to the amount of memory directly referenced by the
+         * CollectionsManager. The system will automatically swap to disk data in order to respect this limit.
+         *
+         * @param maxMemory the amount of memory, in bytes. If not set it will use HerdDB defaults
+         * @return the build itself
+         */
         public Builder maxMemory(long maxMemory) {
             this.maxMemory = maxMemory;
             return this;
         }
 
+        /**
+         * The directory to store the database. It is expected that the directory is empty.
+         *
+         * @param tmpDirectory
+         * @return the build itself
+         */
         public Builder tmpDirectory(Path tmpDirectory) {
             this.tmpDirectory = tmpDirectory;
             return this;
         }
 
+        /**
+         * Creates the CollectionsManager. You must call {@link CollectionsManager#start() }
+         * in order to boot the system.
+         *
+         * @return the new not-yet-started CollectionsManager.
+         */
         public CollectionsManager build() {
             return new CollectionsManager(maxMemory, tmpDirectory);
         }
@@ -165,34 +207,33 @@ public final class CollectionsManager implements AutoCloseable {
 
         private ValueSerializer<V> valueSerializer = DEFAULT_VALUE_SERIALIZER;
         private int expectedValueSize = 64;
-        private boolean threadsafe = false;
 
         public class IntTmpMapBuilder<VI extends V> {
 
-            public IntTmpMapBuilder withValueSerializer(ValueSerializer<V> valueSerializer) {
-                TmpMapBuilder.this.valueSerializer = valueSerializer;
-                return this;
-            }
-
+            /**
+             * Boot the map.
+             *
+             * @return the handle to the map.
+             */
             public TmpMap<Integer, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
                         Bytes::intToByteArray, valueSerializer, tableSpaceManager);
             }
         }
 
         public class StringTmpMapBuilder<VI extends V> {
 
-            public StringTmpMapBuilder withValueSerializer(ValueSerializer<V> valueSerializer) {
-                TmpMapBuilder.this.valueSerializer = valueSerializer;
-                return this;
-            }
-
+            /**
+             * Boot the map.
+             *
+             * @return the handle to the map.
+             */
             public TmpMap<String, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
                         Bytes::string_to_array, valueSerializer, tableSpaceManager);
             }
         }
@@ -201,47 +242,76 @@ public final class CollectionsManager implements AutoCloseable {
 
             private Function<K, byte[]> keySerializer = DEFAULT_KEY_SERIALIZER(DEFAULT_VALUE_SERIALIZER);
 
+            /**
+             * Define a custom serializer for keys.
+             *
+             * @return the builder itself.
+             */
             public ObjectTmpMapBuilder<K, VI> withKeySerializer(Function<K, byte[]> keySerializer) {
                 this.keySerializer = keySerializer;
                 return this;
             }
 
-            public ObjectTmpMapBuilder<K, VI> withValueSerializer(ValueSerializer<V> valueSerializer) {
-                TmpMapBuilder.this.valueSerializer = valueSerializer;
-                return this;
-            }
-
+            /**
+             * Boot the map.
+             *
+             * @return the handle to the map.
+             */
             public TmpMap<K, VI> build() {
                 String tmpTableName = generateTmpTableName();
                 createTable(tmpTableName, ColumnTypes.BYTEARRAY);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize, threadsafe,
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
                         keySerializer, valueSerializer, tableSpaceManager);
             }
         }
 
-        public TmpMapBuilder<V> threadsafe(boolean threadsafe) {
-            this.threadsafe = threadsafe;
-            return this;
-        }
-
+        /**
+         * Define a custom serializer for values.
+         *
+         * @param valueSerializer
+         * @return the builder itself
+         */
         public TmpMapBuilder<V> withValueSerializer(ValueSerializer<V> valueSerializer) {
             this.valueSerializer = valueSerializer;
             return this;
         }
 
+        /**
+         * Define the initial buffer size for each value serialization. Setting an appropriate will help reducing
+         * temporary memory copies due to reallocation of internal buffers.
+         *
+         * @param expectedValueSize the minimum expected size for a value.
+         *
+         * @return the builder itself
+         */
         public TmpMapBuilder<V> withExpectedValueSize(int expectedValueSize) {
             this.expectedValueSize = expectedValueSize;
             return this;
         }
 
+        /**
+         * Start creating a map optimized for "int" keys.
+         *
+         * @return the builder itself
+         */
         public IntTmpMapBuilder withIntKeys() {
             return new IntTmpMapBuilder();
         }
 
+        /**
+         * Start creating a map optimized for "string" keys.
+         *
+         * @return the builder itself
+         */
         public StringTmpMapBuilder withStringKeys() {
             return new StringTmpMapBuilder();
         }
 
+        /**
+         * Start creating a map with a serializer for keys.
+         *
+         * @return the builder itself
+         */
         public <K> ObjectTmpMapBuilder<K, V> withObjectKeys(Class<K> clazz) {
             return new ObjectTmpMapBuilder<>();
         }

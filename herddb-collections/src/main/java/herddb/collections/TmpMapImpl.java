@@ -20,8 +20,11 @@
 package herddb.collections;
 
 import herddb.core.TableSpaceManager;
+import herddb.core.stats.TableManagerStats;
+import herddb.index.PrimaryIndexSeek;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
+import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -29,9 +32,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
-import herddb.model.commands.BeginTransactionStatement;
-import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -50,9 +51,11 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     private final String tmpTableName;
     private final Function<K, byte[]> keySerializer;
     private final ValueSerializer valuesSerializer;
-    private final boolean threadsafe;
     private final TableSpaceManager tableSpaceManager;
+    private final TableManagerStats stats;
+
     private final InsertStatement insert;
+    private final DeleteStatement delete;
     private final UpdateStatement update;
 
     private static final class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
@@ -75,11 +78,10 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     }
 
-    public TmpMapImpl(String tmpTableName, int expectedValueSize, boolean concurrent,
+    public TmpMapImpl(String tmpTableName, int expectedValueSize,
             Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
             final TableSpaceManager tableSpaceManager) {
         this.tableSpaceManager = tableSpaceManager;
-        this.threadsafe = concurrent;
         this.tmpTableName = tmpTableName;
         this.keySerializer = keySerializer;
         this.valuesSerializer = valuesSerializer;
@@ -108,6 +110,10 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         };
         insert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction);
         update = new UpdateStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction, null);
+        delete = new DeleteStatement(TableSpace.DEFAULT, tmpTableName, null, new PredicateDeleteImpl(keyFunction));
+        stats = tableSpaceManager
+                .getTableManager(tmpTableName)
+                .getStats();
     }
 
     @Override
@@ -120,26 +126,37 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void put(K key, V value) throws Exception {
         StatementEvaluationContext context = new PutStatementEvaluationContext(key, value);
-        if (threadsafe) {
-            long tx = ((TransactionResult) tableSpaceManager.executeStatement(BEGIN_TRANSACTION_STATEMENT,
-                    context, TransactionContext.NO_TRANSACTION)).transactionId;
-            TransactionContext transactionContext = new TransactionContext(tx);
-            try {
-                tableSpaceManager.executeStatement(insert, context, transactionContext);
-            } catch (DuplicatePrimaryKeyException alreadyExists) {
-                tableSpaceManager.executeStatement(update, context, transactionContext);
-            } finally {
-                tableSpaceManager.executeStatement(new CommitTransactionStatement(TableSpace.DEFAULT, tx),
-                        context, TransactionContext.NO_TRANSACTION);
-            }
-        } else {
-            // no concurrent access, no need to create a transaction
-            try {
-                tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
-            } catch (DuplicatePrimaryKeyException alreadyExists) {
-                tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
-            }
+        // no concurrent access, no need to be super conservative, keep row-level locks..
+        try {
+            // our best guess it that the key is not already mapped
+            tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
+        } catch (DuplicatePrimaryKeyException alreadyExists) {
+            tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
         }
+    }
+
+    @Override
+    public void remove(K key) throws Exception {
+        StatementEvaluationContext context = new PutStatementEvaluationContext(key, null);
+        tableSpaceManager.executeStatement(delete, context, TransactionContext.NO_TRANSACTION);
+
+    }
+
+    @Override
+    public boolean isSwapped() {
+        return stats.getLoadedPagesCount() > 0
+                || stats.getUnloadedPagesCount() > 0;
+
+    }
+
+    @Override
+    public long size() {
+        return stats.getTablesize();
+    }
+
+    @Override
+    public long estimateCurrentMemoryUsage() {
+        return stats.getKeysUsedMemory() + stats.getBuffersUsedMemory() + stats.getDirtyUsedMemory();
     }
 
     @Override
@@ -155,7 +172,8 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     }
 
     private Object executeGet(byte[] serializedKey, String tmpTableName) throws StatementExecutionException, Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null, false);
+        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
+                false);
         GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
                 new StatementEvaluationContext(),
                 herddb.model.TransactionContext.NO_TRANSACTION);
@@ -169,14 +187,39 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     private boolean executeContainsKey(byte[] serializedKey, String tmpTableName) throws StatementExecutionException,
             Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null, false);
+        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
+                false);
         GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
                 new StatementEvaluationContext(),
                 herddb.model.TransactionContext.NO_TRANSACTION);
         return getResult.found();
     }
 
-    private static final BeginTransactionStatement BEGIN_TRANSACTION_STATEMENT =
-            new BeginTransactionStatement(TableSpace.DEFAULT);
+    final class PredicateDeleteImpl extends Predicate {
+
+        private final RecordFunction keyFunction;
+
+        public PredicateDeleteImpl(RecordFunction keyFunction) {
+            this.keyFunction = keyFunction;
+            this.setIndexOperation(new PrimaryIndexSeek(keyFunction));
+        }
+
+        @Override
+        public PrimaryKeyMatchOutcome matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws
+                StatementExecutionException {
+            if (key.equals(Bytes.from_array(keyFunction.computeNewValue(null, context, null)))) {
+                return PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED;
+            } else {
+                return PrimaryKeyMatchOutcome.FAILED;
+            }
+        }
+
+        @Override
+        public boolean evaluate(Record record, StatementEvaluationContext context) throws
+                StatementExecutionException {
+            // we are already covered 
+            return true;
+        }
+    }
 
 }

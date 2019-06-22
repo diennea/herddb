@@ -273,7 +273,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             }
 
             newPageId.set(status.newPageId);
-            LOGGER.log(Level.SEVERE, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
+            LOGGER.log(Level.INFO, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
             return true;
         }
 
@@ -282,7 +282,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "rebuilding index {0}", index.name);
+        LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
         data.reset();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {

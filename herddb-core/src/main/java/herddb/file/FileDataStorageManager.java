@@ -1244,7 +1244,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropTable(String tablespace, String tableName) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "dropTable {0}.{1}", new Object[]{tablespace, tableName});
+        LOGGER.log(Level.INFO, "dropTable {0}.{1}", new Object[]{tablespace, tableName});
         Path tableDir = getTableDirectory(tablespace, tableName);
         try {
             deleteDirectory(tableDir);
