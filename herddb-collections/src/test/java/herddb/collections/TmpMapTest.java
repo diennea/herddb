@@ -69,6 +69,35 @@ public class TmpMapTest {
     }
 
     @Test
+    public void testLongMap() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Long, String> tmpMap = manager
+                    .newMap()
+                    .withLongKeys()
+                    .build()) {
+                for (long i = 0; i < 1000; i++) {
+                    tmpMap.put(i, "foo" + i);
+                }
+                for (long i = 0; i < 1000; i++) {
+                    assertTrue(tmpMap.containsKey(i));
+                }
+                for (long i = 0; i < 1000; i++) {
+                    assertEquals("foo" + i, tmpMap.get(i));
+                }
+
+                // negative tests
+                assertNull(tmpMap.get(-1234L));
+                assertFalse(tmpMap.containsKey(-1234L));
+            }
+        }
+    }
+
+    @Test
     public void testStringMap() throws Exception {
         try (CollectionsManager manager = CollectionsManager
                 .builder()

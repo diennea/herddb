@@ -223,6 +223,21 @@ public final class CollectionsManager implements AutoCloseable {
             }
         }
 
+        public class LongTmpMapBuilder<VI extends V> {
+
+            /**
+             * Boot the map.
+             *
+             * @return the handle to the map.
+             */
+            public TmpMap<Long, VI> build() {
+                String tmpTableName = generateTmpTableName();
+                createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
+                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                        Bytes::longToByteArray, valueSerializer, tableSpaceManager);
+            }
+        }
+
         public class StringTmpMapBuilder<VI extends V> {
 
             /**
@@ -296,6 +311,15 @@ public final class CollectionsManager implements AutoCloseable {
          */
         public IntTmpMapBuilder withIntKeys() {
             return new IntTmpMapBuilder();
+        }
+
+        /**
+         * Start creating a map optimized for "long" keys.
+         *
+         * @return the builder itself
+         */
+        public LongTmpMapBuilder withLongKeys() {
+            return new LongTmpMapBuilder();
         }
 
         /**

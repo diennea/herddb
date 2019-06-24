@@ -88,31 +88,6 @@ public class CreateTableTest {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void weThrowExceptionWhenNullableDataTypeByteArrayUsedasPk() throws Exception {
-        String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
-            manager.start();
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
-            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
-
-            Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.BYTEARRAY)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
-
-            CreateTableStatement st2 = new CreateTableStatement(table);
-
-            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-        }
-    }
-
-
     @Test(expected = StatementExecutionException.class)
     public void weThrowExceptionOnInsertingNullInNonNullColumn() throws Exception {
         String nodeId = "localhost";
