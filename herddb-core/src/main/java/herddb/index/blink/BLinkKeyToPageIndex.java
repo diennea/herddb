@@ -240,7 +240,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     @Override
     public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
 
-        LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{indexName});
+        LOGGER.log(Level.INFO, " start index {0}", new Object[]{indexName});
 
         /* Actually the same size */
         final long pageSize = memoryManager.getMaxLogicalPageSize();
@@ -249,7 +249,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             /* Empty index (booting from the start) */
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
                 memoryManager.getPKPageReplacementPolicy(), indexDataStorage);
-            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
+            LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{indexName});
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpace, indexName, sequenceNumber);
             try {
@@ -263,7 +263,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             }
 
             newPageId.set(status.newPageId);
-            LOGGER.log(Level.SEVERE, "loaded index {0}: {1} keys", new Object[]{indexName, tree.size()});
+            LOGGER.log(Level.INFO, "loaded index {0}: {1} keys", new Object[]{indexName, tree.size()});
         }
     }
 

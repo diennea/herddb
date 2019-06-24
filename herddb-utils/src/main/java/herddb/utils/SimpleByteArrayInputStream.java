@@ -21,6 +21,7 @@ package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.InputStream;
+import java.util.Objects;
 
 /**
  * A very simple InputStream which wraps a byte buffer
@@ -31,24 +32,24 @@ import java.io.InputStream;
 public final class SimpleByteArrayInputStream extends InputStream {
 
     private final byte[] buf;
-    private final int size;
+    private final int end;
     private int pos;
 
     public SimpleByteArrayInputStream(byte buf[]) {
         this.buf = buf;
         this.pos = 0;
-        this.size = buf.length;
+        this.end = buf.length;
     }
 
     public SimpleByteArrayInputStream(byte buf[], int offset, int length) {
         this.buf = buf;
         this.pos = offset;
-        this.size = length;
+        this.end = offset + length;
     }
 
     @Override
     public int read() {
-        return (pos < size) ? (buf[pos++] & 0xff) : -1;
+        return (pos < end) ? (buf[pos++] & 0xff) : -1;
     }
 
     @Override
@@ -59,11 +60,11 @@ public final class SimpleByteArrayInputStream extends InputStream {
             throw new IndexOutOfBoundsException();
         }
 
-        if (pos >= size) {
+        if (pos >= end) {
             return -1;
         }
 
-        int avail = size - pos;
+        int avail = end - pos;
         if (len > avail) {
             len = avail;
         }
@@ -77,7 +78,7 @@ public final class SimpleByteArrayInputStream extends InputStream {
 
     @Override
     public int available() {
-        return size - pos;
+        return end - pos;
     }
 
 }

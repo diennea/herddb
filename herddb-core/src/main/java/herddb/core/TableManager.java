@@ -255,14 +255,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final Counter checkpointProcessedDirtyRecords;
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
-        LOGGER.log(Level.SEVERE, "Table " + table.name + ", receiving dump,"
+        LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
                 + "done at external logPosition " + dumpLogSequenceNumber);
         this.dumpLogSequenceNumber = dumpLogSequenceNumber;
     }
 
     void restoreFinished() {
         dumpLogSequenceNumber = null;
-        LOGGER.log(Level.SEVERE, "Table " + table.name + ", received dump");
+        LOGGER.log(Level.INFO, "Table " + table.name + ", received dump");
     }
 
     private final class TableManagerStatsImpl implements TableManagerStats {
@@ -462,7 +462,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         if (requireLoadAtStartup) {
             // non persistent primary key index, we need a full table scan
-            LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {0}", new Object[]{table.name});
+            LOGGER.log(Level.INFO, "loading in memory all the keys for table {0}", new Object[]{table.name});
             dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
                     new FullTableScanConsumer() {
 
@@ -470,7 +470,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 @Override
                 public void acceptTableStatus(TableStatus tableStatus) {
-                    LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+                    LOGGER.log(Level.INFO, "recovery table at " + tableStatus.sequenceNumber);
                     nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
                     nextPageId = tableStatus.nextPageId;
                     bootSequenceNumber = tableStatus.sequenceNumber;
@@ -503,7 +503,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } else {
             LOGGER.log(Level.INFO, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
-            LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
+            if (!tableStatus.sequenceNumber.isStartOfTime()) {
+                LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
+            }
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
             bootSequenceNumber = tableStatus.sequenceNumber;
@@ -517,7 +519,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
         initNewPages();
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
+        LOGGER.log(Level.INFO, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
                 new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
 
         started = true;

@@ -73,12 +73,12 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
+        LOGGER.log(Level.INFO, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
         bootSequenceNumber = sequenceNumber;
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
-            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+            LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{index.name});
             return true;
         } else {
 
@@ -91,7 +91,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             }
 
             for (long pageId : status.activePages) {
-                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId);
+                LOGGER.log(Level.INFO, "recovery index {0}, load {1}", new Object[]{index.name, pageId});
 
                 Map<Bytes, List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.uuid, pageId, in -> {
                     Map<Bytes, List<Bytes>> deserialized = new HashMap<>();
@@ -120,7 +120,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             }
 
             newPageId.set(status.newPageId);
-            LOGGER.log(Level.SEVERE, "loaded {0} keys for index {1}", new Object[]{data.size(), index.name});
+            LOGGER.log(Level.INFO, "loaded {0} keys for index {1}", new Object[]{data.size(), index.name});
             return true;
         }
     }
@@ -128,7 +128,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "rebuilding index {0}", index.name);
+        LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
         data.clear();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {
@@ -139,7 +139,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             recordInserted(key, indexKey);
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
+        LOGGER.log(Level.INFO, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
     }
 
     @Override
@@ -224,12 +224,12 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
-            LOGGER.log(Level.SEVERE, "checkpoint for index " + index.name + " skipped, this index is created on transaction " + createdInTransaction + " which is not committed");
+            LOGGER.log(Level.INFO, "checkpoint for index " + index.name + " skipped, this index is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
         }
         List<PostCheckpointAction> result = new ArrayList<>();
 
-        LOGGER.log(Level.SEVERE, "flush index {0}", new Object[]{index.name});
+        LOGGER.log(Level.INFO, "flush index {0}", new Object[]{index.name});
 
         long pageId = newPageId.getAndIncrement();
         Holder<Long> count = new Holder<>();

@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import com.google.common.util.concurrent.MoreExecutors;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -177,7 +178,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.tmpDirectory = tmpDirectory;
         int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
                 ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS_DEFAULT);
-        this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, ASYNC_WORKERS_THREAD_FACTORY);
+        if (asyncWorkerThreads <= 0) {
+            // use this only for tests on in HerdDB Collections framework
+            // without a threadpool every statement will be executed
+            // on any system thread (Netty, BookKeeper...).
+            this.callbacksExecutor = MoreExecutors.newDirectExecutorService();            
+        }  else {
+            this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, ASYNC_WORKERS_THREAD_FACTORY);
+        }
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
