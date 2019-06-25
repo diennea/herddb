@@ -19,6 +19,7 @@
  */
 package herddb.collections;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.PrimaryIndexSeek;
@@ -88,6 +89,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
         RecordFunction keyFunction = new RecordFunction() {
             @Override
+            @SuppressFBWarnings("BC_UNCONFIRMED_CAST")
             public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext)
                     throws StatementExecutionException {
                 K key = ((PutStatementEvaluationContext<K, V>) context).getKey();
@@ -96,6 +98,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         };
         RecordFunction valuesFunction = new RecordFunction() {
             @Override
+            @SuppressFBWarnings("BC_UNCONFIRMED_CAST")
             public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext)
                     throws StatementExecutionException {
                 try {
