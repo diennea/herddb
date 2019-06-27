@@ -51,4 +51,9 @@ public class ClientSideQueryCache {
             preparedStatements.remove(query, statementId);
         }
     }
+
+    void clear() {
+        preparedStatements.clear();
+    }
+
 }

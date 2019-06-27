@@ -193,6 +193,67 @@ public class SimpleClientServerTest {
         }
     }
 
+    @Test
+    public void testCachePreparedStatementsRestartServer() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
+        try (HDBClient client = new HDBClient(clientConfiguration);) {
+            try (HDBConnection connection1 = client.openConnection()) {
+
+                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                    server.start();
+                    server.waitForStandaloneBoot();
+                    client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                    assertTrue(connection1.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                    // this is 1 for the client and for the server
+                    long resultCreateTable = connection1.executeUpdate(TableSpace.DEFAULT,
+                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true /*usePreparedStatement*/,
+                            Collections.emptyList()).updateCount;
+                    Assert.assertEquals(1, resultCreateTable);
+
+                    // this is 2 for the client and for the server
+                    connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT * FROM mytable", true  /*usePreparedStatement*/,
+                            Collections.emptyList(), 0, 0, 10).close();
+
+                    // this is 3 for the client and for the server
+                    connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT id FROM mytable", true  /*usePreparedStatement*/,
+                            Collections.emptyList(), 0, 0, 10).close();
+                }
+
+                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                    server.start();
+                    server.waitForStandaloneBoot();
+                    client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                    assertTrue(connection1.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                    // this is 1 for the server, the client will invalidate its cache for this statement
+                    connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT n1 FROM mytable", true  /*usePreparedStatement*/,
+                            Collections.emptyList(), 0, 0, 10).close();
+
+                    // this is 2 for the server
+                    try (HDBConnection connection2 = client.openConnection()) {
+                        connection2.executeUpdate(TableSpace.DEFAULT,
+                            "UPDATE mytable set n1=2", 0, false, true /*usePreparedStatement*/,
+                            Collections.emptyList());
+                    }
+
+                   // this would be 2 for connection1 (bug in 0.10.0), but for the server 2 is "UPDATE mytable set n1=2"
+                   connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT * FROM mytable", true  /*usePreparedStatement*/,
+                            Collections.emptyList(), 0, 0, 10).close();
+
+
+                }
+            }
+        }
+
+    }
+
     /**
      * Testing that if the server discards the query the client will resend the
      * PREPARE_STATEMENT COMMAND
