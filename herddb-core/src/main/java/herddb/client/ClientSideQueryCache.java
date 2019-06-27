@@ -21,6 +21,7 @@ package herddb.client;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * Tracks client side prepared statements.
@@ -51,4 +52,9 @@ public class ClientSideQueryCache {
             preparedStatements.remove(query, statementId);
         }
     }
+
+    void clear() {
+        preparedStatements.clear();
+    }
+
 }

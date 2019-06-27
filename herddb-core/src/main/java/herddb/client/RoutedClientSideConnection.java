@@ -243,6 +243,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
     @Override
     public void channelClosed(Channel channel) {
+        // clean up local cache, if the server restarted we would use old ids
+        preparedStatements.clear();
         if (channel == this.channel) {
             this.channel = null;
         }
@@ -275,6 +277,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 if (channel != null) {
                     return channel;
                 }
+                // clean up local cache, if the server restarted we would use old ids
+                preparedStatements.clear();
                 LOGGER.log(Level.FINE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
                 Channel _channel = this.connection.getClient().createChannelTo(server, this);
                 try {
