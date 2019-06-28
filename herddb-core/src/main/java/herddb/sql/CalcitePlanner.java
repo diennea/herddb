@@ -100,15 +100,14 @@ import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableFilter;
 import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
-import org.apache.calcite.adapter.enumerable.EnumerableJoin;
+import org.apache.calcite.adapter.enumerable.EnumerableHashJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableMergeJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
-import org.apache.calcite.adapter.enumerable.EnumerableSemiJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
-import org.apache.calcite.adapter.enumerable.EnumerableThetaJoin;
+import org.apache.calcite.adapter.enumerable.EnumerableNestedLoopJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
@@ -575,11 +574,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableSemiJoin) {
             EnumerableSemiJoin scan = (EnumerableSemiJoin) plan;
             return planEnumerableSemiJoin(scan, rowType);
-        } else if (plan instanceof EnumerableThetaJoin) {
-            EnumerableThetaJoin scan = (EnumerableThetaJoin) plan;
-            return planEnumerableThetaJoin(scan, rowType);
-        } else if (plan instanceof EnumerableJoin) {
-            EnumerableJoin scan = (EnumerableJoin) plan;
+        } else if (plan instanceof EnumerableNestedLoopJoin) {
+            EnumerableNestedLoopJoin scan = (EnumerableNestedLoopJoin) plan;
+            return planEnumerableNestedLoopJoin(scan, rowType);
+        } else if (plan instanceof EnumerableHashJoin) {
+            EnumerableHashJoin scan = (EnumerableHashJoin) plan;
             return planEnumerableJoin(scan, rowType);
         } else if (plan instanceof EnumerableMergeJoin) {
             EnumerableMergeJoin scan = (EnumerableMergeJoin) plan;
@@ -890,7 +889,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 leftKeys, left, rightKeys, right);
     }
 
-    private PlannerOp planEnumerableJoin(EnumerableJoin op, RelDataType rowType) {
+    private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
@@ -913,12 +912,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
 
-    private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
+    private PlannerOp planEnumerableNestedLoopJoin(EnumerableNestedLoopJoin op, RelDataType rowType) {
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
-        boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
-        boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -931,7 +928,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new ThetaJoinOp(fieldNames, columns,
-                left, right, condition, generateNullsOnLeft, generateNullsOnRight, false);
+                left, right, condition, op.getJoinType(), false);
     }
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
