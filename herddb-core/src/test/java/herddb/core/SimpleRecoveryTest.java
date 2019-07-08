@@ -24,16 +24,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.nio.file.Path;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import herddb.file.FileCommitLog;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
+import herddb.log.LogEntry;
+import herddb.log.LogEntryType;
+import herddb.log.LogSequenceNumber;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.ColumnTypes;
 import herddb.model.ConstValueRecordFunction;
@@ -55,6 +52,11 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import java.nio.file.Path;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Recovery from file
@@ -895,6 +897,257 @@ public class SimpleRecoveryTest {
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
             assertEquals(3, next_value);
+        }
+
+    }
+
+
+    @Test
+    public void ignoreInsertWithMissingTransactionOnRecovery() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Bytes key = Bytes.from_int(1234);
+        Bytes value = Bytes.from_long(8888);
+
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        String tablespaceUUID = null;
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.checkpoint();
+
+            tablespaceUUID = manager.getTableSpaceManager("tblspace1").getTableSpaceUUID();
+
+        }
+
+        try (FileCommitLogManager commitLogManager = new FileCommitLogManager(logsPath)) {
+            commitLogManager.start();
+            try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
+
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+
+                log.startWriting();
+
+                /* Insert an entry for a unknown transaction id */
+                LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.INSERT, 1024, "t1", key, value);
+                log.log(entry, true).getLogSequenceNumber();
+
+            }
+        }
+
+        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
+        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            {
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                assertFalse(result.found());
+            }
+
+        } finally {
+            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
+        }
+
+    }
+
+    @Test
+    public void ignoreDeleteWithMissingTransactionOnRecovery() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Bytes key = Bytes.from_int(1234);
+        Bytes value = Bytes.from_long(8888);
+
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        String tablespaceUUID = null;
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.checkpoint();
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
+
+            tablespaceUUID = manager.getTableSpaceManager("tblspace1").getTableSpaceUUID();
+
+        }
+
+        try (FileCommitLogManager commitLogManager = new FileCommitLogManager(logsPath)) {
+            commitLogManager.start();
+            try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
+
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+
+                log.startWriting();
+
+                /* Insert an entry for a unknown transaction id */
+                LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.DELETE, 1024, "t1", key, null);
+                log.log(entry, true).getLogSequenceNumber();
+
+            }
+        }
+
+        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
+        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            {
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                assertTrue(result.found());
+            }
+
+        } finally {
+            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
+        }
+
+    }
+
+
+    @Test
+    public void ignoreUpdateWithMissingTransactionOnRecovery() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Bytes key = Bytes.from_int(1234);
+        Bytes value = Bytes.from_long(8888);
+        Bytes value2 = Bytes.from_long(9999);
+
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        String tablespaceUUID = null;
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.checkpoint();
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
+
+            tablespaceUUID = manager.getTableSpaceManager("tblspace1").getTableSpaceUUID();
+
+        }
+
+        try (FileCommitLogManager commitLogManager = new FileCommitLogManager(logsPath)) {
+            commitLogManager.start();
+            try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
+
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+
+                log.startWriting();
+
+                /* Insert an entry for a unknown transaction id */
+                LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.UPDATE, 1024, "t1", key, value2);
+                log.log(entry, true).getLogSequenceNumber();
+
+            }
+        }
+
+        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
+        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            {
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                assertTrue(result.found());
+                assertEquals(key, result.getRecord().key);
+                assertEquals(value, result.getRecord().value);
+            }
+
+        } finally {
+            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
         }
 
     }
