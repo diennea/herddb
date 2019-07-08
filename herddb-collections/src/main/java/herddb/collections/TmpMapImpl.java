@@ -20,16 +20,22 @@
 package herddb.collections;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
+import herddb.codec.DataAccessorForFullRecord;
 import herddb.index.PrimaryIndexSeek;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Predicate;
+import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
@@ -37,9 +43,13 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
+import herddb.utils.RawString;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.util.function.Function;
 
 /**
@@ -50,6 +60,7 @@ import java.util.function.Function;
 class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     private final String tmpTableName;
+    private final Table table;
     private final Function<K, byte[]> keySerializer;
     private final ValueSerializer valuesSerializer;
     private final TableSpaceManager tableSpaceManager;
@@ -58,6 +69,8 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     private final InsertStatement insert;
     private final DeleteStatement delete;
     private final UpdateStatement update;
+    private final ScanStatement scan;
+    private final ScanStatement scanKeys;
 
     private static final class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
 
@@ -79,11 +92,12 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     }
 
-    public TmpMapImpl(String tmpTableName, int expectedValueSize,
-            Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
-            final TableSpaceManager tableSpaceManager) {
+    public TmpMapImpl(Table table, int expectedValueSize,
+                      Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
+                      final TableSpaceManager tableSpaceManager) {
+        this.table = table;
         this.tableSpaceManager = tableSpaceManager;
-        this.tmpTableName = tmpTableName;
+        this.tmpTableName = table.name;
         this.keySerializer = keySerializer;
         this.valuesSerializer = valuesSerializer;
 
@@ -114,6 +128,8 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         insert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction);
         update = new UpdateStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction, null);
         delete = new DeleteStatement(TableSpace.DEFAULT, tmpTableName, null, new PredicateDeleteImpl(keyFunction));
+        scan = new ScanStatement(TableSpace.DEFAULT, table, null);
+        scanKeys = new ScanStatement(TableSpace.DEFAULT, table.name, Projection.PRIMARY_KEY(table), null, null, null);
         stats = tableSpaceManager
                 .getTableManager(tmpTableName)
                 .getStats();
@@ -127,21 +143,29 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     }
 
     @Override
-    public void put(K key, V value) throws Exception {
+    public void put(K key, V value) throws CollectionsException {
         StatementEvaluationContext context = new PutStatementEvaluationContext(key, value);
         // no concurrent access, no need to be super conservative, keep row-level locks..
         try {
-            // our best guess it that the key is not already mapped
-            tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
-        } catch (DuplicatePrimaryKeyException alreadyExists) {
-            tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
+            try {
+                // our best guess it that the key is not already mapped
+                tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
+            } catch (DuplicatePrimaryKeyException alreadyExists) {
+                tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
+            }
+        } catch (HerdDBInternalException err) {
+            throw new CollectionsException(err);
         }
     }
 
     @Override
-    public void remove(K key) throws Exception {
+    public void remove(K key) throws CollectionsException {
         StatementEvaluationContext context = new PutStatementEvaluationContext(key, null);
-        tableSpaceManager.executeStatement(delete, context, TransactionContext.NO_TRANSACTION);
+        try {
+            tableSpaceManager.executeStatement(delete, context, TransactionContext.NO_TRANSACTION);
+        } catch (HerdDBInternalException err) {
+            throw new CollectionsException(err);
+        }
 
     }
 
@@ -163,39 +187,106 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     }
 
     @Override
-    public V get(K key) throws Exception {
+    public V get(K key) throws CollectionsException {
         byte[] serializedKey = keySerializer.apply(key);
         return (V) executeGet(serializedKey, tmpTableName);
     }
 
     @Override
-    public boolean containsKey(K key) throws Exception {
+    public boolean containsKey(K key) throws CollectionsException {
         byte[] serializedKey = keySerializer.apply(key);
         return executeContainsKey(serializedKey, tmpTableName);
     }
 
-    private Object executeGet(byte[] serializedKey, String tmpTableName) throws StatementExecutionException, Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
-                false);
-        GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                new StatementEvaluationContext(),
-                herddb.model.TransactionContext.NO_TRANSACTION);
-        if (!getResult.found()) {
-            return null;
-        } else {
-            return valuesSerializer
-                    .deserialize(getResult.getRecord().value);
+    @Override
+    public void forEach(BiSink<K, V> sink) throws CollectionsException, InvocationTargetException {
+
+        try (DataScanner dataScanner =
+                tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                        false,
+                        false)) {
+            while (dataScanner.hasNext()) {
+                DataAccessorForFullRecord next = (DataAccessorForFullRecord) dataScanner.next();
+                Object key = next.get(0);
+                if (key instanceof RawString) {
+                    key = ((RawString) key).toString();
+                }
+                Object value = valuesSerializer
+                        .deserialize(next.getRecord().value);
+                try {
+                    if (!sink.accept((K) key, (V) value)) {
+                        return;
+                    }
+                } catch (Exception err) {
+                    throw new InvocationTargetException(err);
+                }
+
+            }
+        } catch (InvocationTargetException err) {
+            throw err;
+        } catch (Exception err) {
+            throw new CollectionsException(err);
+        }
+
+    }
+
+    @Override
+    public void forEachKey(Sink<K> sink) throws CollectionsException, InvocationTargetException {
+        try (DataScanner dataScanner =
+                tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                        false,
+                        false)) {
+            while (dataScanner.hasNext()) {
+                DataAccessor next = dataScanner.next();
+                Object key = next.get(0);
+                if (key instanceof RawString) {
+                    key = ((RawString) key).toString();
+                }
+                try {
+                    if (!sink.accept((K) key)) {
+                        return;
+                    }
+                } catch (Exception err) {
+                    throw new InvocationTargetException(err);
+                }
+
+            }
+        } catch (InvocationTargetException err) {
+            throw err;
+        } catch (HerdDBInternalException | DataScannerException err) {
+            throw new CollectionsException(err);
         }
     }
 
-    private boolean executeContainsKey(byte[] serializedKey, String tmpTableName) throws StatementExecutionException,
-            Exception {
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
-                false);
-        GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                new StatementEvaluationContext(),
-                herddb.model.TransactionContext.NO_TRANSACTION);
-        return getResult.found();
+    private Object executeGet(byte[] serializedKey, String tmpTableName) throws CollectionsException {
+        try {
+            GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
+                    false);
+            GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
+                    new StatementEvaluationContext(),
+                    herddb.model.TransactionContext.NO_TRANSACTION);
+            if (!getResult.found()) {
+                return null;
+            } else {
+                return valuesSerializer
+                        .deserialize(getResult.getRecord().value);
+            }
+        } catch (Exception err) {
+            throw new CollectionsException(err);
+        }
+    }
+
+    private boolean executeContainsKey(byte[] serializedKey, String tmpTableName) throws CollectionsException {
+        try {
+            GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
+                    false);
+            GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
+                    new StatementEvaluationContext(),
+                    herddb.model.TransactionContext.NO_TRANSACTION);
+            return getResult.found();
+        } catch (HerdDBInternalException err) {
+            throw new CollectionsException(err);
+        }
     }
 
     final class PredicateDeleteImpl extends Predicate {

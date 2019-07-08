@@ -149,11 +149,12 @@ public final class CollectionsManager implements AutoCloseable {
         return new TmpMapBuilder<>();
     }
 
-    private void createTable(String tmpTableName, int pkType) throws StatementExecutionException {
+    private Table createTable(String tmpTableName, int pkType) throws StatementExecutionException {
         Table table = Table
                 .builder()
                 .name(tmpTableName)
                 .column("pk", pkType)
+                .column("v", ColumnTypes.INTEGER)
                 // no need to define other columns
                 .primaryKey("pk")
                 .tablespace(TableSpace.DEFAULT)
@@ -161,6 +162,7 @@ public final class CollectionsManager implements AutoCloseable {
         CreateTableStatement createTable = new CreateTableStatement(table);
         tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(),
                 TransactionContext.NO_TRANSACTION);
+        return table;
     }
 
     public static final class Builder {
@@ -217,8 +219,8 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<Integer, VI> build() {
                 String tmpTableName = generateTmpTableName();
-                createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
+                return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::intToByteArray, valueSerializer, tableSpaceManager);
             }
         }
@@ -232,8 +234,8 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<Long, VI> build() {
                 String tmpTableName = generateTmpTableName();
-                createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
+                return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::longToByteArray, valueSerializer, tableSpaceManager);
             }
         }
@@ -247,8 +249,8 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<String, VI> build() {
                 String tmpTableName = generateTmpTableName();
-                createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
+                return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::string_to_array, valueSerializer, tableSpaceManager);
             }
         }
@@ -274,8 +276,8 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<K, VI> build() {
                 String tmpTableName = generateTmpTableName();
-                createTable(tmpTableName, ColumnTypes.BYTEARRAY);
-                return new TmpMapImpl<>(tmpTableName, expectedValueSize,
+                Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY);
+                return new TmpMapImpl<>(table, expectedValueSize,
                         keySerializer, valueSerializer, tableSpaceManager);
             }
         }

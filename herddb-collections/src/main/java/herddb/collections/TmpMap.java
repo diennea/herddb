@@ -19,6 +19,8 @@
  */
 package herddb.collections;
 
+import java.lang.reflect.InvocationTargetException;
+
 /**
  * This Map is useful to store an huge amount of data locally, like caching the results of an huge record set. We don't
  * want to fill the heap with data. The underlying HerdDB database will swap to disk data that are not needed.
@@ -48,7 +50,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @param value
      * @throws Exception
      */
-    public void put(K key, V value) throws Exception;
+    public void put(K key, V value) throws CollectionsException;
 
     /**
      * Remove a mapping. Noop if a mapping did not exist.
@@ -56,7 +58,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @param key
      * @throws Exception
      */
-    public void remove(K key) throws Exception;
+    public void remove(K key) throws CollectionsException;
 
     /**
      * Retrieve a mapping or null if the key is not mapped. Null keys and null values are not supported.
@@ -65,7 +67,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @return
      * @throws Exception
      */
-    V get(K key) throws Exception;
+    V get(K key) throws CollectionsException;
 
     /**
      * Check if a key is mapped to a value.
@@ -74,7 +76,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @return true if a mapping exists.
      * @throws Exception
      */
-    boolean containsKey(K key) throws Exception;
+    boolean containsKey(K key) throws CollectionsException;
 
     /**
      * Checks if the system started to swap data to disk. This fact does not directly depend on the size of the current
@@ -98,6 +100,22 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @return the memory used currently by this map on the Heap.
      */
     long estimateCurrentMemoryUsage();
+
+    /**
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an InvocationTargetException
+     *
+     * @param sink
+     * @throws InvocationTargetException
+     */
+    void forEach(BiSink<K, V> sink) throws CollectionsException, InvocationTargetException;
+
+    /**
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an InvocationTargetException
+     *
+     * @param sink
+     * @throws InvocationTargetException
+     */
+    void forEachKey(Sink<K> sink) throws CollectionsException, InvocationTargetException;
 
     @Override
     void close();
