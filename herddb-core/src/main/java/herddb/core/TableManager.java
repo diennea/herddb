@@ -21,41 +21,6 @@ package herddb.core;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.StampedLock;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
-import org.apache.bookkeeper.stats.Counter;
-import org.apache.bookkeeper.stats.StatsLogger;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
 import herddb.core.stats.TableManagerStats;
@@ -114,6 +79,39 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.StampedLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.Counter;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Handles Data of a Table
@@ -145,6 +143,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private static final boolean USE_LEGACY_LOCK_MANAGER = SystemProperties
             .getBooleanSystemProperty("herddb.tablemanager.legacylocks", false);
+
+    /**
+     * Ignores insert/update/delete failures due to missing transactions during recovery. The operation in
+     * recovery will be ignored.
+     *
+     * Mutable and visible for tests.
+     */
+    static boolean IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = SystemProperties
+            .getBooleanSystemProperty("herddb.tablemanager.ignoreMissingTransactionsOnRecovery", false);
 
     private final ConcurrentMap<Long, DataPage> newPages;
 
@@ -1475,9 +1482,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
-                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        /* Ignore missing transaction only if during recovery and ignore property is active */
+                        if (recovery && IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY) {
+                            LOGGER.log(Level.WARNING, "Ignoring delete of {0} due to missing transaction {1}",
+                                    new Object[] { entry.key, entry.transactionId });
+                        } else {
+                            throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        }
+                    } else {
+                        transaction.registerDeleteOnTable(this.table.name, key, writeResult);
                     }
-                    transaction.registerDeleteOnTable(this.table.name, key, writeResult);
                 } else {
                     applyDelete(key);
                 }
@@ -1489,9 +1503,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
-                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        /* Ignore missing transaction only if during recovery and ignore property is active */
+                        if (recovery && IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY) {
+                            LOGGER.log(Level.WARNING, "Ignoring update of {0} due to missing transaction {1}",
+                                    new Object[] { entry.key, entry.transactionId });
+                        } else {
+                            throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        }
+                    } else {
+                        transaction.registerRecordUpdate(this.table.name, key, value, writeResult);
                     }
-                    transaction.registerRecordUpdate(this.table.name, key, value, writeResult);
                 } else {
                     applyUpdate(key, value);
                 }
@@ -1503,9 +1524,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
-                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        /* Ignore missing transaction only if during recovery and ignore property is active */
+                        if (recovery && IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY) {
+                            LOGGER.log(Level.WARNING, "Ignoring insert of {0} due to missing transaction {1}",
+                                    new Object[] { entry.key, entry.transactionId });
+                        } else {
+                            throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                        }
+                    } else {
+                        transaction.registerInsertOnTable(table.name, key, value, writeResult);
                     }
-                    transaction.registerInsertOnTable(table.name, key, value, writeResult);
                 } else {
                     applyInsert(key, value, false);
                 }
@@ -1514,7 +1542,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             case LogEntryType.TRUNCATE_TABLE: {
                 applyTruncate();
             }
-            ;
             break;
             default:
                 throw new IllegalArgumentException("unhandled entry type " + entry.type);
