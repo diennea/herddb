@@ -46,35 +46,35 @@ public interface TmpMap<K, V> extends AutoCloseable {
      *
      * @param key
      * @param value
-     * @throws Exception
+     * @throws CollectionsException
      */
-    public void put(K key, V value) throws Exception;
+    public void put(K key, V value) throws CollectionsException;
 
     /**
      * Remove a mapping. Noop if a mapping did not exist.
      *
      * @param key
-     * @throws Exception
+     * @throws CollectionsException
      */
-    public void remove(K key) throws Exception;
+    public void remove(K key) throws CollectionsException;
 
     /**
      * Retrieve a mapping or null if the key is not mapped. Null keys and null values are not supported.
      *
      * @param key
      * @return
-     * @throws Exception
+     * @throws CollectionsException
      */
-    V get(K key) throws Exception;
+    V get(K key) throws CollectionsException;
 
     /**
      * Check if a key is mapped to a value.
      *
      * @param key
      * @return true if a mapping exists.
-     * @throws Exception
+     * @throws CollectionsException
      */
-    boolean containsKey(K key) throws Exception;
+    boolean containsKey(K key) throws CollectionsException;
 
     /**
      * Checks if the system started to swap data to disk. This fact does not directly depend on the size of the current
@@ -98,6 +98,24 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @return the memory used currently by this map on the Heap.
      */
     long estimateCurrentMemoryUsage();
+
+    /**
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
+     *
+     * @param sink
+     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws CollectionsException
+     */
+    void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException;
+
+    /**
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
+     *
+     * @param sink
+     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws CollectionsException
+     */
+    void forEachKey(Sink<K> sink) throws CollectionsException, SinkException;
 
     @Override
     void close();

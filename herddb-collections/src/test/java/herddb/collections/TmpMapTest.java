@@ -25,8 +25,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import herddb.utils.Bytes;
+import herddb.utils.TestUtils;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -61,6 +65,24 @@ public class TmpMapTest {
                     assertEquals("foo" + i, tmpMap.get(i));
                 }
 
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    Set<String> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals("foo" + k, v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
+                }
+
                 // negative tests
                 assertNull(tmpMap.get(-1234));
                 assertFalse(tmpMap.containsKey(-1234));
@@ -89,6 +111,23 @@ public class TmpMapTest {
                 for (long i = 0; i < 1000; i++) {
                     assertEquals("foo" + i, tmpMap.get(i));
                 }
+                {
+                    Set<Long> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<Long> keys = new HashSet<>();
+                    Set<String> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals("foo" + k, v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
+                }
 
                 // negative tests
                 assertNull(tmpMap.get(-1234L));
@@ -105,28 +144,45 @@ public class TmpMapTest {
                 .tmpDirectory(tmpDir.newFolder().toPath())
                 .build()) {
             manager.start();
-            try (TmpMap<Integer, String> tmpMap = manager
+            try (TmpMap<String, String> tmpMap = manager
                     .newMap()
-                    .withIntKeys()
+                    .withStringKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
-                    tmpMap.put(i, "foo" + i);
+                    tmpMap.put(i + "", "foo" + i);
                 }
                 for (int i = 0; i < 1000; i++) {
-                    assertTrue(tmpMap.containsKey(i));
+                    assertTrue(tmpMap.containsKey(i + ""));
                 }
                 for (int i = 0; i < 1000; i++) {
-                    assertEquals("foo" + i, tmpMap.get(i));
+                    assertEquals("foo" + i, tmpMap.get(i + ""));
+                }
+                {
+                    Set<String> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<String> keys = new HashSet<>();
+                    Set<String> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals("foo" + k, v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
                 }
 
                 // negative tests
-                assertNull(tmpMap.get(-1234));
-                assertFalse(tmpMap.containsKey(-1234));
+                assertNull(tmpMap.get(-1234 + ""));
+                assertFalse(tmpMap.containsKey(-1234 + ""));
                 for (int i = 0; i < 1000; i++) {
-                    tmpMap.remove(i);
+                    tmpMap.remove(i + "");
                 }
                 for (int i = 0; i < 1000; i++) {
-                    assertFalse(tmpMap.containsKey(i));
+                    assertFalse(tmpMap.containsKey(i + ""));
                 }
 
             }
@@ -164,6 +220,23 @@ public class TmpMapTest {
                 }
                 for (int i = 0; i < 1000; i++) {
                     assertEquals(new MyPojo(i), tmpMap.get(i));
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    Set<MyPojo> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals(new MyPojo(k), v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
                 }
 
                 // negative tests
@@ -268,6 +341,61 @@ public class TmpMapTest {
                 // negative tests
                 assertNull(tmpMap.get(new MyPojo(-1234)));
                 assertFalse(tmpMap.containsKey(new MyPojo(-1234)));
+            }
+        }
+    }
+
+    @Test
+    public void testForEachSinks() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Integer, String> tmpMap = manager
+                    .newMap()
+                    .withIntKeys()
+                    .build()) {
+                for (int i = 0; i < 1000; i++) {
+                    tmpMap.put(i, "foo" + i);
+                }
+
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    tmpMap.forEachKey((k -> {
+                        keys.add(k);
+                        return k <= 10;
+                    }));
+                    assertEquals(12, keys.size());
+                }
+
+                {
+                    SinkException thrown =
+                            TestUtils.expectThrows(SinkException.class, () -> {
+                                tmpMap.forEach((k, v) -> {
+                                    if (k >= 5) {
+                                        throw new IOException();
+                                    }
+                                    return true;
+                                });
+                            });
+                    assertTrue(thrown.getCause() instanceof IOException);
+                }
+
+                {
+                    SinkException thrown =
+                            TestUtils.expectThrows(SinkException.class, () -> {
+                                tmpMap.forEachKey((k) -> {
+                                    if (k >= 5) {
+                                        throw new IOException();
+                                    }
+                                    return true;
+                                });
+                            });
+                    assertTrue(thrown.getCause() instanceof IOException);
+                }
+
             }
         }
     }

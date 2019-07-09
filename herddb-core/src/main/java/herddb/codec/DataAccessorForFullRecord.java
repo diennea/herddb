@@ -179,4 +179,8 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
         return "DataAccessorForFullRecord{" + "record=" + record + '}';
     }
 
+    public Record getRecord() {
+        return record;
+    }
+
 }
