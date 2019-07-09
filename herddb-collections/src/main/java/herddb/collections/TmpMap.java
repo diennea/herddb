@@ -19,8 +19,6 @@
  */
 package herddb.collections;
 
-import java.lang.reflect.InvocationTargetException;
-
 /**
  * This Map is useful to store an huge amount of data locally, like caching the results of an huge record set. We don't
  * want to fill the heap with data. The underlying HerdDB database will swap to disk data that are not needed.
@@ -48,7 +46,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      *
      * @param key
      * @param value
-     * @throws Exception
+     * @throws CollectionsException
      */
     public void put(K key, V value) throws CollectionsException;
 
@@ -56,7 +54,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * Remove a mapping. Noop if a mapping did not exist.
      *
      * @param key
-     * @throws Exception
+     * @throws CollectionsException
      */
     public void remove(K key) throws CollectionsException;
 
@@ -65,7 +63,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      *
      * @param key
      * @return
-     * @throws Exception
+     * @throws CollectionsException
      */
     V get(K key) throws CollectionsException;
 
@@ -74,7 +72,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      *
      * @param key
      * @return true if a mapping exists.
-     * @throws Exception
+     * @throws CollectionsException
      */
     boolean containsKey(K key) throws CollectionsException;
 
@@ -102,20 +100,22 @@ public interface TmpMap<K, V> extends AutoCloseable {
     long estimateCurrentMemoryUsage();
 
     /**
-     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an InvocationTargetException
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
      *
      * @param sink
-     * @throws InvocationTargetException
+     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws CollectionsException
      */
-    void forEach(BiSink<K, V> sink) throws CollectionsException, InvocationTargetException;
+    void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException;
 
     /**
-     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an InvocationTargetException
+     * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
      *
      * @param sink
-     * @throws InvocationTargetException
+     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws CollectionsException
      */
-    void forEachKey(Sink<K> sink) throws CollectionsException, InvocationTargetException;
+    void forEachKey(Sink<K> sink) throws CollectionsException, SinkException;
 
     @Override
     void close();

@@ -199,7 +199,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     }
 
     @Override
-    public void forEach(BiSink<K, V> sink) throws CollectionsException, InvocationTargetException {
+    public void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException {
 
         try (DataScanner dataScanner =
                 tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
@@ -218,11 +218,11 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                         return;
                     }
                 } catch (Exception err) {
-                    throw new InvocationTargetException(err);
+                    throw new SinkException(err);
                 }
 
             }
-        } catch (InvocationTargetException err) {
+        } catch (SinkException err) {
             throw err;
         } catch (Exception err) {
             throw new CollectionsException(err);
@@ -231,7 +231,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     }
 
     @Override
-    public void forEachKey(Sink<K> sink) throws CollectionsException, InvocationTargetException {
+    public void forEachKey(Sink<K> sink) throws CollectionsException, SinkException {
         try (DataScanner dataScanner =
                 tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
                         false,
@@ -247,11 +247,11 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                         return;
                     }
                 } catch (Exception err) {
-                    throw new InvocationTargetException(err);
+                    throw new SinkException(err);
                 }
 
             }
-        } catch (InvocationTargetException err) {
+        } catch (SinkException err) {
             throw err;
         } catch (HerdDBInternalException | DataScannerException err) {
             throw new CollectionsException(err);

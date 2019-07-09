@@ -29,8 +29,6 @@ import herddb.utils.TestUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
-import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.Rule;
@@ -373,8 +371,8 @@ public class TmpMapTest {
                 }
 
                 {
-                    InvocationTargetException thrown =
-                            TestUtils.expectThrows(InvocationTargetException.class, () -> {
+                    SinkException thrown =
+                            TestUtils.expectThrows(SinkException.class, () -> {
                                 tmpMap.forEach((k, v) -> {
                                     if (k >= 5) {
                                         throw new IOException();
@@ -382,12 +380,12 @@ public class TmpMapTest {
                                     return true;
                                 });
                             });
-                    assertTrue(thrown.getTargetException() instanceof IOException);
+                    assertTrue(thrown.getCause() instanceof IOException);
                 }
 
                 {
-                    InvocationTargetException thrown =
-                            TestUtils.expectThrows(InvocationTargetException.class, () -> {
+                    SinkException thrown =
+                            TestUtils.expectThrows(SinkException.class, () -> {
                                 tmpMap.forEachKey((k) -> {
                                     if (k >= 5) {
                                         throw new IOException();
@@ -395,7 +393,7 @@ public class TmpMapTest {
                                     return true;
                                 });
                             });
-                    assertTrue(thrown.getTargetException() instanceof IOException);
+                    assertTrue(thrown.getCause() instanceof IOException);
                 }
 
             }
