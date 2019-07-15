@@ -41,6 +41,7 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.apache.bookkeeper.stats.NullStatsLogger;
@@ -104,7 +105,7 @@ public final class CollectionsManager implements AutoCloseable {
     private final DBManager server;
     private TableSpaceManager tableSpaceManager;
 
-    private CollectionsManager(long maxMemory, Path tmpDirectory) {
+    private CollectionsManager(long maxMemory, Path tmpDirectory, Properties additionalConfiguration) {
         ServerConfiguration configuration = new ServerConfiguration();
 
         configuration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, maxMemory);
@@ -122,6 +123,18 @@ public final class CollectionsManager implements AutoCloseable {
         // here we are not using network or async commit logs....
         // so it is better to perform every operation on the same thread
         configuration.set(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS, -1);
+        
+        // no SQL planner
+        configuration.set(ServerConfiguration.PROPERTY_PLANNER_TYPE, ServerConfiguration.PLANNER_TYPE_NONE);        
+        
+        // disable JMX, not useful in this case
+        configuration.set(ServerConfiguration.PROPERTY_JMX_ENABLE, false);
+        
+        if (additionalConfiguration != null) {
+            additionalConfiguration.forEach((k,v)-> {
+                configuration.set(k.toString(), v);
+            });
+        }
 
         server = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
@@ -169,7 +182,19 @@ public final class CollectionsManager implements AutoCloseable {
 
         private long maxMemory = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
         private Path tmpDirectory;
+        private Properties configuration;
 
+        /**
+         * Additional configuration for the internal HerdDB server.
+         *
+         * @param configuration a raw set of properties
+         * @return the build itself
+         */
+        public Builder configuration(Properties configuration) {
+            this.configuration = configuration;
+            return this;
+        }
+        
         /**
          * Max memory to use. This is an upper bound to the amount of memory directly referenced by the
          * CollectionsManager. The system will automatically swap to disk data in order to respect this limit.
@@ -200,7 +225,7 @@ public final class CollectionsManager implements AutoCloseable {
          * @return the new not-yet-started CollectionsManager.
          */
         public CollectionsManager build() {
-            return new CollectionsManager(maxMemory, tmpDirectory);
+            return new CollectionsManager(maxMemory, tmpDirectory, configuration);
         }
 
     }
