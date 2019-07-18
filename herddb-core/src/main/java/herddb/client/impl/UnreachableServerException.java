@@ -20,21 +20,21 @@
 package herddb.client.impl;
 
 /**
- * a retry is needed. for instance in case of leadership change
+ * a retry is needed. the server is down, maybe this is a simple restart
  *
  * @author enrico.olivelli
  */
-public class LeaderChangedException extends RetryRequestException {
+public class UnreachableServerException extends RetryRequestException {
 
-    public LeaderChangedException(String message) {
+    public UnreachableServerException(String message) {
         super(message);
     }
 
-    public LeaderChangedException(Throwable cause) {
+    public UnreachableServerException(Throwable cause) {
         super(cause);
     }
 
-    public LeaderChangedException(String message, Throwable cause) {
+    public UnreachableServerException(String message, Throwable cause) {
         super(message, cause);
     }
 

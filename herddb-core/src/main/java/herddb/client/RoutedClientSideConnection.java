@@ -37,6 +37,7 @@ import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
+import herddb.client.impl.UnreachableServerException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Record;
@@ -57,6 +58,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
 import io.netty.buffer.ByteBuf;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
@@ -296,6 +298,9 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 connectionLock.writeLock().unlock();
                 connectionLock.readLock().lock();
             }
+        } catch (java.net.ConnectException err) {
+            // this error will be retryed by the client
+            throw new UnreachableServerException(err);        
         } catch (Exception err) {
             throw new HDBException(err);
         } finally {
@@ -322,7 +327,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 preparedStatements.registerQueryId(tableSpace, query, statementId);
                 return statementId;
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -352,7 +360,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 }
                 return new DMLResult(updateCount, key, newvalue, transactionId);
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -395,7 +406,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     });
 
         } catch (HDBException | ClientSideMetadataProviderException err) {
-            res.completeExceptionally(new HDBException(err));
+            res.completeExceptionally(err);
         }
         return res;
     }
@@ -411,7 +422,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             try (Pdu reply = _channel.sendMessageWithPduReply(requestId, message, timeout);) {
                 if (reply.type == Pdu.TYPE_ERROR) {
                     handleGenericError(reply, statementId);
-                    return null; // not possible
+                    return Collections.emptyList(); // not possible, handleGenericError always throws an error
                 } else if (reply.type != Pdu.TYPE_EXECUTE_STATEMENTS_RESULT) {
                     throw new HDBException(reply);
                 }
@@ -440,7 +451,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 }
                 return results;
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -497,7 +511,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     });
 
         } catch (HDBException | ClientSideMetadataProviderException err) {
-            res.completeExceptionally(new HDBException(err));
+            res.completeExceptionally(err);
         }
         return res;
     }
@@ -532,7 +546,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 }
             }
 
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -566,7 +583,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     throw new HDBException(reply);
                 }
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -584,7 +604,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     throw new HDBException(reply);
                 }
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -602,7 +625,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     throw new HDBException(reply);
                 }
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -620,7 +646,6 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             reply.close();
         }
         if (notLeader) {
-            this.connection.requestMetadataRefresh();
             throw new LeaderChangedException(msg);
         } else if (missingPreparedStatement) {
             LOGGER.log(Level.INFO, "Statement was flushed from server side cache " + msg);
@@ -662,7 +687,13 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
             return impl;
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {            
+            if (reply != null) {
+                reply.close();
+            }
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);
+        } catch (TimeoutException err) {
             if (reply != null) {
                 reply.close();
             }
@@ -686,7 +717,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     throw new HDBException(reply);
                 }
             }
-        } catch (InterruptedException | TimeoutException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -762,7 +796,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 }
 
             }
-        } catch (InterruptedException | TimeoutException | DataStorageManagerException err) {
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);        
+        } catch (TimeoutException err) {
             throw new HDBException(err);
         }
     }
@@ -866,7 +903,13 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }
-            } catch (InterruptedException | TimeoutException err) {
+            } catch (InterruptedException err) {
+                if (result != null) {
+                    result.close();
+                }
+                Thread.currentThread().interrupt();
+                throw new HDBException(err);
+            } catch (TimeoutException err) {
                 if (result != null) {
                     result.close();
                 }

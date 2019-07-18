@@ -65,6 +65,12 @@ public class ClientConfiguration {
     
     public static final String PROPERTY_MAX_CONNECTIONS_PER_SERVER = "client.maxconnections.perserver";
     public static final int PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT = 10;
+    
+    public static final String PROPERTY_MAX_OPERATION_RETRY_COUNT = "client.max.operation.retry.count";
+    public static final int PROPERTY_MAX_OPERATION_RETRY_COUNT_DEFAULT = 100;
+    
+    public static final String PROPERTY_OPERATION_RETRY_DELAY = "client.operation.retry.delay";
+    public static final int PROPERTY_OPERATION_RETRY_DELAY_DEFAULT = 1000;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "client.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.session.timeout";
