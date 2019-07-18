@@ -34,6 +34,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
+import herddb.utils.ContextClassLoaderAwareObjectInputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -76,7 +77,7 @@ public final class CollectionsManager implements AutoCloseable {
         public Object deserialize(Bytes bytes) throws Exception {
             SimpleByteArrayInputStream oo = new SimpleByteArrayInputStream(bytes.getBuffer(), bytes.getOffset(),
                     bytes.getLength());
-            try (ObjectInputStream ooo = new ObjectInputStream(oo)) {
+            try (ObjectInputStream ooo = new ContextClassLoaderAwareObjectInputStream(oo)) {
                 return ooo.readUnshared();
             }
         }
@@ -123,15 +124,15 @@ public final class CollectionsManager implements AutoCloseable {
         // here we are not using network or async commit logs....
         // so it is better to perform every operation on the same thread
         configuration.set(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS, -1);
-        
+
         // no SQL planner
-        configuration.set(ServerConfiguration.PROPERTY_PLANNER_TYPE, ServerConfiguration.PLANNER_TYPE_NONE);        
-        
+        configuration.set(ServerConfiguration.PROPERTY_PLANNER_TYPE, ServerConfiguration.PLANNER_TYPE_NONE);
+
         // disable JMX, not useful in this case
         configuration.set(ServerConfiguration.PROPERTY_JMX_ENABLE, false);
-        
+
         if (additionalConfiguration != null) {
-            additionalConfiguration.forEach((k,v)-> {
+            additionalConfiguration.forEach((k, v) -> {
                 configuration.set(k.toString(), v);
             });
         }
@@ -194,7 +195,7 @@ public final class CollectionsManager implements AutoCloseable {
             this.configuration = configuration;
             return this;
         }
-        
+
         /**
          * Max memory to use. This is an upper bound to the amount of memory directly referenced by the
          * CollectionsManager. The system will automatically swap to disk data in order to respect this limit.
