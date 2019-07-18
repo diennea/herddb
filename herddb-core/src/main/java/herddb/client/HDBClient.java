@@ -55,10 +55,12 @@ public class HDBClient implements AutoCloseable {
     private final ClientConfiguration configuration;
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
-    private ExecutorService thredpool;
-    private MultithreadEventLoopGroup networkGroup;
-    private DefaultEventLoopGroup localEventsGroup;
+    private final ExecutorService thredpool;
+    private final MultithreadEventLoopGroup networkGroup;
+    private final DefaultEventLoopGroup localEventsGroup;
     private final StatsLogger statsLogger;
+    private final int maxOperationRetryCount;
+    private final int operationRetryDelay;
 
     public HDBClient(ClientConfiguration configuration) {
         this(configuration, NullStatsLogger.INSTANCE);
@@ -66,11 +68,10 @@ public class HDBClient implements AutoCloseable {
     public HDBClient(ClientConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
         this.statsLogger = statsLogger.scope("hdbclient");
-        init();
-    }
-
-    private void init() {
+              
         int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT);
+        this.maxOperationRetryCount = configuration.getInt(ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT, ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT_DEFAULT);
+        this.operationRetryDelay = configuration.getInt(ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY, ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY_DEFAULT);
         this.thredpool = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE,
                 120L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(),
@@ -110,6 +111,14 @@ public class HDBClient implements AutoCloseable {
     public void setClientSideMetadataProvider(ClientSideMetadataProvider clientSideMetadataProvider) {
         this.clientSideMetadataProvider = clientSideMetadataProvider;
     }
+
+    public int getMaxOperationRetryCount() {
+        return maxOperationRetryCount;
+    }
+
+    public int getOperationRetryDelay() {
+        return operationRetryDelay;
+    }        
 
     public ClientConfiguration getConfiguration() {
         return configuration;

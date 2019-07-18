@@ -40,4 +40,8 @@ public class RetryRequestException extends HDBException {
         super(message, cause);
     }
 
+    public boolean isRequireMetadataRefresh() {
+        return false;
+    }
+
 }
