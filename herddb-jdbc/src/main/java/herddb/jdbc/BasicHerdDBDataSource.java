@@ -20,6 +20,7 @@
 package herddb.jdbc;
 
 import herddb.client.ClientConfiguration;
+import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
@@ -164,7 +165,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         if (waitForTableSpaceTimeout > 0 && !waitForTableSpace.isEmpty()) {
             try (HDBConnection con = client.openConnection();) {
                 con.waitForTableSpace(waitForTableSpace, waitForTableSpaceTimeout);
-            } catch (HDBException err) {
+            } catch (HDBException | ClientSideMetadataProviderException err) {
                 throw new SQLException(err);
             }
         }

@@ -20,7 +20,6 @@
 package herddb.jdbc;
 
 import java.sql.SQLException;
-import java.util.logging.Logger;
 
 /**
  * Generic DataSource for connecting to a remote HerdDB cluster
