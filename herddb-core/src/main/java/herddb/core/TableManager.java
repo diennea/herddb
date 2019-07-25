@@ -727,7 +727,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     /**
-     * Remove the page from {@link #newPages}, set it as "unloaded" and write it
+     * Remove the page from {@link #newPages}, set it as "not writable" and write it
      * to disk
      * <p>
      * Add as much spare data as possible to fillup the page. If added must
@@ -740,17 +740,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private void flushNewPageForCheckpoint(DataPage page, DataPage spareDataPage) {
         final boolean flushed = flushNewPage(page, spareDataPage);
 
-        if (!flushed) {
+        if (flushed) {
+            /*
+             * Replace the page in memory with his immutable version (faster modification checks). We can
+             * replace the page with the immutable one from memory running during a checkpoint and no other
+             * page write could happen (thus our page copy is fully equivalent to really flushed one).
+             *
+             * We replace the page only if we have actually flushed it.. if it was flushed by another thread
+             * it was flushed due to unload request (no concurrent checkpoints) and then removed from pages
+             * (or the thread is going to remove it). We don't want to keep knowledge of a page not know
+             * anymore to page replacement policy (It can't be remove again)
+             *
+             * For similar reason we replace the page only if there actually is a page in the first place. If
+             * a concurrent thread flushed and removed the page we don't want to add it again.
+             */
+            pages.computeIfPresent(page.pageId, (i,p) -> p.toImmutable());
+        } else {
             LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
         }
 
-        /*
-         * Replace the page in memory with his immutable version (faster modification checks). We can
-         * replace the page even if we didn't flush it (i.e.:flushed by some other thread) because we are
-         * running during a checkpoint and no other page write could happen (thus our page copy is fully
-         * equivalent to really flushed one)
-         */
-        pages.put(page.pageId, page.toImmutable());
     }
 
     /**
