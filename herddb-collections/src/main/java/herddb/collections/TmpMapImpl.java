@@ -49,7 +49,7 @@ import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.lang.reflect.InvocationTargetException;
+import java.util.WeakHashMap;
 import java.util.function.Function;
 
 /**
@@ -71,6 +71,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     private final UpdateStatement update;
     private final ScanStatement scan;
     private final ScanStatement scanKeys;
+    private final WeakHashMap<K, V> cache;
 
     private static final class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
 
@@ -94,12 +95,14 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     public TmpMapImpl(Table table, int expectedValueSize,
                       Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
-                      final TableSpaceManager tableSpaceManager) {
+                      final TableSpaceManager tableSpaceManager,
+                      final boolean useWeakValuesMap) {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.tmpTableName = table.name;
         this.keySerializer = keySerializer;
         this.valuesSerializer = valuesSerializer;
+        this.cache = useWeakValuesMap ? new WeakHashMap<>() : null;
 
         RecordFunction keyFunction = new RecordFunction() {
             @Override
@@ -140,6 +143,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         DropTableStatement drop = new DropTableStatement(TableSpace.DEFAULT, tmpTableName, true);
         tableSpaceManager.executeStatement(drop, new StatementEvaluationContext(),
                 herddb.model.TransactionContext.NO_TRANSACTION);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 
     @Override
@@ -152,6 +158,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                 tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
             } catch (DuplicatePrimaryKeyException alreadyExists) {
                 tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
+            }
+            if (cache != null) {
+                cache.put(key, value);
             }
         } catch (HerdDBInternalException err) {
             throw new CollectionsException(err);
@@ -166,7 +175,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         } catch (HerdDBInternalException err) {
             throw new CollectionsException(err);
         }
-
+        if (cache != null && key != null) {
+           cache.remove(key);
+        }
     }
 
     @Override
@@ -188,12 +199,24 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     @Override
     public V get(K key) throws CollectionsException {
+        if (cache != null) {
+            V cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
         byte[] serializedKey = keySerializer.apply(key);
         return (V) executeGet(serializedKey, tmpTableName);
     }
 
     @Override
     public boolean containsKey(K key) throws CollectionsException {
+        if (cache != null) {
+            V cached = cache.get(key);
+            if (cached != null) {
+                return true;
+            }
+        }
         byte[] serializedKey = keySerializer.apply(key);
         return executeContainsKey(serializedKey, tmpTableName);
     }
@@ -233,7 +256,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void forEachKey(Sink<K> sink) throws CollectionsException, SinkException {
         try (DataScanner dataScanner =
-                tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                tableSpaceManager.scan(scanKeys, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
                         false,
                         false)) {
             while (dataScanner.hasNext()) {

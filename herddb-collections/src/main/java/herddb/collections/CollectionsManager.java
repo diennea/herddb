@@ -235,6 +235,7 @@ public final class CollectionsManager implements AutoCloseable {
 
         private ValueSerializer<V> valueSerializer = DEFAULT_VALUE_SERIALIZER;
         private int expectedValueSize = 64;
+        private boolean useWeakHashMap = false;
 
         public class IntTmpMapBuilder<VI extends V> {
 
@@ -247,7 +248,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::intToByteArray, valueSerializer, tableSpaceManager);
+                        Bytes::intToByteArray, valueSerializer, tableSpaceManager, useWeakHashMap);
             }
         }
 
@@ -262,7 +263,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::longToByteArray, valueSerializer, tableSpaceManager);
+                        Bytes::longToByteArray, valueSerializer, tableSpaceManager, useWeakHashMap);
             }
         }
 
@@ -277,7 +278,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::string_to_array, valueSerializer, tableSpaceManager);
+                        Bytes::string_to_array, valueSerializer, tableSpaceManager, useWeakHashMap);
             }
         }
 
@@ -304,9 +305,23 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        keySerializer, valueSerializer, tableSpaceManager);
+                        keySerializer, valueSerializer, tableSpaceManager, useWeakHashMap);
             }
         }
+        
+        /**
+         * Use a WeakHashMap to store a copy of the Map.
+         * This will save deserialization of values in case of availability of heap.
+         * <p>Please note that with this option the keys must implement correcly hashCode and equals.
+         *
+         * @param useWeakHashMap
+         * @return the builder itself
+         */
+        public TmpMapBuilder<V> withWeakReferencesCache(boolean useWeakHashMap) {
+            this.useWeakHashMap = useWeakHashMap;
+            return this;
+        }
+        
 
         /**
          * Define a custom serializer for values.
@@ -369,4 +384,9 @@ public final class CollectionsManager implements AutoCloseable {
         }
     }
 
+    // visible for tests
+    DBManager getServer() {
+        return server;
+    }
+    
 }

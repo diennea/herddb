@@ -22,14 +22,22 @@ package herddb.collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import herddb.core.TableSpaceManager;
+import herddb.model.Table;
+import herddb.model.TableSpace;
 import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.Rule;
 import org.junit.Test;
@@ -245,6 +253,104 @@ public class TmpMapTest {
             }
         }
     }
+
+    @Test
+    public void testDefaultSerializer() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Integer, MyPojo> tmpMap = manager
+                    .<MyPojo>newMap()
+                    .withIntKeys()
+                    .build()) {
+                for (int i = 0; i < 1000; i++) {
+                    tmpMap.put(i, new MyPojo(i));
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertTrue(tmpMap.containsKey(i));
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertEquals(new MyPojo(i), tmpMap.get(i));
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    Set<MyPojo> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals(new MyPojo(k), v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
+                }
+
+                // negative tests
+                assertNull(tmpMap.get(-1234));
+                assertFalse(tmpMap.containsKey(-1234));
+            }
+        }
+    }
+
+    @Test
+    public void testWeakHashMap() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Integer, MyPojo> tmpMap = manager
+                    .<MyPojo>newMap()
+                    .withWeakReferencesCache(true)
+                    .withIntKeys()
+                    .build()) {
+                List<MyPojo> originalValues = new ArrayList<>();
+                for (int i = 0; i < 1000; i++) {
+                    MyPojo o = new MyPojo(i);
+                    tmpMap.put(i, o);
+                    originalValues.add(o);
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertTrue(tmpMap.containsKey(i));
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertEquals(new MyPojo(i), tmpMap.get(i));
+                    assertSame(originalValues.get(i), tmpMap.get(i));
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    tmpMap.forEachKey(keys::add);
+                    assertEquals(1000, keys.size());
+                }
+                {
+                    Set<Integer> keys = new HashSet<>();
+                    Set<MyPojo> values = new HashSet<>();
+                    tmpMap.forEach((k, v) -> {
+                        keys.add(k);
+                        values.add(v);
+                        assertEquals(new MyPojo(k), v);
+                        return true;
+                    });
+                    assertEquals(1000, keys.size());
+                    assertEquals(1000, values.size());
+                }
+
+                // negative tests
+                assertNull(tmpMap.get(-1234));
+                assertFalse(tmpMap.containsKey(-1234));
+            }
+        }
+    }
+
 
     static class MyPojo implements Serializable {
 
