@@ -2344,13 +2344,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                          */
                         boolean handled = keyToPage.put(unshared.key, buildingPage.pageId, page.pageId);
                         if (!handled) {
-                            LOGGER.log(Level.SEVERE,
+                            final IllegalStateException ex = new IllegalStateException(
                                     "Data inconsistency! Found a clean page with dirty records based on PK data. "
-                                            + "It could be a key to page inconsistency (broken PK) or a page metadata "
-                                            + "inconsistency (failed to track dirty record on page metadata). "
-                                            + "Page: {0}, Record {1}",
-                                    new Object[] { page, unshared });
-                            throw new IllegalStateException("");
+                                    + "It could be a key to page inconsistency (broken PK) or a page metadata "
+                                    + "inconsistency (failed to track dirty record on page metadata). "
+                                    + "Page: " + page + ", Record " + unshared);
+                            LOGGER.log(Level.SEVERE, ex.getMessage());
+                            throw ex;
                         }
 
                     }
@@ -2358,13 +2358,39 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
 
                 if (dataPage != null) {
+
                     final DataPage removedDataPage = pages.remove(page.pageId);
-                    if (removedDataPage != dataPage) {
-                        throw new IllegalStateException(
-                                "Failed to remove the right page from page knowledge during checkpoint. "
-                                        + "The page changed in a concurrent process. Expected page " + dataPage
-                                        + ", found page " + removedDataPage);
+
+                    if (removedDataPage != null) {
+                        /*
+                         * DataPage can be removed due to an unload request from PageReplacementPolicy and
+                         * could be event reloaded again in the meantime due to a concurrent read.
+                         */
+                        final long start = System.nanoTime();
+
+                        /*
+                         * In the rare event that a page was unloaded and then loaded again we check that page
+                         * content is the same (it should but better be on the safe side). This is a safety
+                         * check and is really rare
+                         */
+                        final boolean deepEquals = removedDataPage.deepEquals(dataPage);
+
+                        final long end = System.nanoTime();
+
+                        LOGGER.log(Level.INFO, "Checked reloaded page during checkpoint deep equality in {0} ms",
+                                TimeUnit.NANOSECONDS.toMillis(end - start));
+
+                        if (!deepEquals) {
+                            final IllegalStateException ex = new IllegalStateException(
+                                    "Data inconsistency! Failed to remove the right page from page knowledge during "
+                                            + "checkpoint. It could be an illegal concurrent write during checkpoint or "
+                                            + "the reloaded page doesn't match in memory one. " + "Expected page "
+                                            + dataPage + ", found page " + removedDataPage);
+                            LOGGER.log(Level.SEVERE, ex.getMessage());
+                            throw ex;
+                        }
                     }
+
                 }
 
                 /* Do not continue if we have used up all given time */
