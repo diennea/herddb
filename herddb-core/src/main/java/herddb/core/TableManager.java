@@ -463,7 +463,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     public void start() throws DataStorageManagerException {
 
         Map<Long, DataPageMetaData> activePagesAtBoot = new HashMap<>();
-        dataStorageManager.ensureTableDirectory(tableSpaceUUID, table.uuid);
+        dataStorageManager.initTable(tableSpaceUUID, table.uuid);
         bootSequenceNumber = LogSequenceNumber.START_OF_TIME;
         keyToPage.start(bootSequenceNumber);
         boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();        

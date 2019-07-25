@@ -136,13 +136,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void ensureIndexDirectory(String tableSpace, String indexName) throws DataStorageManagerException {        
+    public void initIndex(String tableSpace, String indexName) throws DataStorageManagerException {
     }
 
     @Override
-    public void ensureTableDirectory(String tableSpace, String uuid) throws DataStorageManagerException {
+    public void initTable(String tableSpace, String uuid) throws DataStorageManagerException {
     }
-    
+
     private static final Pattern LOG_SEQUENCE_PATTERN = Pattern.compile("(?<ledgerId>\\d+)\\.(?<offset>\\d+)");
 
     private LogSequenceNumber evaluateLogSequenceNumber(String string) {

@@ -64,9 +64,9 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract List<Record> readPage(String tableSpace, String uuid, Long pageId)
         throws DataStorageManagerException, DataPageDoesNotExistException;
 
-    public abstract void ensureIndexDirectory(String tableSpace, String indexName) throws DataStorageManagerException;
+    public abstract void initIndex(String tableSpace, String uuid) throws DataStorageManagerException;
     
-    public abstract void ensureTableDirectory(String tableSpace, String uuid) throws DataStorageManagerException;
+    public abstract void initTable(String tableSpace, String uuid) throws DataStorageManagerException;
 
     @FunctionalInterface
     public static interface DataReader<X> {

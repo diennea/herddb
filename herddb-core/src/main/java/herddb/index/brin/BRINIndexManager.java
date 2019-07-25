@@ -244,6 +244,9 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, " start index {0} uuid {1}", new Object[]{index.name, index.uuid});
+
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
+
         bootSequenceNumber = sequenceNumber;
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {

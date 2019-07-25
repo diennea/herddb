@@ -239,7 +239,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void ensureIndexDirectory(String tableSpace, String indexName) throws DataStorageManagerException {
+    public void initIndex(String tableSpace, String indexName) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         try {
             Files.createDirectories(tableDir);
@@ -249,7 +249,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void ensureTableDirectory(String tableSpace, String uuid) throws DataStorageManagerException {
+    public void initTable(String tableSpace, String uuid) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, uuid);
         try {
             Files.createDirectories(tableDir);
