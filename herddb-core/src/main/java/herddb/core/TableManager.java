@@ -743,9 +743,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (flushed) {
             /*
              * Replace the page in memory with his immutable version (faster modification checks). We can
-             * replace the page even if we didn't flush it (i.e.:flushed by some other thread) because we are
-             * running during a checkpoint and no other page write could happen (thus our page copy is fully
-             * equivalent to really flushed one).
+             * replace the page with the immutable one from memory running during a checkpoint and no other
+             * page write could happen (thus our page copy is fully equivalent to really flushed one).
              *
              * We replace the page only if we have actually flushed it.. if it was flushed by another thread
              * it was flushed due to unload request (no concurrent checkpoints) and then removed from pages
@@ -755,7 +754,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * For similar reason we replace the page only if there actually is a page in the first place. If
              * a concurrent thread flushed and removed the page we don't want to add it again.
              */
-            pages.computeIfPresent(page.pageId, (i,p) -> page.toImmutable());
+            pages.computeIfPresent(page.pageId, (i,p) -> p.toImmutable());
         } else {
             LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
         }
