@@ -241,7 +241,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
 
         LOGGER.log(Level.INFO, " start index {0}", new Object[]{indexName});
-
+        dataStorageManager.ensureIndexDirectory(tableSpace, indexName);
+        
         /* Actually the same size */
         final long pageSize = memoryManager.getMaxLogicalPageSize();
 

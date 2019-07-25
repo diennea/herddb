@@ -463,9 +463,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     public void start() throws DataStorageManagerException {
 
         Map<Long, DataPageMetaData> activePagesAtBoot = new HashMap<>();
-
+        dataStorageManager.ensureTableDirectory(tableSpaceUUID, table.uuid);
         bootSequenceNumber = LogSequenceNumber.START_OF_TIME;
-        boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();
+        keyToPage.start(bootSequenceNumber);
+        boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();        
 
         if (requireLoadAtStartup) {
             // non persistent primary key index, we need a full table scan
@@ -519,8 +520,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             activePagesAtBoot.putAll(tableStatus.activePages);
         }
 
-        keyToPage.start(bootSequenceNumber);
-
+        
         dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.uuid, activePagesAtBoot.keySet());
 
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
