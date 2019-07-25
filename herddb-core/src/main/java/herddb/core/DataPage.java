@@ -19,15 +19,14 @@
  */
 package herddb.core;
 
+import herddb.model.Record;
+import herddb.utils.Bytes;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import herddb.model.Record;
-import herddb.utils.Bytes;
 
 /**
  * A page of data loaded in memory
@@ -237,8 +236,20 @@ public final class DataPage extends Page<TableManager> {
         return pageId == other.pageId;
     }
 
+    /**
+     * Page deep equality. It checks every record in the page.
+     */
+    boolean deepEquals(DataPage other) {
+        if (!equals(other)) {
+            return false;
+        }
+        return data.equals(other.data);
+    }
+
     void flushRecordsCache() {
         data.values().forEach(r -> r.clearCache());
     }
+
+
 
 }
