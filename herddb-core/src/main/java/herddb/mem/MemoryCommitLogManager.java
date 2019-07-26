@@ -26,7 +26,6 @@ import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.NullOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -37,6 +36,16 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 public class MemoryCommitLogManager extends CommitLogManager {
+
+    private final boolean testSerialize;
+
+    public MemoryCommitLogManager() {
+        this(true);
+    }
+    
+    public MemoryCommitLogManager(boolean testSerialize) {
+        this.testSerialize = testSerialize;
+    }
 
     @Override
     public CommitLog createCommitLog(String tableSpace, String tablespaceName, String localNodeId) {
@@ -49,11 +58,14 @@ public class MemoryCommitLogManager extends CommitLogManager {
                 if (isHasListeners()) {
                     synch = true;
                 }
-                // NOOP
-                try {
-                    entry.serialize(ExtendedDataOutputStream.NULL);
-                } catch (IOException err) {
-                    throw new LogNotAvailableException(err);
+                if (testSerialize) {
+                     // this is useful only for internal testing
+                    // NOOP, but trigger serialization subsystem
+                    try {
+                        entry.serialize(ExtendedDataOutputStream.NULL);
+                    } catch (IOException err) {
+                        throw new LogNotAvailableException(err);
+                    }
                 }
                 LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
                 notifyListeners(logPos, entry);
@@ -83,7 +95,8 @@ public class MemoryCommitLogManager extends CommitLogManager {
             }
 
             @Override
-            public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
+            public void recovery(LogSequenceNumber snapshotSequenceNumber,
+                                 BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
             }
 
             @Override

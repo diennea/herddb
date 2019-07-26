@@ -142,7 +142,7 @@ public final class CollectionsManager implements AutoCloseable {
                 new FileDataStorageManager(tmpDirectory,
                         tmpDirectory, 0, false /* fsync */,
                         false /* o_direct */, false /* o_direct */, NullStatsLogger.INSTANCE),
-                new MemoryCommitLogManager(), tmpDirectory,
+                new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
                 configuration, NullStatsLogger.INSTANCE);
         server.setMaxDataUsedMemory(maxMemory);
