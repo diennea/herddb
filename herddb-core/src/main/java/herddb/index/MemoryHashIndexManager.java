@@ -131,6 +131,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.clear();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {

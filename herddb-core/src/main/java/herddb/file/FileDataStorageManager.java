@@ -239,10 +239,11 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void initIndex(String tableSpace, String indexName) throws DataStorageManagerException {
-        Path tableDir = getIndexDirectory(tableSpace, indexName);
+    public void initIndex(String tableSpace, String uuid) throws DataStorageManagerException {
+        Path indexDir = getIndexDirectory(tableSpace, uuid);
+        LOGGER.log(Level.FINE, "initIndex {0} {1} at {2}", new Object[] {tableSpace, uuid, indexDir} );
         try {
-            Files.createDirectories(tableDir);
+            Files.createDirectories(indexDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -251,14 +252,15 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void initTable(String tableSpace, String uuid) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, uuid);
+        LOGGER.log(Level.FINE, "initTable {0} {1} at {3}", new Object[] {tableSpace, uuid, tableDir} );
         try {
             Files.createDirectories(tableDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
     }
-    
-    
+
+
 
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException, DataPageDoesNotExistException {
@@ -567,7 +569,7 @@ public class FileDataStorageManager extends DataStorageManager {
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         Path dir = getTableDirectory(tableSpace, tableName);
         Path checkpointFile = getTableCheckPointsFile(dir, logPosition);
-        try {            
+        try {
             if (Files.isRegularFile(checkpointFile)) {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
@@ -650,7 +652,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path checkpointFile = getTableCheckPointsFile(dir, logPosition);
         Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
-        
+
         if (Files.isRegularFile(checkpointFile)) {
             IndexStatus actualStatus = readIndexStatusFromFile(checkpointFile);
             if (actualStatus != null && actualStatus.equals(indexStatus)) {
@@ -771,7 +773,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     public List<Path> getTablePageFiles(String tableSpace, String tableName) throws DataStorageManagerException {
-        Path tableDir = getTableDirectory(tableSpace, tableName);        
+        Path tableDir = getTableDirectory(tableSpace, tableName);
 
         try (DirectoryStream<Path> files = Files.newDirectoryStream(tableDir, new DirectoryStream.Filter<Path>() {
             @Override
@@ -789,7 +791,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     public List<Path> getIndexPageFiles(String tableSpace, String indexName) throws DataStorageManagerException {
-        Path indexDir = getIndexDirectory(tableSpace, indexName);        
+        Path indexDir = getIndexDirectory(tableSpace, indexName);
 
         try (DirectoryStream<Path> files = Files.newDirectoryStream(indexDir, new DirectoryStream.Filter<Path>() {
             @Override
@@ -863,7 +865,7 @@ public class FileDataStorageManager extends DataStorageManager {
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
-        Path tableDir = getTableDirectory(tableSpace, tableName);        
+        Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
@@ -919,7 +921,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId, DataWriter writer) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         Path tableDir = getIndexDirectory(tableSpace, indexName);
-        
+
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
         try {
