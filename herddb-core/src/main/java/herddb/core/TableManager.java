@@ -1561,7 +1561,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long pageId = keyToPage.remove(key);
         if (pageId == null) {
-            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException(
+                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
@@ -1584,10 +1585,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (indexes == null) {
             /* We don't need the page if isn't loaded or isn't a mutable new page */
             page = newPages.get(pageId);
-            previous = null;
 
             if (page != null) {
                 pageReplacementPolicy.pageHit(page);
+                previous = page.get(key);
+
+                if (previous == null) {
+                    throw new IllegalStateException(
+                            "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
+                }
+            } else {
+                previous = null;
             }
         } else {
             /* We really need the page for update index old values */
@@ -1595,7 +1603,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = page.get(key);
 
             if (previous == null) {
-                throw new RuntimeException("deleted record at " + key + " was not found?");
+                throw new IllegalStateException(
+                        "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
             }
         }
 
@@ -1643,7 +1652,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long prevPageId = keyToPage.get(key);
         if (prevPageId == null) {
-            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException(
+                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
 
         /*
@@ -1666,6 +1676,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (prevPage != null) {
                 pageReplacementPolicy.pageHit(prevPage);
                 previous = prevPage.get(key);
+
+                if (previous == null) {
+                    throw new IllegalStateException(
+                            "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
+                }
             } else {
                 previous = null;
             }
@@ -1676,7 +1691,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = prevPage.get(key);
 
             if (previous == null) {
-                throw new RuntimeException("updated record at " + key + " was not found?");
+                throw new IllegalStateException(
+                        "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
             }
         }
 

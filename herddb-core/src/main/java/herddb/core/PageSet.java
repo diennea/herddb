@@ -19,6 +19,9 @@
  */
 package herddb.core;
 
+import herddb.model.Record;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -28,10 +31,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import herddb.model.Record;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
 
 /**
  * Status of the set of pages of a Table
@@ -106,11 +105,21 @@ public final class PageSet {
 
     void setPageDirty(Long pageId) {
         final DataPageMetaData metadata = activePages.get(pageId);
+        if (metadata == null) {
+            LOGGER.log(Level.SEVERE,
+                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages );
+            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId );
+        }
         metadata.dirt.add(metadata.avgRecordSize);
     }
 
     void setPageDirty(Long pageId, long size) {
         final DataPageMetaData metadata = activePages.get(pageId);
+        if (metadata == null) {
+            LOGGER.log(Level.SEVERE,
+                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages );
+            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId );
+        }
         metadata.dirt.add(size);
     }
 
