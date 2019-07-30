@@ -243,7 +243,10 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, " start index {0} uuid {1}", new Object[]{index.name, index.uuid});
+        LOGGER.log(Level.SEVERE, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
+
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
+
         bootSequenceNumber = sequenceNumber;
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
@@ -283,6 +286,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.reset();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {

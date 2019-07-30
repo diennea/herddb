@@ -41,9 +41,17 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public long getUsedMemory();
 
-    public boolean requireLoadAtStartup();
+    boolean requireLoadAtStartup();
 
-    public long size();
+    long size();
+
+    /**
+     * Initialize the index
+     *
+     * @throws DataStorageManagerException
+     */
+    default void init() throws DataStorageManagerException {
+    }
 
     void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
