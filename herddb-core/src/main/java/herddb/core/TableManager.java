@@ -726,6 +726,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         );
     }
 
+    private static enum FlushNewPageResult {
+        FLUSHED,
+        ALREADY_FLUSHED,
+        EMPTY_FLUSH;
+    }
+
     /**
      * Remove the page from {@link #newPages}, set it as "not writable" and write it
      * to disk
@@ -738,39 +744,51 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @param spareDataPage old spare data to fit in the new page if possible
      */
     private void flushNewPageForCheckpoint(DataPage page, DataPage spareDataPage) {
-        final boolean flushed = flushNewPage(page, spareDataPage);
+        final FlushNewPageResult flush = flushNewPage(page, spareDataPage);
+        switch (flush) {
+            case FLUSHED:
 
-        if (flushed) {
-            /*
-             * Replace the page in memory with his immutable version (faster modification checks). We can
-             * replace the page with the immutable one from memory running during a checkpoint and no other
-             * page write could happen (thus our page copy is fully equivalent to really flushed one).
-             *
-             * We replace the page only if we have actually flushed it.. if it was flushed by another thread
-             * it was flushed due to unload request (no concurrent checkpoints) and then removed from pages
-             * (or the thread is going to remove it). We don't want to keep knowledge of a page not know
-             * anymore to page replacement policy (It can't be remove again)
-             *
-             * For similar reason we replace the page only if there actually is a page in the first place. If
-             * a concurrent thread flushed and removed the page we don't want to add it again.
-             */
-            pages.computeIfPresent(page.pageId, (i,p) -> p.toImmutable());
-        } else {
-            LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
+                /*
+                 * Replace the page in memory with his immutable version (faster modification checks). We can
+                 * replace the page with the immutable one from memory running during a checkpoint and no other
+                 * page write could happen (thus our page copy is fully equivalent to really flushed one).
+                 *
+                 * We replace the page only if we have actually flushed it.. if it was flushed by another thread
+                 * it was flushed due to unload request (no concurrent checkpoints) and then removed from pages
+                 * (or the thread is going to remove it). We don't want to keep knowledge of a page not know
+                 * anymore to page replacement policy (It can't be remove again)
+                 *
+                 * For similar reason we replace the page only if there actually is a page in the first place. If
+                 * a concurrent thread flushed and removed the page we don't want to add it again.
+                 */
+                pages.computeIfPresent(page.pageId, (i,p) -> p.toImmutable());
+                return;
+
+            case ALREADY_FLUSHED:
+                /* Already flushed (and possibly unloaded) by another thread */
+                LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
+                return;
+
+            case EMPTY_FLUSH:
+                /* Attempted and empty flush. The page has been dropped and we must remove it from page knowledge */
+                pageReplacementPolicy.remove(page);
+                pages.remove(page.pageId);
+                return;
+
+            default:
+                throw new IllegalArgumentException("Unknown new page flush result: " + flush);
         }
-
     }
 
     /**
-     * Remove the page from {@link #newPages}, set it as "unloaded" and write it
-     * to disk
+     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
      *
      * @param page new page to flush
-     * @return {@code true} if the page has been flushed, {@code false} if
-     * already flushed by another thread
+     * @return {@code true} if the page has been flushed, {@code false} if not flushed by any other means
+     *         (concurrent flush or empty page flush)
      */
     private boolean flushNewPageForUnload(DataPage page) {
-        return flushNewPage(page, null);
+        return FlushNewPageResult.FLUSHED == flushNewPage(page, null);
     }
 
     /**
@@ -785,7 +803,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @return {@code false} if no flush has been done because the page isn't writable anymore,
      *         {@code true} otherwise
      */
-    private boolean flushNewPage(DataPage page, DataPage spareDataPage) {
+    private FlushNewPageResult flushNewPage(DataPage page, DataPage spareDataPage) {
 
         if (page.immutable) {
             LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page {0} as it was mutable", page.pageId);
@@ -796,7 +814,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
 
             if (!page.writable) {
-                return false;
+                LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
+                return FlushNewPageResult.ALREADY_FLUSHED;
             }
 
         } finally {
@@ -812,8 +831,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             if (!page.writable) {
                 LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
-                return false;
+                return FlushNewPageResult.ALREADY_FLUSHED;
             }
+
+            /*
+             * If there isn't any data to flush we'll avoid flush at all and just remove the page. We avoid to
+             * copy data from spareDataPage to an empty page because it would just be an additional roundtrip
+             * for spare data with an additional PK write too (consider that you have just one empty page and
+             * an half full spareDataPage: why copy all data to the first and update PK records when you can
+             * just save spareDataPage directly?)
+             */
+            boolean drop = page.isEmpty();
 
             /*
              * NewPages removal technically could be done before current write lock but
@@ -822,7 +850,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * concurrent thread or because it wasn't present in the first place.
              */
             /* Set the new page as a fully active page */
-            pageSet.pageCreated(page.pageId, page);
+            if (!drop) {
+                pageSet.pageCreated(page.pageId, page);
+            }
 
             /* Remove it from "new" pages */
             DataPage remove = newPages.remove(page.pageId);
@@ -833,6 +863,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             page.writable = false;
+
+            if (drop) {
+                LOGGER.log(Level.INFO, "Deleted empty mutable page {0} instead of flushing it", page.pageId);
+                return FlushNewPageResult.EMPTY_FLUSH;
+            }
 
         } finally {
             lock.unlock();
@@ -877,7 +912,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
-        return true;
+        return FlushNewPageResult.FLUSHED;
     }
 
     /**
@@ -2608,6 +2643,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* ************************** */
 
             /*
+             * Preleva la pagina dirty "corrente", può essere tenuta in memoria perché durante un checkpoint
+             * non vengono eseguite scritture e la pagina non può dunque cambiare (ne essere flushata per
+             * unload dato che non è conosciuta dalla page replacement policy)
+             */
+            final long lastKnownPageId = currentDirtyRecordsPage.get();
+
+            /*
              * Flush dirty records (and remaining records from previous step).
              *
              * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
@@ -2617,7 +2659,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              */
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
-                if (!dataPage.isEmpty()) {
+                /* Flush every dirty page (but not the "current" dirty page if empty) */
+                if (lastKnownPageId != dataPage.pageId || !dataPage.isEmpty()) {
                     flushNewPageForCheckpoint(dataPage, buildingPage);
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
@@ -2693,7 +2736,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              */
             if (newPages.isEmpty()) {
                 /* Allocate live handles the correct policy load/unload of last dirty page */
-                allocateLivePage(currentDirtyRecordsPage.get());
+                allocateLivePage(lastKnownPageId);
             }
 
             checkPointRunning = false;
