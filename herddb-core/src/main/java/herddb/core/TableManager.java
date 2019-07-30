@@ -2643,9 +2643,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* ************************** */
 
             /*
-             * Preleva la pagina dirty "corrente", può essere tenuta in memoria perché durante un checkpoint
-             * non vengono eseguite scritture e la pagina non può dunque cambiare (ne essere flushata per
-             * unload dato che non è conosciuta dalla page replacement policy)
+             * Retrieve the "current" new page. It can be held in memory because no writes are executed during
+             * a checkpoint and thus the page cannot change (nor be flushed due to an unload because it isn't
+             * known to page replacement policy)
              */
             final long lastKnownPageId = currentDirtyRecordsPage.get();
 
