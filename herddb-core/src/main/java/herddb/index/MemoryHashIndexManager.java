@@ -76,6 +76,8 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         LOGGER.log(Level.INFO, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
         bootSequenceNumber = sequenceNumber;
 
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
+
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{index.name});
@@ -129,6 +131,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
+        dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.clear();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {

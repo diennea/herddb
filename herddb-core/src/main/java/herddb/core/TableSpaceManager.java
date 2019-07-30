@@ -1434,7 +1434,7 @@ public class TableSpaceManager {
 
     private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid});
+        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
         if (indexes.containsKey(index.name)) {
             throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
         }

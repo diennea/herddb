@@ -45,6 +45,7 @@ public class FileDataStorageManagerTest {
         try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
             List<Record> page = Arrays.asList(
                 new Record(Bytes.from_int(1), Bytes.from_int(2)));
+            man.initTable("test1", "table1");
             man.writePage("test1", "table1", 1L, page);
             List<Record> result = man.readPage("test1", "table1", 1L);
             assertEquals(result, page);
@@ -55,6 +56,7 @@ public class FileDataStorageManagerTest {
     public void testReadWriteIndexPage() throws Exception {
         try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
             byte[] page = Bytes.intToByteArray(1);
+            man.initIndex("test1", "table1");
             man.writeIndexPage("test1", "table1", 1L, (out) -> {
                 out.writeArray(page);
             });
