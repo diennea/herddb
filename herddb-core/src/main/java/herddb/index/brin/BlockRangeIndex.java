@@ -19,6 +19,12 @@
  */
 package herddb.index.brin;
 
+import herddb.core.Page;
+import herddb.core.Page.Metadata;
+import herddb.core.PageReplacementPolicy;
+import herddb.storage.DataStorageManagerException;
+import herddb.utils.EnsureLongIncrementAccumulator;
+import herddb.utils.SizeAwareObject;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -36,13 +42,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
-
-import herddb.core.Page;
-import herddb.core.Page.Metadata;
-import herddb.core.PageReplacementPolicy;
-import herddb.storage.DataStorageManagerException;
-import herddb.utils.EnsureLongIncrementAccumulator;
-import herddb.utils.SizeAwareObject;
 
 /**
  * Very Simple BRIN (Block Range Index) implementation with pagination managed by a {@link PageReplacementPolicy}
@@ -926,6 +925,43 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         }
 
         return new BlockRangeIndexMetadata<>(blocksMetadata);
+
+    }
+
+    String generateDetailedInternalStatus() {
+
+        final StringBuilder builder = new StringBuilder();
+
+        builder.append("\nBRIN detailed internal status:\n")
+            .append(" - currentBlockId: ").append(currentBlockId.get()).append('\n')
+            .append(" - minPageBlockSize: ").append(minPageBlockSize).append('\n')
+            .append(" - maxPageBlockSize: ").append(maxPageBlockSize).append('\n')
+            .append(" - blocks: ").append(blocks.size()).append('\n');
+
+        builder.append("Ordered blocks navigation:").append('\n');
+
+        blocks.forEach((k,b) -> {
+            builder
+                .append("----[Block ").append(k.blockId)
+                .append(" MinKey ").append(k.minKey).append("]----").append('\n')
+                .append("key: ").append("block ").append(b.key.blockId)
+                .append(" minKey ").append(b.key.minKey).append('\n');
+            if (b.next == null) {
+                builder
+                    .append("next: null").append('\n');
+            } else {
+                builder
+                    .append("next: block").append(b.next.key.blockId)
+                    .append(" min key ").append(b.next.key.minKey).append('\n');
+            }
+            builder
+                .append("pageId: ").append(b.pageId).append('\n')
+                .append("size: ").append(b.size).append('\n')
+                .append("loaded: ").append(b.loaded).append('\n')
+                .append("dirty: ").append(b.dirty).append('\n');
+        });
+
+        return builder.toString();
 
     }
 

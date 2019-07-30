@@ -19,20 +19,6 @@
  */
 package herddb.index.brin;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Stream;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -60,9 +46,21 @@ import herddb.storage.IndexStatus;
 import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SystemProperties;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  * Block-range like index with pagination managed by a {@link PageReplacementPolicy}
@@ -72,7 +70,11 @@ import herddb.utils.SimpleByteArrayInputStream;
  */
 public class BRINIndexManager extends AbstractIndexManager {
 
+    private static final boolean VALIDATE_CHECKPOINT_METADATA = SystemProperties.getBooleanSystemProperty(
+            "herddb.index.brin.validatecheckpointmetadata", true);
+
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
+
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
     private final BlockRangeIndex<Bytes, Bytes> data;
@@ -300,6 +302,46 @@ public class BRINIndexManager extends AbstractIndexManager {
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException {
         try {
             BlockRangeIndexMetadata<Bytes> metadata = data.checkpoint();
+
+            /* Checks metadata consistency with actual data structure */
+            if (VALIDATE_CHECKPOINT_METADATA) {
+                boolean invalid = false;
+                /*
+                 * Metadata are saved/recovered in reverse order so "next" block has been already created
+                 */
+                Long nextID = null;
+                for (BlockRangeIndexMetadata.BlockMetadata<Bytes> blockData : metadata.getBlocksMetadata()) {
+
+                    /* Medatada safety check (do not trust blindly ordering) */
+                    if (blockData.nextBlockId != null) {
+                        if (nextID == null ) {
+                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected notingh but {0} found",
+                                    new Object[] {index.name, blockData.nextBlockId});
+                            invalid = true;
+                        } else  if (nextID != blockData.nextBlockId.longValue()) {
+                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but {2} found",
+                                    new Object[] {index.name, nextID, blockData.nextBlockId});
+                            invalid = true;
+                        }
+                    } else {
+                        if (nextID != null) {
+                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but nothing found",
+                                    new Object[] {index.name, nextID});
+                            invalid = true;
+                        }
+
+                    }
+
+                    nextID = blockData.blockId;
+                }
+
+                if (invalid) {
+                    LOGGER.log(Level.WARNING, data.generateDetailedInternalStatus());
+                }
+            }
+
+
+
             PageContents page = new PageContents();
             page.type = PageContents.TYPE_METADATA;
             page.metadata = metadata.getBlocksMetadata();
