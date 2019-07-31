@@ -1245,8 +1245,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropTable(String tablespace, String tableName) throws DataStorageManagerException {
+        LOGGER.log(Level.INFO, "dropTable {0}.{1}", new Object[]{tablespace, tableName});
         Path tableDir = getTableDirectory(tablespace, tableName);
-        LOGGER.log(Level.SEVERE, "dropTable {0}.{1} in {2}", new Object[]{tablespace, tableName, tableDir});
         try {
             deleteDirectory(tableDir);
         } catch (IOException ex) {
@@ -1256,8 +1256,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "dropIndex {0}.{1}", new Object[]{tablespace, name});
         Path tableDir = getIndexDirectory(tablespace, name);
-        LOGGER.log(Level.SEVERE, "dropIndex {0}.{1} in ", new Object[]{tablespace, name, tableDir});
         try {
             deleteDirectory(tableDir);
         } catch (IOException ex) {

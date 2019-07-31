@@ -235,7 +235,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxPKUsedMemory = configuration.getLong(
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
-                
+
     }
 
     public boolean isHaltOnTableSpaceBootError() {

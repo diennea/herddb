@@ -240,11 +240,6 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public void dropData() {     
-        truncate();
-    }
-    
-    @Override
     public long getUsedMemory() {
         return usedMemory.get();
     }

@@ -226,12 +226,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public void truncate() {
         getTree().truncate();
     }
-    
-    @Override
-    public void dropData() {
-        truncate();
-        dataStorageManager.dropIndex(tableSpace, indexName);
-    }
 
     @Override
     public long getUsedMemory() {

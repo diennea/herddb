@@ -1816,7 +1816,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public void dropTableData() throws DataStorageManagerException {
         dataStorageManager.dropTable(tableSpaceUUID, table.uuid);
-        keyToPage.dropData();
+        keyToPage.truncate();
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             for (AbstractIndexManager indexManager : indexes.values()) {

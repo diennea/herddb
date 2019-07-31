@@ -145,6 +145,7 @@ public final class CollectionsManager implements AutoCloseable {
                 new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
                 configuration, NullStatsLogger.INSTANCE);
+        server.setMaxDataUsedMemory(maxMemory);
     }
 
     public void start() throws Exception {

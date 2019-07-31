@@ -72,8 +72,6 @@ public interface KeyToPageIndex extends AutoCloseable {
     public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     public void truncate();
-    
-    public void dropData();
 
     public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
             TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException;

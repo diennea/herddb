@@ -103,16 +103,6 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
         }
 
         @Override
-        public void dropData() {
-            delegate.dropData();
-        }
-
-        @Override
-        public void init() throws DataStorageManagerException {
-            delegate.init();
-        }
-
-        @Override
         public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
                                                   TableContext tableContext, AbstractIndexManager index)
                 throws DataStorageManagerException, StatementExecutionException {
