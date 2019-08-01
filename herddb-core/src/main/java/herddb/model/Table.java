@@ -125,8 +125,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
         this.physicalLayoutLikeLogicalLayout = primaryKeyIsInKeyAndOrdered && columnsOrderedAsInPhysicalOrder;
 
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Table: ", tablespace + "." + name + "\n"
+        if (LOG.isLoggable(Level.FINEST)) {
+            LOG.log(Level.FINEST, "Table: ", tablespace + "." + name + "\n"
                     + "Columns: " + columnsNamesAsList + "\n"
                     + "PrimaryKey: " + Arrays.asList(primaryKey) + "\n"
                     + "Columns ordered physically: " + columnsNamesOrderedBySerialPosition + "\n"
