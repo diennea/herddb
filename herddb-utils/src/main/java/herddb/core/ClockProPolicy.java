@@ -118,7 +118,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
     @Override
     public CPMetadata add(Page<?> page) {
 
-        LOGGER.log(Level.FINE, () -> "Adding page " + page);
+        LOGGER.log(Level.FINER, () -> "Adding page " + page);
 
         final CPMetadata remove;
 
@@ -132,9 +132,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
         }
 
         if (remove == null) {
-            LOGGER.log(Level.FINE, () -> "Added page " + page + ", no page removal needed");
+            LOGGER.log(Level.FINER, () -> "Added page " + page + ", no page removal needed");
         } else {
-            LOGGER.log(Level.FINE, () -> "Added page " + page + ", page selected for removal: " + remove);
+            LOGGER.log(Level.FINER, () -> "Added page " + page + ", page selected for removal: " + remove);
         }
 
         return remove;
@@ -143,7 +143,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
     @Override
     public boolean remove(Page<?> page) {
 
-        LOGGER.log(Level.FINE, () -> "Removing page " + page);
+        LOGGER.log(Level.FINER, () -> "Removing page " + page);
 
         boolean removed;
 
@@ -155,9 +155,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
         }
 
         if (removed) {
-            LOGGER.log(Level.FINE, () -> "Removed page " + page);
+            LOGGER.log(Level.FINER, () -> "Removed page " + page);
         } else {
-            LOGGER.log(Level.FINE, () -> "Unknown page " + page);
+            LOGGER.log(Level.FINER, () -> "Unknown page " + page);
         }
 
         return removed;

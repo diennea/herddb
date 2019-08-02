@@ -547,8 +547,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             metadatas.add(metadata);
 
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.fine("node " + metadata.id + " has " + metadata.keys + " keys at checkpoint");
+            if (LOGGER.isLoggable(Level.FINER)) {
+                LOGGER.log(Level.FINER, "node {0} has {1} keys at checkpoint", new Object[]{metadata.id, metadata.keys});
             }
         }
 
@@ -2698,8 +2698,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 map = null;
                 loaded = false;
 
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("unloaded node " + pageId);
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.log(Level.FINER, "unloaded node {0}", pageId);
                 }
 
                 /* Truly unloaded, remove loaded memory count */
@@ -2738,8 +2738,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 flushId = writePage(flushId);
                 dirty = false;
 
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.log(Level.FINE, "flush node " + pageId + ": page -> " + flushId + " with " + keys + " keys x " + size + " bytes");
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.log(Level.FINER, "flush node {0}: page -> {1} with {2} keys x {3} bytes", new Object[]{pageId, flushId, keys, size});
                 }
             }
         }
@@ -2773,8 +2773,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                     dirty = false;
 
-                    if (LOGGER.isLoggable(Level.FINE)) {
-                        LOGGER.log(Level.FINE, "checkpoint node " + pageId + ": newpage -> " + storeId + " with " + keys + " keys x " + size + " bytes");
+                    if (LOGGER.isLoggable(Level.FINER)) {
+                        LOGGER.log(Level.FINER, "checkpoint node " + pageId + ": newpage -> " + storeId + " with " + keys + " keys x " + size + " bytes");
                     }
                 } else {
 
@@ -2800,8 +2800,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                          */
                         flushId = BLinkIndexDataStorage.NEW_PAGE;
 
-                        if (LOGGER.isLoggable(Level.FINE)) {
-                            LOGGER.log(Level.FINE, "checkpoint node " + pageId + ": from existing flush -> " + storeId + " with " + keys + " keys x " + size + " bytes");
+                        if (LOGGER.isLoggable(Level.FINER)) {
+                            LOGGER.log(Level.FINER, "checkpoint node " + pageId + ": from existing flush -> " + storeId + " with " + keys + " keys x " + size + " bytes");
                         }
                     }
 
