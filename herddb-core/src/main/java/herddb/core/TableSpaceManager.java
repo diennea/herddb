@@ -553,6 +553,7 @@ public class TableSpaceManager {
             return tableManager.scan(statement, context, transaction, lockRequired, forWrite);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
+                LOGGER.log(Level.SEVERE, tableSpaceName+" forcing rollback of implicit tx "+transactionContext.transactionId, error);
                 try {
                     rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId), context).get();
                 } catch (ExecutionException err) {
@@ -1035,22 +1036,23 @@ public class TableSpaceManager {
                     });
             finalResult.whenComplete((xx, error) -> {
                 if (!wasHoldingTableSpaceLock) {
-                    releaseReadLock(context.getTableSpaceLock(), "begin immplicit transaction");
+                    releaseReadLock(context.getTableSpaceLock(), "begin implicit transaction");
                 }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
+                    LOGGER.log(Level.SEVERE, tableSpaceName+" force rollback of implicit transaction "+txId, error);
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
-                                .get();
+                                .get(); // block until rollback is complete
                     } catch (InterruptedException ex) {
-                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex);
+                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback implicit tx " + txId, ex);
                         Thread.currentThread().interrupt();
                         error.addSuppressed(ex);
                     } catch (ExecutionException ex) {
-                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, ex.getCause());
+                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback implicit tx " + txId, ex.getCause());
                         error.addSuppressed(ex.getCause());
                     } catch (Throwable t) {
-                        LOGGER.log(Level.SEVERE, "Cannot rollback tx " + txId, t);
+                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback  implicittx " + txId, t);
                         error.addSuppressed(t);
                     }
                 }
@@ -1111,10 +1113,11 @@ public class TableSpaceManager {
             long txId = transactionContext.transactionId;
             if (txId > 0) {
                 res = res.whenComplete((xx, error) -> {
+                    LOGGER.log(Level.SEVERE, tableSpaceName+" force rollback of implicit transaction "+txId, error);
                     if (error != null) {
                         try {
                             rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
-                                    .get();
+                                    .get(); // block until operation completes
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
                             error.addSuppressed(ex);
