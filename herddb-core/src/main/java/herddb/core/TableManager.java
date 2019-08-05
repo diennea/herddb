@@ -707,19 +707,23 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pages.computeIfPresent(pageId, (k, remove) -> {
 
             unloadedPagesCount.increment();
-            LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+            if (LOGGER.isLoggable(Level.FINER)) {
+                LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+            }
 
             boolean dataFlushed = false;
             if (!remove.immutable) {
                 dataFlushed = flushNewPageForUnload(remove);
             }
 
-            if (dataFlushed) {
-                LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
-                        new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-            } else {
-                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}",
-                        new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+            if (LOGGER.isLoggable(Level.FINER)) {
+                if (dataFlushed) {
+                    LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
+                            new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                } else {
+                    LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}",
+                            new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                }
             }
 
             return null;
@@ -1383,13 +1387,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
-        /* Do not unload the current working page not known to replacement policy */
-        final long currentDirtyPageId = currentDirtyRecordsPage.get();
-        final List<DataPage> unload = pages.values().stream()
-                .filter(page -> page.pageId != currentDirtyPageId)
-                .collect(Collectors.toList());
-
-        pageReplacementPolicy.remove(unload);
+        unloadAllPagesForTruncate();
 
         pageSet.truncate();
 
@@ -1406,6 +1404,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
+    }
+
+    private void unloadAllPagesForTruncate() {
+        /* Do not unload the current working page not known to replacement policy */
+        final long currentDirtyPageId = currentDirtyRecordsPage.get();
+        final List<DataPage> unload = pages.values().stream()
+                .filter(page -> page.pageId != currentDirtyPageId)
+                .collect(Collectors.toList());
+
+        pageReplacementPolicy.remove(unload);
     }
 
     @Override
@@ -1823,6 +1831,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 indexManager.dropIndexData();
             }
         }
+        unloadAllPagesForTruncate();
     }
 
     @Override
