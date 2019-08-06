@@ -596,6 +596,8 @@ public class SimpleClientServerTest {
                 assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
                         "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1, "test1")).updateCount);
 
+                assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                        "UPDATE mytable set s1=?", tx, false, true, Arrays.asList("test2")).updateCount);
                 // the client dies, it won't use the transaction any more
             }
 
@@ -608,6 +610,15 @@ public class SimpleClientServerTest {
             server.getManager().checkpoint();
 
             assertTrue(tableSpaceManager.getTransactions().isEmpty());
+
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                    HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertEquals(0, connection.executeUpdate(TableSpace.DEFAULT,
+                        "UPDATE mytable set s1=?", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList(
+                                "test3")).updateCount);
+            }
 
         }
     }
