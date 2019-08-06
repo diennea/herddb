@@ -1503,6 +1503,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     transaction = tableSpaceManager.getTransaction(entry.transactionId);
                 }
                 if (transaction != null) {
+                    transaction.touch();
                     LOGGER.log(Level.FINER, "{0}.{1} keep {2} at {3}, table restored from position {4}, it belongs to transaction {5} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
                 } else {
                     LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table restored from position {4}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
@@ -1515,6 +1516,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     transaction = tableSpaceManager.getTransaction(entry.transactionId);
                 }
                 if (transaction != null) {
+                    transaction.touch();
                     LOGGER.log(Level.FINER, "{0}.{1} keep {2} at {3}, table booted at {4}, it belongs to transaction {5} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
                 } else {
                     LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table booted at {4}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
@@ -3098,7 +3100,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long _start = System.currentTimeMillis();
         boolean acquireLock = transaction != null || forWrite || lockRequired;
         LocalScanPageCache lastPageRead = acquireLock ? null : new LocalScanPageCache();
-
+        AtomicInteger count = new AtomicInteger();
         try {
 
             IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
@@ -3117,6 +3119,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 @Override
                 public void accept(Entry<Bytes, Long> entry) throws DataStorageManagerException, StatementExecutionException, LogNotAvailableException {
+                    if (transaction != null && count.incrementAndGet() % 1000 == 0) {
+                        transaction.touch();
+                    }
                     Bytes key = entry.getKey();
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
@@ -3270,6 +3275,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private Stream<Record> streamTransactionData(Transaction transaction, Predicate predicate, StatementEvaluationContext context) {
         if (transaction != null) {
+            transaction.touch();
             Collection<Record> newRecordsForTable = transaction.getNewRecordsForTable(table.name);
             if (newRecordsForTable == null || newRecordsForTable.isEmpty()) {
                 return null;
@@ -3300,6 +3306,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
         try {
             if (transaction != null) {
+                transaction.touch();
                 if (transaction.recordDeleted(table.name, key)) {
                     // skip this record. inside current transaction it has been deleted
                     return null;

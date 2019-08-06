@@ -33,6 +33,10 @@ public enum ActivatorRunRequest {
     public boolean enableTableCheckPoints() {
         return this == FULL || this == TABLECHECKPOINTS;
     }
+    
+    public boolean enableAbandonedTransactionsMaintenaince() {
+        return this == FULL;
+    }
 
     public boolean enableGlobalCheckPoint() {
         return this == FULL;

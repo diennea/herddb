@@ -539,6 +539,9 @@ public class TableSpaceManager {
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
+        if (transaction != null) {
+            transaction.touch();
+        }
         try {
             String table = statement.getTable();
             AbstractTableManager tableManager = tables.get(table);
@@ -701,15 +704,32 @@ public class TableSpaceManager {
         }
 
     }
-
-    void requestTableCheckPoint(String name) {
-        boolean ok = tablesNeedingCheckPoint.add(name);
-        if (ok) {
-            LOGGER.log(Level.INFO, "Table " + this.tableSpaceName + "." + name + " need a local checkpoint");
+  
+    void processAbandonedTransactions() {
+        long now = System.currentTimeMillis();
+        long timeout = dbmanager.getAbandonedTransactionsTimeout();
+        if (timeout <= 0) {
+            return;
         }
-        dbmanager.triggerActivator(ActivatorRunRequest.TABLECHECKPOINTS);
+        long abandonedTransactionTimeout = now - timeout;
+        for (Transaction t : transactions.values()) {
+            if (t.isAbandoned(abandonedTransactionTimeout)) {
+                LOGGER.log(Level.SEVERE, "forcing rollback of abandoned transaction {0},"
+                        + " created locally at {1},"
+                        + " last activity locally at {2}",
+                        new Object[]{t.transactionId,
+                            new java.sql.Timestamp(t.localCreationTimestamp),
+                            new java.sql.Timestamp(t.lastActivityTs)});
+                long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
+                try {
+                    forceTransactionRollback(t.transactionId);
+                } finally {
+                    releaseReadLock(lockStamp, "forceRollback" + t.transactionId);
+                }
+            }
+        }
     }
-
+    
     void runLocalTableCheckPoints() {
         Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
         tablesNeedingCheckPoint.clear();
@@ -988,14 +1008,18 @@ public class TableSpaceManager {
             log.startWriting();
             LOGGER.log(Level.INFO, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
-                LOGGER.log(Level.FINER, "rolling back transaction {0}", tx);
-                LogEntry rollback = LogEntryFactory.rollbackTransaction(tx);
-                // let followers see the rollback on the log
-                CommitLogResult pos = log.log(rollback, true);
-                apply(pos, rollback, false);
+                forceTransactionRollback(tx);
             }
         }
         leader = true;
+    }
+
+    private void forceTransactionRollback(long tx) throws LogNotAvailableException, DataStorageManagerException, DDLException {
+        LOGGER.log(Level.FINER, "rolling back transaction {0}", tx);
+        LogEntry rollback = LogEntryFactory.rollbackTransaction(tx);
+        // let followers see the rollback on the log
+        CommitLogResult pos = log.log(rollback, true);
+        apply(pos, rollback, false);
     }
 
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
@@ -1075,6 +1099,9 @@ public class TableSpaceManager {
                 && transaction == null) {
             return FutureUtils.exception(
                     new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName));
+        }
+        if (transaction != null) {
+            transaction.touch();
         }
         CompletableFuture<StatementExecutionResult> res;
         try {
@@ -1538,7 +1565,7 @@ public class TableSpaceManager {
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
-        }
+        }        
 
         long _start = System.currentTimeMillis();
         LogSequenceNumber logSequenceNumber = null;

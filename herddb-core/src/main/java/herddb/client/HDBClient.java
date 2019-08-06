@@ -142,9 +142,14 @@ public class HDBClient implements AutoCloseable {
     }
 
     public HDBConnection openConnection() {
+        // overridden in tests
         HDBConnection con = new HDBConnection(this);
-        connections.put(con.getId(), con);
+        registerConnection(con);
         return con;
+    }
+
+    protected final void registerConnection(HDBConnection con) {
+        connections.put(con.getId(), con);
     }
 
     void releaseConnection(HDBConnection connection) {
