@@ -55,7 +55,7 @@ public class HDBConnection implements AutoCloseable {
     private final Random random = new Random();
     private Map<String, RoutedClientSideConnection[]> routes;
 
-    HDBConnection(HDBClient client) {
+    public HDBConnection(HDBClient client) {
         if (client == null) {
             throw new NullPointerException();
         }
@@ -377,6 +377,10 @@ public class HDBConnection implements AutoCloseable {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         route.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }
+    
+    protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+        return all[random.nextInt(maxConnectionsPerServer)];
+    }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
         try {
@@ -393,8 +397,7 @@ public class HDBConnection implements AutoCloseable {
                     throw new RuntimeException(err);
                 }
             });
-
-            return all[random.nextInt(maxConnectionsPerServer)];
+            return chooseConnection(all);
         } catch (RuntimeException err) {
             if (err.getCause() instanceof ClientSideMetadataProviderException) {
                 throw (ClientSideMetadataProviderException) (err.getCause());

@@ -20,6 +20,7 @@
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.nio.file.Path;
@@ -44,8 +45,16 @@ import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.utils.RawString;
+
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+
+import herddb.client.RoutedClientSideConnection;
+import herddb.core.TableSpaceManager;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Basic server/client boot test
@@ -92,7 +101,8 @@ public class SimpleClientServerTest {
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
@@ -141,7 +151,8 @@ public class SimpleClientServerTest {
                 assertEquals(tx, executeUpdates.get(2).transactionId);
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
-                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(),
+                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -151,13 +162,15 @@ public class SimpleClientServerTest {
                     }
                 }
 
-                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().
+                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
 
                         assertEquals(RawString.of("jvm-local"), aa.get("address"));
                         assertNotNull(aa.get("id"));
-                        assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get("username"));
+                        assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get(
+                                "username"));
                         assertNotNull(aa.get("connectionts"));
                     }
                     assertTrue(all.size() >= 1);
@@ -177,7 +190,8 @@ public class SimpleClientServerTest {
                 // missing JDBC parameter
                 try {
                     connection.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList("test"));
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.NOTRANSACTION_ID, false,
+                            true, Arrays.asList("test"));
                     fail("cannot issue a query without setting each parameter");
                 } catch (HDBException ok) {
                     assertTrue(ok.getMessage().contains(MissingJDBCParameterException.class.getName()));
@@ -186,7 +200,8 @@ public class SimpleClientServerTest {
                 // simple rollback
                 long txToRollback = connection.beginTransaction(TableSpace.DEFAULT);
                 long countInsertToRollback = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", txToRollback, false, true, Arrays.asList("test123", 7, 8)).updateCount;
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", txToRollback, false, true, Arrays.asList(
+                                "test123", 7, 8)).updateCount;
                 Assert.assertEquals(1, countInsertToRollback);
                 connection.rollbackTransaction(TableSpace.DEFAULT, txToRollback);
             }
@@ -215,12 +230,12 @@ public class SimpleClientServerTest {
 
                     // this is 2 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable", true  /*usePreparedStatement*/,
+                            "SELECT * FROM mytable", true /*usePreparedStatement*/,
                             Collections.emptyList(), 0, 0, 10).close();
 
                     // this is 3 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
-                            "SELECT id FROM mytable", true  /*usePreparedStatement*/,
+                            "SELECT id FROM mytable", true /*usePreparedStatement*/,
                             Collections.emptyList(), 0, 0, 10).close();
                 }
 
@@ -232,21 +247,20 @@ public class SimpleClientServerTest {
 
                     // this is 1 for the server, the client will invalidate its cache for this statement
                     connection1.executeScan(TableSpace.DEFAULT,
-                            "SELECT n1 FROM mytable", true  /*usePreparedStatement*/,
+                            "SELECT n1 FROM mytable", true /*usePreparedStatement*/,
                             Collections.emptyList(), 0, 0, 10).close();
 
                     // this is 2 for the server
                     try (HDBConnection connection2 = client.openConnection()) {
                         connection2.executeUpdate(TableSpace.DEFAULT,
-                            "UPDATE mytable set n1=2", 0, false, true /*usePreparedStatement*/,
-                            Collections.emptyList());
+                                "UPDATE mytable set n1=2", 0, false, true /*usePreparedStatement*/,
+                                Collections.emptyList());
                     }
 
-                   // this would be 2 for connection1 (bug in 0.10.0), but for the server 2 is "UPDATE mytable set n1=2"
-                   connection1.executeScan(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable", true  /*usePreparedStatement*/,
+                    // this would be 2 for connection1 (bug in 0.10.0), but for the server 2 is "UPDATE mytable set n1=2"
+                    connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT * FROM mytable", true /*usePreparedStatement*/,
                             Collections.emptyList(), 0, 0, 10).close();
-
 
                 }
             }
@@ -255,8 +269,7 @@ public class SimpleClientServerTest {
     }
 
     /**
-     * Testing that if the server discards the query the client will resend the
-     * PREPARE_STATEMENT COMMAND
+     * Testing that if the server discards the query the client will resend the PREPARE_STATEMENT COMMAND
      *
      * @throws Exception
      */
@@ -274,7 +287,8 @@ public class SimpleClientServerTest {
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 {
@@ -283,7 +297,8 @@ public class SimpleClientServerTest {
                             "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2)).updateCount;
                     Assert.assertEquals(1, countInsert);
                     long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test2", 2, 3)).updateCount;
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.
+                                    asList("test2", 2, 3)).updateCount;
                     Assert.assertEquals(1, countInsert2);
                     connection.commitTransaction(TableSpace.DEFAULT, tx);
                 }
@@ -292,7 +307,8 @@ public class SimpleClientServerTest {
                 {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 100, 100);) {
+                            "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
+                            TransactionContext.NOTRANSACTION_ID, 100, 100);) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -300,7 +316,8 @@ public class SimpleClientServerTest {
                 {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 100, 100);) {
+                            "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
+                            TransactionContext.NOTRANSACTION_ID, 100, 100);) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -308,7 +325,8 @@ public class SimpleClientServerTest {
                 // GET
                 {
                     GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable WHERE id='test'", TransactionContext.NOTRANSACTION_ID, true, Collections.emptyList());
+                            "SELECT * FROM mytable WHERE id='test'", TransactionContext.NOTRANSACTION_ID, true,
+                            Collections.emptyList());
                     Map<RawString, Object> record = res.data;
                     Assert.assertNotNull(record);
 
@@ -321,7 +339,8 @@ public class SimpleClientServerTest {
                 {
 
                     GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                            "SELECT * FROM mytable WHERE id='test'", TransactionContext.NOTRANSACTION_ID, true, Collections.emptyList());
+                            "SELECT * FROM mytable WHERE id='test'", TransactionContext.NOTRANSACTION_ID, true,
+                            Collections.emptyList());
                     Map<RawString, Object> record = res.data;
                     Assert.assertNotNull(record);
                 }
@@ -406,7 +425,8 @@ public class SimpleClientServerTest {
                 {
 
                     List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT,
-                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", TransactionContext.NOTRANSACTION_ID,
+                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)",
+                            TransactionContext.NOTRANSACTION_ID,
                             false,
                             true,
                             Arrays.asList(
@@ -445,7 +465,7 @@ public class SimpleClientServerTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                 HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -456,7 +476,7 @@ public class SimpleClientServerTest {
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1,"test1")).updateCount;
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1, "test1")).updateCount;
                 Assert.assertEquals(1, countInsert);
                 try {
                     connection.executeUpdate(TableSpace.DEFAULT,
@@ -469,17 +489,18 @@ public class SimpleClientServerTest {
 
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
-                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.emptyList(), 0, 0, 10);) {
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.
+                        emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> rows = scan.consume();
-                    int i=0;
+                    int i = 0;
                     for (Map<String, Object> row : rows) {
-                        if(i==0) {
+                        if (i == 0) {
                             i++;
-                            Assert.assertEquals(row.get("id"),1);
-                            Assert.assertEquals(row.get("s1"),"test1");
+                            Assert.assertEquals(row.get("id"), 1);
+                            Assert.assertEquals(row.get("s1"), "test1");
                         } else {
-                            Assert.assertEquals(row.get("id"),2);
-                            Assert.assertEquals(row.get("s1"),"test2");
+                            Assert.assertEquals(row.get("id"), 2);
+                            Assert.assertEquals(row.get("s1"), "test2");
                         }
                     }
                 }
@@ -487,4 +508,108 @@ public class SimpleClientServerTest {
             }
         }
     }
+    private static final Logger LOG = Logger.getLogger(SimpleClientServerTest.class.getName());
+
+    @Test
+    public void testClientCloseOnConnectionAndResumeTransaction() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        AtomicInteger connectionToUse = new AtomicInteger();
+        AtomicReference<RoutedClientSideConnection[]> connections = new AtomicReference<>();
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 2);
+            clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, 2000);
+            try (HDBClient client = new HDBClient(clientConfiguration) {
+                @Override
+                public HDBConnection openConnection() {
+                    HDBConnection con = new HDBConnection(this) {
+                        @Override
+                        protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+                            connections.set(all);
+                            LOG.log(Level.INFO,
+                                    "chooseConnection among " + all.length + " connections, getting " + connectionToUse);
+                            return all[connectionToUse.get()];
+                        }
+
+                    };
+                    registerConnection(con);
+                    return con;
+                }
+
+            };
+                    HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                // force using the first connection of two
+                connectionToUse.set(0);
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                // transaction is bound to the first connection (in HerdDB 11.0.0)
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1, "test1")).updateCount);
+
+                // close the connection that initiated the transaction
+                connections.get()[0].close();
+
+                // give time to the server to close the connection
+                Thread.sleep(100);
+
+                // use the second connection, with the same transaction
+                connectionToUse.set(1);
+
+                connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx,
+                        false, true,
+                        Arrays.asList(2, "test1"));
+
+            }
+        }
+    }
+
+    @Test
+    public void testClientAbandonedTransaction() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ServerConfiguration config = new ServerConfiguration(baseDir);
+        config.set(ServerConfiguration.PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT, 5000);
+        try (Server server = new Server(config)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                    HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", tx, false, true, Arrays.asList(1, "test1")).updateCount);
+
+                // the client dies, it won't use the transaction any more
+            }
+
+            TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+
+            assertFalse(tableSpaceManager.getTransactions().isEmpty());
+
+            Thread.sleep(6000); // PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT+ 1000
+
+            server.getManager().checkpoint();
+
+            assertTrue(tableSpaceManager.getTransactions().isEmpty());
+
+        }
+    }
+
 }
