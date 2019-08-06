@@ -138,6 +138,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
+    private long abandonedTransactionsTimeout;
     private final StatsLogger mainStatsLogger;
 
     private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
@@ -1111,6 +1112,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 man.runLocalTableCheckPoints();
             }
         }
+        if (!checkpointDone && type.enableAbandonedTransactionsMaintenaince()) {
+            for (TableSpaceManager man : tablesSpaces.values()) {
+                man.processAbandonedTransactions();
+            }
+        }
     }
 
     private boolean manageTableSpaces() {
@@ -1286,6 +1292,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void setCheckpointPeriod(long checkpointPeriod) {
         this.checkpointPeriod = checkpointPeriod;
     }
+
+    public long getAbandonedTransactionsTimeout() {
+        return abandonedTransactionsTimeout;
+    }    
+
+    public void setAbandonedTransactionsTimeout(long abandonedTransactionsTimeout) {
+        this.abandonedTransactionsTimeout = abandonedTransactionsTimeout;
+    }        
 
     public long getLastCheckPointTs() {
         return lastCheckPointTs.get();

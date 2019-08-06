@@ -65,6 +65,7 @@ public class Transaction {
     public LogSequenceNumber lastSequenceNumber;
     public final long localCreationTimestamp;
     private final List<CommitLogResult> deferredWrites = new ArrayList<>();
+    public volatile long lastActivityTs = System.currentTimeMillis();
 
     public Transaction(long transactionId, String tableSpace, CommitLogResult lastSequenceNumber) {
         this.transactionId = transactionId;
@@ -75,6 +76,10 @@ public class Transaction {
         this.deletedRecords = new HashMap<>();
         this.lastSequenceNumber = lastSequenceNumber.deferred ? null : lastSequenceNumber.getLogSequenceNumber();
         this.localCreationTimestamp = System.currentTimeMillis();
+    }
+    
+    public void touch() {
+        lastActivityTs = System.currentTimeMillis();
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
@@ -113,6 +118,7 @@ public class Transaction {
     }
 
     private boolean updateLastSequenceNumber(CommitLogResult writeResult) throws LogNotAvailableException {
+        touch();
         if (writeResult.deferred) {
             deferredWrites.add(writeResult);
             return false;
@@ -509,6 +515,7 @@ public class Transaction {
 
     /* Visible for testing */
     public void sync() throws LogNotAvailableException {
+        touch();
         // wait for all writes to be synch to log
         for (CommitLogResult result : deferredWrites) {
             LogSequenceNumber number = result.getLogSequenceNumber();
@@ -526,6 +533,10 @@ public class Transaction {
             throw new IllegalStateException("Corrupted transaction, syncing on a position smaller than transaction last sequence number");
         }
         lastSequenceNumber = sequenceNumber;
+    }
+    
+    public boolean isAbandoned(long timestamp) {
+        return lastActivityTs < timestamp;
     }
 
 }

@@ -140,6 +140,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
+    
+    public static final String PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT = "server.abandoned.transactions.timeout";
+    public static final long PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
 
     /**
      * Maximum dirty bytes percentage at which a pages will be considered for
