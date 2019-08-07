@@ -412,8 +412,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.INFO, "schema " + defaultTableSpace + " not available yet, after waiting "
-                    + delta + "/" + WAIT_FOR_SCHEMA_UP_TIMEOUT + " ms");
+            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
+                    new Object[]{defaultTableSpace, delta, WAIT_FOR_SCHEMA_UP_TIMEOUT});
             if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
                 return null;
             }
@@ -481,12 +481,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SqlParseException, ValidationException, MetadataStorageManagerException {
         SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
         if (subSchema == null) {
-            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
             clearCache();
-            throw new StatementExecutionException("internal error,"
-                    + "Calcite subSchema for " + defaultTableSpace + " is null,"
-                    + "tableSpaceManager is " + tableSpaceManager + ","
-                    + "maybe table space " + defaultTableSpace + " is not yet started on this node");
+            throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
 
         final FrameworkConfig config = Frameworks.newConfigBuilder()
