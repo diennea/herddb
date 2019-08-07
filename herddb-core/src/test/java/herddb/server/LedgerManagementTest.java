@@ -63,7 +63,7 @@ public class LedgerManagementTest {
     @Before
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
-        testEnv.startBookie();
+        testEnv.startBookies();
     }
 
     @After

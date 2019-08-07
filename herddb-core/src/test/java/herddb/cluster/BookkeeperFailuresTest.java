@@ -75,7 +75,7 @@ public class BookkeeperFailuresTest {
     @Before
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
-        testEnv.startBookie();
+        testEnv.startBookies();
     }
 
     @After
@@ -303,7 +303,7 @@ public class BookkeeperFailuresTest {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            testEnv.stopBookie();
+            testEnv.stopBookies();
 
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -311,7 +311,7 @@ public class BookkeeperFailuresTest {
             } catch (StatementExecutionException expected) {
             }
 
-            testEnv.startBookie(false);
+            testEnv.startBookies(false);
 
             while (true) {
                 System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.isFailed());
@@ -398,7 +398,7 @@ public class BookkeeperFailuresTest {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            testEnv.stopBookie();
+            testEnv.stopBookies();
 
             // transaction will continue and see the failure only the time of the commit
             try {
@@ -434,7 +434,7 @@ public class BookkeeperFailuresTest {
                 System.out.println("Commit failed as expected:" + expected);
             }
 
-            testEnv.startBookie(false);
+            testEnv.startBookies(false);
 
             while (true) {
                 System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.isFailed());
@@ -510,20 +510,28 @@ public class BookkeeperFailuresTest {
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
             long ledgerId = log.getLastSequenceNumber().ledgerId;
             assertTrue(ledgerId >= 0);
-          
+            
+            testEnv.stopBookies();
+            
+            testEnv.stopZkServer();
+            
             // start two bookies
             // write to one
             // kill one bookie
             // kill zk
             // try to write (force ensemble change) -> fail with ZKException, temporary error for HerdDB
             
+            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+         
+            
             // start zk
             // try to write again, a new ledger will be opened
-            testEnv.stopZkServer();
-            
+            testEnv.restartZkServer();
+            testEnv.startNewBookie();
+          
            
 
-            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         }
     }

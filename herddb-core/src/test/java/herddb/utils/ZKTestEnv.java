@@ -21,10 +21,13 @@ package herddb.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.test.PortManager;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.CreateMode;
@@ -38,7 +41,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     TestingServer zkServer;
-    BookieServer bookie;
+    List<BookieServer> bookies = new ArrayList<>();
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
@@ -71,19 +74,26 @@ public class ZKTestEnv implements AutoCloseable {
         zkServer = new TestingServer(1282, path.toFile(), true);
     }
 
-    public void startBookie() throws Exception {
-        startBookie(true);
+    public void startBookies() throws Exception {
+        startBookies(true);
     }
 
-    public void startBookie(boolean format) throws Exception {
-        if (bookie != null) {
+    public void startNewBookie() throws Exception {
+        startBookie(true, true);
+    }
+     
+    public void startBookies(boolean format) throws Exception {
+        startBookie(format, false);
+    }
+    private void startBookie(boolean format, boolean newBookie) throws Exception {
+        if (!newBookie && !bookies.isEmpty()) {
             throw new Exception("bookie already started");
         }
         ServerConfiguration conf = new ServerConfiguration();
-        conf.setBookiePort(5621);
+        conf.setBookiePort(PortManager.nextFreePort());
         conf.setUseHostNameAsBookieID(true);
 
-        Path targetDir = path.resolve("bookie_data");
+        Path targetDir = path.resolve("bookie_data_"+bookies.size());
         conf.setZkServers("localhost:1282");
         conf.setZkLedgersRootPath(herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
@@ -103,16 +113,16 @@ public class ZKTestEnv implements AutoCloseable {
             BookKeeperAdmin.initNewCluster(conf);
             BookKeeperAdmin.format(conf, false, true);
         }
-
-        this.bookie = new BookieServer(conf);
-        this.bookie.start();
+  
+        BookieServer bookie = new BookieServer(conf);
+        bookies.add(bookie);
+        bookie.start();
     }
 
-    public void stopBookie() throws Exception {
-        if (bookie != null) {
+    public void stopBookies() throws Exception {
+        for (BookieServer bookie : bookies) {
             bookie.shutdown();
             bookie.join();
-            bookie = null;
         }
     }
 
@@ -131,9 +141,7 @@ public class ZKTestEnv implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            if (bookie != null) {
-                bookie.shutdown();
-            }
+            stopBookies();
         } catch (Throwable t) {
         }
         stopZkServer();
