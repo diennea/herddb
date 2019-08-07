@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import org.apache.bookkeeper.client.BookKeeperAdmin;
@@ -41,14 +42,14 @@ public class ZKTestEnv implements AutoCloseable {
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
-        zkServer = new TestingServer(1282, path.toFile(), true);
         this.path = path;
+        restartZkServer();
 
         try (ZooKeeperClient zkc = ZooKeeperClient
                 .newBuilder()
                 .connectString("localhost:1282")
                 .sessionTimeoutMs(10000)
-                .build()){
+                .build()) {
 
             boolean rootExists = zkc.exists(getPath(), false) != null;
 
@@ -56,6 +57,18 @@ public class ZKTestEnv implements AutoCloseable {
                 zkc.create(getPath(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
             }
         }
+    }
+
+    public void stopZkServer() throws IOException {
+        if (zkServer != null) {
+            zkServer.close();
+            zkServer = null;
+        }
+    }
+
+    public final void restartZkServer() throws Exception {
+        stopZkServer();
+        zkServer = new TestingServer(1282, path.toFile(), true);
     }
 
     public void startBookie() throws Exception {
@@ -123,12 +136,7 @@ public class ZKTestEnv implements AutoCloseable {
             }
         } catch (Throwable t) {
         }
-        try {
-            if (zkServer != null) {
-                zkServer.close();
-            }
-        } catch (Throwable t) {
-        }
+        stopZkServer();
     }
 
 }

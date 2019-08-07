@@ -290,7 +290,7 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         LOGGER.log(Level.SEVERE, "bookkeeper async failure on tablespace " + tableSpaceDescription() + " while writing entry " + edit, cause);
         if (cause instanceof BKException.BKLedgerClosedException) {
-            LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger for tablespace " + tableSpaceDescription(), closed);
+            LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger for tablespace " + tableSpaceDescription(), cause);
         } else if (cause instanceof BKException.BKLedgerFencedException) {
             LOGGER.log(Level.SEVERE, "this server was fenced for tablespace " + tableSpaceDescription() + " !", cause);
             close();
