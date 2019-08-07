@@ -52,7 +52,6 @@ import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
-import org.apache.bookkeeper.client.api.WriteHandle;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -174,7 +173,7 @@ public class BookkeeperCommitLog extends CommitLog {
             }
         }
 
-        public WriteHandle getOut() {
+        public LedgerHandle getOut() {
             return out;
         }
 
@@ -253,11 +252,16 @@ public class BookkeeperCommitLog extends CommitLog {
         try {
             CommitFileWriter _writer = writer;
             if (closed) {
+                // we are "closed", no need to create a new writer
                 return _writer;
             }
             if (!_writer.isWritable()) {
                 lock.readLock().unlock();
                 lock.writeLock().lock();
+                if (closed) {
+                    // we are "closed", no need to create a new writer
+                    return _writer;
+                }
                 try {
                     _writer = writer;
                     if (!_writer.isWritable()) {
