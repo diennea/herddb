@@ -556,7 +556,7 @@ public class TableSpaceManager {
             return tableManager.scan(statement, context, transaction, lockRequired, forWrite);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
-                LOGGER.log(Level.SEVERE, tableSpaceName+" forcing rollback of implicit tx "+transactionContext.transactionId, error);
+                LOGGER.log(Level.FINE, tableSpaceName + " forcing rollback of implicit tx "+transactionContext.transactionId, error);
                 try {
                     rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId), context).get();
                 } catch (ExecutionException err) {
@@ -1064,7 +1064,7 @@ public class TableSpaceManager {
                 }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
-                    LOGGER.log(Level.SEVERE, tableSpaceName+" force rollback of implicit transaction "+txId, error);
+                    LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction "+txId, error);
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                 .get(); // block until rollback is complete
@@ -1140,8 +1140,8 @@ public class TableSpaceManager {
             long txId = transactionContext.transactionId;
             if (txId > 0) {
                 res = res.whenComplete((xx, error) -> {
-                    LOGGER.log(Level.SEVERE, tableSpaceName+" force rollback of implicit transaction "+txId, error);
                     if (error != null) {
+                        LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction "+txId, error);
                         try {
                             rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                     .get(); // block until operation completes
