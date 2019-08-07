@@ -94,7 +94,7 @@ public abstract class Channel implements AutoCloseable {
             throw new RuntimeException(err.getCause());
         } catch (TimeoutException timeoutException) {
             long _stop = System.currentTimeMillis();
-            TimeoutException err = new TimeoutException("Timed-out after waiting response for " + (_stop - _start) + " ms");
+            TimeoutException err = new TimeoutException("Request timedout (" + ((_stop - _start)/1000) + "s). Slow server or internal error");
             err.initCause(timeoutException);
             throw err;
         }
