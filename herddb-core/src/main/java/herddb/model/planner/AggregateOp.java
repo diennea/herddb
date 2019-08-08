@@ -269,6 +269,9 @@ public class AggregateOp implements PlannerOp {
         @Override
         public void close() throws DataScannerException {
             wrapped.close();
+            if (aggregatedScanner != null) {
+                aggregatedScanner.close();
+            }
         }
     }
 

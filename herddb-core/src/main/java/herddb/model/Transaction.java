@@ -69,7 +69,7 @@ public class Transaction {
     private final List<CommitLogResult> deferredWrites = new ArrayList<>();
     public volatile long lastActivityTs = System.currentTimeMillis();
 
-    private AtomicInteger refCount = new AtomicInteger();
+    private final AtomicInteger refCount = new AtomicInteger();
 
     public Transaction(long transactionId, String tableSpace, CommitLogResult lastSequenceNumber) {
         this.transactionId = transactionId;
