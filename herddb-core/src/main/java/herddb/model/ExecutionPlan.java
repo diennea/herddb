@@ -32,30 +32,22 @@ public class ExecutionPlan {
     private final static AtomicLong ID = new AtomicLong();
     private final long id = ID.incrementAndGet();
     public final Statement mainStatement;
-    public final Aggregator mainAggregator;
-    public final ScanLimits limits;
-    public final TupleComparator comparator;
     // this is actually only for tests and debug
     public final PlannerOp originalRoot;
 
     private ExecutionPlan(Statement mainStatement,
-            Aggregator mainAggregator,
-            ScanLimits limits,
-            TupleComparator comparator,
             PlannerOp originalRoot) {
         this.mainStatement = mainStatement;
-        this.mainAggregator = mainAggregator;
-        this.limits = limits;
-        this.comparator = comparator;
+      
         this.originalRoot = originalRoot;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null, null);
+        return new ExecutionPlan(statement,  null);
     }
 
     public static ExecutionPlan simple(Statement statement, PlannerOp root) {
-        return new ExecutionPlan(statement, null, null, null, root);
+        return new ExecutionPlan(statement,  root);
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {

@@ -119,7 +119,7 @@ public class AggregateOp implements PlannerOp {
         public AggregatedDataScanner(DataScanner wrapped,
                 StatementEvaluationContext context,
                 RecordSetFactory recordSetFactory) throws StatementExecutionException {
-            super(wrapped.transactionId, fieldnames, columns);
+            super(wrapped.getTransaction(), fieldnames, columns);
             this.wrapped = wrapped;
             this.context = context;
             this.recordSetFactory = recordSetFactory;
@@ -205,7 +205,7 @@ public class AggregateOp implements PlannerOp {
                         results.add(tuple);
                     }
                     results.writeFinished();
-                    aggregatedScanner = new SimpleDataScanner(wrapped.transactionId, results);
+                    aggregatedScanner = new SimpleDataScanner(wrapped.getTransaction(), results);
                 } else {
                     Group group = createGroup();
                     AggregatedColumnCalculator[] columns = group.columns;
@@ -225,7 +225,7 @@ public class AggregateOp implements PlannerOp {
                             .createFixedSizeRecordSet(1, getFieldNames(), getSchema());
                     results.add(tuple);
                     results.writeFinished();
-                    aggregatedScanner = new SimpleDataScanner(wrapped.transactionId, results);
+                    aggregatedScanner = new SimpleDataScanner(wrapped.getTransaction(), results);
                 }
             } catch (StatementExecutionException err) {
                 throw new DataScannerException(err);

@@ -536,6 +536,9 @@ public class TableSpaceManager {
             }
         }
         Transaction transaction = transactions.get(transactionContext.transactionId);
+        if (transactionContext.transactionId > 0 && transaction == null) {
+            throw new StatementExecutionException("transaction " + transactionContext.transactionId + " does not exist on tablespace " + tableSpaceName);
+        }
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
@@ -556,7 +559,7 @@ public class TableSpaceManager {
             return tableManager.scan(statement, context, transaction, lockRequired, forWrite);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
-                LOGGER.log(Level.FINE, tableSpaceName + " forcing rollback of implicit tx "+transactionContext.transactionId, error);
+                LOGGER.log(Level.FINE, tableSpaceName + " forcing rollback of implicit tx " + transactionContext.transactionId, error);
                 try {
                     rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId), context).get();
                 } catch (ExecutionException err) {
@@ -704,7 +707,7 @@ public class TableSpaceManager {
         }
 
     }
-  
+
     void processAbandonedTransactions() {
         long now = System.currentTimeMillis();
         long timeout = dbmanager.getAbandonedTransactionsTimeout();
@@ -729,7 +732,7 @@ public class TableSpaceManager {
             }
         }
     }
-    
+
     void runLocalTableCheckPoints() {
         Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
         tablesNeedingCheckPoint.clear();
@@ -970,7 +973,7 @@ public class TableSpaceManager {
                         } catch (Throwable t) {
                             throw new RuntimeException(t);
                         }
-                    }, context );
+                    }, context);
                 }
             } catch (Throwable t) {
                 LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);
@@ -1064,19 +1067,19 @@ public class TableSpaceManager {
                 }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
-                    LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction "+txId, error);
+                    LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction " + txId, error);
                     try {
                         rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                 .get(); // block until rollback is complete
                     } catch (InterruptedException ex) {
-                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback implicit tx " + txId, ex);
+                        LOGGER.log(Level.SEVERE, tableSpaceName + " Cannot rollback implicit tx " + txId, ex);
                         Thread.currentThread().interrupt();
                         error.addSuppressed(ex);
                     } catch (ExecutionException ex) {
-                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback implicit tx " + txId, ex.getCause());
+                        LOGGER.log(Level.SEVERE, tableSpaceName + " Cannot rollback implicit tx " + txId, ex.getCause());
                         error.addSuppressed(ex.getCause());
                     } catch (Throwable t) {
-                        LOGGER.log(Level.SEVERE, tableSpaceName+" Cannot rollback  implicittx " + txId, t);
+                        LOGGER.log(Level.SEVERE, tableSpaceName + " Cannot rollback  implicittx " + txId, t);
                         error.addSuppressed(t);
                     }
                 }
@@ -1102,6 +1105,7 @@ public class TableSpaceManager {
         }
         if (transaction != null) {
             transaction.touch();
+            transaction.increaseRefcount();
         }
         CompletableFuture<StatementExecutionResult> res;
         try {
@@ -1136,12 +1140,17 @@ public class TableSpaceManager {
         } catch (StatementExecutionException error) {
             res = FutureUtils.exception(error);
         }
+        if (transaction != null) {
+            res = res.whenComplete((a,b) -> {
+                transaction.decreaseRefCount();
+            });
+        }
         if (rollbackOnError) {
             long txId = transactionContext.transactionId;
             if (txId > 0) {
                 res = res.whenComplete((xx, error) -> {
                     if (error != null) {
-                        LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction "+txId, error);
+                        LOGGER.log(Level.FINE, tableSpaceName + " force rollback of implicit transaction " + txId, error);
                         try {
                             rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId), context)
                                     .get(); // block until operation completes
@@ -1565,7 +1574,7 @@ public class TableSpaceManager {
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
-        }        
+        }
 
         long _start = System.currentTimeMillis();
         LogSequenceNumber logSequenceNumber = null;
@@ -1574,7 +1583,6 @@ public class TableSpaceManager {
 
         try {
             List<PostCheckpointAction> actions = new ArrayList<>();
-
 
             long lockStamp = 0;
             if (!alreadLocked) {
@@ -1674,6 +1682,7 @@ public class TableSpaceManager {
 
     private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         long txId = statement.getTransactionId();
+        validateTransactionBeforeTxCommand(txId);
         LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
@@ -1682,17 +1691,13 @@ public class TableSpaceManager {
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
-        CompletableFuture<StatementExecutionResult> res;
-        Transaction tx = transactions.get(txId);
-        if (tx == null) {
-            res = FutureUtils.exception(new StatementExecutionException("no such transaction " + statement.getTransactionId()));
-        } else {
-            CommitLogResult pos = log.log(entry, true);
-            res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
-                apply(pos, entry, false);
-                return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
-            }, callbacksExecutor);
-        }
+
+        CommitLogResult pos = log.log(entry, true);
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
+            apply(pos, entry, false);
+            return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
+        }, callbacksExecutor);
+
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
@@ -1705,6 +1710,8 @@ public class TableSpaceManager {
 
     private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         long txId = statement.getTransactionId();
+
+        validateTransactionBeforeTxCommand(txId);
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
@@ -1728,6 +1735,27 @@ public class TableSpaceManager {
         return res;
     }
 
+    private void validateTransactionBeforeTxCommand(long txId) throws StatementExecutionException {
+        Transaction tc = transactions.get(txId);
+        if (tc == null) {
+            throw new StatementExecutionException("no such transaction " + txId + " in tablespace " + tableSpaceName);
+        }
+        while (tc.hasPendingActivities() && !closed) {
+            LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
+                    new Object[]{txId, tableSpaceName, tc.getRefCount()});
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new StatementExecutionException("Error while waiting for pending actities of transaction " + txId + " in " + tableSpaceName,
+                        ex);
+            }
+        }
+        if (closed) {
+            throw new StatementExecutionException("tablespace closed during commit of transaction " + txId + " in tablespace " + tableSpaceName);
+        }
+    }
+
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
             CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
         return promise.whenComplete((r, error) -> {
@@ -1747,7 +1775,10 @@ public class TableSpaceManager {
         return leader;
     }
 
-    Transaction getTransaction(long transactionId) {
+    public Transaction getTransaction(long transactionId) {
+        if (transactionId <= 0) {
+            return null;
+        }
         return transactions.get(transactionId);
     }
 

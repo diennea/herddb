@@ -470,7 +470,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 if (!last) {
                     scanners.put(scannerId, scanner);
                 }
-                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.transactionId);
+                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
                 _channel.sendReplyMessage(message.messageId, result);
             } else {
                 ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan);
@@ -507,7 +507,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     last = true;
                 }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.transactionId);
+                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
                 _channel.sendReplyMessage(message.messageId, result);
             } catch (DataScannerException err) {
                 ByteBuf error = composeErrorResponse(message.messageId, err);

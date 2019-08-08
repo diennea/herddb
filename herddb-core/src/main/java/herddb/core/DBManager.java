@@ -695,9 +695,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (plan.mainStatement instanceof ScanStatement) {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
                 // transction can be auto generated during the scan
-                transactionContext = new TransactionContext(result.transactionId);
+                transactionContext = new TransactionContext(result.getTransactionId());
                 return CompletableFuture
-                        .completedFuture(executeDataScannerPlan(plan, result, context, transactionContext));
+                        .completedFuture(new ScanResult(transactionContext.transactionId, result));
 
             } else {
                 return executeStatementAsync(plan.mainStatement, context, transactionContext);
@@ -708,41 +708,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } catch (Throwable err) {
             LOGGER.log(Level.SEVERE, "uncaught error", err);
             return FutureUtils.exception(err);
-        }
-    }
-
-    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result,
-            StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        ScanResult scanResult;
-        if (plan.mainAggregator != null) {
-            scanResult = new ScanResult(transactionContext.transactionId, plan.mainAggregator.aggregate(result, context));
-        } else {
-            scanResult = new ScanResult(transactionContext.transactionId, result);
-        }
-        if (plan.comparator != null) {
-            // SORT is to be applied before limits
-            MaterializedRecordSet sortedSet = recordSetFactory.createRecordSet(
-                    scanResult.dataScanner.getFieldNames(),
-                    scanResult.dataScanner.getSchema());
-            try {
-                scanResult.dataScanner.forEach(sortedSet::add);
-                sortedSet.writeFinished();
-                sortedSet.sort(plan.comparator);
-                scanResult.dataScanner.close();
-                scanResult = new ScanResult(transactionContext.transactionId, new SimpleDataScanner(transactionContext.transactionId, sortedSet));
-            } catch (DataScannerException err) {
-                throw new StatementExecutionException(err);
-            }
-        }
-        if (plan.limits != null) {
-            try {
-                return new ScanResult(transactionContext.transactionId,
-                        new LimitedDataScanner(scanResult.dataScanner, plan.limits, context));
-            } catch (DataScannerException limitError) {
-                throw new StatementExecutionException(limitError);
-            }
-        } else {
-            return scanResult;
         }
     }
 

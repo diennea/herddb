@@ -39,13 +39,16 @@ public abstract class DataScanner implements AutoCloseable {
 
     private final Column[] schema;
     private final String[] fieldNames;
-    public long transactionId;
+    public Transaction transaction; // no final
 
-    public DataScanner(long transactionId, String[] fieldNames, Column[] schema) {
+    public DataScanner(Transaction transaction, String[] fieldNames, Column[] schema) {
         this.schema = schema;
-        this.transactionId = transactionId;
+        this.transaction = transaction;
         this.fieldNames = fieldNames != null ? fieldNames : Column.buildFieldNamesList(schema);
+    }
 
+    public Transaction getTransaction() {
+        return transaction;
     }
 
     public String[] getFieldNames() {
@@ -53,7 +56,7 @@ public abstract class DataScanner implements AutoCloseable {
     }
 
     public long getTransactionId() {
-        return transactionId;
+        return transaction != null ? transaction.transactionId : 0;
     }
 
     public Column[] getSchema() {
@@ -78,6 +81,9 @@ public abstract class DataScanner implements AutoCloseable {
 
     @Override
     public void close() throws DataScannerException {
+        if (transaction != null) {
+            transaction.decreaseRefCount();
+        }
     }
 
     /**

@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Transaction;
 import herddb.utils.DataAccessor;
 import java.util.Iterator;
 import java.util.stream.Stream;
@@ -37,11 +38,14 @@ class StreamDataScanner extends DataScanner {
     private DataAccessor next;
 
     public StreamDataScanner(
-        long transactionId, String[] fieldNames, Column[] schema,
-        Stream<DataAccessor> wrapped) {
-        super(transactionId, fieldNames, schema);
+            Transaction transaction, String[] fieldNames, Column[] schema,
+            Stream<DataAccessor> wrapped) {
+        super(transaction, fieldNames, schema);
         this.wrapped = wrapped.iterator();
         fetchNext();
+        if (transaction != null) {
+            transaction.increaseRefcount();
+        }
     }
 
     @Override
@@ -66,7 +70,7 @@ class StreamDataScanner extends DataScanner {
 
     @Override
     public void close() throws DataScannerException {
-
+        super.close();
     }
 
 }

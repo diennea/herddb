@@ -79,7 +79,7 @@ public class UnionAllOp implements PlannerOp {
 
         public UnionAllDataScanner(DataScanner first, TableSpaceManager tableSpaceManager,
                 TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws DataScannerException {
-            super(first.transactionId, first.getFieldNames(), first.getSchema());
+            super(first.getTransaction(), first.getFieldNames(), first.getSchema());
             this.tableSpaceManager = tableSpaceManager;
             this.lockRequired = lockRequired;
             this.forWrite = forWrite;
@@ -100,7 +100,7 @@ public class UnionAllOp implements PlannerOp {
                         .get(index).execute(tableSpaceManager,
                                 transactionContext, context, lockRequired, forWrite);
                 transactionContext = new TransactionContext(execute.transactionId);
-                this.transactionId = execute.transactionId;
+                this.transaction = execute.dataScanner.getTransaction();
                 current = execute.dataScanner;
                 fetchNext();
             }

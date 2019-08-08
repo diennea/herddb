@@ -162,7 +162,7 @@ public class AutoTransactionTest extends BaseTestcase {
 
         long tx;
         try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
-            tx = scan.transactionId;
+            tx = scan.getTransactionId();
             assertEquals(1, scan.consume().size());
         }
 
