@@ -68,7 +68,7 @@ public class HDBClient implements AutoCloseable {
     public HDBClient(ClientConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
         this.statsLogger = statsLogger.scope("hdbclient");
-              
+
         int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT);
         this.maxOperationRetryCount = configuration.getInt(ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT, ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT_DEFAULT);
         this.operationRetryDelay = configuration.getInt(ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY, ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY_DEFAULT);
@@ -118,7 +118,7 @@ public class HDBClient implements AutoCloseable {
 
     public int getOperationRetryDelay() {
         return operationRetryDelay;
-    }        
+    }
 
     public ClientConfiguration getConfiguration() {
         return configuration;
@@ -157,8 +157,9 @@ public class HDBClient implements AutoCloseable {
     }
 
     Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
-        int timeout = configuration.getInt(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
-        return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeout, timeout, eventReceiver, thredpool,
+        int timeoutms = configuration.getInt(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
+        int timeouts = (int) TimeUnit.MILLISECONDS.toSeconds(timeoutms);
+        return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeoutms, timeouts, eventReceiver, thredpool,
                 networkGroup, localEventsGroup);
     }
 
