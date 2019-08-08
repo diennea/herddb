@@ -67,7 +67,7 @@ public class AutoIncrementTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
 
-            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
             assertEquals(6, rows.size());
             for (int i = 1; i <= 6; i++) {
                 int _i = i;
@@ -98,7 +98,7 @@ public class AutoIncrementTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
 
-            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
             assertEquals(6, rows.size());
             for (int i = 1; i <= 6; i++) {
                 int _i = i;
@@ -129,7 +129,7 @@ public class AutoIncrementTest {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
                 assertEquals(2, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?),(?)", Arrays.asList("aa", "aa")).getUpdateCount());
 
-                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(6, rows.size());
                 for (int i = 1; i <= 6; i++) {
                     int _i = i;
@@ -153,7 +153,7 @@ public class AutoIncrementTest {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa"), new TransactionContext(tx)).getUpdateCount());
                 assertEquals(2, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?),(?)", Arrays.asList("aa", "aa"), new TransactionContext(tx)).getUpdateCount());
 
-                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx)).consume();
+                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose();
                 assertEquals(6, rows.size());
                 for (int i = 8; i <= 13; i++) {
                     int _i = i;
@@ -177,7 +177,7 @@ public class AutoIncrementTest {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa"), new TransactionContext(tx)).getUpdateCount());
                 assertEquals(2, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?),(?)", Arrays.asList("aa", "aa"), new TransactionContext(tx)).getUpdateCount());
 
-                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx)).consume();
+                List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose();
                 assertEquals(6, rows.size());
                 for (int i = 15; i <= 20; i++) {
                     int _i = i;

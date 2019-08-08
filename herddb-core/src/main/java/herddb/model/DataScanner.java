@@ -96,6 +96,12 @@ public abstract class DataScanner implements AutoCloseable {
         forEach(records::add);
         return records;
     }
+    
+    public List<DataAccessor> consumeAndClose() throws DataScannerException {
+         List<DataAccessor> res = consume();
+         close();
+         return res;
+    }
 
     public List<DataAccessor> consume(int fetchSize) throws DataScannerException {
         List<DataAccessor> records = new ArrayList<>();

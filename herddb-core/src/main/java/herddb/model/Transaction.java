@@ -89,6 +89,7 @@ public class Transaction {
      */
     public void increaseRefcount() {
         refCount.incrementAndGet();
+//        new Exception("START tx "+transactionId+" now "+refCount).printStackTrace();
     }
 
     public void decreaseRefCount() {
@@ -99,6 +100,7 @@ public class Transaction {
                     + "has {2} pending activities",
                     new Object[]{transactionId, tableSpace, res});
         }
+//         new Exception("END tsx "+transactionId+" now "+res).printStackTrace();
     }
     
     public boolean hasPendingActivities() {

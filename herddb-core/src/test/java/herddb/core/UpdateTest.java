@@ -110,14 +110,14 @@ public class UpdateTest {
                 for (int i = 0; i < inserts; ++i) {
                     assertEquals(1, scan(manager,
                             "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
-                            Arrays.asList(Integer.valueOf(i)), ctx).consume().size());
+                            Arrays.asList(Integer.valueOf(i)), ctx).consumeAndClose().size());
                 }
 
                 for (int i = 0; i < inserts; ++i) {
                     try {
                     assertEquals(1, scan(manager,
                             "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
-                            Arrays.asList(Integer.valueOf(i)), ctx).consume().size());
+                            Arrays.asList(Integer.valueOf(i)), ctx).consumeAndClose().size());
                     } catch (AssertionError e) {
 
                         throw e;
@@ -129,7 +129,7 @@ public class UpdateTest {
                 for (int i = 0; i < inserts; ++i) {
                     assertEquals(1, scan(manager,
                             "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
-                            Arrays.asList(Integer.valueOf(i), ctx)).consume().size());
+                            Arrays.asList(Integer.valueOf(i), ctx)).consumeAndClose().size());
                 }
 
                 execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList());
