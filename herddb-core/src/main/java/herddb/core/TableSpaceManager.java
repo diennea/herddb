@@ -128,6 +128,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
+import herddb.utils.SystemProperties;
 
 /**
  * Manages a TableSet in memory
@@ -135,7 +136,8 @@ import herddb.utils.KeyValue;
  * @author enrico.olivelli
  */
 public class TableSpaceManager {
-
+    private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
+    
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
 
     final StatsLogger tablespaceStasLogger;
@@ -1103,9 +1105,13 @@ public class TableSpaceManager {
             return FutureUtils.exception(
                     new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName));
         }
+        boolean isTransactionCommand = statement instanceof CommitTransactionStatement
+                || statement instanceof RollbackTransactionStatement;
         if (transaction != null) {
             transaction.touch();
-            transaction.increaseRefcount();
+            if (!isTransactionCommand) {
+                transaction.increaseRefcount();
+            }
         }
         CompletableFuture<StatementExecutionResult> res;
         try {
@@ -1130,9 +1136,9 @@ public class TableSpaceManager {
             } else if (statement instanceof DropTableStatement) {
                 res = CompletableFuture.completedFuture(dropTable((DropTableStatement) statement, transaction, context));
             } else if (statement instanceof DropIndexStatement) {
-                return CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
+                res =  CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
-                return CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
+                res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -1140,7 +1146,7 @@ public class TableSpaceManager {
         } catch (StatementExecutionException error) {
             res = FutureUtils.exception(error);
         }
-        if (transaction != null) {
+        if (transaction != null && !isTransactionCommand) {
             res = res.whenComplete((a,b) -> {
                 transaction.decreaseRefCount();
             });
@@ -1743,6 +1749,9 @@ public class TableSpaceManager {
         while (tc.hasPendingActivities() && !closed) {
             LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
                     new Object[]{txId, tableSpaceName, tc.getRefCount()});
+            if (!ENABLE_PENDING_TRANSACTION_CHECK) {
+                break;
+            }
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ex) {
