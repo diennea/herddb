@@ -1746,11 +1746,15 @@ public class TableSpaceManager {
         if (tc == null) {
             throw new StatementExecutionException("no such transaction " + txId + " in tablespace " + tableSpaceName);
         }
+        int count = 0;
         while (tc.hasPendingActivities() && !closed) {
             LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
                     new Object[]{txId, tableSpaceName, tc.getRefCount()});
             if (!ENABLE_PENDING_TRANSACTION_CHECK) {
                 break;
+            }
+            if (count++ >= 5) {
+                throw new StatementExecutionException("transaction " + txId + " in tablespace " + tableSpaceName+" has "+tc.getRefCount()+" pending activities");
             }
             try {
                 Thread.sleep(1000);
