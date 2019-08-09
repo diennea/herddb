@@ -45,6 +45,7 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
+import herddb.network.SendResultCallback;
 import herddb.utils.KeyValue;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -300,7 +301,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (java.net.ConnectException err) {
             // this error will be retryed by the client
-            throw new UnreachableServerException(err);        
+            throw new UnreachableServerException(err);
         } catch (Exception err) {
             throw new HDBException(err);
         } finally {
@@ -329,7 +330,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -362,7 +363,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -453,7 +454,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -548,7 +549,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -585,7 +586,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -606,7 +607,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -627,7 +628,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -685,9 +686,9 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             long transactionId = PduCodec.ResultSetChunk.readTx(reply);
             RecordsBatch data = PduCodec.ResultSetChunk.startReadingData(reply);
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId, _channel);
             return impl;
-        } catch (InterruptedException err) {            
+        } catch (InterruptedException err) {
             if (reply != null) {
                 reply.close();
             }
@@ -719,7 +720,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -798,7 +799,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new HDBException(err);        
+            throw new HDBException(err);
         } catch (TimeoutException err) {
             throw new HDBException(err);
         }
@@ -824,10 +825,17 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         boolean noMoreData;
         int fetchSize;
         boolean lastChunk;
+        // it is important that all of the data is streamed
+        // from the same channel
+        // on the server side the ResultSet is bound to the connection
+        // in order to ensure that resources are released
+        // in case of client death
+        final Channel channel;
 
-        private ScanResultSetImpl(long scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+        private ScanResultSetImpl(long scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx,
+                Channel _channel) {
             super(tx);
-
+            this.channel = _channel;
             this.scannerId = scannerId;
             this.metadata = new ScanResultSetMetadata(firstFetchBuffer.columnNames);
             this.fetchSize = fetchSize;
@@ -851,6 +859,19 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         public void close() {
             finished = true;
             releaseBuffer();
+
+            if (!noMoreData) {
+                // try to release resources on the server
+                // in case we did not consume the whole resultset
+                long requestId = channel.generateRequestId();
+                ByteBuf message = PduCodec.CloseScanner.write(requestId, scannerId);
+                channel.sendOneWayMessage(message, (Throwable error) -> {
+                    if (error != null) {
+                        LOGGER.log(Level.SEVERE, "Cannot release scanner " + scannerId + ", con " + RoutedClientSideConnection.this, error);
+                    }
+                });
+
+            }
         }
 
         private void releaseBuffer() {
@@ -874,12 +895,12 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                 noMoreData = true;
                 return;
             }
-            Channel _channel = ensureOpen();
+
             Pdu result = null;
             try {
-                long requestId = _channel.generateRequestId();
+                long requestId = channel.generateRequestId();
                 ByteBuf message = PduCodec.FetchScannerData.write(requestId, scannerId, fetchSize);
-                result = _channel.sendMessageWithPduReply(requestId, message, 10000);
+                result = channel.sendMessageWithPduReply(requestId, message, 10000);
 
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
                 if (result.type == Pdu.TYPE_ERROR) {

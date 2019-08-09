@@ -431,6 +431,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         return peer;
     }
 
+    Map<Long, ServerSideConnectionPeer> getConnections() {
+        return connections;
+    }   
+
     void connectionClosed(ServerSideConnectionPeer connection) {
         connections.remove(connection.getConnectionId());
     }
