@@ -71,6 +71,11 @@ public class SimpleClientScanTest {
                 // single fetch result test
                 assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
+                 // agregation in transaction, this is trickier than what you can think
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT count(*) FROM mytable WHERE id='test_1'", true, Collections.emptyList(), tx, 0, 10).consume().size());
+                connection.rollbackTransaction(TableSpace.DEFAULT, tx);
+               
             }
         }
     }

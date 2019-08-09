@@ -180,7 +180,7 @@ public class DirectMultipleConcurrentUpdatesTest {
                                         throw new RuntimeException("not found?");
                                     }
                                     res.close();
-                                    transactionId = res.transactionId;
+                                    transactionId = res.getTransactionId();
                                     // value did not change actually
                                     value = actual;
                                 }

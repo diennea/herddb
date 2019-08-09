@@ -314,7 +314,7 @@ public class ProjectOp implements PlannerOp {
 
         public ProjectedDataScanner(DataScanner downstream, String[] fieldNames,
             Column[] schema, StatementEvaluationContext context) {
-            super(downstream.transactionId, fieldNames, schema);
+            super(downstream.getTransaction(), fieldNames, schema);
             this.downstream = downstream;
             this.context = context;
         }

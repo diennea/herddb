@@ -75,7 +75,7 @@ public class SemiJoinOp implements PlannerOp {
                 JoinKey.keyExtractor(leftKeys),
                 JoinKey.keyExtractor(rightKeys)
         );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resTransactionId, fieldNames, columns, result);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }

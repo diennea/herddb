@@ -101,7 +101,7 @@ public class AutocheckPointTest {
             assertNotEquals(lastCheckpont, manager.getLastCheckPointTs());
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx, Collections.emptyList());
 
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234 and s1='b'", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234 and s1='b'", Collections.emptyList()).consumeAndClose().size());
 
         }
     }

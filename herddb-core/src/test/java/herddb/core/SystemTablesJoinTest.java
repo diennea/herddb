@@ -62,7 +62,7 @@ public class SystemTablesJoinTest {
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
-                    + " ORDER BY tablespace_name", Collections.emptyList()).consume();
+                    + " ORDER BY tablespace_name", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
@@ -88,7 +88,7 @@ public class SystemTablesJoinTest {
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
-                    + " ORDER BY tablespace_name DESC", Collections.emptyList()).consume();
+                    + " ORDER BY tablespace_name DESC", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
@@ -114,7 +114,7 @@ public class SystemTablesJoinTest {
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
-                    + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consume();
+                    + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);

@@ -85,7 +85,7 @@ public class SortOp implements PlannerOp, TupleComparator {
             }
             recordSet.writeFinished();
             recordSet.sort(this);
-            SimpleDataScanner result = new SimpleDataScanner(downstreamScanResult.transactionId, recordSet);
+            SimpleDataScanner result = new SimpleDataScanner(downstreamScanResult.dataScanner.getTransaction(), recordSet);
             return new ScanResult(downstreamScanResult.transactionId, result);
         } catch (DataScannerException ex) {
             throw new StatementExecutionException(ex);

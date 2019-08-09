@@ -28,6 +28,7 @@ import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.sql.expressions.CompiledSQLExpression;
@@ -65,7 +66,9 @@ public class ValuesOp implements PlannerOp {
             TransactionContext transactionContext,
             StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Iterator<List<CompiledSQLExpression>> it = tuples.iterator();
-        DataScanner res = new DataScanner(transactionContext.transactionId, fieldNames, columns) {
+        Transaction transaction = tableSpaceManager.getTransaction(transactionContext.transactionId);
+        
+        DataScanner res = new DataScanner(transaction, fieldNames, columns) {
             @Override
             public boolean hasNext() throws DataScannerException {
                 return it.hasNext();

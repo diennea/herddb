@@ -63,7 +63,7 @@ public class HeapTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), "aa")).getUpdateCount());
 
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().size());
 
             try (DataScanner dataScanner = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
 
