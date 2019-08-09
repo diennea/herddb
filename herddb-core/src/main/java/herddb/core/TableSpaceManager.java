@@ -1753,9 +1753,6 @@ public class TableSpaceManager {
             if (!ENABLE_PENDING_TRANSACTION_CHECK) {
                 break;
             }
-            if (count++ >= 5) {
-                throw new StatementExecutionException("transaction " + txId + " in tablespace " + tableSpaceName+" has "+tc.getRefCount()+" pending activities");
-            }
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ex) {

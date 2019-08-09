@@ -89,8 +89,8 @@ public class AggregateOp implements PlannerOp {
             StatementEvaluationContext context,
             boolean lockRequired, boolean forWrite) throws StatementExecutionException {
 
-        StatementExecutionResult input =
-                this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
+        StatementExecutionResult input
+                = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstreamScanResult = (ScanResult) input;
         final DataScanner inputScanner = downstreamScanResult.dataScanner;
         AggregatedDataScanner filtered = new AggregatedDataScanner(inputScanner, context,
