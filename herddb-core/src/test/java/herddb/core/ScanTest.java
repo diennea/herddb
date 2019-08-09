@@ -69,7 +69,7 @@ public class ScanTest extends BaseTestcase {
                 }
             });
             DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            List<?> result = scanner.consume();
+            List<?> result = scanner.consumeAndClose();
             assertEquals(50, result.size());
         }
 
@@ -87,14 +87,14 @@ public class ScanTest extends BaseTestcase {
                 }
             });
             DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            List<?> result = scanner.consume();
+            List<?> result = scanner.consumeAndClose();
             assertEquals(30, result.size());
         }
 
         {
             ScanStatement scan = new ScanStatement(tableSpace, table, null);
             DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            List<?> result = scanner.consume();
+            List<?> result = scanner.consumeAndClose();
             assertEquals(80, result.size());
         }
     }
@@ -131,7 +131,7 @@ public class ScanTest extends BaseTestcase {
                 }
             });
             DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
-            List<?> result = scanner.consume();
+            List<?> result = scanner.consumeAndClose();
             assertEquals(10, result.size());
         }
 
@@ -148,7 +148,7 @@ public class ScanTest extends BaseTestcase {
                 }
             });
             DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
-            List<?> result = scanner.consume();
+            List<?> result = scanner.consumeAndClose();
             assertEquals(0, result.size());
         }
 

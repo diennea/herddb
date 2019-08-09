@@ -21,7 +21,7 @@ package herddb.core;
 
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
-import herddb.model.Tuple;
+import herddb.model.Transaction;
 import herddb.utils.DataAccessor;
 import java.util.Iterator;
 
@@ -37,16 +37,23 @@ public class SimpleDataScanner extends DataScanner {
     private DataAccessor next;
     private boolean finished;
 
-    public SimpleDataScanner(long transactionId, MaterializedRecordSet recordSet) {
-        super(transactionId, recordSet.fieldNames, recordSet.columns);
+    public SimpleDataScanner(Transaction transaction, MaterializedRecordSet recordSet) {
+        super(transaction, recordSet.fieldNames, recordSet.columns);
         this.recordSet = recordSet;
         this.iterator = this.recordSet.iterator();
+        if (transaction != null) {
+            transaction.increaseRefcount();
+        }
     }
 
     @Override
     public void close() throws DataScannerException {
         finished = true;
-        recordSet.close();
+        try {
+            recordSet.close();
+        } finally {
+            super.close();
+        }
     }
 
     @Override

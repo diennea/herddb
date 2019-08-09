@@ -67,14 +67,14 @@ public class AlterTableSQLTest {
             assertEquals(2, table.getColumn("s1").serialPosition);
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values('a',1,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
             execute(manager, "ALTER TABLE tblspace1.tsql add column k2 string", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1,k2) values('b',1,'b','c')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql WHERE k2='c'", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql WHERE k2='c'", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(4, tuples.get(0).getFieldNames().length);
             }
@@ -103,7 +103,7 @@ public class AlterTableSQLTest {
             assertEquals(2, table.getColumn("s1").serialPosition);
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values('a',1,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
                 assertEquals(RawString.of("b"), tuples.get(0).get("s1"));
@@ -115,7 +115,7 @@ public class AlterTableSQLTest {
             assertEquals(2, table.columns.length);
 
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(2, tuples.get(0).getFieldNames().length);
                 try {
@@ -131,7 +131,7 @@ public class AlterTableSQLTest {
             assertEquals(1, table.getColumn("n1").serialPosition);
             assertEquals(3, table.getColumn("s1").serialPosition);
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
                 assertEquals(null, tuples.get(0).get("s1"));
@@ -164,19 +164,19 @@ public class AlterTableSQLTest {
             assertEquals(2, table.getColumn("s1").serialPosition);
             execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
             execute(manager, "ALTER TABLE tblspace1.tsql modify column k1 int", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values(2, 2,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(2, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=2", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=2", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
@@ -185,7 +185,7 @@ public class AlterTableSQLTest {
             assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
             execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose();
                 assertEquals(3, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
@@ -210,7 +210,7 @@ public class AlterTableSQLTest {
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "where l2=1", Collections.emptyList()).consume();
+                    + "where l2=1", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(Arrays.toString(tuples.get(0).getFieldNames()), 3, tuples.get(0).getFieldNames().length);
                 assertEquals("l2", tuples.get(0).getFieldNames()[0]);
@@ -233,13 +233,13 @@ public class AlterTableSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 int primary key auto_increment,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
             execute(manager, "EXECUTE RENAMETABLE 'tblspace1','tsql','tsql2'", Collections.emptyList());
             {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql2 where k1=1", Collections.emptyList()).consume();
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql2 where k1=1", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }

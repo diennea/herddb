@@ -77,7 +77,7 @@ public class DeleteTest {
 
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());
 
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).consume().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).consumeAndClose().size());
 
         }
     }
@@ -127,7 +127,7 @@ public class DeleteTest {
                 for (int i = 0; i < inserts; ++i) {
                     assertEquals(1, scan(manager,
                             "SELECT * FROM tblspace1.tsql WHERE k1 = ?",
-                            Arrays.asList(Integer.valueOf(i), ctx)).consume().size());
+                            Arrays.asList(Integer.valueOf(i), ctx)).consumeAndClose().size());
                 }
 
                 execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList());

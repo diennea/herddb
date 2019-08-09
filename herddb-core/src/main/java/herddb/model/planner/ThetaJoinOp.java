@@ -94,7 +94,7 @@ public class ThetaJoinOp implements PlannerOp {
                 generateNullsOnLeft,
                 generateNullsOnRight
         );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resTransactionId, fieldNames, columns, result);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }

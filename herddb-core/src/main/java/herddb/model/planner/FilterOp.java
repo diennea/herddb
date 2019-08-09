@@ -96,7 +96,7 @@ public class FilterOp implements PlannerOp {
         DataAccessor next;
 
         FilteredDataScanner(DataScanner inputScanner, CompiledSQLExpression condition, StatementEvaluationContext context) throws DataScannerException {
-            super(inputScanner.transactionId, inputScanner.getFieldNames(), inputScanner.getSchema());
+            super(inputScanner.getTransaction(), inputScanner.getFieldNames(), inputScanner.getSchema());
             this.inputScanner = inputScanner;
             this.context = context;
             this.condition = condition;

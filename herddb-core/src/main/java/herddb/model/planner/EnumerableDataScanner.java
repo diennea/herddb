@@ -22,6 +22,7 @@ package herddb.model.planner;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Transaction;
 import herddb.utils.DataAccessor;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.Enumerator;
@@ -37,9 +38,9 @@ public class EnumerableDataScanner extends DataScanner {
     private DataAccessor next;
 
     public EnumerableDataScanner(
-            long transactionId, String[] fieldNames, Column[] schema,
+            Transaction transaction, String[] fieldNames, Column[] schema,
             Enumerable<DataAccessor> wrapped) {
-        super(transactionId, fieldNames, schema);
+        super(transaction, fieldNames, schema);
         this.wrapped = wrapped.enumerator();
         fetchNext();
     }

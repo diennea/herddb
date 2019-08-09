@@ -43,6 +43,8 @@ import herddb.utils.ILocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -67,6 +69,8 @@ public class Transaction {
     private final List<CommitLogResult> deferredWrites = new ArrayList<>();
     public volatile long lastActivityTs = System.currentTimeMillis();
 
+    private final AtomicInteger refCount = new AtomicInteger();
+
     public Transaction(long transactionId, String tableSpace, CommitLogResult lastSequenceNumber) {
         this.transactionId = transactionId;
         this.tableSpace = tableSpace;
@@ -76,6 +80,35 @@ public class Transaction {
         this.deletedRecords = new HashMap<>();
         this.lastSequenceNumber = lastSequenceNumber.deferred ? null : lastSequenceNumber.getLogSequenceNumber();
         this.localCreationTimestamp = System.currentTimeMillis();
+    }
+
+    /**
+     * Each time an operation works on the tranaction we register it, this way
+     * we are able to wait for every pending operation before completing the
+     * transaction with a rollback or commit.
+     */
+    public void increaseRefcount() {
+        refCount.incrementAndGet();
+//        new Exception("START tx "+transactionId+" now "+refCount).printStackTrace();
+    }
+
+    public void decreaseRefCount() {
+        int res = refCount.decrementAndGet();
+        if (res < 0) {
+            LOG.log(Level.SEVERE, "transaction {0} "
+                    + "on tablespace {1} "
+                    + "has {2} pending activities",
+                    new Object[]{transactionId, tableSpace, res});
+        }
+//         new Exception("END tsx "+transactionId+" now "+res).printStackTrace();
+    }
+    
+    public boolean hasPendingActivities() {
+        return refCount.get() > 0;
+    }
+
+    public int getRefCount() {
+        return refCount.get();
     }
     
     public void touch() {
@@ -267,7 +300,7 @@ public class Transaction {
     @Override
     public String toString() {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace
-                + ", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
+                + ", refcount "+refCount+", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
                 + ", newRecords=" + newRecords.size()
                 + ", deletedRecords=" + deletedRecords.size()
                 + ", newTables=" + newTables
@@ -534,7 +567,7 @@ public class Transaction {
         }
         lastSequenceNumber = sequenceNumber;
     }
-    
+
     public boolean isAbandoned(long timestamp) {
         return lastActivityTs < timestamp;
     }

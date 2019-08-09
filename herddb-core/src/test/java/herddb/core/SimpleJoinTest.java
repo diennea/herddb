@@ -470,7 +470,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
                         + " tblspace1.table1 t1 "
                         + " NATURAL JOIN tblspace1.table3 t2 " // NATURAL JOIN is on columns with the same name and type
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -494,7 +494,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
                         + " tblspace1.table1 t1 "
                         + " NATURAL JOIN tblspace1.table3 t2 " // NATURAL is on columns with the same name and type
-                        + " WHERE t1.n1 + 1 = t2.n3", Collections.emptyList()).consume();
+                        + " WHERE t1.n1 + 1 = t2.n3", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -516,7 +516,7 @@ public class SimpleJoinTest {
                         + " tblspace1.table1 t1"
                         + " JOIN tblspace1.table2 t2"
                         + " ON  t1.n1 > 0"
-                        + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(3, t.getFieldNames().length);
@@ -557,7 +557,7 @@ public class SimpleJoinTest {
                         + " tblspace1.table1 t1"
                         + " JOIN tblspace1.table2 t2"
                         + " ON t1.n1 > 0"
-                        + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -600,7 +600,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                         + " tblspace1.table1 t1"
                         + " JOIN tblspace1.table2 t2 ON  (1=1)"
-                        + " ORDER BY n2,n1", Collections.emptyList()).consume();
+                        + " ORDER BY n2,n1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -644,7 +644,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                         + " tblspace1.table1 t1"
                         + " JOIN tblspace1.table2 t2 ON (1<>2)"
-                        + " ORDER BY n2 desc,n1", Collections.emptyList()).consume();
+                        + " ORDER BY n2 desc,n1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -688,7 +688,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
                         + " tblspace1.table1 t1 "
                         + " JOIN tblspace1.table2 t2 "
-                        + " ON t1.n1 + 3 <= t2.n2", Collections.emptyList()).consume();
+                        + " ON t1.n1 + 3 <= t2.n2", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -710,7 +710,7 @@ public class SimpleJoinTest {
                         + " tblspace1.table1 t1 "
                         + " LEFT JOIN tblspace1.table2 t2 "
                         + " ON t1.s1 = t2.s2"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(4, t.getFieldNames().length);
@@ -741,7 +741,7 @@ public class SimpleJoinTest {
                         + " tblspace1.table1 t1 "
                         + " RIGHT JOIN tblspace1.table2 t2 "
                         + " ON t1.s1 = t2.s2"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(4, t.getFieldNames().length);
@@ -788,7 +788,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager,
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
                         + " tblspace1.table1 t1 "
-                        + " group by k1", Collections.emptyList()).consume();
+                        + " group by k1", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
@@ -817,7 +817,7 @@ public class SimpleJoinTest {
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
                         + " tblspace1.table1 t1 "
                         + " group by k1"
-                        + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consume();
+                        + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);

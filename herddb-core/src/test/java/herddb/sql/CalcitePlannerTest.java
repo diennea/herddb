@@ -250,7 +250,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2,n1 "
                         + "  from tblspace1.tsql2 join tblspace1.tsql on k2<>k1 "
                         + "  where n2 > 1 "
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -272,7 +272,7 @@ public class CalcitePlannerTest {
                         + "  from tblspace1.tsql2"
                         + "  left join tblspace1.tsql on n2 < n1-1000"
                         + "  "
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -298,7 +298,7 @@ public class CalcitePlannerTest {
                         + "  from tblspace1.tsql2"
                         + "  left join tblspace1.tsql on n2 < n1-?"
                         + "  "
-                        + " ", Arrays.asList(-1000)).consume();
+                        + " ", Arrays.asList(-1000)).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -322,7 +322,7 @@ public class CalcitePlannerTest {
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where k2 not in (select k1 from tblspace1.tsql)"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -341,7 +341,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                    )"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -365,7 +365,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where exists (select * from tblspace1.tsql"
                         + "                                     where n1=n2)"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -393,7 +393,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                     order by n1 desc limit 1)"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -412,7 +412,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                     order by n1 asc limit 1)"
-                        + " ", Collections.emptyList()).consume();
+                        + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);

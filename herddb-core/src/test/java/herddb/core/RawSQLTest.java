@@ -261,7 +261,7 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             Thread.sleep(500);
-            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consume().get(0).get("n1"));
+            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
 
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
             if (manager.getPlanner() instanceof DDLSQLPlanner) {
@@ -288,21 +288,21 @@ public class RawSQLTest {
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1,t1,n2,n3) values(?,?,?,?,?,?)", Arrays.asList("mykey", "a", Integer.valueOf(1234), now, 1, 2)).getUpdateCount());
 
-            DataAccessor before = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            DataAccessor before = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consumeAndClose().get(0);
             assertEquals(1, before.get(0));
             assertEquals(2, before.get(1));
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n2=n2+1,n3=n3+5 WHERE k1=?",
                     Arrays.asList("mykey")).getUpdateCount());
 
-            DataAccessor after = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            DataAccessor after = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consumeAndClose().get(0);
             assertEquals(2, after.get(0));
             assertEquals(7, after.get(1));
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n2=n2+n2,n3=n3+n2 WHERE k1=?",
                     Arrays.asList("mykey")).getUpdateCount());
 
-            DataAccessor after2 = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            DataAccessor after2 = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consumeAndClose().get(0);
             assertEquals(4, after2.get(0));
             assertEquals(9, after2.get(1));
 
@@ -578,13 +578,13 @@ public class RawSQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
-            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
+            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=n1+1 where k1=?", Arrays.asList("mykey")).getUpdateCount());
-            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
-            assertEquals(1236L, scan(manager, "SELECT n1+1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
-            assertEquals(1234L, scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
-            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+1=1236", Collections.emptyList()).consume().get(0).get(0));
-            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+n1=2470", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
+            assertEquals(1236L, scan(manager, "SELECT n1+1 FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().get(0).get(0));
+            assertEquals(1234L, scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().get(0).get(0));
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+1=1236", Collections.emptyList()).consumeAndClose().get(0).get(0));
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+n1=2470", Collections.emptyList()).consumeAndClose().get(0).get(0));
         }
     }
 
@@ -655,7 +655,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(1234), "value")).getUpdateCount());
 
-            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume().size());
+            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().size());
 
         }
     }
@@ -672,9 +672,9 @@ public class RawSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), "value1")).getUpdateCount());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='value1'", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='value1'", Collections.emptyList()).consumeAndClose().size());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=k1  where k1=?", Arrays.asList("mykey")).getUpdateCount());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='mykey'", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='mykey'", Collections.emptyList()).consumeAndClose().size());
         }
     }
 
@@ -2024,40 +2024,40 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,ts,l1) values(?,?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), new java.sql.Timestamp(now), Long.valueOf(2234))).getUpdateCount());
 
             // integer
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1234 and 1234", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1234 and 1235", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1233 and 1234", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1200 and 1239", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 0 and -1", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1234 and 1234", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1234 and 1235", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1233 and 1234", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 1200 and 1239", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where n1 between 0 and -1", Collections.emptyList()).consumeAndClose().size());
 
             // long
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2234 and 2234", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2234 and 2235", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2233 and 2234", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2200 and 2239", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 0 and -1", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2234 and 2234", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2234 and 2235", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2233 and 2234", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 2200 and 2239", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where l1 between 0 and -1", Collections.emptyList()).consumeAndClose().size());
 
             // string
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykey' and 'mykey'", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykey' and 'mykfy'", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykdy' and 'mykey'", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykay' and 'mykqy'", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykfy' and 'mykgy'", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykey' and 'mykey'", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykey' and 'mykfy'", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykdy' and 'mykey'", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykay' and 'mykqy'", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where k1 between 'mykfy' and 'mykgy'", Collections.emptyList()).consumeAndClose().size());
 
             // timestamp
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now), new java.sql.Timestamp(now))).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now), new java.sql.Timestamp(now + 60000))).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now - 1000), new java.sql.Timestamp(now))).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now - 1000), new java.sql.Timestamp(now + 60000))).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(0), new java.sql.Timestamp(1000))).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now + 1000), new java.sql.Timestamp(now - 1000))).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now), new java.sql.Timestamp(now))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now), new java.sql.Timestamp(now + 60000))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now - 1000), new java.sql.Timestamp(now))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now - 1000), new java.sql.Timestamp(now + 60000))).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(0), new java.sql.Timestamp(1000))).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now + 1000), new java.sql.Timestamp(now - 1000))).consumeAndClose().size());
 
             if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 System.out.println("now:" + new java.sql.Timestamp(now));
-                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts >= {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
+                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts >= {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consumeAndClose().size());
 
                 // timestamp with jdbc literals
-                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
+                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consumeAndClose().size());
 
             } else {
                 // Calcite interprets JDBC syntax as in UTC Timezone
@@ -2079,17 +2079,17 @@ public class RawSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string, t1 timestamp)", Collections.emptyList());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a")).getUpdateCount());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 and n1=1", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=2", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 and n1=2", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=1", Collections.emptyList()).consume().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 and n1=1", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=2", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 and n1=2", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=1", Collections.emptyList()).consumeAndClose().size());
 
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 or n1=1", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=2", Collections.emptyList()).consume().size());
-            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 or n1=2", Collections.emptyList()).consume().size());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=1", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 or n1=1", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=2", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 or n1=2", Collections.emptyList()).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=1", Collections.emptyList()).consumeAndClose().size());
 
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (n1=2) or n1=3", Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (n1=2) or n1=3", Collections.emptyList()).consumeAndClose().size());
         }
     }
 

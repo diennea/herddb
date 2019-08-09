@@ -2833,94 +2833,117 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private DataScanner scanNoStream(ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-
-        boolean sorted = statement.getComparator() != null;
-        boolean sortedByClusteredIndex = statement.getComparator() != null
-                && statement.getComparator().isOnlyPrimaryKeyAndAscending()
-                && keyToPage.isSortedAscending();
-        final Projection projection = statement.getProjection();
-        boolean applyProjectionDuringScan = !sorted && projection != null;
-        MaterializedRecordSet recordSet;
-        if (applyProjectionDuringScan) {
-            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
-                    .createRecordSet(projection.getFieldNames(), projection.getColumns());
-        } else {
-            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
-                    .createRecordSet(table.columnNames, table.columns);
+        if (transaction != null) {
+            transaction.increaseRefcount();
         }
-        ScanLimits limits = statement.getLimits();
-        int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
-        int offset = limits == null ? 0 : limits.computeOffset(context);
-        boolean sortDone = false;
-        if (maxRows > 0) {
-            if (sortedByClusteredIndex) {
-                // leverage the sorted nature of the clustered primary key index
-                AtomicInteger remaining = new AtomicInteger(maxRows);
-                if (offset > 0) {
-                    remaining.getAndAdd(offset);
-                }
-                accessTableData(statement, context, new ScanResultOperation() {
-
-                    private boolean inTransactionData;
-
-                    @Override
-                    public void beginNewRecordsInTransactionBlock() {
-                        inTransactionData = true;
-                    }
-
-                    @Override
-                    public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
-                        try {
-                            if (applyProjectionDuringScan) {
-                                DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                                recordSet.add(tuple);
-                            } else {
-                                recordSet.add(record.getDataAccessor(table));
-                            }
-                            if (!inTransactionData) {
-                                // we have scanned the table and kept top K record already sorted by the PK
-                                // we can exit now from the loop on the primary key
-                                // we have to keep all data from the transaction buffer, because it is not sorted
-                                // in the same order as the clustered index
-                                if (remaining.decrementAndGet() == 0) {
-                                    // we want to receive transaction data uncommitted records too
-                                    throw new ExitLoop(true);
-                                }
-                            }
-                        } finally {
-                            locksManager.releaseLock(lockHandle);
-                        }
-
-                    }
-                }, transaction, lockRequired, forWrite);
-                // we have to sort data any way, because accessTableData will return partially sorted data
-                sortDone = transaction == null;
-            } else if (sorted) {
-                InStreamTupleSorter sorter = new InStreamTupleSorter(offset + maxRows, statement.getComparator());
-                accessTableData(statement, context, new ScanResultOperation() {
-                    @Override
-                    public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
-                        try {
-                            if (applyProjectionDuringScan) {
-                                DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                                sorter.collect(tuple);
-                            } else {
-                                sorter.collect(record.getDataAccessor(table));
-                            }
-                        } finally {
-                            locksManager.releaseLock(lockHandle);
-                        }
-                    }
-                }, transaction, lockRequired, forWrite);
-                sorter.flushToRecordSet(recordSet);
-                sortDone = true;
+        try {
+            boolean sorted = statement.getComparator() != null;
+            boolean sortedByClusteredIndex = statement.getComparator() != null
+                    && statement.getComparator().isOnlyPrimaryKeyAndAscending()
+                    && keyToPage.isSortedAscending();
+            final Projection projection = statement.getProjection();
+            boolean applyProjectionDuringScan = !sorted && projection != null;
+            MaterializedRecordSet recordSet;
+            if (applyProjectionDuringScan) {
+                recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(projection.getFieldNames(), projection.getColumns());
             } else {
-                // if no sort is present the limits can be applying during the scan and perform an early exit
-                AtomicInteger remaining = new AtomicInteger(maxRows);
+                recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(table.columnNames, table.columns);
+            }
+            ScanLimits limits = statement.getLimits();
+            int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
+            int offset = limits == null ? 0 : limits.computeOffset(context);
+            boolean sortDone = false;
+            if (maxRows > 0) {
+                if (sortedByClusteredIndex) {
+                    // leverage the sorted nature of the clustered primary key index
+                    AtomicInteger remaining = new AtomicInteger(maxRows);
+                    if (offset > 0) {
+                        remaining.getAndAdd(offset);
+                    }
+                    accessTableData(statement, context, new ScanResultOperation() {
 
-                if (offset > 0) {
-                    remaining.getAndAdd(offset);
+                        private boolean inTransactionData;
+
+                        @Override
+                        public void beginNewRecordsInTransactionBlock() {
+                            inTransactionData = true;
+                        }
+
+                        @Override
+                        public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                            try {
+                                if (applyProjectionDuringScan) {
+                                    DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                    recordSet.add(tuple);
+                                } else {
+                                    recordSet.add(record.getDataAccessor(table));
+                                }
+                                if (!inTransactionData) {
+                                    // we have scanned the table and kept top K record already sorted by the PK
+                                    // we can exit now from the loop on the primary key
+                                    // we have to keep all data from the transaction buffer, because it is not sorted
+                                    // in the same order as the clustered index
+                                    if (remaining.decrementAndGet() == 0) {
+                                        // we want to receive transaction data uncommitted records too
+                                        throw new ExitLoop(true);
+                                    }
+                                }
+                            } finally {
+                                locksManager.releaseLock(lockHandle);
+                            }
+
+                        }
+                    }, transaction, lockRequired, forWrite);
+                    // we have to sort data any way, because accessTableData will return partially sorted data
+                    sortDone = transaction == null;
+                } else if (sorted) {
+                    InStreamTupleSorter sorter = new InStreamTupleSorter(offset + maxRows, statement.getComparator());
+                    accessTableData(statement, context, new ScanResultOperation() {
+                        @Override
+                        public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                            try {
+                                if (applyProjectionDuringScan) {
+                                    DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                    sorter.collect(tuple);
+                                } else {
+                                    sorter.collect(record.getDataAccessor(table));
+                                }
+                            } finally {
+                                locksManager.releaseLock(lockHandle);
+                            }
+                        }
+                    }, transaction, lockRequired, forWrite);
+                    sorter.flushToRecordSet(recordSet);
+                    sortDone = true;
+                } else {
+                    // if no sort is present the limits can be applying during the scan and perform an early exit
+                    AtomicInteger remaining = new AtomicInteger(maxRows);
+
+                    if (offset > 0) {
+                        remaining.getAndAdd(offset);
+                    }
+                    accessTableData(statement, context, new ScanResultOperation() {
+                        @Override
+                        public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                            try {
+                                if (applyProjectionDuringScan) {
+                                    DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                    recordSet.add(tuple);
+                                } else {
+                                    recordSet.add(record.getDataAccessor(table));
+                                }
+                                if (remaining.decrementAndGet() == 0) {
+                                    throw new ExitLoop(false);
+                                }
+                            } finally {
+                                locksManager.releaseLock(lockHandle);
+                            }
+                        }
+                    }, transaction, lockRequired, forWrite);
                 }
+            } else {
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
                     public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
@@ -2930,9 +2953,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 recordSet.add(tuple);
                             } else {
                                 recordSet.add(record.getDataAccessor(table));
-                            }
-                            if (remaining.decrementAndGet() == 0) {
-                                throw new ExitLoop(false);
                             }
                         } finally {
                             locksManager.releaseLock(lockHandle);
@@ -2940,157 +2960,154 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
                 }, transaction, lockRequired, forWrite);
             }
-        } else {
-            accessTableData(statement, context, new ScanResultOperation() {
-                @Override
-                public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
-                    try {
-                        if (applyProjectionDuringScan) {
-                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                            recordSet.add(tuple);
-                        } else {
-                            recordSet.add(record.getDataAccessor(table));
-                        }
-                    } finally {
-                        locksManager.releaseLock(lockHandle);
-                    }
-                }
-            }, transaction, lockRequired, forWrite);
-        }
 
-        recordSet.writeFinished();
-        if (!sortDone) {
-            recordSet.sort(statement.getComparator());
+            recordSet.writeFinished();
+            if (!sortDone) {
+                recordSet.sort(statement.getComparator());
+            }
+            recordSet.applyLimits(statement.getLimits(), context);
+            if (!applyProjectionDuringScan) {
+                recordSet.applyProjection(statement.getProjection(), context);
+            }
+            return new SimpleDataScanner(transaction, recordSet);
+        } finally {
+            if (transaction != null) {
+                transaction.decreaseRefCount();
+            }
         }
-        recordSet.applyLimits(statement.getLimits(), context);
-        if (!applyProjectionDuringScan) {
-            recordSet.applyProjection(statement.getProjection(), context);
-        }
-        return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 
     private DataScanner scanWithStream(ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        final TupleComparator comparator = statement.getComparator();
-        boolean sorted = comparator != null;
-        boolean sortedByClusteredIndex = comparator != null
-                && comparator.isOnlyPrimaryKeyAndAscending()
-                && keyToPage.isSortedAscending();
-        final Projection projection = statement.getProjection();
-        final boolean applyProjectionDuringScan = projection != null && !sorted;
-        ScanLimits limits = statement.getLimits();
-        int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
-        int offset = limits == null ? 0 : limits.computeOffset(context);
-        Stream<DataAccessor> result;
-        Function<Record, DataAccessor> mapper = (Record record) -> {
-            DataAccessor tuple;
-            if (applyProjectionDuringScan) {
-                tuple = projection.map(record.getDataAccessor(table), context);
-            } else {
-                tuple = record.getDataAccessor(table);
-            }
-            return tuple;
-        };
-
-        Stream<Record> recordsFromTransactionSorted
-                = streamTransactionData(transaction, statement.getPredicate(), context);
-        Stream<DataAccessor> fromTransactionSorted = recordsFromTransactionSorted != null
-                ? recordsFromTransactionSorted.map(mapper) : null;
-        if (fromTransactionSorted != null && comparator != null) {
-            fromTransactionSorted = fromTransactionSorted.sorted(comparator);
+        if (transaction != null) {
+            transaction.increaseRefcount();
         }
-
-        Stream<DataAccessor> tableData = streamTableData(statement, context, transaction, lockRequired, forWrite)
-                .map(mapper);
-        if (maxRows > 0) {
-            if (sortedByClusteredIndex) {
-                // already sorted if needed
-                if (fromTransactionSorted != null) {
-                    // already sorted from index
-                    tableData = tableData.limit(maxRows + offset);
-
-                    fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
-
-                    // we need to re-sort after merging the data
-                    result = Stream.concat(fromTransactionSorted, tableData)
-                            .sorted(comparator);
+        try {
+            final TupleComparator comparator = statement.getComparator();
+            boolean sorted = comparator != null;
+            boolean sortedByClusteredIndex = comparator != null
+                    && comparator.isOnlyPrimaryKeyAndAscending()
+                    && keyToPage.isSortedAscending();
+            final Projection projection = statement.getProjection();
+            final boolean applyProjectionDuringScan = projection != null && !sorted;
+            ScanLimits limits = statement.getLimits();
+            int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
+            int offset = limits == null ? 0 : limits.computeOffset(context);
+            Stream<DataAccessor> result;
+            Function<Record, DataAccessor> mapper = (Record record) -> {
+                DataAccessor tuple;
+                if (applyProjectionDuringScan) {
+                    tuple = projection.map(record.getDataAccessor(table), context);
                 } else {
-                    // already sorted from index
-                    tableData = tableData.limit(maxRows + offset);
-
-                    // no need to re-sort
-                    result = tableData;
+                    tuple = record.getDataAccessor(table);
                 }
-            } else if (sorted) {
-                // need to sort
-                tableData = tableData.sorted(comparator);
-                // already sorted if needed
-                if (fromTransactionSorted != null) {
-                    tableData = tableData.limit(maxRows + offset);
+                return tuple;
+            };
 
-                    fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
-                    // we need to re-sort after merging the data
-                    result = Stream.concat(fromTransactionSorted, tableData)
-                            .sorted(comparator);
-                } else {
-                    tableData = tableData.limit(maxRows + offset);
-                    // no need to sort again
-                    result = tableData;
-                }
-            } else if (fromTransactionSorted == null) {
-                result = tableData;
-            } else {
-                result = Stream.concat(fromTransactionSorted, tableData);
+            Stream<Record> recordsFromTransactionSorted
+                    = streamTransactionData(transaction, statement.getPredicate(), context);
+            Stream<DataAccessor> fromTransactionSorted = recordsFromTransactionSorted != null
+                    ? recordsFromTransactionSorted.map(mapper) : null;
+            if (fromTransactionSorted != null && comparator != null) {
+                fromTransactionSorted = fromTransactionSorted.sorted(comparator);
             }
-        } else {
-            if (sortedByClusteredIndex) {
-                // already sorted from index
-                if (fromTransactionSorted != null) {
+
+            Stream<DataAccessor> tableData = streamTableData(statement, context, transaction, lockRequired, forWrite)
+                    .map(mapper);
+            if (maxRows > 0) {
+                if (sortedByClusteredIndex) {
+                    // already sorted if needed
+                    if (fromTransactionSorted != null) {
+                        // already sorted from index
+                        tableData = tableData.limit(maxRows + offset);
+
+                        fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
+
+                        // we need to re-sort after merging the data
+                        result = Stream.concat(fromTransactionSorted, tableData)
+                                .sorted(comparator);
+                    } else {
+                        // already sorted from index
+                        tableData = tableData.limit(maxRows + offset);
+
+                        // no need to re-sort
+                        result = tableData;
+                    }
+                } else if (sorted) {
+                    // need to sort
                     tableData = tableData.sorted(comparator);
+                    // already sorted if needed
+                    if (fromTransactionSorted != null) {
+                        tableData = tableData.limit(maxRows + offset);
+
+                        fromTransactionSorted = fromTransactionSorted.limit(maxRows + offset);
+                        // we need to re-sort after merging the data
+                        result = Stream.concat(fromTransactionSorted, tableData)
+                                .sorted(comparator);
+                    } else {
+                        tableData = tableData.limit(maxRows + offset);
+                        // no need to sort again
+                        result = tableData;
+                    }
+                } else if (fromTransactionSorted == null) {
+                    result = tableData;
+                } else {
+                    result = Stream.concat(fromTransactionSorted, tableData);
+                }
+            } else {
+                if (sortedByClusteredIndex) {
+                    // already sorted from index
+                    if (fromTransactionSorted != null) {
+                        tableData = tableData.sorted(comparator);
+                        // fromTransactionSorted is already sorted
+                        // we need to re-sort
+                        result = Stream.concat(fromTransactionSorted, tableData)
+                                .sorted(comparator);
+                    } else {
+                        result = tableData;
+                    }
+                } else if (sorted) {
+                    // tableData already sorted from index
                     // fromTransactionSorted is already sorted
                     // we need to re-sort
-                    result = Stream.concat(fromTransactionSorted, tableData)
-                            .sorted(comparator);
+                    if (fromTransactionSorted != null) {
+                        result = Stream.concat(fromTransactionSorted, tableData)
+                                .sorted(comparator);
+                    } else {
+                        result = tableData
+                                .sorted(comparator);
+                    }
+                } else if (fromTransactionSorted != null) {
+                    // no need to sort
+                    result = Stream.concat(fromTransactionSorted, tableData);
                 } else {
                     result = tableData;
                 }
-            } else if (sorted) {
-                // tableData already sorted from index
-                // fromTransactionSorted is already sorted
-                // we need to re-sort
-                if (fromTransactionSorted != null) {
-                    result = Stream.concat(fromTransactionSorted, tableData)
-                            .sorted(comparator);
-                } else {
-                    result = tableData
-                            .sorted(comparator);
-                }
-            } else if (fromTransactionSorted != null) {
-                // no need to sort
-                result = Stream.concat(fromTransactionSorted, tableData);
+            }
+            if (offset > 0) {
+                result = result.skip(offset);
+            }
+            if (maxRows > 0) {
+                result = result.limit(maxRows);
+            }
+            if (!applyProjectionDuringScan && projection != null) {
+                result = result.map(r -> projection.map(r, context));
+            }
+            String[] fieldNames;
+            Column[] columns;
+            if (projection != null) {
+                fieldNames = projection.getFieldNames();
+                columns = projection.getColumns();
             } else {
-                result = tableData;
+                fieldNames = table.columnNames;
+                columns = table.columns;
+            }
+            return new StreamDataScanner(transaction, fieldNames, columns, result);
+        } finally {
+            if (transaction != null) {
+                transaction.decreaseRefCount();
             }
         }
-        if (offset > 0) {
-            result = result.skip(offset);
-        }
-        if (maxRows > 0) {
-            result = result.limit(maxRows);
-        }
-        if (!applyProjectionDuringScan && projection != null) {
-            result = result.map(r -> projection.map(r, context));
-        }
-        String[] fieldNames;
-        Column[] columns;
-        if (projection != null) {
-            fieldNames = projection.getFieldNames();
-            columns = projection.getColumns();
-        } else {
-            fieldNames = table.columnNames;
-            columns = table.columns;
-        }
-        return new StreamDataScanner(transaction != null ? transaction.transactionId : 0, fieldNames, columns, result);
     }
 
     private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction,

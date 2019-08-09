@@ -319,7 +319,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
     }
 
-    private CommitLogManager buildCommitLogManager() {
+    protected CommitLogManager buildCommitLogManager() {
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
