@@ -50,6 +50,7 @@ public class ServerSideScannerPeer implements AutoCloseable {
     }
     private static final Logger LOG = Logger.getLogger(ServerSideScannerPeer.class.getName());
 
+    @Override
     public void close() {
         try {
             scanner.close();
