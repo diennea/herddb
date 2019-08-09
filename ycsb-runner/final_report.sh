@@ -1,4 +1,4 @@
-#/bin/bash
+#/usr/bin/env bash
 
 WORKLOAD=$1
 NAME="_final_report.txt"

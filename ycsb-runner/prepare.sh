@@ -1,6 +1,6 @@
-#!/bin/bash
+#/usr/bin/env bash
 cd ..
-JAVA_HOME=~/dev/jdk-11 mvn clean install -DskipTests
+JAVA_HOME=~/dev/jdk-12 mvn clean install -DskipTests
 cd herddb-services/target
 unzip herddb-services*zip
 cd ../../ycsb-runner
