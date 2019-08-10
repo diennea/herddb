@@ -32,6 +32,9 @@ import org.junit.Test;
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.utils.Sized;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.util.Random;
 
 /**
  * Unit tests for BlockRangeIndex
@@ -74,7 +77,6 @@ public class BlockRangeIndexTest {
             Sized<Integer> si = Sized.valueOf(--i);
             index.put(si, si);
         } while (index.getNumBlocks() < 3);
-
 
         int nulls = index.getBlocks().values().stream().mapToInt(b -> b.next == null ? 1 : 0).sum();
 
@@ -270,7 +272,7 @@ public class BlockRangeIndexTest {
             index.delete(Sized.valueOf(1), Sized.valueOf("test_" + i));
 
             /* Check if last block got emptied */
-            if ( index.getBlocks().lastEntry().getValue().getSize() == 0) {
+            if (index.getBlocks().lastEntry().getValue().getSize() == 0) {
                 elements = i;
                 break;
             }
@@ -280,11 +282,12 @@ public class BlockRangeIndexTest {
         BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
 
         /* Deletes unreferenced pages from memory store */
-        storage.getPages().retainAll(metadata.getBlocksMetadata().stream().map(m -> m.pageId).collect(Collectors.toList()));
+        storage.getPages().retainAll(metadata.getBlocksMetadata().stream().map(m -> m.pageId).collect(Collectors.
+                toList()));
 
         /* Now deleted block has been unloaded AND his page removed from store */
 
-        /* Delete remaining values (next should have been handled to avoid errors) */
+ /* Delete remaining values (next should have been handled to avoid errors) */
         for (int i = 0; i < elements; i++) {
             index.delete(Sized.valueOf(1), Sized.valueOf("test_" + i));
         }
@@ -360,4 +363,30 @@ public class BlockRangeIndexTest {
         }
     }
 
+    @Test
+    public void testSelfLoop() throws IOException {
+        Random random = new Random(2431);
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10, random));
+        index.boot(BlockRangeIndexMetadata.empty());
+
+        int numCheckpoints = 0;
+        int i = 0;
+        try {
+            for (i = 0; i < 1000000; i++) {
+                byte[] s = new byte[10];
+                random.nextBytes(s);
+                index.put(Sized.valueOf(random.nextInt(200)), Sized.valueOf(new String(s, "ASCII")));
+                if (random.nextInt(10) == 3) {
+                    index.checkpoint();
+                    numCheckpoints++;
+                }
+                if (i % 1000 == 0) {
+                    System.out.println("DONE " + i + " - " + numCheckpoints + " checkpoints");
+                }
+            }
+        } finally {
+            System.out.println("DONE " + i + " - " + numCheckpoints + " checkpoints");
+        }
+    }
 }
