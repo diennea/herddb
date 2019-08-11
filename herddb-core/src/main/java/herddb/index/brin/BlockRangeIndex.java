@@ -773,6 +773,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                         }
                     }
 
+                    if (Objects.equals(first, other.next)) {
+                        LOG.log(Level.SEVERE, "this is the bug ! should not happen: "+first+" - "+other+" ?");
+                    }
                     /* Update next reference */
                     first.next = other.next;
 

@@ -373,7 +373,7 @@ public class BlockRangeIndexTest {
         int numCheckpoints = 0;
         int i = 0;
         try {
-            for (i = 0; i < 1000000; i++) {
+            for (i = 0; i < 60; i++) {
                 byte[] s = new byte[10];
                 random.nextBytes(s);
                 index.put(Sized.valueOf(random.nextInt(200)), Sized.valueOf(new String(s, "ASCII")));
