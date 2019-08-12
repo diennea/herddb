@@ -1,4 +1,4 @@
-#/bin/bash
+#/usr/bin/env bash
 DATE=$(date '+%Y-%m-%d-%H-%M-%S')
 workload=$1
 separator="_"

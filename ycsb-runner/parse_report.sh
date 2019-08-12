@@ -1,4 +1,4 @@
-#/bin/bash
+#/usr/bin/env bash
 FILE_NAME=$1
 SAVE_FILE_NAME=$2
 NAME="Throughput"

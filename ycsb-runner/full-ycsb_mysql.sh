@@ -1,4 +1,4 @@
-#/bin/bash
+#/usr/bin/env bash
 
 HERE=$(dirname $0)
 HERE=$(realpath $HERE)
