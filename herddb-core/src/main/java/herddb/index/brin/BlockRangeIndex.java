@@ -245,10 +245,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.size = size;
             this.next = next;
 
-            if (next != null && (next.key.equals(key) || next.key.blockId == key.blockId)) {
-                System.out.println("ERRORE");
-            }
-
             this.loaded = false;
             this.dirty = false;
             this.pageId = pageId;
@@ -282,10 +278,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.values = values;
             this.size = size;
             this.next = next;
-
-            if (next != null && (next.key.equals(key) || next.key.blockId == key.blockId)) {
-                System.out.println("ERRORE");
-            }
 
             this.loaded = true;
             this.dirty = true;
@@ -636,8 +628,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 newBlockId = -newBlockId;
             }
 
-            System.out.println("split newBlockId " + newBlockId + " key " + key + " newOtherMinKey " + newOtherMinKey);
-
             Block<KEY,VAL> newblock = new Block<>(index, BlockStartKey.valueOf(newOtherMinKey, newBlockId), otherValues, otherSize, next);
 
             this.next = newblock;
@@ -839,14 +829,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                             LOG.fine("linking block " + first.pageId + " (" + first.key + ") to real next block "
                                     + other.next.pageId + " (" + other.next.key + ")");
                         }
-                    }
-
-                    if (Objects.equals(first, other.next)) {
-                        LOG.log(Level.SEVERE, "This is the bug! Should not happen: " + first + " - " + other + " ?");
-                    }
-
-                    if (other.next != null && (other.next.equals(first) || other.key.blockId == first.key.blockId)) {
-                        System.out.println("ERRORE");
                     }
 
                     /* Update next reference */
