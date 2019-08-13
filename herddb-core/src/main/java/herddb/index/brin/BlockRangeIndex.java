@@ -245,6 +245,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.size = size;
             this.next = next;
 
+            if (next != null && (next.key.equals(key) || next.key.blockId == key.blockId)) {
+                System.out.println("ERRORE");
+            }
+
             this.loaded = false;
             this.dirty = false;
             this.pageId = pageId;
@@ -278,6 +282,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.values = values;
             this.size = size;
             this.next = next;
+
+            if (next != null && (next.key.equals(key) || next.key.blockId == key.blockId)) {
+                System.out.println("ERRORE");
+            }
 
             this.loaded = true;
             this.dirty = true;
@@ -628,6 +636,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 newBlockId = -newBlockId;
             }
 
+            System.out.println("split newBlockId " + newBlockId + " key " + key + " newOtherMinKey " + newOtherMinKey);
+
             Block<KEY,VAL> newblock = new Block<>(index, BlockStartKey.valueOf(newOtherMinKey, newBlockId), otherValues, otherSize, next);
 
             this.next = newblock;
@@ -832,7 +842,11 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                     }
 
                     if (Objects.equals(first, other.next)) {
-                        LOG.log(Level.SEVERE, "this is the bug ! should not happen: "+first+" - "+other+" ?");
+                        LOG.log(Level.SEVERE, "This is the bug! Should not happen: " + first + " - " + other + " ?");
+                    }
+
+                    if (other.next != null && (other.next.equals(first) || other.key.blockId == first.key.blockId)) {
+                        System.out.println("ERRORE");
                     }
 
                     /* Update next reference */
@@ -1135,7 +1149,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 next = new Block<>(this, key, blockData.size, blockData.pageId, next);
                 blocks.put(key, next);
 
-                currentBlockId.accumulateAndGet(next.key.blockId, EnsureLongIncrementAccumulator.INSTANCE);
+                currentBlockId.accumulateAndGet(Math.abs(next.key.blockId), EnsureLongIncrementAccumulator.INSTANCE);
             }
         }
 
@@ -1172,6 +1186,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
     ConcurrentNavigableMap<BlockStartKey<K>, Block<K,V>> getBlocks() {
         return blocks;
+    }
+
+    long getCurrentBlockId() {
+        return currentBlockId.get();
     }
 
 }
