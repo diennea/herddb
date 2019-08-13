@@ -109,7 +109,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
 
         void serialize(ExtendedDataOutputStream out) throws IOException {
-            out.writeVLong(2); // version
+            out.writeVLong(3); // version
             out.writeVLong(0); // flags for future implementations
 
             out.writeVInt(this.type);
@@ -135,12 +135,12 @@ public class BRINIndexManager extends AbstractIndexManager {
                         if (!head) {
                             out.writeArray(md.firstKey);
                         }
-                        out.writeVLong(md.blockId);
+                        out.writeZLong(md.blockId);
                         out.writeVLong(md.size);
                         out.writeVLong(md.pageId);
 
                         if (!tail) {
-                            out.writeVLong(md.nextBlockId);
+                            out.writeZLong(md.nextBlockId);
                         }
                     }
                     break;
@@ -160,12 +160,12 @@ public class BRINIndexManager extends AbstractIndexManager {
             long version = in.readVLong(); // version
             long flags = in.readVLong(); // flags for future implementations
 
-            /* Only version 2 actually supported, older versions will need a full rebuild */
-            if (version < 2) {
+            /* Only version 3 actually supported, older versions will need a full rebuild */
+            if (version < 3) {
                 throw new UnsupportedMetadataVersionException(version);
             }
 
-            if (version > 2 || flags != 0) {
+            if (version > 3 || flags != 0) {
                 throw new DataStorageManagerException("corrupted index page");
             }
 
@@ -186,7 +186,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             firstKey = in.readBytesNoCopy();
                         }
 
-                        long blockId = in.readVLong();
+                        long blockId = in.readZLong();
                         long size = in.readVLong();
                         long pageId = in.readVLong();
 
@@ -196,7 +196,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             /* Next block is null if is the tail block */
                             nextBlockId = null;
                         } else {
-                            nextBlockId = in.readVLong();
+                            nextBlockId = in.readZLong();
                         }
 
                         BlockRangeIndexMetadata.BlockMetadata<Bytes> md

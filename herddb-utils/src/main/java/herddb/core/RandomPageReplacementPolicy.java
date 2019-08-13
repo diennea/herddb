@@ -40,7 +40,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
     private final PlainMetadata[] pages;
     private final Map<PlainMetadata, Integer> positions;
 
-    private final Random random = new Random();
+    private final Random random;
 
     /**
      * Modification lock
@@ -48,6 +48,11 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
     private final Lock lock = new ReentrantLock();
 
     public RandomPageReplacementPolicy(int size) {
+        this(size, new Random());
+    }
+
+    public RandomPageReplacementPolicy(int size, Random random) {
+        this.random = random;
         pages = new PlainMetadata[size];
 
         positions = new HashMap<>(size);
@@ -57,7 +62,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
     public PlainMetadata add(Page<?> page) {
         final PlainMetadata metadata = new PlainMetadata(page);
         page.metadata = metadata;
-        lock.lock();       
+        lock.lock();
         try {
             int count = positions.size();
             if (count < pages.length) {
