@@ -67,8 +67,9 @@ public class BlockRangeIndexMetadata<K extends Comparable<K>> {
             this.size = size;
             this.pageId = pageId;
             this.nextBlockId = nextBlockId;
+
             if (nextBlockId != null && nextBlockId == blockId) {
-                throw new IllegalStateException("I cannot be the successor of myself ! told block "+blockId);
+                throw new IllegalStateException("I cannot be the successor of myself! BlockId " + blockId);
             }
 
             headBlock = firstKey == null;

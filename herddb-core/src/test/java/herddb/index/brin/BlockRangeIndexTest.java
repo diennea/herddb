@@ -20,21 +20,21 @@
 package herddb.index.brin;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
+import herddb.index.brin.BlockRangeIndex.Block;
 import herddb.utils.Sized;
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for BlockRangeIndex
@@ -358,11 +358,16 @@ public class BlockRangeIndexTest {
     }
 
     private void dumpIndex(BlockRangeIndex<?, ?> index) {
-        for (BlockRangeIndex.Block b : index.getBlocks().values()) {
+        for (BlockRangeIndex.Block<?,?> b : index.getBlocks().values()) {
             System.out.println("BLOCK " + b);
         }
     }
 
+    /**
+     * This test was generating a block self relationship
+     *
+     * @see GitHub: https://github.com/diennea/herddb/pull/443
+     */
     @Test
     public void testSelfLoop() throws IOException {
         Random random = new Random(2431);
@@ -388,5 +393,145 @@ public class BlockRangeIndexTest {
         } finally {
             System.out.println("DONE " + i + " - " + numCheckpoints + " checkpoints");
         }
+    }
+
+    /**
+     * Test that after split order imposed by BRIN outer tree {@link BlockRangeIndex#blocks} is the same order
+     * imposed by {@link BlockRangeIndex.Block#next} relationship.
+     *
+     * @see GitHub: https://github.com/diennea/herddb/pull/443
+     */
+    @Test
+    public void testSplitBlockStartKeySorting() throws IOException {
+
+        /**
+         * Expected BRIN tree
+         * <pre>
+         *        +-----------------+
+         *        | MinKey: 1       |
+         * ... -> | BlockId: 1      | -> ...
+         *        | Keys: 1, 2, 2   |
+         *        | Occupancy: 100% |
+         *        +-----------------+
+         *
+         * Adding key 2 with next block id 2: create a new block (2,-2)
+         *
+         *        +-----------------+    +-----------------+
+         *        | MinKey: 1       |    | MinKey: 2       |
+         * ... -> | BlockId: 1      | -> | BlockId: -2     | -> ...
+         *        | Keys: 1, 2      |    | Keys: 2, 2      |
+         *        | Occupancy: 66%  |    | Occupancy: 66%  |
+         *        +-----------------+    +-----------------+
+         *
+         * Adding key 2 with next block id 3: add to block (2,-2)
+         *
+         *        +-----------------+    +-----------------+
+         *        | MinKey: 1       |    | MinKey: 2       |
+         * ... -> | BlockId: 1      | -> | BlockId: -2     | -> ...
+         *        | Keys: 1, 2      |    | Keys: 2, 2, 2   |
+         *        | Occupancy: 66%  |    | Occupancy: 100% |
+         *        +-----------------+    +-----------------+
+         *
+         * Adding key 2 with next block id 3: create a new block (2,3)
+         *
+         *        +-----------------+    +-----------------+    +-----------------+
+         *        | MinKey: 1       |    | MinKey: 2       |    | MinKey: 2       |
+         * ... -> | BlockId: 1      | -> | BlockId: -2     | -> | BlockId: 3      | -> ...
+         *        | Keys: 1, 2      |    | Keys: 2, 2      |    | Keys: 2, 2      |
+         *        | Occupancy: 66%  |    | Occupancy: 66%  |    | Occupancy: 66%  |
+         *        +-----------------+    +-----------------+    +-----------------+
+         * </pre>
+         */
+
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> index =
+                new BlockRangeIndex<>(450, new RandomPageReplacementPolicy(1000));
+
+        index.boot(BlockRangeIndexMetadata.empty());
+
+        Sized<Integer> s1 = Sized.valueOf(1);
+        Sized<Integer> s2 = Sized.valueOf(2);
+
+        index.put(s1, s1);
+        index.put(s2, s2);
+        index.put(s2, s2);
+
+        assertEquals(1, index.getNumBlocks());
+
+        Block<Sized<Integer>, Sized<Integer>> block1 = index.getBlocks().firstEntry().getValue();
+
+        block1.ensureBlockLoaded();
+
+        assertTrue(block1.values.containsKey(s1));
+        assertTrue(block1.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s1), block1.values.get(s1));
+        assertEquals(Arrays.asList(s2, s2), block1.values.get(s2));
+
+
+        index.put(s2, s2);
+
+        assertEquals(2, index.getNumBlocks());
+
+        Block<Sized<Integer>, Sized<Integer>> block2 = index.getBlocks().lastEntry().getValue();
+
+        assertSame(block2, block1.next);
+
+        assertTrue(block2.key.blockId < 0);
+        assertTrue(block1.key.blockId > block2.key.blockId);
+        assertTrue(block1.key.compareTo(block2.key) < 0);
+
+        block1.ensureBlockLoaded();
+
+        assertTrue(block1.values.containsKey(s1));
+        assertTrue(block1.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s1), block1.values.get(s1));
+        assertEquals(Arrays.asList(s2), block1.values.get(s2));
+
+        block2.ensureBlockLoaded();
+
+        assertFalse(block2.values.containsKey(s1));
+        assertTrue(block2.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s2,s2), block2.values.get(s2));
+
+
+        index.put(s2, s2);
+
+        assertEquals(2, index.getNumBlocks());
+
+        block2.ensureBlockLoaded();
+
+        assertTrue(block2.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s2, s2, s2), block2.values.get(s2));
+
+
+        index.put(s2, s2);
+
+        assertEquals(3, index.getNumBlocks());
+
+        Block<Sized<Integer>, Sized<Integer>> block3 = index.getBlocks().lastEntry().getValue();
+
+        assertSame(block3, block2.next);
+
+        assertTrue(block3.key.blockId > 0);
+        assertTrue(block2.key.blockId < block3.key.blockId);
+        assertTrue(block2.key.compareTo(block3.key) < 0);
+
+        block2.ensureBlockLoaded();
+
+        assertFalse(block2.values.containsKey(s1));
+        assertTrue(block2.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s2,s2), block2.values.get(s2));
+
+        block3.ensureBlockLoaded();
+
+        assertFalse(block3.values.containsKey(s1));
+        assertTrue(block3.values.containsKey(s2));
+
+        assertEquals(Arrays.asList(s2,s2), block3.values.get(s2));
+
     }
 }
