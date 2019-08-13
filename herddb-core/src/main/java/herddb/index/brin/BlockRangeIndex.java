@@ -97,6 +97,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             }
         }
 
+        @SuppressWarnings("unchecked")
         public static final <X extends Comparable<X>> BlockStartKey<X> valueOf(X minKey, long segmentId) {
             if (minKey == null) {
                 if (segmentId != HEAD_KEY.blockId) {
@@ -270,9 +271,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         }
 
         /** Construtor for split operations */
-        private Block(BlockRangeIndex<KEY,VAL> index, KEY minKey, NavigableMap<KEY, List<VAL>> values, long size, Block<KEY,VAL> next) {
+        private Block(BlockRangeIndex<KEY,VAL> index, BlockStartKey<KEY> key, NavigableMap<KEY, List<VAL>> values, long size, Block<KEY,VAL> next) {
             this.index = index;
-            this.key = BlockStartKey.valueOf(minKey, index.currentBlockId.incrementAndGet());
+            this.key = key;
 
             this.values = values;
             this.size = size;
@@ -570,7 +571,64 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             KEY newOtherMinKey = otherValues.firstKey();
 
-            Block<KEY,VAL> newblock = new Block<>(index, newOtherMinKey, otherValues, otherSize, next);
+            long newBlockId = index.currentBlockId.incrementAndGet();
+
+            /*
+             * For right sorting reasons block id must be negative if the splitting key is greater or equals
+             * than the current min key. Otherwise, when splitting a block with the same splitting key and min
+             * key the block id must be positive.
+             *
+             * Positive or negative means: negative: the new block must precede any other block with the same
+             * "new" min key that could exists positive: the new block must follow the current splitting bloc
+             * (this case is done right because we add elements in the greater block possible: if we have more
+             * blocks with the same min key we use the last one).
+             */
+            /**
+             * <pre>
+             *        +-----------------+    +-----------------+
+             *        | MinKey: 1       |    | MinKey: 3       |
+             * ... -> | BlockId: 10     | -> | BlockId: 11     | -> ...
+             *        | Keys: 1, 2, 2   |    | Keys: 3, 4      |
+             *        | Occupancy: 100% |    | Occupancy: 66%  |
+             *        +-----------------+    +-----------------+
+             *
+             * Adding key 2 with next block id 12: create a new block (2,-12)
+             *
+             *        +-----------------+    +-----------------+    +-----------------+
+             *        | MinKey: 1       |    | MinKey: 2       |    | MinKey: 3       |
+             * ... -> | BlockId: 10     | -> | BlockId: -12    | -> | BlockId: 11     | -> ...
+             *        | Keys: 1, 2      |    | Keys: 2, 2      |    | Keys: 3, 4      |
+             *        | Occupancy: 66%  |    | Occupancy: 66%  |    | Occupancy: 66%  |
+             *        +-----------------+    +-----------------+    +-----------------+
+             *
+             * Adding key 2 with next block id 13: add to block (2,-12)
+             *
+             *        +-----------------+    +-----------------+    +-----------------+
+             *        | MinKey: 1       |    | MinKey: 2       |    | MinKey: 3       |
+             * ... -> | BlockId: 10     | -> | BlockId: -12    | -> | BlockId: 11     | -> ...
+             *        | Keys: 1, 2      |    | Keys: 2, 2, 2   |    | Keys: 3, 4      |
+             *        | Occupancy: 66%  |    | Occupancy: 100% |    | Occupancy: 66%  |
+             *        +-----------------+    +-----------------+    +-----------------+
+             *
+             * Adding key 2 with next block id 13: create a new block (2,13)
+             *
+             *        +-----------------+    +-----------------+    +-----------------+    +-----------------+
+             *        | MinKey: 1       |    | MinKey: 2       |    | MinKey: 2       |    | MinKey: 3       |
+             * ... -> | BlockId: 10     | -> | BlockId: -12    | -> | BlockId: 13     | -> | BlockId: 11     | -> ...
+             *        | Keys: 1, 2      |    | Keys: 2, 2      |    | Keys: 2, 2      |    | Keys: 3, 4      |
+             *        | Occupancy: 66%  |    | Occupancy: 66%  |    | Occupancy: 66%  |    | Occupancy: 66%  |
+             *        +-----------------+    +-----------------+    +-----------------+    +-----------------+
+             *
+             * Notice than being the splitting (2,-12) permits to sort in the right order with the new block (2,13).
+             * The same thing would have happened if the block (1,10) was the HEAD block instead (just it doesn't have
+             * a min key).
+             * </pre>
+             */
+            if (key == BlockStartKey.HEAD_KEY || !key.minKey.equals(newOtherMinKey)) {
+                newBlockId = -newBlockId;
+            }
+
+            Block<KEY,VAL> newblock = new Block<>(index, BlockStartKey.valueOf(newOtherMinKey, newBlockId), otherValues, otherSize, next);
 
             this.next = newblock;
             this.size = mySize;
@@ -983,7 +1041,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     public void delete(K key, V value) {
 
         /* Lookup from the first possible block that could contain the value*/
-        final BlockStartKey<K> lookUp = BlockStartKey.valueOf(key, -1L);
+        final BlockStartKey<K> lookUp = BlockStartKey.valueOf(key, Long.MIN_VALUE);
 
         final DeleteState<K,V> state = new DeleteState<>();
 
@@ -1000,7 +1058,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         if (firstKey != null ) {
             /* Lookup from the first possible block that could contain the first lookup key*/
-            final BlockStartKey<K> lookUp = BlockStartKey.valueOf(firstKey, -1L);
+            final BlockStartKey<K> lookUp = BlockStartKey.valueOf(firstKey, Long.MIN_VALUE);
 
             /* There is always at least the head block! */
             state.next = blocks.floorEntry(lookUp).getValue();
@@ -1063,7 +1121,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 } else {
                     if (next != null) {
                         throw new DataStorageManagerException(
-                                "Wron next block, expected " + next.key.blockId + " but nothing found");
+                                "Wrong next block, expected " + next.key.blockId + " but nothing found");
                     }
 
                 }
@@ -1073,7 +1131,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 next = new Block<>(this, key, blockData.size, blockData.pageId, next);
                 blocks.put(key, next);
 
-                currentBlockId.accumulateAndGet(next.key.blockId, EnsureLongIncrementAccumulator.INSTANCE);
+                currentBlockId.accumulateAndGet(Math.abs(next.key.blockId), EnsureLongIncrementAccumulator.INSTANCE);
             }
         }
 
@@ -1110,6 +1168,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
     ConcurrentNavigableMap<BlockStartKey<K>, Block<K,V>> getBlocks() {
         return blocks;
+    }
+
+    long getCurrentBlockId() {
+        return currentBlockId.get();
     }
 
 }

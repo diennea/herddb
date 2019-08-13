@@ -20,21 +20,20 @@
 package herddb.index.brin;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentNavigableMap;
-
-import org.junit.Assert;
-import org.junit.Test;
+import static org.junit.Assert.assertTrue;
 
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.brin.BlockRangeIndex.Block;
 import herddb.index.brin.BlockRangeIndex.BlockStartKey;
 import herddb.utils.Sized;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentNavigableMap;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  *
@@ -156,6 +155,38 @@ public class BlockRangeIndexStorageTest {
 
         /* No pages should remain in memory after unload!! */
         assertEquals(0,policy.size());
+
+    }
+
+    @Test
+    public void testNextBlockIdAfterReload() throws Exception {
+
+        PageReplacementPolicy policy = new RandomPageReplacementPolicy(10);
+        IndexDataStorage<Sized<Integer>, Sized<Integer>> storage = new MemoryIndexDataStorage<>();
+
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> index = new BlockRangeIndex<>(1024, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
+
+        Sized<Integer> data = Sized.valueOf(1);
+
+        while(index.getNumBlocks() < 2) {
+            index.put(data,data);
+        }
+
+        /* Ensure that the second block has a negative blockId (so we have both positive and negative blockIds) */
+        assertTrue(index.getBlocks().lastEntry().getKey().blockId < 0);
+
+
+        BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
+        assertEquals(index.getNumBlocks(), metadata.getBlocksMetadata().size());
+
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> indexAfterBoot =
+                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10), storage);
+
+        indexAfterBoot.boot(metadata);
+
+        /* Ensure that current block id is correct even if was generated a negative blockId */
+        assertEquals(index.getCurrentBlockId(), indexAfterBoot.getCurrentBlockId());
 
     }
 }
