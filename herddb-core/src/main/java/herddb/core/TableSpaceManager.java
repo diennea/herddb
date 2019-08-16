@@ -1608,7 +1608,7 @@ public class TableSpaceManager {
 
                 // TODO: transactions checkpoint is not atomic
                 actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
-                actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true, true)), false);
+                actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true), true));
 
                 // we checkpoint all data to disk and save the actual log sequence number
                 for (AbstractTableManager tableManager : tables.values()) {
