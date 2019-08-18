@@ -477,7 +477,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+    public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber,
+            List<Table> tables, List<Index> indexlist, boolean prepareActions) throws DataStorageManagerException {
 
         tablesByTablespace.merge(tableSpace, tables, new BiFunction<List<Table>, List<Table>, List<Table>>() {
             @Override
