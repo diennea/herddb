@@ -400,7 +400,7 @@ public class TableSpaceManager {
                         || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
                         || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
                         || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
-                    writeTablesOnDataStorageManager(position);
+                    writeTablesOnDataStorageManager(position, false);
                     dbmanager.getPlanner().clearCache();
                 }
                 transactions.remove(transaction.transactionId);
@@ -416,7 +416,7 @@ public class TableSpaceManager {
 
                 bootTable(table, entry.transactionId, null);
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager(position);
+                    writeTablesOnDataStorageManager(position, false);
                 }
             }
             break;
@@ -433,7 +433,7 @@ public class TableSpaceManager {
                 }
                 bootIndex(index, tableManager, entry.transactionId, true);
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager(position);
+                    writeTablesOnDataStorageManager(position, false);
                 }
             }
             break;
@@ -453,7 +453,7 @@ public class TableSpaceManager {
                 }
 
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager(position);
+                    writeTablesOnDataStorageManager(position, false);
                 }
             }
             break;
@@ -477,7 +477,7 @@ public class TableSpaceManager {
                 }
 
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager(position);
+                    writeTablesOnDataStorageManager(position, false);
                     dbmanager.getPlanner().clearCache();
                 }
             }
@@ -485,7 +485,7 @@ public class TableSpaceManager {
             case LogEntryType.ALTER_TABLE: {
                 Table table = Table.deserialize(entry.value.to_array());
                 alterTable(table, null);
-                writeTablesOnDataStorageManager(position);
+                writeTablesOnDataStorageManager(position, false);
             }
             break;
             default:
@@ -504,7 +504,7 @@ public class TableSpaceManager {
 
     }
 
-    private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog) throws DataStorageManagerException,
+    private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog, boolean prepareActions) throws DataStorageManagerException,
             LogNotAvailableException {
         LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
         List<Table> tablelist = new ArrayList<>();
@@ -517,7 +517,7 @@ public class TableSpaceManager {
         for (AbstractIndexManager indexManager : indexes.values()) {
             indexlist.add(indexManager.getIndex());
         }
-        return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
+        return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist, prepareActions);
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
@@ -1608,7 +1608,7 @@ public class TableSpaceManager {
 
                 // TODO: transactions checkpoint is not atomic
                 actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
-                actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true)));
+                actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true), true));
 
                 // we checkpoint all data to disk and save the actual log sequence number
                 for (AbstractTableManager tableManager : tables.values()) {

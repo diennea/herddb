@@ -215,7 +215,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException
      */
     public abstract Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables,
-        List<Index> indexlist) throws DataStorageManagerException;
+        List<Index> indexlist, boolean prepareActions) throws DataStorageManagerException;
 
     public abstract Collection<PostCheckpointAction> writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber)
         throws DataStorageManagerException;

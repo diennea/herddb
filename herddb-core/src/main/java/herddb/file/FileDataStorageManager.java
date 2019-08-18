@@ -1090,7 +1090,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber,
-            List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+            List<Table> tables, List<Index> indexlist, boolean prepareActions) throws DataStorageManagerException {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
             throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
@@ -1154,34 +1154,36 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         Collection<PostCheckpointAction> result = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableSpaceDirectory)) {
-            for (Path p : stream) {
-                if (isTablespaceIndexesMetadataFile(p)) {
-                    try {
-                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, p);
-                        if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
+        if (prepareActions) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableSpaceDirectory)) {
+                for (Path p : stream) {
+                    if (isTablespaceIndexesMetadataFile(p)) {
+                        try {
+                            LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, p);
+                            if (sequenceNumber.after(logPositionInFile)) {
+                                LOGGER.log(Level.FINEST, "indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                                result.add(new DeleteFileAction("indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
+                            }
+                        } catch (DataStorageManagerException ignore) {
+                            LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
+                            result.add(new DeleteFileAction("indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
                         }
-                    } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
-                    }
-                } else if (isTablespaceTablesMetadataFile(p)) {
-                    try {
-                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
-                        if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
+                    } else if (isTablespaceTablesMetadataFile(p)) {
+                        try {
+                            LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
+                            if (sequenceNumber.after(logPositionInFile)) {
+                                LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                                result.add(new DeleteFileAction("tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
+                            }
+                        } catch (DataStorageManagerException ignore) {
+                            LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
+                            result.add(new DeleteFileAction("transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
                         }
-                    } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
                     }
                 }
+            } catch (IOException err) {
+                LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
             }
-        } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
         }
         return result;
     }
