@@ -316,4 +316,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         }
     }
 
+    @Override
+    public String toString() {
+        return "TmpMap{tableName=" + tmpTableName + '}';
+    }
+
 }
