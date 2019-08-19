@@ -145,6 +145,10 @@ public final class CollectionsManager implements AutoCloseable {
                 new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
                 configuration, NullStatsLogger.INSTANCE);
+
+        server.setCheckpointPeriod(configuration.getLong(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD,
+                ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD_DEFAULT));
+
     }
 
     public void start() throws Exception {
@@ -160,6 +164,16 @@ public final class CollectionsManager implements AutoCloseable {
 
     public <V> TmpMapBuilder<V> newMap() {
         return new TmpMapBuilder<>();
+    }
+
+    /**
+     * Access to the internals, mostly for tests and debugging or unsupported tweaks.
+     *
+     * @return the internal HerdDB runtime.
+     *
+     */
+    public DBManager getServer() {
+        return server;
     }
 
     private Table createTable(String tmpTableName, int pkType) throws StatementExecutionException {
