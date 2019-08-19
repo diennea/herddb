@@ -8,8 +8,8 @@
         <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-    
-    
+
+
     <artifactId>herddb-ui</artifactId>
     <packaging>war</packaging>
     <name>HerdDB UI</name>
@@ -17,9 +17,9 @@
     <properties>
         <endorsed.dir>${project.build.directory}/endorsed</endorsed.dir>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        
+
     </properties>
-    
+
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -48,33 +48,24 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.6.1</version>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>                   
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-                <version>3.1.0</version>
-                
+                <version>3.2.3</version>
+
                 <executions>
                     <execution>
                         <id>create-war-no-libs</id>
                         <goals>
-                            <goal>war</goal>                            
+                            <goal>war</goal>
                         </goals>
                         <configuration>
-                            <packagingExcludes>WEB-INF/lib/*.jar,WEB-INF/classes/**/*</packagingExcludes>                            
+                            <packagingExcludes>WEB-INF/lib/*.jar,WEB-INF/classes/**/*</packagingExcludes>
                             <attachClasses>true</attachClasses>
                             <classifier>war-no-libs</classifier>
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>  
-                        
+            </plugin>
+
         </plugins>
     </build>
 
