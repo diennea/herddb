@@ -531,10 +531,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         long scannerId = PduCodec.CloseScanner.readScannerId(message);
         ServerSideScannerPeer removed = scanners.remove(scannerId);
         if (removed != null) {
-            LOGGER.log(Level.SEVERE, "remove scanner {0} as requested by client", scannerId);
+            if (LOGGER.isLoggable(Level.FINER)) {
+               LOGGER.log(Level.FINER, "remove scanner {0} as requested by client", scannerId);
+            }
             removed.clientClose();
-        } else {
-            LOGGER.log(Level.SEVERE, "cannot remove scanner {0} as requested by client", scannerId);
         }
     }
 
