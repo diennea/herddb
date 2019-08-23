@@ -37,6 +37,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
+import herddb.model.ColumnsList;
+import herddb.model.InvalidNullValueForKeyException;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.utils.DataAccessor;
 
 /**
  * Record mutator using SQL
@@ -132,6 +137,9 @@ public class SQLRecordKeyFunction extends RecordFunction {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
             Object value = expression.evaluate(DataAccessor.NULL, context);
+            if (value == null) {
+                throw new InvalidNullValueForKeyException("error while converting primary key " + pk + ", keys cannot be null");
+            }
             value = RecordSerializer.convert(c.type, value);
             pk.put(c.name, value);
         }

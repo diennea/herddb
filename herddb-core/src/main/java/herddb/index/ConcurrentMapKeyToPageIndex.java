@@ -22,6 +22,7 @@ package herddb.index;
 
 import herddb.core.PostCheckpointAction;
 import herddb.log.LogSequenceNumber;
+import herddb.model.InvalidNullValueForKeyException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
@@ -146,10 +147,15 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
 
         if (operation instanceof PrimaryIndexSeek) {
             PrimaryIndexSeek seek = (PrimaryIndexSeek) operation;
-            byte[] seekValue = seek.value.computeNewValue(null, context, tableContext);
-            if (seekValue == null) {
-                return Stream.empty();
+            byte[] seekValue;
+            try {
+                seekValue = seek.value.computeNewValue(null, context, tableContext);
+            } catch (InvalidNullValueForKeyException nullKey) {
+                seekValue = null;
             }
+            if (seekValue == null) {
+                    return Stream.empty();
+                }
             Bytes key = Bytes.from_array(seekValue);
             Long pageId = map.get(key);
             if (pageId == null) {
@@ -171,7 +177,9 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
             byte[] prefix;
             try {
                 prefix = scan.value.computeNewValue(null, context, tableContext);
-            } catch (StatementExecutionException err) {
+            } catch (InvalidNullValueForKeyException err) {
+                return Stream.empty();
+            }catch (StatementExecutionException err) {
                 throw new RuntimeException(err);
             }
             Predicate<Map.Entry<Bytes, Long>> predicate = (Map.Entry<Bytes, Long> t) -> {
