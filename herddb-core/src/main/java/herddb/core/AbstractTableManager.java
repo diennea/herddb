@@ -65,6 +65,10 @@ public interface AbstractTableManager extends AutoCloseable {
     long getNextPrimaryKeyValue();
 
     boolean isSystemTable();
+    
+    default boolean isKeyToPageSortedAscending() {
+        return false;
+    }
 
     /**
      * Check if the table manage has been fully started

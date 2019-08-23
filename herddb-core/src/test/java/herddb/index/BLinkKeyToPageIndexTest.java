@@ -146,8 +146,8 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
         }
 
         @Override
-        public boolean isSortedAscending() {
-            return delegate.isSortedAscending();
+        public boolean isSortedAscending(int[] pkTypes) {
+            return delegate.isSortedAscending(pkTypes);
         }
 
     }

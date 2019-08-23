@@ -93,7 +93,7 @@ public class PrimaryIndexScanRangeTest {
 
             performBasicPlannerTests(manager);
 
-            assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("t1").getKeyToPageIndex().isSortedAscending());
+            assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("t1").isKeyToPageSortedAscending());
         }
 
     }
@@ -133,7 +133,7 @@ public class PrimaryIndexScanRangeTest {
 
             performBasicPlannerTests(manager);
 
-            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("t1").getKeyToPageIndex().isSortedAscending());
+            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("t1").isKeyToPageSortedAscending());
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
