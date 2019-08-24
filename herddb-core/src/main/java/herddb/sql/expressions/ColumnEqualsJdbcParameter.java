@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
+import static herddb.utils.SQLRecordPredicateFunctions.objectEquals;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.utils.SQLRecordPredicateFunctions.objectEquals;
 
 public class ColumnEqualsJdbcParameter extends CompiledSQLExpressionUsingRightJdbcParameter {
 

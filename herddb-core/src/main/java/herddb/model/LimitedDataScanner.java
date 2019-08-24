@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.utils.DataAccessor;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class LimitedDataScanner extends DataScanner {

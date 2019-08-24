@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
@@ -72,9 +73,11 @@ public class InsertOp implements PlannerOp {
     }
 
     @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
-            boolean lockRequired, boolean forWrite) {
+            boolean lockRequired, boolean forWrite
+    ) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager,
                 transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
@@ -83,7 +86,7 @@ public class InsertOp implements PlannerOp {
 
         List<DMLStatement> statements = new ArrayList<>();
 
-        try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
+        try (DataScanner inputScanner = downstreamScanResult.dataScanner) {
             while (inputScanner.hasNext()) {
 
                 DataAccessor row = inputScanner.next();
@@ -164,8 +167,8 @@ public class InsertOp implements PlannerOp {
                     long newTransactionId = res.transactionId;
                     if (current == statements.size()) {
                         LOG.severe("multiinsert finished with tx " + newTransactionId + " and " + updateCounts + " recods");
-                        DMLStatementExecutionResult finalDMLResult
-                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                        DMLStatementExecutionResult finalDMLResult =
+                                new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
                                         lastKey.get(), lastNewValue.get());
                         finalResult.complete(finalDMLResult);
                         return;
@@ -174,8 +177,8 @@ public class InsertOp implements PlannerOp {
                     DMLStatement nextStatement = statements.get(current);
                     LOG.log(Level.SEVERE, "executing # " + current + " newTx " + newTransactionId + " -" + nextStatement);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
-                    CompletableFuture<StatementExecutionResult> nextPromise
-                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    CompletableFuture<StatementExecutionResult> nextPromise =
+                            tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
                     nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }
@@ -191,6 +194,7 @@ public class InsertOp implements PlannerOp {
             throw new StatementExecutionException(err);
         }
     }
+
     private static final Logger LOG = Logger.getLogger(InsertOp.class.getName());
 
     @Override

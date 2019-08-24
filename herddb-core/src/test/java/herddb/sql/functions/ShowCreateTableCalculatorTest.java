@@ -20,12 +20,14 @@
 
 package herddb.sql.functions;
 
+import static org.junit.Assert.assertTrue;
 import herddb.core.AbstractTableManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
+import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
 import herddb.model.Index;
@@ -36,18 +38,14 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import herddb.model.ColumnTypes;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import static org.junit.Assert.assertTrue;
-
+import org.junit.Test;
 
 
 /**
@@ -219,8 +217,8 @@ public class ShowCreateTableCalculatorTest {
                 .uuid("1234")
                 .column("k1", ColumnTypes.INTEGER, 0)
                 .column("s1", ColumnTypes.NOTNULL_STRING, 1)
-                .column("l1", ColumnTypes.NOTNULL_LONG,2)
-                .column("i1", ColumnTypes.NOTNULL_INTEGER,3)
+                .column("l1", ColumnTypes.NOTNULL_LONG, 2)
+                .column("i1", ColumnTypes.NOTNULL_INTEGER, 3)
                 .primaryKey("k1", true)
                 .tablespace("ts1")
                 .name("test3")

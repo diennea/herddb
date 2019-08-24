@@ -2,12 +2,6 @@ package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import org.junit.Test;
-
 import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
@@ -21,6 +15,9 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import herddb.utils.RawString;
+import java.util.HashMap;
+import java.util.Map;
+import org.junit.Test;
 
 public class ColumnTimestampTest extends BaseTestcase {
 

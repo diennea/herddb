@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.Buffer;
@@ -26,8 +28,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-
-import io.netty.util.internal.PlatformDependent;
 
 /**
  * {@code O_DIRECT} InputStream implementation.

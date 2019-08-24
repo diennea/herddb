@@ -12,14 +12,14 @@ public abstract class Page<O extends Page.Owner> {
      *
      * @author diego.salvi
      */
-    public static interface Owner {
+    public interface Owner {
 
         /**
          * Unload given page from memory.
          *
          * @param pageId id of page to be unloaded
          */
-        public void unload(long pageId);
+        void unload(long pageId);
 
     }
 
@@ -42,19 +42,25 @@ public abstract class Page<O extends Page.Owner> {
 
     }
 
-    /** Owner of the page */
+    /**
+     * Owner of the page
+     */
     public final O owner;
 
-    /** Page id absolute on the owner */
+    /**
+     * Page id absolute on the owner
+     */
     public final long pageId;
 
-    /** Page metadata for {@link PageReplacementPolicy} use */
+    /**
+     * Page metadata for {@link PageReplacementPolicy} use
+     */
     Metadata metadata;
 
     public Page(O owner, long pageId) {
         super();
         this.owner = owner;
         this.pageId = pageId;
-    };
+    }
 
 }

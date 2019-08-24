@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -72,7 +73,7 @@ public class SQLProjection implements Projection {
     private final String tableAlias;
     private final AllNullsDataAccessor allNulls;
 
-    private static final class OutputColumn {
+    private static class OutputColumn {
 
         final Column column;
         final Expression expression;
@@ -112,13 +113,13 @@ public class SQLProjection implements Projection {
                         fieldName = c.getColumnName();
                     }
                     if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(c.getColumnName())
-                        || BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(c.getColumnName())) {
+                            || BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(c.getColumnName())) {
                         columType = ColumnTypes.BOOLEAN;
                     } else {
                         Column column = table.getColumn(c.getColumnName());
                         if (column == null) {
                             throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name + ","
-                                + "only " + Arrays.toString(table.getColumns()));
+                                    + "only " + Arrays.toString(table.getColumns()));
                         }
                         if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
                             throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
@@ -350,7 +351,7 @@ public class SQLProjection implements Projection {
                         found = true;
                         break;
                     } else if (outputColumn.directColumnReference != null
-                        && outputColumn.directColumnReference.getColumnName().equalsIgnoreCase(columnName)) {
+                            && outputColumn.directColumnReference.getColumnName().equalsIgnoreCase(columnName)) {
                         found = true;
                         break;
                     }
@@ -380,8 +381,8 @@ public class SQLProjection implements Projection {
             values.add(value);
         }
         return new Tuple(
-            fieldNames,
-            values.toArray()
+                fieldNames,
+                values.toArray()
         );
     }
 

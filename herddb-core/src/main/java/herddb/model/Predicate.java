@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.index.IndexOperation;
-import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.Bytes;
 import herddb.utils.Wrapper;
 
@@ -56,7 +56,7 @@ public abstract class Predicate implements Wrapper {
         return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
     }
 
-    public static enum PrimaryKeyMatchOutcome {
+    public enum PrimaryKeyMatchOutcome {
         FAILED,
         NEED_FULL_RECORD_EVALUATION,
         FULL_CONDITION_VERIFIED

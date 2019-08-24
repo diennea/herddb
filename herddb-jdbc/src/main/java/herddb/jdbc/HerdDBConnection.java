@@ -17,15 +17,16 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
+import static herddb.model.TransactionContext.NOTRANSACTION_ID;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TransactionContext;
-import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
-import static herddb.model.TransactionContext.NOTRANSACTION_ID;
 import herddb.utils.QueryUtils;
 import java.sql.Array;
 import java.sql.Blob;
@@ -226,6 +227,7 @@ public class HerdDBConnection implements java.sql.Connection {
             LOGGER.log(Level.SEVERE, "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED is supported", level);
         }
     }
+
     private static final Logger LOGGER = Logger.getLogger(HerdDBConnection.class.getName());
 
     @Override

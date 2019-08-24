@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
 import java.util.Set;
@@ -29,7 +30,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
  */
 public class LocalServerRegistry {
 
-    private static Set<String> localServers = new ConcurrentSkipListSet<>();
+    private static final Set<String> localServers = new ConcurrentSkipListSet<>();
 
     static void registerLocalServer(String host, int port, boolean ssl) {
         localServers.add(composeServerKey(host, port, ssl));

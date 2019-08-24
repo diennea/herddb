@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import org.junit.Rule;
@@ -35,8 +36,8 @@ public class PortAutoDiscoveryTest {
     @Test
     public void test() throws Exception {
         try (Server server = new Server(
-            new ServerConfiguration(folder.newFolder().toPath())
-                .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY))) {
+                new ServerConfiguration(folder.newFolder().toPath())
+                        .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY))) {
             server.start();
         }
     }

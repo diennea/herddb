@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.DataOutputStream;
@@ -28,7 +29,6 @@ import java.io.OutputStream;
  *
  * @author enrico.olivelli
  * @author diego.salvi
- *
  * @see ExtendedDataInputStream
  */
 public final class ExtendedDataOutputStream extends DataOutputStream {
@@ -45,7 +45,7 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
      * @param i
      * @throws java.io.IOException
      */
-    public final void writeVInt(int i) throws IOException {        
+    public void writeVInt(int i) throws IOException {
         if ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -76,7 +76,7 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
      * @param i
      * @throws java.io.IOException
      */
-    public final void writeVLong(long i) throws IOException {
+    public void writeVLong(long i) throws IOException {
         if (i < 0) {
             throw new IllegalArgumentException("cannot write negative vLong (got: " + i + ")");
         }
@@ -92,14 +92,14 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
         writeByte((byte) i);
     }
 
-    public final void writeZInt(int i) throws IOException {
+    public void writeZInt(int i) throws IOException {
         writeVInt((i >> 31) ^ (i << 1));
     }
 
-    public final void writeZLong(long l) throws IOException {
+    public void writeZLong(long l) throws IOException {
         writeSignedVLong((l >> 63) ^ (l << 1));
     }
-    
+
     public void writeArray(Bytes data) throws IOException {
         if (data == null) {
             writeNullArray();
@@ -111,8 +111,8 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
 
     public void writeNullArray() throws IOException {
         writeVInt(-1);
-    }    
-    
+    }
+
     public void writeArray(byte[] data) throws IOException {
         if (data == null) {
             writeNullArray();

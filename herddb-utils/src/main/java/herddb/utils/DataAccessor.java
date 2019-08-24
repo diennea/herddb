@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.Collections;
@@ -26,41 +27,41 @@ import java.util.function.BiConsumer;
 
 public interface DataAccessor {
 
-    public Object get(String property);
+    Object get(String property);
 
-    public default Map<String, Object> toMap() {
+    default Map<String, Object> toMap() {
         HashMap<String, Object> res = new HashMap<>();
         forEach(res::put);
         return res;
     }
 
-    public String[] getFieldNames();
-    
-    public default int getNumFields() {
+    String[] getFieldNames();
+
+    default int getNumFields() {
         return getFieldNames().length;
     }
 
-    public default void forEach(BiConsumer<String, Object> consumer) {
+    default void forEach(BiConsumer<String, Object> consumer) {
         for (String property : getFieldNames()) {
             consumer.accept(property, get(property));
         }
     }
 
-    public default Object get(int index) {
+    default Object get(int index) {
         return get(getFieldNames()[index]);
     }
-    
-    public default boolean fieldEqualsTo(int index, Object value) {
+
+    default boolean fieldEqualsTo(int index, Object value) {
         Object val = get(index);
         return SQLRecordPredicateFunctions.objectEquals(val, value);
     }
-    
-    public default int fieldCompareTo(int index, Object value) {
+
+    default int fieldCompareTo(int index, Object value) {
         Object val = get(index);
         return SQLRecordPredicateFunctions.compare(val, value);
     }
 
-    public default Object[] getValues() {
+    default Object[] getValues() {
         String[] fieldNames = getFieldNames();
         Object[] result = new Object[fieldNames.length];
         for (int i = 0; i < fieldNames.length; i++) {
@@ -69,7 +70,7 @@ public interface DataAccessor {
         return result;
     }
 
-    public static DataAccessor NULL = new AbstractDataAccessor() {
+    DataAccessor NULL = new AbstractDataAccessor() {
 
         @Override
         public void forEach(BiConsumer<String, Object> consumer) {
@@ -89,9 +90,8 @@ public interface DataAccessor {
         public int fieldCompareTo(int index, Object value) {
             return SQLRecordPredicateFunctions.compareNullTo(value);
         }
-        
-        
-                
+
+
         @Override
         public Object[] getValues() {
             return Constants.EMPTY_OBJECT_ARRAY;
@@ -104,7 +104,7 @@ public interface DataAccessor {
 
         @Override
         public Map<String, Object> toMap() {
-            return Collections.EMPTY_MAP;
+            return Collections.emptyMap();
         }
 
         @Override
@@ -114,8 +114,10 @@ public interface DataAccessor {
 
     };
 
-    public static DataAccessor ALL_NULLS(String[] fieldNames) {
+    // CHECKSTYLE.OFF: MethodName
+    static DataAccessor ALL_NULLS(String[] fieldNames) {
         return new AllNullsDataAccessor(fieldNames);
     }
+    // CHECKSTYLE.ON: MethodName
 
 }

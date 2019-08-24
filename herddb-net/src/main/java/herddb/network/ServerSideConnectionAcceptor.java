@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 /**
@@ -27,6 +28,6 @@ package herddb.network;
  */
 public interface ServerSideConnectionAcceptor<T extends ServerSideConnection> {
 
-    public T createConnection(Channel channel);
+    T createConnection(Channel channel);
 
 }

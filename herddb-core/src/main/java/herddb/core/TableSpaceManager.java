@@ -17,39 +17,8 @@
  under the License.
 
  */
+
 package herddb.core;
-
-import java.io.EOFException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.StampedLock;
-import java.util.function.BiConsumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
-import org.apache.bookkeeper.stats.OpStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.DumpedLogEntry;
@@ -129,6 +98,36 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import herddb.utils.SystemProperties;
+import java.io.EOFException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.StampedLock;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.OpStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Manages a TableSet in memory
@@ -137,7 +136,7 @@ import herddb.utils.SystemProperties;
  */
 public class TableSpaceManager {
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
-    
+
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
 
     final StatsLogger tablespaceStasLogger;
@@ -520,8 +519,10 @@ public class TableSpaceManager {
         return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist, prepareActions);
     }
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
-            TransactionContext transactionContext, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public DataScanner scan(
+            ScanStatement statement, StatementEvaluationContext context,
+            TransactionContext transactionContext, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         boolean rollbackOnError = false;
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
             try {
@@ -589,7 +590,7 @@ public class TableSpaceManager {
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, dbmanager.getServerToServerPassword());
-        try (HDBClient client = new HDBClient(clientConfiguration);) {
+        try (HDBClient client = new HDBClient(clientConfiguration)) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
                 public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
@@ -702,10 +703,7 @@ public class TableSpaceManager {
                 return false;
             }
             final CheckpointFuture other = (CheckpointFuture) obj;
-            if (!Objects.equals(this.tableName, other.tableName)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.tableName, other.tableName);
         }
 
     }
@@ -720,11 +718,11 @@ public class TableSpaceManager {
         for (Transaction t : transactions.values()) {
             if (t.isAbandoned(abandonedTransactionTimeout)) {
                 LOGGER.log(Level.SEVERE, "forcing rollback of abandoned transaction {0},"
-                        + " created locally at {1},"
-                        + " last activity locally at {2}",
+                                + " created locally at {1},"
+                                + " last activity locally at {2}",
                         new Object[]{t.transactionId,
-                            new java.sql.Timestamp(t.localCreationTimestamp),
-                            new java.sql.Timestamp(t.lastActivityTs)});
+                                new java.sql.Timestamp(t.localCreationTimestamp),
+                                new java.sql.Timestamp(t.lastActivityTs)});
                 long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
                 try {
                     forceTransactionRollback(t.transactionId);
@@ -793,9 +791,9 @@ public class TableSpaceManager {
     }
 
     @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
-    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
+    void dumpTableSpace(String dumpId, Channel channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
-        LOGGER.log(Level.INFO, "dumpTableSpace dumpId:{0} channel {1} fetchSize:{2}, includeLog:{3}", new Object[]{dumpId, _channel, fetchSize, includeLog});
+        LOGGER.log(Level.INFO, "dumpTableSpace dumpId:{0} channel {1} fetchSize:{2}, includeLog:{3}", new Object[]{dumpId, channel, fetchSize, includeLog});
 
         TableSpaceCheckpoint checkpoint;
 
@@ -828,10 +826,10 @@ public class TableSpaceManager {
             final int timeout = 60000;
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
 
-            long id = _channel.generateRequestId();
-            LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, _channel});
-            try (Pdu response_to_start = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
-                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout);) {
+            long id = channel.generateRequestId();
+            LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, channel});
+            try (Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout)) {
                 if (response_to_start.type != Pdu.TYPE_ACK) {
                     LOGGER.log(Level.SEVERE, "error response at start command");
                     return;
@@ -845,10 +843,10 @@ public class TableSpaceManager {
                 for (Transaction t : transactionsSnapshot) {
                     batch.add(t);
                     if (batch.size() == 10) {
-                        sendTransactionsDump(batch, _channel, dumpId, timeout);
+                        sendTransactionsDump(batch, channel, dumpId, timeout);
                     }
                 }
-                sendTransactionsDump(batch, _channel, dumpId, timeout);
+                sendTransactionsDump(batch, channel, dumpId, timeout);
             }
 
             for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
@@ -858,16 +856,16 @@ public class TableSpaceManager {
                     continue;
                 }
                 try {
-                    FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, _channel, dumpId, timeout, fetchSize);
+                    FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, channel, dumpId, timeout, fetchSize);
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
-                    long errorid = _channel.generateRequestId();
-                    try (Pdu response = _channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
+                    long errorid = channel.generateRequestId();
+                    try (Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
                             id, tableSpaceName, dumpId, "error", null, 0,
                             0, 0,
                             null, null),
-                            timeout);) {
+                            timeout)) {
                     }
                     return;
                 }
@@ -875,16 +873,16 @@ public class TableSpaceManager {
 
             if (!txlogentries.isEmpty()) {
                 txlogentries.sort(Comparator.naturalOrder());
-                sendDumpedCommitLog(txlogentries, _channel, dumpId, timeout);
+                sendDumpedCommitLog(txlogentries, channel, dumpId, timeout);
             }
 
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
-            long requestId2 = _channel.generateRequestId();
+            long requestId2 = channel.generateRequestId();
 
-            try (Pdu pdu = _channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
+            try (Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "finish", null, 0,
                     finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
-                    null, null), timeout);) {
+                    null, null), timeout)) {
             }
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
@@ -907,7 +905,7 @@ public class TableSpaceManager {
 
     }
 
-    private void sendTransactionsDump(List<Transaction> batch, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
+    private void sendTransactionsDump(List<Transaction> batch, Channel channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
         if (batch.isEmpty()) {
             return;
         }
@@ -917,11 +915,11 @@ public class TableSpaceManager {
                     return new KeyValue(Bytes.from_long(tr.transactionId), Bytes.from_array(tr.serialize()));
                 })
                 .collect(Collectors.toList());
-        long id = _channel.generateRequestId();
-        try (Pdu response_to_transactionsData = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        long id = channel.generateRequestId();
+        try (Pdu response_to_transactionsData = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "transactions", null, 0,
                 0, 0,
-                null, encodedTransactions), timeout);) {
+                null, encodedTransactions), timeout)) {
             if (response_to_transactionsData.type != Pdu.TYPE_ACK) {
                 LOGGER.log(Level.SEVERE, "error response at transactionsData command");
             }
@@ -929,17 +927,17 @@ public class TableSpaceManager {
         batch.clear();
     }
 
-    private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
+    private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
         List<KeyValue> batch = new ArrayList<>();
         for (DumpedLogEntry e : txlogentries) {
             batch.add(new KeyValue(Bytes.from_array(e.logSequenceNumber.serialize()),
                     Bytes.from_array(e.entryData)));
         }
-        long id = _channel.generateRequestId();
-        try (Pdu response_to_txlog = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        long id = channel.generateRequestId();
+        try (Pdu response_to_txlog = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "txlog", null, 0,
                 0, 0,
-                null, batch), timeout);) {
+                null, batch), timeout)) {
 
             if (response_to_txlog.type != Pdu.TYPE_ACK) {
                 LOGGER.log(Level.SEVERE, "error response at txlog command");
@@ -1048,12 +1046,14 @@ public class TableSpaceManager {
         }
     }
 
-    public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, StatementEvaluationContext context,
-            TransactionContext transactionContext) throws StatementExecutionException {
+    public CompletableFuture<StatementExecutionResult> executeStatementAsync(
+            Statement statement, StatementEvaluationContext context,
+            TransactionContext transactionContext
+    ) throws StatementExecutionException {
 
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID
                 && statement.supportsTransactionAutoCreate() // Do not autostart transaction on alter table statements
-                ) {
+        ) {
             AtomicLong capturedTx = new AtomicLong();
             boolean wasHoldingTableSpaceLock = context.getTableSpaceLock() != 0;
             CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync(context, false);
@@ -1092,8 +1092,10 @@ public class TableSpaceManager {
         }
     }
 
-    private CompletableFuture<StatementExecutionResult> executeStatementAsyncInternal(Statement statement, StatementEvaluationContext context,
-            TransactionContext transactionContext, boolean rollbackOnError) throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> executeStatementAsyncInternal(
+            Statement statement, StatementEvaluationContext context,
+            TransactionContext transactionContext, boolean rollbackOnError
+    ) throws StatementExecutionException {
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null
                 && !transaction.tableSpace.equals(tableSpaceName)) {
@@ -1136,7 +1138,7 @@ public class TableSpaceManager {
             } else if (statement instanceof DropTableStatement) {
                 res = CompletableFuture.completedFuture(dropTable((DropTableStatement) statement, transaction, context));
             } else if (statement instanceof DropIndexStatement) {
-                res =  CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
+                res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
             } else {
@@ -1147,7 +1149,7 @@ public class TableSpaceManager {
             res = FutureUtils.exception(error);
         }
         if (transaction != null && !isTransactionCommand) {
-            res = res.whenComplete((a,b) -> {
+            res = res.whenComplete((a, b) -> {
                 transaction.decreaseRefCount();
             });
         }
@@ -1174,8 +1176,10 @@ public class TableSpaceManager {
         return res;
     }
 
-    private CompletableFuture<StatementExecutionResult> executePlannedOperationStatement(Statement statement,
-            TransactionContext transactionContext, StatementEvaluationContext context) {
+    private CompletableFuture<StatementExecutionResult> executePlannedOperationStatement(
+            Statement statement,
+            TransactionContext transactionContext, StatementEvaluationContext context
+    ) {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
@@ -1185,8 +1189,8 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res
-                = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        CompletableFuture<StatementExecutionResult> res =
+                planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
 //        });
@@ -1200,7 +1204,7 @@ public class TableSpaceManager {
         return res;
     }
 
-    private CompletableFuture<StatementExecutionResult> executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws TableDoesNotExistException, StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
@@ -1519,7 +1523,7 @@ public class TableSpaceManager {
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
         LOGGER.log(Level.INFO, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
-            table.uuid});
+                table.uuid});
         AbstractTableManager tableManager = null;
         String oldTableName = null;
         for (AbstractTableManager tm : tables.values()) {
@@ -1564,13 +1568,15 @@ public class TableSpaceManager {
         }
     }
 
-    private static final class TableSpaceCheckpoint {
+    private static class TableSpaceCheckpoint {
 
         private final LogSequenceNumber sequenceNumber;
         private final Map<String, LogSequenceNumber> tablesCheckpoints;
 
-        public TableSpaceCheckpoint(LogSequenceNumber sequenceNumber,
-                Map<String, LogSequenceNumber> tablesCheckpoints) {
+        public TableSpaceCheckpoint(
+                LogSequenceNumber sequenceNumber,
+                Map<String, LogSequenceNumber> tablesCheckpoints
+        ) {
             super();
             this.sequenceNumber = sequenceNumber;
             this.tablesCheckpoints = tablesCheckpoints;
@@ -1767,7 +1773,8 @@ public class TableSpaceManager {
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
-            CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
+            CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description
+    ) {
         return promise.whenComplete((r, error) -> {
             releaseReadLock(lockStamp, description);
         });

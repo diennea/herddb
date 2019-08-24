@@ -17,16 +17,18 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
  * Access to Table level information and functions
+ *
  * @author enrico.olivelli
  */
 public interface TableContext {
 
-    public byte[] computeNewPrimaryKeyValue();
-    
-    public Table getTable();
-    
+    byte[] computeNewPrimaryKeyValue();
+
+    Table getTable();
+
 }

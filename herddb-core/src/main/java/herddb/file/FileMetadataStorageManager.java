@@ -17,8 +17,25 @@
  under the License.
 
  */
+
 package herddb.file;
 
+import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.DDLException;
+import herddb.model.NodeMetadata;
+import herddb.model.TableSpace;
+import herddb.model.TableSpaceAlreadyExistsException;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TableSpaceReplicaState;
+import herddb.server.ServerConfiguration;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import herddb.utils.ManagedFile;
+import herddb.utils.SimpleBufferedOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.XXHash64Utils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryStream;
@@ -37,23 +54,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import herddb.metadata.MetadataStorageManager;
-import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.DDLException;
-import herddb.model.NodeMetadata;
-import herddb.model.TableSpace;
-import herddb.model.TableSpaceAlreadyExistsException;
-import herddb.model.TableSpaceDoesNotExistException;
-import herddb.model.TableSpaceReplicaState;
-import herddb.server.ServerConfiguration;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.FileUtils;
-import herddb.utils.ManagedFile;
-import herddb.utils.SimpleBufferedOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
-import herddb.utils.XXHash64Utils;
-
 /**
  * Metadata on local files. Useful for single instance deplyments
  *
@@ -65,7 +65,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
     private final List<NodeMetadata> nodes = new ArrayList<>();
-    private final static Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
     private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
     private volatile boolean started;
 
@@ -208,7 +208,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException("corrutped data file " + p.toAbsolutePath() + ", checksum failed");
         }
         try (InputStream in = new SimpleByteArrayInputStream(pageData);
-                ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
+             ExtendedDataInputStream iin = new ExtendedDataInputStream(in)) {
             long version = iin.readVLong(); // version
             long flags = iin.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -224,10 +224,10 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         Path tablespaceMeta = baseDirectory.resolve(tableSpace.name.toLowerCase() + ".metadata");
 
         try (ManagedFile file = ManagedFile.open(tablespaceMetaTmp, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),
-                        FileDataStorageManager.COPY_BUFFERS_SIZE);
-                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(oo)) {
+             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),
+                     FileDataStorageManager.COPY_BUFFERS_SIZE);
+             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+             ExtendedDataOutputStream dout = new ExtendedDataOutputStream(oo)) {
 
             dout.writeVLong(1); // version
             dout.writeVLong(0); // flags for future implementations

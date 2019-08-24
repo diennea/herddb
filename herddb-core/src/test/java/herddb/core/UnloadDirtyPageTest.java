@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -24,13 +25,6 @@ import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -39,13 +33,17 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 public class UnloadDirtyPageTest {
 
     @Test
     public void unloadDirtyPageOnCheckpoint() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -61,14 +59,14 @@ public class UnloadDirtyPageTest {
             manager.checkpoint();
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
 
             assertEquals(2, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getLoadedpages());
+                    .getTableManager("tsql").getStats().getLoadedpages());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where k1 = 'mykey4'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where k1 = 'mykey4'", Collections.emptyList())) {
                 List<DataAccessor> result = scan.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("b"), result.get(0).get("s1"));
@@ -80,7 +78,7 @@ public class UnloadDirtyPageTest {
     @Test
     public void rebuildPageOnCheckpoint() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -96,14 +94,14 @@ public class UnloadDirtyPageTest {
             manager.checkpoint();
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
 
             assertEquals(2, manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql").getStats().getLoadedpages());
+                    .getTableManager("tsql").getStats().getLoadedpages());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where k1 = 'mykey4'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where k1 = 'mykey4'", Collections.emptyList())) {
                 List<DataAccessor> result = scan.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("b"), result.get(0).get("s1"));
@@ -115,7 +113,7 @@ public class UnloadDirtyPageTest {
     @Test
     public void updateDirtyRecordTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -131,12 +129,12 @@ public class UnloadDirtyPageTest {
             manager.checkpoint();
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
-                Arrays.asList("b", "mykey4")).getUpdateCount());
+                    Arrays.asList("b", "mykey4")).getUpdateCount());
 
         }
     }

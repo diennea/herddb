@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 /**
@@ -38,6 +39,6 @@ public interface ILocalLockManager {
 
     void releaseWriteLock(LockHandle handle);
 
-    public int getNumKeys();
+    int getNumKeys();
 
 }

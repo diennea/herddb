@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 /**
@@ -31,5 +32,5 @@ public interface SizeAwareObject {
      *
      * @return size estimation in bytes
      */
-    public long getEstimatedSize();
+    long getEstimatedSize();
 }

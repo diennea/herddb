@@ -17,18 +17,11 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Path;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -45,6 +38,11 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
+import java.nio.file.Path;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on index creation and recovery after restart
@@ -92,7 +90,7 @@ public class SimpleIHashIndexRecoveryTest {
                     .onTable(table)
                     .type(Index.TYPE_HASH)
                     .column("name", ColumnTypes.STRING).
-                    build();
+                            build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
@@ -106,7 +104,7 @@ public class SimpleIHashIndexRecoveryTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(3, scan1.consume().size());
             }
 
@@ -124,14 +122,14 @@ public class SimpleIHashIndexRecoveryTest {
 
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(3, scan1.consume().size());
             }
 
         }
 
     }
-    
+
     @Test
     public void createRecoveryIndex_withduoblecheckpoint() throws Exception {
 
@@ -168,7 +166,7 @@ public class SimpleIHashIndexRecoveryTest {
                     .onTable(table)
                     .type(Index.TYPE_HASH)
                     .column("name", ColumnTypes.STRING).
-                    build();
+                            build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
@@ -182,7 +180,7 @@ public class SimpleIHashIndexRecoveryTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(3, scan1.consume().size());
             }
 
@@ -201,7 +199,7 @@ public class SimpleIHashIndexRecoveryTest {
 
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(3, scan1.consume().size());
             }
 

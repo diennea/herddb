@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
@@ -24,7 +25,6 @@ import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
 
 /**
- *
  * @author eolivelli
  */
 public class AccessCorrelVariableExpression implements CompiledSQLExpression {

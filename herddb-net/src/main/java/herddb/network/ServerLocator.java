@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 /**
@@ -26,11 +27,11 @@ package herddb.network;
  */
 public interface ServerLocator extends AutoCloseable {
 
-    public Channel connect(ChannelEventListener messageReceiver, ConnectionRequestInfo workerInfo) throws InterruptedException, ServerNotAvailableException, ServerRejectedConnectionException;
+    Channel connect(ChannelEventListener messageReceiver, ConnectionRequestInfo workerInfo) throws InterruptedException, ServerNotAvailableException, ServerRejectedConnectionException;
 
-    public void brokerDisconnected();
-    
+    void brokerDisconnected();
+
     @Override
-    public default void close() {
+    default void close() {
     }
 }

@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
+import static herddb.utils.SQLRecordPredicateFunctions.toBoolean;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.utils.SQLRecordPredicateFunctions.toBoolean;
 
 public class CompiledParenthesisExpression implements CompiledSQLExpression {
 

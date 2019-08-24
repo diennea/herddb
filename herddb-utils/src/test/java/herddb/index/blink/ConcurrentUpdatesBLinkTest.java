@@ -17,12 +17,15 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
+import herddb.core.ClockProPolicy;
+import herddb.utils.RandomString;
+import herddb.utils.Sized;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -32,13 +35,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.junit.Ignore;
 import org.junit.Test;
-
-import herddb.core.ClockProPolicy;
-import herddb.utils.RandomString;
-import herddb.utils.Sized;
 
 /**
  * Tests on concurcurrent massive updates on different keys
@@ -69,10 +67,10 @@ public class ConcurrentUpdatesBLinkTest {
     @Test
     public void concurrentUpdatesTests() throws Exception {
 
-        int DATA_SIZE = 50000;
-        int THREADS = 4;
-        int KEY_SIZE = 25;
-        int ITERATIONS = 100000;
+        int dataSize = 50000;
+        int threads = 4;
+        int keySize = 25;
+        int iterations = 100000;
         BLinkTest.DummyBLinkIndexDataStorage<Sized<String>, Long> storage = new BLinkTest.DummyBLinkIndexDataStorage<>();
 
         try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new BLinkTest.StringSizeEvaluator(), new ClockProPolicy(30), storage)) {
@@ -81,8 +79,8 @@ public class ConcurrentUpdatesBLinkTest {
             RandomString rs = new RandomString(random);
             ConcurrentHashMap<String, Long> expectedValues = new ConcurrentHashMap<>();
             List<String> keys = new ArrayList<>();
-            for (int i = 0; i < DATA_SIZE; ++i) {
-                String key = rs.nextString(KEY_SIZE);
+            for (int i = 0; i < dataSize; ++i) {
+                String key = rs.nextString(keySize);
                 keys.add(key);
                 long value = random.nextInt(Integer.MAX_VALUE) + 1;
                 assertTrue(value > 0); // zero means null
@@ -90,14 +88,14 @@ public class ConcurrentUpdatesBLinkTest {
                 expectedValues.put(key, value);
             }
             int numKeys = keys.size();
-            ExecutorService threadpool = Executors.newFixedThreadPool(THREADS);
+            ExecutorService threadpool = Executors.newFixedThreadPool(threads);
             System.out.println("generated " + numKeys + " keys");
             AtomicLong updates = new AtomicLong();
             AtomicLong inserts = new AtomicLong();
             AtomicLong skipped = new AtomicLong();
             AtomicLong deletes = new AtomicLong();
             List<Future<?>> futures = new ArrayList<>();
-            for (int i = 0; i < ITERATIONS; i++) {
+            for (int i = 0; i < iterations; i++) {
                 String key = keys.get(random.nextInt(numKeys));
                 long value = random.nextLong();
                 boolean delete = random.nextInt(100) < 10; // 10 % deletes
@@ -130,7 +128,7 @@ public class ConcurrentUpdatesBLinkTest {
             for (Future f : futures) {
                 f.get();
                 if (++progress % 10000 == 0) {
-                    System.out.println("done " + progress + "/" + ITERATIONS);
+                    System.out.println("done " + progress + "/" + iterations);
                 }
             }
             int nulls = 0;
@@ -149,7 +147,7 @@ public class ConcurrentUpdatesBLinkTest {
             System.out.println("updates " + updates);
             System.out.println("skipped " + skipped);
             System.out.println("deletes " + deletes);
-            System.out.println("iterations " + ITERATIONS + " (" + (inserts.intValue() + updates.intValue() + deletes.intValue()+ skipped.intValue()) + ")");
+            System.out.println("iterations " + iterations + " (" + (inserts.intValue() + updates.intValue() + deletes.intValue() + skipped.intValue()) + ")");
             System.out.println("nulls " + nulls);
             threadpool.shutdown();
         }

@@ -17,20 +17,8 @@
  under the License.
 
  */
+
 package herddb.model;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.logging.Logger;
-
-import org.apache.commons.collections.map.HashedMap;
 
 import herddb.core.HerdDBInternalException;
 import herddb.log.CommitLogResult;
@@ -43,8 +31,19 @@ import herddb.utils.ILocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.commons.collections.map.HashedMap;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -96,13 +95,13 @@ public class Transaction {
         int res = refCount.decrementAndGet();
         if (res < 0) {
             LOG.log(Level.SEVERE, "transaction {0} "
-                    + "on tablespace {1} "
-                    + "has {2} pending activities",
+                            + "on tablespace {1} "
+                            + "has {2} pending activities",
                     new Object[]{transactionId, tableSpace, res});
         }
 //         new Exception("END tsx "+transactionId+" now "+res).printStackTrace();
     }
-    
+
     public boolean hasPendingActivities() {
         return refCount.get() > 0;
     }
@@ -110,7 +109,7 @@ public class Transaction {
     public int getRefCount() {
         return refCount.get();
     }
-    
+
     public void touch() {
         lastActivityTs = System.currentTimeMillis();
     }
@@ -136,14 +135,12 @@ public class Transaction {
         if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        if (newTables
-                == null) {
+        if (newTables == null){
             newTables = new HashMap<>();
         }
 
         newTables.put(table.name, table);
-        if (droppedTables
-                == null) {
+        if (droppedTables == null){
             droppedTables = new HashSet<>();
         }
 
@@ -212,12 +209,13 @@ public class Transaction {
             }
         }
     }
+
     private static final Logger LOG = Logger.getLogger(Transaction.class.getName());
 
     public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
-            for (Iterator<Map.Entry<Bytes, LockHandle>> it = ll.entrySet().iterator(); it.hasNext();) {
+            for (Iterator<Map.Entry<Bytes, LockHandle>> it = ll.entrySet().iterator(); it.hasNext(); ) {
                 Map.Entry<Bytes, LockHandle> next = it.next();
                 if (next.getValue() == lock) {
                     it.remove();
@@ -228,10 +226,9 @@ public class Transaction {
     }
 
     /**
-     *
      * @param tableName
      * @param key
-     * @param value if null this is a DELETE
+     * @param value     if null this is a DELETE
      */
     public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, CommitLogResult writeResult) {
         if (updateLastSequenceNumber(writeResult)) {
@@ -300,7 +297,7 @@ public class Transaction {
     @Override
     public String toString() {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace
-                + ", refcount "+refCount+", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
+                + ", refcount " + refCount + ", locks=" + locks.size() + ", changedRecords=" + changedRecords.size()
                 + ", newRecords=" + newRecords.size()
                 + ", deletedRecords=" + deletedRecords.size()
                 + ", newTables=" + newTables

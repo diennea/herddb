@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package herddb.utils;
 
 /**
@@ -25,10 +26,11 @@ public abstract class InstrumentationUtils {
     private InstrumentationUtils() {
     }
 
-    public static interface Listener {
+    public interface Listener {
 
-        public void run(String id, Object... args);
+        void run(String id, Object... args);
     }
+
     private static Listener[] listeners = new Listener[0];
 
     public static void instrument(String id, Object... args) {

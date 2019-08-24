@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -28,8 +31,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,19 +45,19 @@ public class TransactionsTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    
+
     @Test
     public void test() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Connection con2 = dataSource.getConnection();
-                        Statement statement = con.createStatement();
-                        Statement statement2 = con2.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Connection con2 = dataSource.getConnection();
+                     Statement statement = con.createStatement();
+                     Statement statement2 = con2.createStatement()) {
 
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     con.setAutoCommit(false);
@@ -105,27 +106,27 @@ public class TransactionsTest {
                     con.commit();
 
                     try (PreparedStatement ps1 = con.prepareStatement("SELECT COUNT(*) FROM mytable");
-                            ResultSet rs = ps1.executeQuery()) {
+                         ResultSet rs = ps1.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(4, rs.getLong(1));
                     }
                     con.commit();
 
                     // complex multi record update
-                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE 1=-1");) {
+                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE 1=-1")) {
                         assertEquals(0, ps1.executeUpdate());
                     }
                     con.commit();
-                    
-                    
+
+
                     // complex multi record update
-                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE 1=1");) {
+                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE 1=1")) {
                         assertEquals(4, ps1.executeUpdate());
                     }
                     con.commit();
 
                     // direct record update
-                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE key='k5'");) {
+                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE key='k5'")) {
                         assertEquals(0, ps1.executeUpdate());
                     }
                     con.commit();
@@ -134,7 +135,7 @@ public class TransactionsTest {
             }
         }
     }
-    
+
     /**
      * Commit on a connection without any work
      */
@@ -143,10 +144,10 @@ public class TransactionsTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                     Connection con = dataSource.getConnection();) {
+                     Connection con = dataSource.getConnection()) {
 
                     con.setAutoCommit(false);
                     con.commit();
@@ -154,7 +155,7 @@ public class TransactionsTest {
             }
         }
     }
-    
+
     /**
      * Commit on a connection with just instructions that do not auto create a transaction
      */
@@ -163,13 +164,13 @@ public class TransactionsTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Connection con2 = dataSource.getConnection();
-                        Statement statement = con.createStatement();
-                        Statement statement2 = con2.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Connection con2 = dataSource.getConnection();
+                     Statement statement = con.createStatement();
+                     Statement statement2 = con2.createStatement()) {
 
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
@@ -178,7 +179,7 @@ public class TransactionsTest {
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k3','name3')"));
 
                     con2.setAutoCommit(false);
-                    
+
                     int update = statement2.executeUpdate("ALTER TABLE mytable ADD COLUMN other string");
                     assertEquals(1, update);
 

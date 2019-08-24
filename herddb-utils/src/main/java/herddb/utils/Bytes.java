@@ -17,13 +17,13 @@
  under the License.
 
  */
-package herddb.utils;
 
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
+package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.internal.PlatformDependent;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A wrapper for byte[], in order to use it as keys on HashMaps
@@ -55,7 +55,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
      */
     private static final int CONSTANT_BYTE_SIZE = 24;
 
-    public static final long estimateSize(byte[] value) {
+    public static long estimateSize(byte[] value) {
         return value.length + CONSTANT_BYTE_SIZE;
     }
 
@@ -425,7 +425,6 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
      * </p>
      *
      * @return the next Bytes instance
-     *
      * @throws IllegalStateException if cannot evaluate a next value.
      */
     public Bytes next() {
@@ -460,6 +459,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     /**
      * Ensure that this value is not retaining strong references to a shared buffer
+     *
      * @return the buffer itself or a copy
      */
     public Bytes nonShared() {
@@ -472,7 +472,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public boolean isShared() {
-        return this.offset !=0 || this.length != buffer.length;
+        return this.offset != 0 || this.length != buffer.length;
     }
 
 }

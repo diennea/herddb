@@ -17,20 +17,20 @@
  under the License.
 
  */
-package herddb.storage;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
+package herddb.storage;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.PageSet.DataPageMetaData;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Status of a table on disk
@@ -43,11 +43,13 @@ public class TableStatus {
     public final String tableName;
     public final LogSequenceNumber sequenceNumber;
     public final byte[] nextPrimaryKeyValue;
-    public final Map<Long,DataPageMetaData> activePages;
+    public final Map<Long, DataPageMetaData> activePages;
     public final long nextPageId;
 
-    public TableStatus(String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, long nextPageId,
-            Map<Long,DataPageMetaData> activePages) {
+    public TableStatus(
+            String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, long nextPageId,
+            Map<Long, DataPageMetaData> activePages
+    ) {
         this.tableName = tableName;
         this.sequenceNumber = sequenceNumber;
         this.nextPrimaryKeyValue = nextPrimaryKeyValue;
@@ -65,7 +67,7 @@ public class TableStatus {
         output.writeArray(nextPrimaryKeyValue);
 
         output.writeVInt(activePages.size());
-        for (Entry<Long,DataPageMetaData> active : activePages.entrySet()) {
+        for (Entry<Long, DataPageMetaData> active : activePages.entrySet()) {
             /* id */
             output.writeVLong(active.getKey());
             /* metadata */
@@ -86,7 +88,7 @@ public class TableStatus {
         byte[] nextPrimaryKeyValue = in.readArray();
 
         int numActivePages = in.readVInt();
-        Map<Long,DataPageMetaData> activePages = new HashMap<>(numActivePages);
+        Map<Long, DataPageMetaData> activePages = new HashMap<>(numActivePages);
         for (int i = 0; i < numActivePages; i++) {
             activePages.put(in.readVLong(), DataPageMetaData.deserialize(in));
         }
@@ -95,11 +97,11 @@ public class TableStatus {
 
     @Override
     public String toString() {
-        return "TableStatus{" + "tableName=" + tableName +
-                    ", sequenceNumber=" + sequenceNumber +
-                    ", nextPageId=" + nextPageId +
-                    ", activePages=" + activePages.keySet() +
-                    '}';
+        return "TableStatus{" + "tableName=" + tableName
+                + ", sequenceNumber=" + sequenceNumber
+                + ", nextPageId=" + nextPageId
+                + ", activePages=" + activePages.keySet()
+                + '}';
     }
 
     @Override
@@ -137,12 +139,8 @@ public class TableStatus {
         if (!Arrays.equals(this.nextPrimaryKeyValue, other.nextPrimaryKeyValue)) {
             return false;
         }
-        if (!Objects.equals(this.activePages, other.activePages)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.activePages, other.activePages);
     }
-
 
 
 }

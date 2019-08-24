@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.Statement;
@@ -52,5 +53,5 @@ public class SQLPlannedOperationStatement extends Statement {
         return "SQLPlannedOperationStatement{" + "rootOp=" + rootOp + '}';
     }
 
-    
+
 }

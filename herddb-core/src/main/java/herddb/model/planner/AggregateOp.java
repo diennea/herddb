@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -37,13 +38,8 @@ import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.functions.BuiltinFunctions;
-import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.RawString;
-import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.Wrapper;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -64,12 +60,14 @@ public class AggregateOp implements PlannerOp {
     private final List<Integer> groupedFiledsIndexes;
     private final List<List<Integer>> argLists;
 
-    public AggregateOp(PlannerOp input,
+    public AggregateOp(
+            PlannerOp input,
             String[] fieldnames,
             Column[] columns,
             String[] aggtypes,
             List<List<Integer>> argLists,
-            List<Integer> groupedFiledsIndexes) {
+            List<Integer> groupedFiledsIndexes
+    ) {
         this.input = input;
         this.fieldnames = fieldnames;
         this.columns = columns;
@@ -84,13 +82,14 @@ public class AggregateOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
             StatementEvaluationContext context,
-            boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
 
-        StatementExecutionResult input
-                = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstreamScanResult = (ScanResult) input;
         final DataScanner inputScanner = downstreamScanResult.dataScanner;
         AggregatedDataScanner filtered = new AggregatedDataScanner(inputScanner, context,
@@ -99,7 +98,7 @@ public class AggregateOp implements PlannerOp {
 
     }
 
-    private static final class Group {
+    private static class Group {
 
         AggregatedColumnCalculator[] columns;
 
@@ -116,9 +115,11 @@ public class AggregateOp implements PlannerOp {
         private final StatementEvaluationContext context;
         private final RecordSetFactory recordSetFactory;
 
-        public AggregatedDataScanner(DataScanner wrapped,
+        public AggregatedDataScanner(
+                DataScanner wrapped,
                 StatementEvaluationContext context,
-                RecordSetFactory recordSetFactory) throws StatementExecutionException {
+                RecordSetFactory recordSetFactory
+        ) throws StatementExecutionException {
             super(wrapped.getTransaction(), fieldnames, columns);
             this.wrapped = wrapped;
             this.context = context;
@@ -152,10 +153,7 @@ public class AggregateOp implements PlannerOp {
                     return false;
                 }
                 final Key other = (Key) obj;
-                if (!Arrays.deepEquals(this.values, other.values)) {
-                    return false;
-                }
-                return true;
+                return Arrays.deepEquals(this.values, other.values);
             }
 
         }
@@ -240,8 +238,7 @@ public class AggregateOp implements PlannerOp {
                 String fieldName = fieldnames[i];
                 List<Integer> argList = argLists.get(i);
                 CompiledSQLExpression param = argList.isEmpty() ? null : new AccessCurrentRowExpression(argList.get(0)); // TODO, multi params ?
-                AggregatedColumnCalculator calculator
-                        = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, param, context);
+                AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, param, context);
                 if (calculator == null) {
                     throw new StatementExecutionException("not implemented aggregation type " + aggtype);
                 }

@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
- *
  * @author eolivelli
  */
 public interface ScanLimits {
@@ -28,5 +28,5 @@ public interface ScanLimits {
     int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException;
 
     int computeOffset(StatementEvaluationContext context) throws StatementExecutionException;
-    
+
 }

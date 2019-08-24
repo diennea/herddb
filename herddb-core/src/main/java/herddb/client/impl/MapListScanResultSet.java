@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.client.impl;
 
 import herddb.client.HDBException;

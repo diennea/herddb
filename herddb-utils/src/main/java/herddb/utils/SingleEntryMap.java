@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.Serializable;

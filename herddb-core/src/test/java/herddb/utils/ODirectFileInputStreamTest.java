@@ -17,15 +17,14 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -33,6 +32,7 @@ import org.junit.rules.TemporaryFolder;
 /**
  * Testing O_DIRECT. This file should be in core project, because it leverages Multi-Release JAR
  * feature of JDK10
+ *
  * @author diego.salvi
  */
 public class ODirectFileInputStreamTest {
@@ -56,7 +56,7 @@ public class ODirectFileInputStreamTest {
         Path path = tmp.newFile().toPath();
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
-        int writeSize = blockSize + blockSize/2;
+        int writeSize = blockSize + blockSize / 2;
         assertTrue(writeSize > blockSize);
 
         byte[] data = new byte[writeSize];
@@ -66,7 +66,7 @@ public class ODirectFileInputStreamTest {
         try (ODirectFileInputStream oo = new ODirectFileInputStream(path)) {
 
             int count = 0;
-            while(oo.read() != -1) {
+            while (oo.read() != -1) {
                 ++count;
             }
 
@@ -82,7 +82,7 @@ public class ODirectFileInputStreamTest {
         Path path = tmp.newFile().toPath();
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
-        int partialSize = blockSize/2;
+        int partialSize = blockSize / 2;
         assertTrue(partialSize < blockSize);
 
         byte[] data = new byte[partialSize];
@@ -105,7 +105,7 @@ public class ODirectFileInputStreamTest {
         Path path = tmp.newFile().toPath();
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
-        int writeSize = blockSize + blockSize/2;
+        int writeSize = blockSize + blockSize / 2;
         assertTrue(writeSize > blockSize);
 
         byte[] data = new byte[writeSize];
@@ -129,7 +129,7 @@ public class ODirectFileInputStreamTest {
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
         int fetchSize = 2;
-        int writeSize = blockSize * (fetchSize + 1) + blockSize/2;
+        int writeSize = blockSize * (fetchSize + 1) + blockSize / 2;
         assertTrue(writeSize > blockSize);
 
         byte[] data = new byte[writeSize];
@@ -152,7 +152,7 @@ public class ODirectFileInputStreamTest {
         Path path = tmp.newFile().toPath();
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
-        int partialSize = blockSize/2;
+        int partialSize = blockSize / 2;
         int writeSize = blockSize + partialSize;
         assertTrue(writeSize > blockSize);
         assertTrue(partialSize < blockSize);
@@ -182,7 +182,7 @@ public class ODirectFileInputStreamTest {
         Path path = tmp.newFile().toPath();
         int blockSize = (int) OpenFileUtils.getBlockSize(path);
 
-        int partialSize = blockSize/2;
+        int partialSize = blockSize / 2;
         int writeSize = blockSize + partialSize;
         assertTrue(writeSize > blockSize);
         assertTrue(partialSize < blockSize);
@@ -201,7 +201,7 @@ public class ODirectFileInputStreamTest {
                     totalRead += read;
                 }
 
-                assertTrue(read == -1 ? true : read <= partialSize);
+                assertTrue(read == -1 || read <= partialSize);
 
             }
             assertEquals(writeSize, totalRead);

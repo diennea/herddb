@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import herddb.backup.DumpedTableMetadata;
@@ -106,7 +107,7 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     @Override
     public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
         Table table = dumpedTable.table;
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats+", dumped at "+dumpedTable.logSequenceNumber+" (general dump at "+logSequenceNumber+")");
+        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
         currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber);
     }
 

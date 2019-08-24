@@ -17,18 +17,12 @@
  under the License.
 
  */
+
 package herddb.server.hammer;
 
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.DMLResult;
 import herddb.client.GetResult;
@@ -41,7 +35,11 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -50,9 +48,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Concurrent updates
@@ -61,9 +60,9 @@ import static org.junit.Assert.assertTrue;
  */
 public class MultipleConcurrentUpdatesTest {
 
-    private static int TABLESIZE = 2000;
-    private static int MULTIPLIER = 2;
-    private static int THREADPOLSIZE = 100;
+    private static final int TABLESIZE = 2000;
+    private static final int MULTIPLIER = 2;
+    private static final int THREADPOLSIZE = 100;
 
     private static final RawString N1 = RawString.of("n1");
 
@@ -128,7 +127,7 @@ public class MultipleConcurrentUpdatesTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
@@ -160,59 +159,59 @@ public class MultipleConcurrentUpdatesTest {
                     AtomicLong gets = new AtomicLong();
                     for (int i = 0; i < TABLESIZE * MULTIPLIER; i++) {
                         futures.add(threadPool.submit(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    boolean update = ThreadLocalRandom.current().nextBoolean();
-                                    int k = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                    long value = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                    long transactionId;
-                                    String key = "test_" + k;
-                                    Long actual = expectedValue.remove(key);
-                                    if (actual == null) {
-                                        // another thread working on this entry, skip
-                                        skipped.incrementAndGet();
-                                        return;
-                                    }
-                                    if (update) {
-                                        updates.incrementAndGet();
+                                                          @Override
+                                                          public void run() {
+                                                              try {
+                                                                  boolean update = ThreadLocalRandom.current().nextBoolean();
+                                                                  int k = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                                                  long value = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                                                  long transactionId;
+                                                                  String key = "test_" + k;
+                                                                  Long actual = expectedValue.remove(key);
+                                                                  if (actual == null) {
+                                                                      // another thread working on this entry, skip
+                                                                      skipped.incrementAndGet();
+                                                                      return;
+                                                                  }
+                                                                  if (update) {
+                                                                      updates.incrementAndGet();
 
-                                        DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                                "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false, true,
-                                                Arrays.asList(value, "test_" + k));
+                                                                      DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
+                                                                              "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false, true,
+                                                                              Arrays.asList(value, "test_" + k));
 
-                                        long count = updateResult.updateCount;
-                                        transactionId = updateResult.transactionId;
-                                        if (count <= 0) {
-                                            throw new RuntimeException("not updated ?");
-                                        }
-                                    } else {
-                                        gets.incrementAndGet();
-                                        GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT * FROM mytable where id=?",
-                                                useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, true, Arrays.asList("test_" + k));
+                                                                      long count = updateResult.updateCount;
+                                                                      transactionId = updateResult.transactionId;
+                                                                      if (count <= 0) {
+                                                                          throw new RuntimeException("not updated ?");
+                                                                      }
+                                                                  } else {
+                                                                      gets.incrementAndGet();
+                                                                      GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT * FROM mytable where id=?",
+                                                                              useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, true, Arrays.asList("test_" + k));
 
-                                        if (res.data == null) {
-                                            throw new RuntimeException("not found?");
-                                        }
-                                        if (!res.data.get(N1).equals(actual)) {
-                                            throw new RuntimeException("unspected value " + res.data + ", expected: " + actual);
-                                        }
-                                        transactionId = res.transactionId;
-                                        // value did not change actually
-                                        value = actual;
-                                    }
-                                    if (useTransactions) {
-                                        if (transactionId <= 0) {
-                                            throw new RuntimeException("no transaction ?");
-                                        }
-                                        connection.commitTransaction(TableSpace.DEFAULT, transactionId);
-                                    }
-                                    expectedValue.put(key, value);
-                                } catch (Exception err) {
-                                    throw new RuntimeException(err);
-                                }
-                            }
-                        }
+                                                                      if (res.data == null) {
+                                                                          throw new RuntimeException("not found?");
+                                                                      }
+                                                                      if (!res.data.get(N1).equals(actual)) {
+                                                                          throw new RuntimeException("unspected value " + res.data + ", expected: " + actual);
+                                                                      }
+                                                                      transactionId = res.transactionId;
+                                                                      // value did not change actually
+                                                                      value = actual;
+                                                                  }
+                                                                  if (useTransactions) {
+                                                                      if (transactionId <= 0) {
+                                                                          throw new RuntimeException("no transaction ?");
+                                                                      }
+                                                                      connection.commitTransaction(TableSpace.DEFAULT, transactionId);
+                                                                  }
+                                                                  expectedValue.put(key, value);
+                                                              } catch (Exception err) {
+                                                                  throw new RuntimeException(err);
+                                                              }
+                                                          }
+                                                      }
                         ));
                     }
                     for (Future f : futures) {
@@ -261,7 +260,7 @@ public class MultipleConcurrentUpdatesTest {
             server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {
                     GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",

@@ -17,19 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.file.FileCommitLog;
 import herddb.file.FileDataStorageManager;
 import herddb.log.CommitLog;
@@ -45,16 +39,18 @@ import herddb.model.commands.UpdateStatement;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class FlushFileTest extends BaseTestcase {

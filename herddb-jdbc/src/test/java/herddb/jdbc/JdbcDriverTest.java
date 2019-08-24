@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
@@ -26,10 +28,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Enumeration;
-import org.junit.After;
 import org.junit.AfterClass;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -51,8 +50,8 @@ public class JdbcDriverTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -62,8 +61,8 @@ public class JdbcDriverTest {
             }
 
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -83,11 +82,11 @@ public class JdbcDriverTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                    Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                    Statement statement = connection.createStatement();
-                    Statement statement2 = connection2.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
-                    ResultSet rs2 = statement2.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+                 Statement statement = connection.createStatement();
+                 Statement statement2 = connection2.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
+                 ResultSet rs2 = statement2.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -100,8 +99,8 @@ public class JdbcDriverTest {
             }
 
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -117,7 +116,7 @@ public class JdbcDriverTest {
 
     @AfterClass
     public static void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }

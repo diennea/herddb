@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -31,8 +33,6 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * JDBC Driver
@@ -130,7 +130,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     public synchronized void closeDatasources(String url) {
 
         List<Entry<String, HerdDBEmbeddedDataSource>> entries = datasources.entrySet().stream()
-                .filter(e -> e.getKey().startsWith(url+ "_")).collect(Collectors.toList());
+                .filter(e -> e.getKey().startsWith(url + "_")).collect(Collectors.toList());
 
         for (Entry<String, HerdDBEmbeddedDataSource> entry : entries) {
             datasources.remove(entry.getKey());

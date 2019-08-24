@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.backup;
 
 import java.util.Map;
@@ -28,7 +29,7 @@ import java.util.Map;
  */
 public interface ProgressListener {
 
-    public default void log(String msgType, String message, Map<String, Object> context) {
+    default void log(String msgType, String message, Map<String, Object> context) {
         System.out.println("PROGRESSLISTENER " + msgType + ":" + message + " " + context);
     }
 

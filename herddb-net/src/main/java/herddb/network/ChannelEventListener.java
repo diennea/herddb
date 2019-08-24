@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 import herddb.proto.Pdu;
@@ -28,10 +29,12 @@ import herddb.proto.Pdu;
  */
 public interface ChannelEventListener {
 
-    public default void requestReceived(Pdu pdu, Channel channel) {
+    default void requestReceived(Pdu pdu, Channel channel) {
+
     }
 
-    public default void channelClosed(Channel channel) {
+    default void channelClosed(Channel channel) {
+
     }
 
 }

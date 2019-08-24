@@ -17,10 +17,9 @@
  under the License.
 
  */
+
 package org.herddb.ui;
 
-import herddb.jdbc.HerdDBDataSource;
-import io.netty.handler.logging.LogLevel;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletContextEvent;

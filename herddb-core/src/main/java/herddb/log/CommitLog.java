@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.log;
 
 import java.util.function.BiConsumer;
@@ -44,10 +45,10 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
 
-    public static interface FollowerContext extends AutoCloseable {
+    public interface FollowerContext extends AutoCloseable {
 
         @Override
-        public default void close() {
+        default void close() {
         }
     }
 
@@ -55,9 +56,11 @@ public abstract class CommitLog implements AutoCloseable {
         return null;
     }
 
-    public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer,
-            FollowerContext context) throws LogNotAvailableException {
-            // useful only on cluster
+    public void followTheLeader(
+            LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            FollowerContext context
+    ) throws LogNotAvailableException {
+        // useful only on cluster
     }
 
     public abstract LogSequenceNumber getLastSequenceNumber();
@@ -89,6 +92,7 @@ public abstract class CommitLog implements AutoCloseable {
             }
         }
     }
+
     private static final Logger LOG = Logger.getLogger(CommitLog.class.getName());
 
     public synchronized void attachCommitLogListener(CommitLogListener l) {

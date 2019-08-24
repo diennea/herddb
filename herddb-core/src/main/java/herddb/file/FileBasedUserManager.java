@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.file;
 
 import herddb.security.UserManager;
@@ -41,22 +42,22 @@ public class FileBasedUserManager extends UserManager {
 
     public FileBasedUserManager(Path file) throws IOException {
         Files.readAllLines(file, StandardCharsets.UTF_8).forEach(l -> {
-            l = l.trim();
-            if (l.startsWith("#") || l.isEmpty()) {
-                return;
-            }
-            // username,password,role
-            String[] split = l.split(",");
-            if (split.length == 3) {
-                String role = split[2];
-                if (role.equalsIgnoreCase("admin")) {
-                    users.put(split[0], split[1]);
-                    LOG.log(Level.SEVERE, "Configure user " + split[0] + " with role " + split[2]);
-                } else {
-                   LOG.log(Level.SEVERE, "Skipped user " + split[0] + " with role " + split[2]+". bad role. Only 'admin' is available");   
+                    l = l.trim();
+                    if (l.startsWith("#") || l.isEmpty()) {
+                        return;
+                    }
+                    // username,password,role
+                    String[] split = l.split(",");
+                    if (split.length == 3) {
+                        String role = split[2];
+                        if (role.equalsIgnoreCase("admin")) {
+                            users.put(split[0], split[1]);
+                            LOG.log(Level.SEVERE, "Configure user " + split[0] + " with role " + split[2]);
+                        } else {
+                            LOG.log(Level.SEVERE, "Skipped user " + split[0] + " with role " + split[2] + ". bad role. Only 'admin' is available");
+                        }
+                    }
                 }
-            }
-        }
         );
     }
 

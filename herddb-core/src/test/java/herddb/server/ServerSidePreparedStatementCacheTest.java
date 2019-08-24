@@ -17,12 +17,14 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 /**
  * Unit tests.
@@ -46,8 +48,8 @@ public class ServerSidePreparedStatementCacheTest {
     public void testEviction() {
         String tableSpace = "test";
         String text = "select * from table";
-        ServerSidePreparedStatementCache instance
-                = new ServerSidePreparedStatementCache((text.length() + tableSpace.length()) * 10);
+        ServerSidePreparedStatementCache instance =
+                new ServerSidePreparedStatementCache((text.length() + tableSpace.length()) * 10);
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             long id = instance.prepare(tableSpace, text + " WHERE a=" + i);

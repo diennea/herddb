@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.DDLStatement;
@@ -35,7 +36,7 @@ public class CreateIndexStatement extends DDLStatement {
         super(indexDefinition.tablespace);
         this.indexDefinition = indexDefinition;
     }
-    
+
     @Override
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will autocreate a transaction if issued */

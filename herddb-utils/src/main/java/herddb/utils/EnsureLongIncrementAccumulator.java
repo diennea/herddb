@@ -17,12 +17,14 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.function.LongBinaryOperator;
 
 /**
  * Ensure increment
+ *
  * @author enrico.olivelli
  */
 public final class EnsureLongIncrementAccumulator implements LongBinaryOperator {
@@ -37,5 +39,5 @@ public final class EnsureLongIncrementAccumulator implements LongBinaryOperator 
             return left;
         }
     }
-    
+
 }

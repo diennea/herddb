@@ -17,11 +17,8 @@
  under the License.
 
  */
-package herddb.core.system;
 
-import java.sql.DatabaseMetaData;
-import java.util.ArrayList;
-import java.util.List;
+package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
@@ -29,6 +26,9 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import java.sql.DatabaseMetaData;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Table Manager for the SYSTABLES virtual table
@@ -37,7 +37,7 @@ import herddb.model.Table;
  */
 public class SyscolumnsTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("syscolumns")
             .column("table_name", ColumnTypes.STRING)
@@ -63,16 +63,16 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             int pos = 1;
             for (Column c : t.columns) {
                 boolean pk = t.isPrimaryKeyColumn(c.name);
-                boolean nonNullCType = pk ? true : ColumnTypes.isNotNullDataType(c.type);
+                boolean nonNullCType = pk || ColumnTypes.isNotNullDataType(c.type);
                 result.add(RecordSerializer.makeRecord(
                         table,
                         "table_name", t.name,
                         "column_name", c.name,
                         "ordinal_position", pos++,
                         "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
-                        "data_type",  ColumnTypes.sqlDataType(c.type),
+                        "data_type", ColumnTypes.sqlDataType(c.type),
                         "type_name", ColumnTypes.typeToString(c.type),
-                        "auto_increment", (pk && t.auto_increment)?1:0
+                        "auto_increment", (pk && t.auto_increment) ? 1 : 0
                 ));
             }
         }

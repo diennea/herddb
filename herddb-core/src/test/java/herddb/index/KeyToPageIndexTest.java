@@ -1,5 +1,7 @@
 package herddb.index;
 
+import herddb.log.LogSequenceNumber;
+import herddb.utils.Bytes;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -10,12 +12,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.junit.Assert;
 import org.junit.Test;
-
-import herddb.log.LogSequenceNumber;
-import herddb.utils.Bytes;
 
 /**
  * Base test suite for {@link KeyToPageIndex}
@@ -99,7 +97,8 @@ public abstract class KeyToPageIndexTest {
 
     }
 
-    /** This test failed with the error
+    /**
+     * This test failed with the error
      * <pre>
      * herddb.storage.DataStorageManagerException: pages are immutable
      * at herddb.mem.MemoryDataStorageManager.writeIndexPage(MemoryDataStorageManager.java:298)
@@ -112,7 +111,7 @@ public abstract class KeyToPageIndexTest {
      * at herddb.index.blink.BLink.unload(BLink.java:342)
      * at herddb.index.blink.BLink.normalize(BLink.java:894)
      * at herddb.index.blink.BLink.insert(BLink.java:620)</pre>
-     *
+     * <p>
      * At least BLink must handles pages overwrite
      */
     @Test
@@ -124,12 +123,12 @@ public abstract class KeyToPageIndexTest {
 
             index.start(LogSequenceNumber.START_OF_TIME);
 
-            for(int i = 0; i < entries; ++i) {
+            for (int i = 0; i < entries; ++i) {
                 index.put(Bytes.from_int(i), 1L);
             }
 
-            for(int i = 0; i < entries; ++i) {
-                Assert.assertEquals(index.get(Bytes.from_int(i)),Long.valueOf(1L));
+            for (int i = 0; i < entries; ++i) {
+                Assert.assertEquals(index.get(Bytes.from_int(i)), Long.valueOf(1L));
             }
         }
 
@@ -144,15 +143,15 @@ public abstract class KeyToPageIndexTest {
 
             index.start(LogSequenceNumber.START_OF_TIME);
 
-            for(int i = 0; i < entries; ++i) {
+            for (int i = 0; i < entries; ++i) {
                 index.put(Bytes.from_int(i), 1L);
             }
 
-            for(int i = 0; i < entries; ++i) {
+            for (int i = 0; i < entries; ++i) {
                 Assert.assertTrue(index.put(Bytes.from_int(i), 2L, 1L));
             }
 
-            for(int i = 0; i < entries; ++i) {
+            for (int i = 0; i < entries; ++i) {
                 Assert.assertFalse(index.put(Bytes.from_int(i), 3L, 1L));
                 index.put(Bytes.from_int(i), 3L, 1L);
             }
@@ -191,14 +190,13 @@ public abstract class KeyToPageIndexTest {
 
     }
 
-    private static final class ConcurrentPutIfTask implements Callable<Long> {
+    private static class ConcurrentPutIfTask implements Callable<Long> {
 
         public static final CompletableFuture<?> submitJob(ExecutorService service, KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage) {
 
             final ConcurrentPutIfTask[] tasks = createTasks(index, key, newPage, expectedPage);
 
-            @SuppressWarnings("unchecked")
-            final CompletableFuture<Long>[] futures = new CompletableFuture[tasks.length];
+            @SuppressWarnings("unchecked") final CompletableFuture<Long>[] futures = new CompletableFuture[tasks.length];
 
             for (int i = 0; i < tasks.length; ++i) {
                 futures[i] = CompletableFuture.supplyAsync(tasks[i]::call, service);
@@ -208,17 +206,17 @@ public abstract class KeyToPageIndexTest {
 
         }
 
-        private static final ConcurrentPutIfTask[] createTasks(KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage) {
+        private static ConcurrentPutIfTask[] createTasks(KeyToPageIndex index, Bytes key, Long newPage, Long expectedPage) {
 
             CyclicBarrier start = new CyclicBarrier(3);
             CyclicBarrier end = new CyclicBarrier(3);
             AtomicInteger counter = new AtomicInteger(0);
 
-            return new ConcurrentPutIfTask[] {
+            return new ConcurrentPutIfTask[]{
                     new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter),
                     new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter),
                     new ConcurrentPutIfTask(index, key, newPage, expectedPage, start, end, counter)
-                    };
+            };
 
         }
 

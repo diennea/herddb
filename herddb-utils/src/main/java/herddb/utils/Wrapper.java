@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 public interface Wrapper {
@@ -30,11 +31,11 @@ public interface Wrapper {
      * @param clazz
      * @return
      */
-    public default <T> T unwrap(Class<T> clazz) {
+    default <T> T unwrap(Class<T> clazz) {
         return unwrap(this, clazz);
     }
 
-    public static <T> T unwrap(Object o, Class<T> clazz) {
+    static <T> T unwrap(Object o, Class<T> clazz) {
         if (clazz.isInstance(o)) {
             return (T) o;
         }

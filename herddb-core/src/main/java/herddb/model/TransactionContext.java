@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -32,12 +33,12 @@ public class TransactionContext {
         this.transactionId = transactionId;
     }
 
-    public final static long AUTOTRANSACTION_ID = -1;
-    public final static long NOTRANSACTION_ID = 0;
+    public static final long AUTOTRANSACTION_ID = -1;
+    public static final long NOTRANSACTION_ID = 0;
 
-    public final static TransactionContext NO_TRANSACTION = new TransactionContext(NOTRANSACTION_ID);
+    public static final TransactionContext NO_TRANSACTION = new TransactionContext(NOTRANSACTION_ID);
 
-    public final static TransactionContext AUTOTRANSACTION_TRANSACTION = new TransactionContext(AUTOTRANSACTION_ID);
+    public static final TransactionContext AUTOTRANSACTION_TRANSACTION = new TransactionContext(AUTOTRANSACTION_ID);
 
     @Override
     public String toString() {

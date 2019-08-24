@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 import herddb.core.DBManager;
@@ -88,7 +89,7 @@ public final class CollectionsManager implements AutoCloseable {
         return new Builder();
     }
 
-    private static <K> Function<K, byte[]> DEFAULT_KEY_SERIALIZER(ValueSerializer<K> serializer) {
+    private static <K> Function<K, byte[]> defaultKeySerializer(ValueSerializer<K> serializer) {
         return (K key) -> {
             try {
                 VisibleByteArrayOutputStream serializedKey = new VisibleByteArrayOutputStream(32);
@@ -103,6 +104,7 @@ public final class CollectionsManager implements AutoCloseable {
     private static String generateTmpTableName() {
         return "tmp" + TABLE_NAME_GENERATOR.incrementAndGet();
     }
+
     private final DBManager server;
     private TableSpaceManager tableSpaceManager;
 
@@ -170,7 +172,6 @@ public final class CollectionsManager implements AutoCloseable {
      * Access to the internals, mostly for tests and debugging or unsupported tweaks.
      *
      * @return the internal HerdDB runtime.
-     *
      */
     public DBManager getServer() {
         return server;
@@ -244,19 +245,19 @@ public final class CollectionsManager implements AutoCloseable {
 
     }
 
-    public class TmpMapBuilder<V> {
+    public class TmpMapBuilder<V1> {
 
-        private ValueSerializer<V> valueSerializer = DEFAULT_VALUE_SERIALIZER;
+        private ValueSerializer<V1> valueSerializer = DEFAULT_VALUE_SERIALIZER;
         private int expectedValueSize = 64;
 
-        public class IntTmpMapBuilder<VI extends V> {
+        public class IntTmpMapBuilder<V2 extends V1> {
 
             /**
              * Boot the map.
              *
              * @return the handle to the map.
              */
-            public TmpMap<Integer, VI> build() {
+            public TmpMap<Integer, V2> build() {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
                 return new TmpMapImpl<>(table, expectedValueSize,
@@ -264,14 +265,14 @@ public final class CollectionsManager implements AutoCloseable {
             }
         }
 
-        public class LongTmpMapBuilder<VI extends V> {
+        public class LongTmpMapBuilder<V2 extends V1> {
 
             /**
              * Boot the map.
              *
              * @return the handle to the map.
              */
-            public TmpMap<Long, VI> build() {
+            public TmpMap<Long, V2> build() {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
                 return new TmpMapImpl<>(table, expectedValueSize,
@@ -279,14 +280,14 @@ public final class CollectionsManager implements AutoCloseable {
             }
         }
 
-        public class StringTmpMapBuilder<VI extends V> {
+        public class StringTmpMapBuilder<V2 extends V1> {
 
             /**
              * Boot the map.
              *
              * @return the handle to the map.
              */
-            public TmpMap<String, VI> build() {
+            public TmpMap<String, V2> build() {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
                 return new TmpMapImpl<>(table, expectedValueSize,
@@ -294,16 +295,17 @@ public final class CollectionsManager implements AutoCloseable {
             }
         }
 
-        public class ObjectTmpMapBuilder<K, VI extends V> {
+        public class ObjectTmpMapBuilder<K, V2 extends V1> {
 
-            private Function<K, byte[]> keySerializer = DEFAULT_KEY_SERIALIZER(DEFAULT_VALUE_SERIALIZER);
+            @SuppressWarnings("unchecked")
+            private Function<K, byte[]> keySerializer = defaultKeySerializer(DEFAULT_VALUE_SERIALIZER);
 
             /**
              * Define a custom serializer for keys.
              *
              * @return the builder itself.
              */
-            public ObjectTmpMapBuilder<K, VI> withKeySerializer(Function<K, byte[]> keySerializer) {
+            public ObjectTmpMapBuilder<K, V2> withKeySerializer(Function<K, byte[]> keySerializer) {
                 this.keySerializer = keySerializer;
                 return this;
             }
@@ -313,7 +315,7 @@ public final class CollectionsManager implements AutoCloseable {
              *
              * @return the handle to the map.
              */
-            public TmpMap<K, VI> build() {
+            public TmpMap<K, V2> build() {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY);
                 return new TmpMapImpl<>(table, expectedValueSize,
@@ -327,7 +329,7 @@ public final class CollectionsManager implements AutoCloseable {
          * @param valueSerializer
          * @return the builder itself
          */
-        public TmpMapBuilder<V> withValueSerializer(ValueSerializer<V> valueSerializer) {
+        public TmpMapBuilder<V1> withValueSerializer(ValueSerializer<V1> valueSerializer) {
             this.valueSerializer = valueSerializer;
             return this;
         }
@@ -337,10 +339,9 @@ public final class CollectionsManager implements AutoCloseable {
          * temporary memory copies due to reallocation of internal buffers.
          *
          * @param expectedValueSize the minimum expected size for a value.
-         *
          * @return the builder itself
          */
-        public TmpMapBuilder<V> withExpectedValueSize(int expectedValueSize) {
+        public TmpMapBuilder<V1> withExpectedValueSize(int expectedValueSize) {
             this.expectedValueSize = expectedValueSize;
             return this;
         }
@@ -377,7 +378,7 @@ public final class CollectionsManager implements AutoCloseable {
          *
          * @return the builder itself
          */
-        public <K> ObjectTmpMapBuilder<K, V> withObjectKeys(Class<K> clazz) {
+        public <K> ObjectTmpMapBuilder<K, V1> withObjectKeys(Class<K> clazz) {
             return new ObjectTmpMapBuilder<>();
         }
     }

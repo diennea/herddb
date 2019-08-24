@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -46,9 +47,11 @@ public class SemiJoinOp implements PlannerOp {
     private final String[] fieldNames;
     private final Column[] columns;
 
-    public SemiJoinOp(String[] fieldNames,
+    public SemiJoinOp(
+            String[] fieldNames,
             Column[] columns, int[] leftKeys, PlannerOp left,
-            int[] rightKeys, PlannerOp right) {
+            int[] rightKeys, PlannerOp right
+    ) {
         this.fieldNames = fieldNames;
         this.columns = columns;
         this.leftKeys = leftKeys;
@@ -63,8 +66,10 @@ public class SemiJoinOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         transactionContext = new TransactionContext(resLeft.transactionId);
         ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);

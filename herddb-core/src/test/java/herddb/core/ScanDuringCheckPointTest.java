@@ -17,21 +17,12 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.Test;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.TableManagerStats;
 import herddb.mem.MemoryCommitLogManager;
@@ -50,9 +41,15 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.RandomString;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class ScanDuringCheckPointTest {
@@ -63,7 +60,7 @@ public class ScanDuringCheckPointTest {
         int testSize = 10000;
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(),
-            new MemoryCommitLogManager(), null, null);) {
+                new MemoryCommitLogManager(), null, null)) {
 //            manager.setMaxLogicalPageSize(10);
 //            manager.setMaxPagesUsedMemory(Long.MAX_VALUE);
             manager.start();
@@ -74,13 +71,13 @@ public class ScanDuringCheckPointTest {
             String tableSpaceUUID = manager.getTableSpaceManager("tblspace1").getTableSpaceUUID();
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -159,7 +156,7 @@ public class ScanDuringCheckPointTest {
                 }
             };
 
-            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, slowPredicate), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, slowPredicate), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)) {
                 AtomicInteger count = new AtomicInteger();
                 scan.forEach(tuple -> {
                     count.incrementAndGet();

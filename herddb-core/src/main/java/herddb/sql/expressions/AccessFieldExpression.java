@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
-import java.util.Arrays;
 
 /**
  * reference to downstrean inputs in the pipeline

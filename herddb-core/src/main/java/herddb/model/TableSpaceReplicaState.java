@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -54,7 +54,7 @@ public class TableSpaceReplicaState {
     }
 
     public static TableSpaceReplicaState deserialize(DataInputStream in) throws IOException {
-        in.readInt(); // for future implementations        
+        in.readInt(); // for future implementations
         String uuid = in.readUTF();
         String nodeId = in.readUTF();
         long timestamp = in.readLong();

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.security.sasl;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ import org.apache.zookeeper.server.auth.KerberosName;
 public class SaslNettyClient {
 
     private static final Logger LOG = Logger
-        .getLogger(SaslNettyClient.class.getName());
+            .getLogger(SaslNettyClient.class.getName());
 
     /**
      * Used to respond to server's counterpart, SaslServer with SASL tokens represented as byte arrays.
@@ -69,9 +70,9 @@ public class SaslNettyClient {
         if (clientSubject == null) {
             LOG.log(Level.FINEST, "Using plain SASL/DIGEST-MD5 auth to connect to " + serverHostname);
             saslClient = Sasl.createSaslClient(
-                new String[]{SaslUtils.AUTH_DIGEST_MD5}, null, null,
-                SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(),
-                new SaslClientCallbackHandler(username, password.toCharArray()));
+                    new String[]{SaslUtils.AUTH_DIGEST_MD5}, null, null,
+                    SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(),
+                    new SaslClientCallbackHandler(username, password.toCharArray()));
         } else if (clientSubject.getPrincipals().isEmpty()) {
             LOG.log(Level.FINEST, "Using JAAS/SASL/DIGEST-MD5 auth to connect to " + serverPrincipal);
             String[] mechs = {"DIGEST-MD5"};
@@ -107,14 +108,14 @@ public class SaslNettyClient {
             throw new SaslException("saslToken is null.");
         }
 
-        if (clientSubject != null) {            
+        if (clientSubject != null) {
             try {
-                final byte[] retval
-                    = Subject.doAs(clientSubject, new PrivilegedExceptionAction<byte[]>() {
-                        public byte[] run() throws SaslException {
-                            return saslClient.evaluateChallenge(saslToken);
-                        }
-                    });
+                final byte[] retval =
+                        Subject.doAs(clientSubject, new PrivilegedExceptionAction<byte[]>() {
+                            public byte[] run() throws SaslException {
+                                return saslClient.evaluateChallenge(saslToken);
+                            }
+                        });
                 return retval;
             } catch (PrivilegedActionException e) {
                 e.printStackTrace();
@@ -157,7 +158,7 @@ public class SaslNettyClient {
 
         @Override
         public void handle(Callback[] callbacks) throws
-            UnsupportedCallbackException {
+                UnsupportedCallbackException {
             for (Callback callback : callbacks) {
                 if (callback instanceof NameCallback) {
                     NameCallback nc = (NameCallback) callback;
@@ -211,8 +212,8 @@ public class SaslNettyClient {
             return retval;
         } catch (SaslException e) {
             LOG.log(Level.SEVERE,
-                "saslResponse: Failed to respond to SASL server's token:",
-                e);
+                    "saslResponse: Failed to respond to SASL server's token:",
+                    e);
             return null;
         }
     }
@@ -232,11 +233,11 @@ public class SaslNettyClient {
          * Implementation used to respond to SASL tokens from server.
          *
          * @param callbacks objects that indicate what credential information the server's SaslServer requires from the
-         * client.
+         *                  client.
          * @throws UnsupportedCallbackException
          */
         public void handle(Callback[] callbacks)
-            throws UnsupportedCallbackException {
+                throws UnsupportedCallbackException {
             NameCallback nc = null;
             PasswordCallback pc = null;
             RealmCallback rc = null;
@@ -251,7 +252,7 @@ public class SaslNettyClient {
                     rc = (RealmCallback) callback;
                 } else {
                     throw new UnsupportedCallbackException(callback,
-                        "handle: Unrecognized SASL client callback");
+                            "handle: Unrecognized SASL client callback");
                 }
             }
             if (nc != null) {

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -24,12 +25,6 @@ import static herddb.core.TestUtils.executeUpdate;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -37,6 +32,9 @@ import herddb.model.RecordTooBigException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.RandomString;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
  * Check if records too big are really handled or fail during page insertion
@@ -45,10 +43,10 @@ import herddb.utils.RandomString;
  */
 public class RecordTooBigTest {
 
-    @Test(expected=RecordTooBigException.class)
+    @Test(expected = RecordTooBigException.class)
     public void insert() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.setMaxLogicalPageSize(150);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -66,10 +64,10 @@ public class RecordTooBigTest {
         }
     }
 
-    @Test(expected=RecordTooBigException.class)
+    @Test(expected = RecordTooBigException.class)
     public void update() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.setMaxLogicalPageSize(160);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jdbc.utils;
 
 import herddb.client.HDBException;
@@ -37,7 +38,7 @@ public class SQLExceptionUtils {
         }
         SQLException res;
 
-        if(exception instanceof HDBException && exception.getCause() instanceof SQLIntegrityConstraintViolationException) {
+        if (exception instanceof HDBException && exception.getCause() instanceof SQLIntegrityConstraintViolationException) {
             res = new SQLIntegrityConstraintViolationException(exception.getMessage());
         } else if (exception instanceof HDBException) {
             HDBException ex = (HDBException) exception;

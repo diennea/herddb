@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.log;
 
 import herddb.core.HerdDBInternalException;

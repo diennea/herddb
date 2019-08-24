@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import herddb.daemons.PidFileLocker;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
@@ -69,7 +69,7 @@ public class ZooKeeperMainWrapper implements AutoCloseable {
                     File configFile = new File(args[i]).getAbsoluteFile();
                     LOG.severe("Reading configuration from " + configFile);
                     try (InputStreamReader reader =
-                        new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
+                                 new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
                     configFileFromParameter = true;
@@ -145,6 +145,7 @@ public class ZooKeeperMainWrapper implements AutoCloseable {
             Runtime.getRuntime().halt(0);
         }
     }
+
     private static final Logger LOG = Logger.getLogger(ZooKeeperMainWrapper.class.getName());
 
     public void run() throws Exception {

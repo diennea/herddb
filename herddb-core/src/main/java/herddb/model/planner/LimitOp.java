@@ -17,28 +17,23 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
-import herddb.core.MaterializedRecordSet;
-import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
-import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.LimitedDataScanner;
+import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import herddb.model.ScanLimits;
 
 /**
  * Limit clause
@@ -72,9 +67,11 @@ public class LimitOp implements PlannerOp, ScanLimits {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         try {
             // TODO merge projection + scan + sort + limit
             StatementExecutionResult input = this.input.execute(tableSpaceManager,

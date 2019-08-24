@@ -28,12 +28,11 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 package herddb.core;
 
-import herddb.utils.Bytes;
 import herddb.utils.CompareBytesUtils;
 import java.math.BigInteger;
-import java.util.Arrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -55,8 +54,8 @@ public class CompareByteWithJava9 {
     public int arraySize;
 
     @Param({
-//        "first", 
-        "middle"
+//        "first",
+            "middle"
 //        "last", "none"
     })
     public String mismatchPoint;
@@ -103,6 +102,6 @@ public class CompareByteWithJava9 {
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     public int compareComparator() throws Exception {
-        return CompareBytesUtils.compare(LONG_ARRAY_1, LONG_ARRAY_2);        
+        return CompareBytesUtils.compare(LONG_ARRAY_1, LONG_ARRAY_2);
     }
 }

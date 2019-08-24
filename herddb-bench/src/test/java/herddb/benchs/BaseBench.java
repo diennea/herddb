@@ -17,13 +17,16 @@
  under the License.
 
  */
+
 package herddb.benchs;
 
-import herddb.backup.BackupUtils;
-import herddb.backup.ProgressListener;
 import static herddb.benchs.BaseTableDefinition.COUNT;
 import static herddb.benchs.BaseTableDefinition.CREATE_TABLE;
 import static herddb.benchs.BaseTableDefinition.INSERT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import herddb.backup.BackupUtils;
+import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
@@ -49,8 +52,6 @@ import java.util.concurrent.Future;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -95,11 +96,11 @@ public class BaseBench {
         long start = System.currentTimeMillis();
         try (Connection con = dataSource.getConnection()) {
             con.setAutoCommit(false);
-            try (PreparedStatement ps = con.prepareStatement(CREATE_TABLE);) {
+            try (PreparedStatement ps = con.prepareStatement(CREATE_TABLE)) {
                 ps.executeUpdate();
             }
 
-            try (PreparedStatement ps = con.prepareStatement(INSERT);) {
+            try (PreparedStatement ps = con.prepareStatement(INSERT)) {
                 for (int i = 0; i < dataSetSize; i++) {
                     String value = "pk" + i;
                     ps.setString(1, value);
@@ -117,7 +118,7 @@ public class BaseBench {
             con.setAutoCommit(true);
 
             try (PreparedStatement ps = con.prepareStatement(COUNT);
-                ResultSet rs = ps.executeQuery()) {
+                 ResultSet rs = ps.executeQuery()) {
                 assertTrue(rs.next());
                 assertEquals(dataSetSize, rs.getInt(1));
             }
@@ -185,15 +186,15 @@ public class BaseBench {
         File backupFile = folder.newFile("test.backup");
         try {
             try (HDBConnection connection = client.openConnection();
-                FileOutputStream oo = new FileOutputStream(backupFile);
-                GZIPOutputStream zout = new GZIPOutputStream(oo)) {
+                 FileOutputStream oo = new FileOutputStream(backupFile);
+                 GZIPOutputStream zout = new GZIPOutputStream(oo)) {
                 BackupUtils.dumpTableSpace(TableSpace.DEFAULT, batchSize, connection, zout, pl);
             }
 
             System.out.println("RESTORE PHASE on a " + backupFile.length() + " bytes file");
             try (HDBConnection connection = client.openConnection();
-                FileInputStream oo = new FileInputStream(backupFile);
-                GZIPInputStream zin = new GZIPInputStream(oo)) {
+                 FileInputStream oo = new FileInputStream(backupFile);
+                 GZIPInputStream zin = new GZIPInputStream(oo)) {
                 BackupUtils.restoreTableSpace("newschema", server.getNodeId(), connection, zin, pl);
             }
         } finally {

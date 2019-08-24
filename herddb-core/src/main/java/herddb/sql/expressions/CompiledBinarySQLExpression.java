@@ -17,9 +17,9 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
-import herddb.core.HerdDBInternalException;
 import herddb.model.Column;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;

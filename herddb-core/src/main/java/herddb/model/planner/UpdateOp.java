@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
-import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -46,7 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class UpdateOp implements PlannerOp {
@@ -57,8 +56,10 @@ public class UpdateOp implements PlannerOp {
     private final boolean returnValues;
     private final RecordFunction recordFunction;
 
-    public UpdateOp(String tableSpace, String tableName, PlannerOp input, boolean returnValues,
-            RecordFunction recordFunction) {
+    public UpdateOp(
+            String tableSpace, String tableName, PlannerOp input, boolean returnValues,
+            RecordFunction recordFunction
+    ) {
         this.tableSpace = tableSpace;
         this.tableName = tableName;
         this.input = input.optimize();
@@ -72,8 +73,10 @@ public class UpdateOp implements PlannerOp {
     }
 
     @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) {
+    public CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
@@ -81,7 +84,7 @@ public class UpdateOp implements PlannerOp {
 
         List<DMLStatement> statements = new ArrayList<>();
 
-        try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
+        try (DataScanner inputScanner = downstreamScanResult.dataScanner) {
             while (inputScanner.hasNext()) {
 
                 DataAccessor row = inputScanner.next();
@@ -134,8 +137,8 @@ public class UpdateOp implements PlannerOp {
                     }
                     long newTransactionId = res.transactionId;
                     if (current == statements.size()) {
-                        DMLStatementExecutionResult finalDMLResult
-                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                        DMLStatementExecutionResult finalDMLResult =
+                                new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
                                         lastKey.get(), lastNewValue.get());
                         finalResult.complete(finalDMLResult);
                         return;
@@ -143,8 +146,8 @@ public class UpdateOp implements PlannerOp {
 
                     DMLStatement nextStatement = statements.get(current);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
-                    CompletableFuture<StatementExecutionResult> nextPromise
-                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    CompletableFuture<StatementExecutionResult> nextPromise =
+                            tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
                     nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }
@@ -159,6 +162,7 @@ public class UpdateOp implements PlannerOp {
         }
 
     }
+
     private static final Logger LOG = Logger.getLogger(UpdateOp.class.getName());
 
     @Override

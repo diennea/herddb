@@ -17,22 +17,21 @@
  under the License.
 
  */
+
 package herddb.backup;
-
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-
-import herddb.utils.Holder;
 
 import herddb.client.HDBConnection;
 import herddb.client.TableSpaceRestoreSource;
 import herddb.model.TableSpace;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.Holder;
 import herddb.utils.NonClosingInputStream;
 import herddb.utils.NonClosingOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Backup Restore Utility
@@ -45,7 +44,7 @@ public class BackupUtils {
 
         /* Do not close externally provided streams */
         try (NonClosingOutputStream nos = new NonClosingOutputStream(fout);
-            ExtendedDataOutputStream eos = new ExtendedDataOutputStream(nos)) {
+             ExtendedDataOutputStream eos = new ExtendedDataOutputStream(nos)) {
             dumpTablespace(schema, fetchSize, connection, eos, listener);
         }
     }
@@ -65,7 +64,7 @@ public class BackupUtils {
 
         /* Do not close externally provided streams */
         try (NonClosingInputStream nis = new NonClosingInputStream(fin);
-            ExtendedDataInputStream eis = new ExtendedDataInputStream(nis)) {
+             ExtendedDataInputStream eis = new ExtendedDataInputStream(nis)) {
             restoreTableSpace(schema, node, hdbconnection, eis, listener);
         }
     }

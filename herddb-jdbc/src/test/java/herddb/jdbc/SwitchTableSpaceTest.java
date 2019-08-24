@@ -17,18 +17,17 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,11 +47,11 @@ public class SwitchTableSpaceTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLESPACE 'ts1'");
                     statement.execute("CREATE TABLESPACE 'ts2'");
                     server.waitForTableSpaceBoot("ts1", true);

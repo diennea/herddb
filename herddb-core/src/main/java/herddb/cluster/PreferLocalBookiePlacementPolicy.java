@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
+import io.netty.util.HashedWheelTimer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -26,9 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
+import org.apache.bookkeeper.client.BookiesHealthInfo;
+import org.apache.bookkeeper.client.DistributionSchedule;
 import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.feature.FeatureProvider;
@@ -36,10 +39,6 @@ import org.apache.bookkeeper.net.BookieSocketAddress;
 import org.apache.bookkeeper.net.DNSToSwitchMapping;
 import org.apache.bookkeeper.proto.LocalBookiesRegistry;
 import org.apache.bookkeeper.stats.StatsLogger;
-
-import io.netty.util.HashedWheelTimer;
-import org.apache.bookkeeper.client.BookiesHealthInfo;
-import org.apache.bookkeeper.client.DistributionSchedule;
 
 /**
  * Copied from DefaultEnsemblePlacementPolicy
@@ -51,10 +50,12 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     private Set<BookieSocketAddress> knownBookies = new HashSet<>();
 
     @Override
-    public EnsemblePlacementPolicy initialize(ClientConfiguration conf,
+    public EnsemblePlacementPolicy initialize(
+            ClientConfiguration conf,
             Optional<DNSToSwitchMapping> optionalDnsResolver,
             HashedWheelTimer hashedWheelTimer,
-            FeatureProvider featureProvider, StatsLogger statsLogger) {
+            FeatureProvider featureProvider, StatsLogger statsLogger
+    ) {
         return this;
     }
 
@@ -64,8 +65,10 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public synchronized Set<BookieSocketAddress> onClusterChanged(Set<BookieSocketAddress> writableBookies,
-            Set<BookieSocketAddress> readOnlyBookies) {
+    public synchronized Set<BookieSocketAddress> onClusterChanged(
+            Set<BookieSocketAddress> writableBookies,
+            Set<BookieSocketAddress> readOnlyBookies
+    ) {
         HashSet<BookieSocketAddress> deadBookies;
         deadBookies = new HashSet<>(knownBookies);
         deadBookies.removeAll(writableBookies);
@@ -76,13 +79,15 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public PlacementResult<BookieSocketAddress> replaceBookie(int ensembleSize,
+    public PlacementResult<BookieSocketAddress> replaceBookie(
+            int ensembleSize,
             int writeQuorumSize,
             int ackQuorumSize,
             Map<String, byte[]> customMetadata,
             List<BookieSocketAddress> currentEnsemble,
             BookieSocketAddress bookieToReplace,
-            Set<BookieSocketAddress> excludeBookies) throws BKNotEnoughBookiesException {
+            Set<BookieSocketAddress> excludeBookies
+    ) throws BKNotEnoughBookiesException {
         excludeBookies.addAll(currentEnsemble);
         PlacementResult<List<BookieSocketAddress>> list = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
         return PlacementResult.of(list.getResult().get(0), list.isStrictlyAdheringToPolicy());
@@ -103,11 +108,13 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public PlacementResult<List<BookieSocketAddress>> newEnsemble(int ensembleSize,
+    public PlacementResult<List<BookieSocketAddress>> newEnsemble(
+            int ensembleSize,
             int writeQuorumSize,
             int ackQuorumSize,
             Map<String, byte[]> customMetadata,
-            Set<BookieSocketAddress> excludeBookies)
+            Set<BookieSocketAddress> excludeBookies
+    )
             throws BKNotEnoughBookiesException {
 
         ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);

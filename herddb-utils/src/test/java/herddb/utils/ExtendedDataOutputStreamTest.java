@@ -1,7 +1,6 @@
 package herddb.utils;
 
 import java.io.IOException;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -20,15 +19,15 @@ public class ExtendedDataOutputStreamTest {
     @Test
     public void testWriteVInt() throws IOException {
 
-        checkAndCompareVInt(new byte[] { 0 }, 0);
-        checkAndCompareVInt(new byte[] { 1 }, 1);
-        checkAndCompareVInt(new byte[] { -1, -1, -1, -1, 15 }, -1);
-        checkAndCompareVInt(new byte[] { -128, -128, -128, -128, 8 }, Integer.MIN_VALUE);
-        checkAndCompareVInt(new byte[] { -1, -1, -1, -1, 7 }, Integer.MAX_VALUE);
+        checkAndCompareVInt(new byte[]{0}, 0);
+        checkAndCompareVInt(new byte[]{1}, 1);
+        checkAndCompareVInt(new byte[]{-1, -1, -1, -1, 15}, -1);
+        checkAndCompareVInt(new byte[]{-128, -128, -128, -128, 8}, Integer.MIN_VALUE);
+        checkAndCompareVInt(new byte[]{-1, -1, -1, -1, 7}, Integer.MAX_VALUE);
 
     }
-    
-    
+
+
     protected final void writeVIntFolded(ExtendedDataOutputStream oo, int i) throws IOException {
         while ((i & ~0x7F) != 0) {
             oo.writeByte((byte) ((i & 0x7F) | 0x80));
@@ -45,7 +44,7 @@ public class ExtendedDataOutputStreamTest {
         byte[] unfolded;
 
         try (VisibleByteArrayOutputStream vos = new VisibleByteArrayOutputStream(expected.length);
-                ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
+             ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
 
             writeVIntFolded(os, data);
 
@@ -53,15 +52,15 @@ public class ExtendedDataOutputStreamTest {
         }
 
         try (VisibleByteArrayOutputStream vos = new VisibleByteArrayOutputStream(expected.length);
-                ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
+             ExtendedDataOutputStream os = new ExtendedDataOutputStream(vos)) {
 
             os.writeVInt(data);
 
             unfolded = vos.buf;
         }
 
-        Assert.assertArrayEquals(expected,unfolded);
-        Assert.assertArrayEquals(expected,folded);
+        Assert.assertArrayEquals(expected, unfolded);
+        Assert.assertArrayEquals(expected, folded);
     }
 
 }

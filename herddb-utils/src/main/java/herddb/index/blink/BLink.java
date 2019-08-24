@@ -17,8 +17,15 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
+import herddb.core.Page;
+import herddb.core.Page.Metadata;
+import herddb.core.PageReplacementPolicy;
+import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.BooleanHolder;
+import herddb.utils.Holder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -51,13 +58,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import herddb.core.Page;
-import herddb.core.Page.Metadata;
-import herddb.core.PageReplacementPolicy;
-import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
-import herddb.utils.BooleanHolder;
-import herddb.utils.Holder;
 
 /**
  * Java implementation of b-link tree derived from Vladimir Lanin and Dennis
@@ -95,7 +95,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      */
     static final long UNKNOWN_SIZE = 0L;
 
-//    type
+    //    type
 //        locktype = (readlock, writelock);
 //        nodeptr = "node;
 //        height = 1 .. maxint;
@@ -155,29 +155,29 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      *
      * @author diego.salvi
      */
-    public static interface SizeEvaluator<X, Y> {
+    public interface SizeEvaluator<X, Y> {
 
         /**
          * Evaluate the key size only
          */
-        public long evaluateKey(X key);
+        long evaluateKey(X key);
 
         /**
          * Evaluate the value size only
          */
-        public long evaluateValue(Y value);
+        long evaluateValue(Y value);
 
         /**
          * Evaluate both key and value size
          */
-        public long evaluateAll(X key, Y value);
+        long evaluateAll(X key, Y value);
 
         /**
          * Check if handled keys have a constant byte size or it changes from key to key.
          *
          * @return {@code true} if key size is constant, {@code false} otherwise
          */
-        default public boolean isKeySizeConstant() {
+        default boolean isKeySizeConstant() {
             return false;
         }
 
@@ -185,12 +185,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Returns constant key size if key size doesn't changes.
          *
          * @return constant key size
-         *
          * @throws UnsupportedOperationException if key size isn't constant
-         *
          * @see #isKeySizeConstant()
          */
-        default public long constantKeySize() throws UnsupportedOperationException {
+        default long constantKeySize() throws UnsupportedOperationException {
             throw new UnsupportedOperationException("Method constantKeySize not supported");
         }
 
@@ -199,7 +197,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          *
          * @return {@code true} if value size is constant, {@code false} otherwise
          */
-        default public boolean isValueSizeConstant() {
+        default boolean isValueSizeConstant() {
             return false;
         }
 
@@ -207,12 +205,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Returns constant value size if value size doesn't changes.
          *
          * @return constant value size
-         *
          * @throws UnsupportedOperationException if value size isn't constant
-         *
          * @see #isValueSizeConstant()
          */
-        default public long constantValueSize() throws UnsupportedOperationException {
+        default long constantValueSize() throws UnsupportedOperationException {
             throw new UnsupportedOperationException("Method constantValueSize not supported");
         }
 
@@ -222,12 +218,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          *
          * @return a value which is greater than every other value
          */
-        public X getPosiviveInfinityKey();
+        X getPosiviveInfinityKey();
 
     }
 
-    public BLink(long maxSize, SizeEvaluator<K, V> evaluator,
-            PageReplacementPolicy policy, BLinkIndexDataStorage<K, V> storage) {
+    public BLink(
+            long maxSize, SizeEvaluator<K, V> evaluator,
+            PageReplacementPolicy policy, BLinkIndexDataStorage<K, V> storage
+    ) {
         this.positiveInfinity = evaluator.getPosiviveInfinityKey();
         if (this.positiveInfinity != evaluator.getPosiviveInfinityKey()) {
             throw new IllegalStateException("getPosiviveInfinityKey must always return the same value");
@@ -284,9 +282,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
     }
 
-    public BLink(long maxSize, SizeEvaluator<K, V> evaluator,
+    public BLink(
+            long maxSize, SizeEvaluator<K, V> evaluator,
             PageReplacementPolicy policy, BLinkIndexDataStorage<K, V> storage,
-            BLinkMetadata<K> metadata) {
+            BLinkMetadata<K> metadata
+    ) {
         this.positiveInfinity = evaluator.getPosiviveInfinityKey();
         if (this.positiveInfinity != evaluator.getPosiviveInfinityKey()) {
             throw new IllegalStateException("getPosiviveInfinityKey must always return the same value");
@@ -566,8 +566,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     }
 
     /* ******************** */
- /* *** TREE METHODS *** */
- /* ******************** */
+    /* *** TREE METHODS *** */
+    /* ******************** */
 //    function search(v: value); boolean;
 //    var
 //        n: nodeptr;
@@ -612,7 +612,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * Supports both from and to empty.
      *
      * @param from inclusive (if not empty)
-     * @param to exclusive
+     * @param to   exclusive
      * @return
      */
     public Stream<Entry<K, V>> scan(K from, K to) {
@@ -687,7 +687,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 /* No parallel */ false);
     }
 
-//    function insert(v: value): boolean;
+    //    function insert(v: value): boolean;
 //    var
 //        n: nodeptr;
 //        descent: stack;
@@ -727,7 +727,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             unlock(n, WRITE_LOCK);
         }
 
-        if (added == true && expected == null) {
+        if (added && expected == null) {
             size.increment();
         }
 
@@ -775,7 +775,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         return replaced;
     }
 
-//    function delete(v: value): boolean;
+    //    function delete(v: value): boolean;
 //    var
 //        n: nodeptr;
 //        descent: stack;
@@ -847,6 +847,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //        move-right(v, n, ubleftsep, lastlock); {v € coverset(n) }
 //        locate-leaf := n
 //    end;
+
     /**
      * locate-leaf descends from the anchor to the leaf whose coverset includes
      * v, places a lock of kind specified in lastlock on that leaf, and returns
@@ -926,6 +927,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //        n := m;
 //        end;
 //    end;
+
     /**
      * move-right scans along a level starting with node n until it comes to a
      * node into whose coverset v falls (trivially, n itself). It assumes that
@@ -984,6 +986,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //            spawn(ascend(add, newsep, newsib, atheight+1, descent))
 //        end
 //    end;
+
     /**
      * normalize makes sure that node n is not too crowded or sparse by
      * performing a split or merge as needed. A split may be necessary after a
@@ -1014,7 +1017,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             /* Having merged a node we could potentially lower the root or shrink it too much to be effective, run a
              * critic check */
 
- /*
+            /*
              * TODO: improve the critic execution heuristic. Actual heuristic is very conservative but it
              * could be run many fewer times! (run critic every x merge of node size?)
              */
@@ -1053,6 +1056,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //        normalize(n, descent, toheight);
 //        unlock(n, writelock)
 //    end;
+
     /**
      * adds or removes separator sep and downlink to child at height toheight,
      * using the descent stack to ascend to it.
@@ -1115,6 +1119,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //            add-or-remove-link := remove-link(sep, child, n)
 //        end
 //    end;
+
     /**
      * tries to add or removes sep and downlink to child from node n and returns
      * true if succeeded, if removing, and sep is rightmost in n, merges n with
@@ -1198,6 +1203,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 //        move-right(v, n, ubleftsep, writelock); { v € coverset(n) }
 //        locate-internal := n
 //    end;
+
     /**
      * a modified locate phase; instead of finding a leaf whose coverset
      * includes v, finds a node at height toheight whose coverset includes v. if
@@ -1329,7 +1335,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * the target of the fast pointer in the anchor close to the highest level
      * containing more than one downlink.
      * </p>
-     *
      */
     private final AtomicBoolean criticRunning = new AtomicBoolean(false);
 
@@ -1658,18 +1663,18 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
     }
 
-    private static interface CriticJob {
+    private interface CriticJob {
 
-        public void execute() throws IOException;
+        void execute() throws IOException;
 
     }
 
-//  var
+    //  var
 //  anchor: record
 //    fast: nodeptr; fastheight: height;
 //    top: nodeptr; topheight: height;
 //  end;
-    private static final class Anchor<X extends Comparable<X>, Y> {
+    private static class Anchor<X extends Comparable<X>, Y> {
 
         final ReadWriteLock lock;
 
@@ -1723,7 +1728,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
     }
 
-    private static final class Node<X extends Comparable<X>, Y> extends BLinkPage<X, Y> {
+    private static class Node<X extends Comparable<X>, Y> extends BLinkPage<X, Y> {
 
         /**
          * <pre>
@@ -1751,7 +1756,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Instance size: 88 bytes
          * Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
          * </pre>
-         *
+         * <p>
          * And still adding one of each:
          * <pre>
          * COUNT       AVG       SUM   DESCRIPTION
@@ -1848,7 +1853,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.dirty = true;
         }
 
-        private static final <A,B> NavigableMap<A, B> newNodeMap() {
+        private static <A, B> NavigableMap<A, B> newNodeMap() {
             return new TreeMap<>();
         }
 
@@ -2061,7 +2066,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                 boolean toright = false;
                 for (Iterator<Entry<X, Object>> entryIt = map.entrySet().iterator();
-                        entryIt.hasNext(); ) {
+                     entryIt.hasNext(); ) {
                     Entry<X, Object> entry = entryIt.next();
                     if (toright) {
                         right.map.put(entry.getKey(), entry.getValue());
@@ -2116,6 +2121,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /* ****************** */
         /* *** FOR LEAVES *** */
         /* ****************** */
+
         /**
          * Copy ranged values
          */
@@ -2507,8 +2513,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                  * s := si
                  * pi+1 == child?
                  */
-                @SuppressWarnings("unchecked")
-                final Node<X, Y> pi = (Node<X, Y>) map.get(s);
+                @SuppressWarnings("unchecked") final Node<X, Y> pi = (Node<X, Y>) map.get(s);
                 if (pi == null) {
                     return false;
                 }
@@ -2554,11 +2559,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /* ******************** */
         /* *** PAGE LOADING *** */
         /* ******************** */
+
         /**
          * With {@code doUload} parameter to {@code true} will attempt to unload
          * eventual pages before exit from this method.
          */
-        final LockAndUnload<X, Y> loadAndLock(boolean doUnload) throws IOException {
+        LockAndUnload<X, Y> loadAndLock(boolean doUnload) throws IOException {
 
             Metadata unload = null;
             final Lock read = loadLock.readLock();
@@ -2862,10 +2868,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         private long writeLeafPage(long pageId) throws IOException {
 
             if (pageId == BLinkIndexDataStorage.NEW_PAGE) {
-                return owner.storage.createLeafPage((Map<X, Y>) (Map<?, ?>) map);
+                return owner.storage.createLeafPage((Map<X, Y>) map);
             }
 
-            owner.storage.overwriteLeafPage(pageId, (Map<X, Y>) (Map<?, ?>) map);
+            owner.storage.overwriteLeafPage(pageId, (Map<X, Y>) map);
             return pageId;
         }
 
@@ -2913,7 +2919,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         private void readLeafPage(long pageId) throws IOException {
             map = newNodeMap();
-            owner.storage.loadLeafPage(pageId, (Map<X,Y>) map);
+            owner.storage.loadLeafPage(pageId, (Map<X, Y>) map);
 
             /* Recalculate size if needed */
             if (size == UNKNOWN_SIZE) {
@@ -2953,7 +2959,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
     }
 
-    private static final class ResultCouple<X extends Comparable<X>, Y> {
+    private static class ResultCouple<X extends Comparable<X>, Y> {
 
         final Node<X, Y> node;
         final X ubleftsep;
@@ -2970,7 +2976,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
     }
 
-    private static final class LockAndUnload<X extends Comparable<X>, Y> {
+    private static class LockAndUnload<X extends Comparable<X>, Y> {
 
         final Lock lock;
         final Metadata unload;
@@ -3028,7 +3034,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      *
      * @author diego.salvi
      */
-    private static final class DummyDeque<E> implements Deque<E> {
+    private static class DummyDeque<E> implements Deque<E> {
 
         private static final Object[] EMPTY_ARRAY = new Object[0];
 
@@ -3036,7 +3042,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         public static final Deque INSTANCE = new DummyDeque();
 
         /**
-         * No instances! Use {@link #getInstance()}
+         * No instances! Use {@link #INSTANCE}.
          */
         private DummyDeque() {
         }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jmx;
 
 import javax.management.MXBean;
@@ -29,10 +30,10 @@ import javax.management.MXBean;
 @MXBean
 public interface DBManagerStatsMXBean {
 
-    public long getCachedPlans();
+    long getCachedPlans();
 
-    public long getCachePlansHits();
+    long getCachePlansHits();
 
-    public long getCachePlansMisses();
+    long getCachePlansMisses();
 
 }

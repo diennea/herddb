@@ -1,9 +1,8 @@
 package herddb.mem;
 
+import herddb.server.LocalNodeIdManager;
 import java.io.IOException;
 import java.nio.file.Path;
-
-import herddb.server.LocalNodeIdManager;
 
 /**
  * In memory LocalNodeIdManager, for tests

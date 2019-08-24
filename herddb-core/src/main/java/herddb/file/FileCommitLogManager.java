@@ -17,8 +17,14 @@
  under the License.
 
  */
+
 package herddb.file;
 
+import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
+import herddb.utils.OpenFileUtils;
+import herddb.utils.SystemProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,15 +36,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-
-import herddb.log.CommitLogManager;
-import herddb.log.LogNotAvailableException;
-import herddb.server.ServerConfiguration;
-import herddb.utils.OpenFileUtils;
-import herddb.utils.SystemProperties;
 
 /**
  * Commit logs on local files
@@ -47,8 +46,7 @@ import herddb.utils.SystemProperties;
  */
 public class FileCommitLogManager extends CommitLogManager {
 
-    private final static int MAXCONCURRENTFSYNCS = SystemProperties.getIntSystemProperty(
-            "herddb.file.maxconcurrentfsyncs", 1);
+    private static final int MAXCONCURRENTFSYNCS = SystemProperties.getIntSystemProperty("herddb.file.maxconcurrentfsyncs", 1);
 
     /**
      * Force an fsync on the disk with txlogs. This period is in seconds. It is
@@ -64,7 +62,9 @@ public class FileCommitLogManager extends CommitLogManager {
     private final int maxUnsynchedBatchBytes;
     private final int maxSyncTime;
     private final boolean requireSync;
+    // CHECKSTYLE.OFF: MemberName
     private final boolean enableO_DIRECT;
+    // CHECKSTYLE.ON: MemberName
     private final StatsLogger statsLogger;
     private ScheduledExecutorService fsyncThreadPool;
     private final List<FileCommitLog> activeLogs = new CopyOnWriteArrayList<>();
@@ -80,13 +80,15 @@ public class FileCommitLogManager extends CommitLogManager {
                 NullStatsLogger.INSTANCE);
     }
 
-    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, int maxUnsynchedBatchSize,
+    public FileCommitLogManager(
+            Path baseDirectory, long maxLogFileSize, int maxUnsynchedBatchSize,
             int maxUnsynchedBatchBytes,
             int maxSyncTime,
             boolean requireSync,
             boolean enableO_DIRECT,
             int deferredSyncPeriod,
-            StatsLogger statsLogger) {
+            StatsLogger statsLogger
+    ) {
         this.baseDirectory = baseDirectory;
         this.maxLogFileSize = maxLogFileSize;
         this.statsLogger = statsLogger;

@@ -17,13 +17,12 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-
 import java.nio.charset.StandardCharsets;
-
 import org.junit.Test;
 
 /**
@@ -51,8 +50,8 @@ public class BytesTest {
     @Test
     public void testNextSameByte() {
 
-        byte[] array = new byte[] { 0, 1 };
-        byte[] nextExpected = new byte[] { 0, 2 };
+        byte[] array = new byte[]{0, 1};
+        byte[] nextExpected = new byte[]{0, 2};
 
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
@@ -60,12 +59,14 @@ public class BytesTest {
         assertArrayEquals(nextExpected, next.to_array());
     }
 
-    /** Check that the change propagate to next byte if 255 (-1) */
+    /**
+     * Check that the change propagate to next byte if 255 (-1)
+     */
     @Test
     public void testNextChangeByte() {
 
-        byte[] array = new byte[] { 0, -1 };
-        byte[] nextExpected = new byte[] { 1, 0 };
+        byte[] array = new byte[]{0, -1};
+        byte[] nextExpected = new byte[]{1, 0};
 
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
@@ -73,12 +74,14 @@ public class BytesTest {
         assertArrayEquals(nextExpected, next.to_array());
     }
 
-    /** Check that more than one byte is changed if needed */
+    /**
+     * Check that more than one byte is changed if needed
+     */
     @Test
     public void testNextChangeByteMoreTimes() {
 
-        byte[] array = new byte[] { 0, -1, -1 };
-        byte[] nextExpected = new byte[] { 1, 0, 0 };
+        byte[] array = new byte[]{0, -1, -1};
+        byte[] nextExpected = new byte[]{1, 0, 0};
 
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
@@ -86,12 +89,14 @@ public class BytesTest {
         assertArrayEquals(nextExpected, next.to_array());
     }
 
-    /** Checks that prefix bytes aren't touched */
+    /**
+     * Checks that prefix bytes aren't touched
+     */
     @Test
     public void testNextChangeByteMoreTimesWithPrefix() {
 
-        byte[] array = new byte[] { 1, 0, -1, -1 };
-        byte[] nextExpected = new byte[] { 1, 1, 0, 0 };
+        byte[] array = new byte[]{1, 0, -1, -1};
+        byte[] nextExpected = new byte[]{1, 1, 0, 0};
 
         Bytes bytes = Bytes.from_array(array);
         Bytes next = bytes.next();
@@ -99,21 +104,25 @@ public class BytesTest {
         assertArrayEquals(nextExpected, next.to_array());
     }
 
-    /** Checks that next fails if there is no more space */
-    @Test(expected=IllegalStateException.class)
+    /**
+     * Checks that next fails if there is no more space
+     */
+    @Test(expected = IllegalStateException.class)
     public void testNextNoMoreSpace() {
 
-        byte[] array = new byte[] { -1, -1 };
+        byte[] array = new byte[]{-1, -1};
 
         Bytes bytes = Bytes.from_array(array);
         bytes.next();
     }
 
-    /** Check that leading zeros are preserved */
+    /**
+     * Check that leading zeros are preserved
+     */
     @Test
     public void testNextLenPreservation() {
 
-        byte[] src = new byte[] { 0, 0, 0, -1 };
+        byte[] src = new byte[]{0, 0, 0, -1};
 
         Bytes bytes = Bytes.from_array(src);
 

@@ -17,17 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
-
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -37,6 +33,8 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
  * Tests on table creation
@@ -48,7 +46,7 @@ public class TruncateTableSQLTest {
     @Test
     public void truncateTableNoTransaction() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -58,12 +56,12 @@ public class TruncateTableSQLTest {
             execute(manager, "CREATE BRIN INDEX test1 ON tblspace1.tsql (k1)", Collections.emptyList());
             execute(manager, "CREATE HASH INDEX test2 ON tblspace1.tsql (k1)", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             } catch (TableDoesNotExistException ok) {
             }
             execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(0, scan.consume().size());
             } catch (TableDoesNotExistException ok) {
             }
@@ -75,7 +73,7 @@ public class TruncateTableSQLTest {
     @Test
     public void truncateTableTransactionTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -96,7 +94,7 @@ public class TruncateTableSQLTest {
             long txId = execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')",
                     Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION).transactionId;
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList(), new TransactionContext(txId));) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList(), new TransactionContext(txId))) {
                 assertEquals(1, scan.consume().size());
             }
             try {
@@ -111,7 +109,7 @@ public class TruncateTableSQLTest {
 
             execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(0, scan.consume().size());
             }
 

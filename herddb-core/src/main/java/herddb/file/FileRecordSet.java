@@ -17,11 +17,13 @@
  under the License.
 
  */
+
 package herddb.file;
 
 import herddb.core.MaterializedRecordSet;
 import herddb.model.Column;
 import herddb.model.Projection;
+import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
@@ -36,7 +38,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import herddb.model.ScanLimits;
 
 /**
  * RecordSet which eventually swaps to disk
@@ -56,7 +57,7 @@ class FileRecordSet extends MaterializedRecordSet {
 
     }
 
-    private static final class TupleSerializer implements DiskArrayList.Serializer<DataAccessor> {
+    private static class TupleSerializer implements DiskArrayList.Serializer<DataAccessor> {
 
         private final Column[] columns;
         private final String[] fieldNames;

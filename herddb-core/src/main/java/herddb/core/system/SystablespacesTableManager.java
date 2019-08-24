@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public class SystablespacesTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("systablespaces")
             .column("tablespace_name", ColumnTypes.STRING)

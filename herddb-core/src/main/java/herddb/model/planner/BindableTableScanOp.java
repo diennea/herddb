@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.model.commands.ScanStatement;

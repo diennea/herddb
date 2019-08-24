@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -24,12 +25,6 @@ import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -43,6 +38,9 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
 import herddb.utils.DataAccessor;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
  * Tests on table creation
@@ -54,28 +52,28 @@ public class DropTableSQLTest {
     @Test
     public void dropTableNoTransaction() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 assertTrue(scan.consume().isEmpty());
             }
             execute(manager, "CREATE TABLE tsql2 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "DROP TABLE tsql2", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList())) {
                 assertTrue(scan.consume().isEmpty());
             }
 
@@ -86,7 +84,7 @@ public class DropTableSQLTest {
     @Test
     public void dropTableWithTransaction() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -97,24 +95,24 @@ public class DropTableSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList(), new TransactionContext(tx));
             execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')", Collections.emptyList(), new TransactionContext(tx));
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 fail();
             } catch (TableDoesNotExistException ok) {
             }
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx, Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
@@ -123,23 +121,23 @@ public class DropTableSQLTest {
 
             execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx2));
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx2, Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 fail();
             } catch (TableDoesNotExistException ok) {
                 assertTrue(manager.getPlanner() instanceof DDLSQLPlanner);

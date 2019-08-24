@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -44,8 +45,8 @@ import java.util.function.BiConsumer;
  */
 public class ProjectOp implements PlannerOp {
 
-    final private Projection projection;
-    final private PlannerOp input;
+    private final Projection projection;
+    private final PlannerOp input;
 
     public ProjectOp(Projection projection1, PlannerOp input) {
         this.projection = projection1;
@@ -59,8 +60,10 @@ public class ProjectOp implements PlannerOp {
         private final String[] fieldNames;
         private final List<CompiledSQLExpression> fields;
 
-        public BasicProjection(String[] fieldNames, Column[] columns,
-            List<CompiledSQLExpression> fields) {
+        public BasicProjection(
+                String[] fieldNames, Column[] columns,
+                List<CompiledSQLExpression> fields
+        ) {
             this.fieldNames = fieldNames;
             this.columns = columns;
             this.fields = fields;
@@ -175,8 +178,10 @@ public class ProjectOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-        TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
 
         // TODO merge projection + scan + sort + limit
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
@@ -184,7 +189,7 @@ public class ProjectOp implements PlannerOp {
         DataScanner dataScanner = downstream.dataScanner;
 
         DataScanner projected = new ProjectedDataScanner(dataScanner,
-            projection.getFieldNames(), projection.getColumns(), context);
+                projection.getFieldNames(), projection.getColumns(), context);
         return new ScanResult(downstream.transactionId, projected);
     }
 
@@ -278,9 +283,9 @@ public class ProjectOp implements PlannerOp {
 
             @Override
             public int fieldCompareTo(int index, Object value) {
-                 return wrapped.fieldCompareTo(zeroCopyProjections[index], value);
+                return wrapped.fieldCompareTo(zeroCopyProjections[index], value);
             }
-            
+
             @Override
             public void forEach(BiConsumer<String, Object> consumer) {
                 for (int i = 0; i < zeroCopyProjections.length; i++) {
@@ -302,7 +307,7 @@ public class ProjectOp implements PlannerOp {
         @Override
         public String toString() {
             return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames)
-                + ", zeroCopyProjections=" + Arrays.toString(zeroCopyProjections) + '}';
+                    + ", zeroCopyProjections=" + Arrays.toString(zeroCopyProjections) + '}';
         }
 
     }
@@ -312,8 +317,10 @@ public class ProjectOp implements PlannerOp {
         final DataScanner downstream;
         final StatementEvaluationContext context;
 
-        public ProjectedDataScanner(DataScanner downstream, String[] fieldNames,
-            Column[] schema, StatementEvaluationContext context) {
+        public ProjectedDataScanner(
+                DataScanner downstream, String[] fieldNames,
+                Column[] schema, StatementEvaluationContext context
+        ) {
             super(downstream.getTransaction(), fieldNames, schema);
             this.downstream = downstream;
             this.context = context;
@@ -344,7 +351,7 @@ public class ProjectOp implements PlannerOp {
     @Override
     public String toString() {
         return "ProjectOp{" + "projection=" + projection + ",\n"
-            + "input=" + input + '}';
+                + "input=" + input + '}';
     }
 
 }

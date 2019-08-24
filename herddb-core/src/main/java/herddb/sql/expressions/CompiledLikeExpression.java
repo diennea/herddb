@@ -17,15 +17,16 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
+import static herddb.utils.SQLRecordPredicateFunctions.like;
+import static herddb.utils.SQLRecordPredicateFunctions.matches;
 import herddb.core.HerdDBInternalException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
-import static herddb.utils.SQLRecordPredicateFunctions.like;
-import static herddb.utils.SQLRecordPredicateFunctions.matches;
 import java.util.regex.Pattern;
 
 public class CompiledLikeExpression extends CompiledBinarySQLExpression {
@@ -35,11 +36,11 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
 
     public CompiledLikeExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) throws HerdDBInternalException {
         super(left, right);
-        this.not = not;   
+        this.not = not;
         this.rightConstantPattern = compilePattern(right);
     }
-    
-    private static Pattern compilePattern(CompiledSQLExpression exp) throws HerdDBInternalException  {
+
+    private static Pattern compilePattern(CompiledSQLExpression exp) throws HerdDBInternalException {
         if (exp instanceof ConstantExpression) {
             ConstantExpression ce = (ConstantExpression) exp;
             if (ce.isNull()) {
@@ -73,8 +74,8 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledLikeExpression(not,
-            left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
-            right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
 
 }

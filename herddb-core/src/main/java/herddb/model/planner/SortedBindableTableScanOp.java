@@ -17,17 +17,10 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
-import herddb.core.TableSpaceManager;
-import herddb.model.DataScanner;
-import herddb.model.ScanResult;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionContext;
 import herddb.model.commands.ScanStatement;
-import herddb.utils.Wrapper;
 
 /**
  * TableScanOp + ProjectOp + FilerOp + Sort

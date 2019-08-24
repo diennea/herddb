@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
 import java.io.IOException;
@@ -25,38 +26,38 @@ import java.util.Map;
 /**
  * @author diego.salvi
  */
-public interface BLinkIndexDataStorage<X,Y> {
+public interface BLinkIndexDataStorage<X, Y> {
 
-    public static final long NEW_PAGE = -1;
+    long NEW_PAGE = -1;
 
     /**
      * Load an internal node data page.
      */
-    public void loadNodePage(long pageId, Map<X,Long> data) throws IOException;
+    void loadNodePage(long pageId, Map<X, Long> data) throws IOException;
 
     /**
      * Load a leaf node data page.
      */
-    public void loadLeafPage(long pageId, Map<X,Y> data) throws IOException;
+    void loadLeafPage(long pageId, Map<X, Y> data) throws IOException;
 
     /**
      * Create a new internal node page for given data.
      */
-    public long createNodePage(Map<X,Long> data) throws IOException;
+    long createNodePage(Map<X, Long> data) throws IOException;
 
     /**
      * Create a new leaf node page for given data.
      */
-    public long createLeafPage(Map<X,Y> data) throws IOException;
+    long createLeafPage(Map<X, Y> data) throws IOException;
 
     /**
      * Overwrite an existing internal node page with given data.
      */
-    public void overwriteNodePage(long pageId, Map<X,Long> data) throws IOException;
+    void overwriteNodePage(long pageId, Map<X, Long> data) throws IOException;
 
     /**
      * Overwrite an existing leaf node page with given data.
      */
-    public void overwriteLeafPage(long pageId, Map<X,Y> data) throws IOException;
+    void overwriteLeafPage(long pageId, Map<X, Y> data) throws IOException;
 
 }

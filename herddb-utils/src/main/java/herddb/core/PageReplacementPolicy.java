@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import java.util.Collection;
@@ -38,7 +39,7 @@ public interface PageReplacementPolicy {
      *
      * @param page for which track an hit
      */
-    public void pageHit(Page<?> page);
+    void pageHit(Page<?> page);
 
     /**
      * Add a new {@code Page} to memory.
@@ -49,7 +50,7 @@ public interface PageReplacementPolicy {
      * @param page page to be added
      * @return selected page to be unloaded or {@code null}
      */
-    public Page.Metadata add(Page<?> page);
+    Page.Metadata add(Page<?> page);
 
     /**
      * Remove a {@code Page} from memory.
@@ -57,7 +58,7 @@ public interface PageReplacementPolicy {
      * @param page page to be removed.
      * @return {@code true} if the memory really contained the given page
      */
-    public boolean remove(Page<?> page);
+    boolean remove(Page<?> page);
 
     /**
      * Remove many {@code Page Pages} from memory.
@@ -68,25 +69,25 @@ public interface PageReplacementPolicy {
      *
      * @param pages pages to be removed.
      */
-    public <P extends Page<?>> void remove(Collection<P> pages);
+    <P extends Page<?>> void remove(Collection<P> pages);
 
     /**
      * Returns the current number of {@link Page Pages} memorized.
      *
      * @return current number of Pages
      */
-    public int size();
+    int size();
 
     /**
      * Returns the maximum number of {@link Page Pages} memorizable.
      *
      * @return maximum number of Pages
      */
-    public int capacity();
+    int capacity();
 
     /**
      * Clear any memorized data.
      */
-    public void clear();
+    void clear();
 
 }

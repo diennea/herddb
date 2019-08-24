@@ -17,25 +17,23 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic client testing
@@ -52,11 +50,11 @@ public class GeneratedKeysTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')",
@@ -70,7 +68,7 @@ public class GeneratedKeysTest {
                         assertEquals(1, count);
                     }
                     Object key = null;
-                    try (ResultSet generatedKeys = statement.getGeneratedKeys();) {
+                    try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
                         if (generatedKeys.next()) {
                             key = generatedKeys.getObject(1);
                         }
@@ -87,11 +85,11 @@ public class GeneratedKeysTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS));
@@ -104,7 +102,7 @@ public class GeneratedKeysTest {
                         assertEquals(1, count);
                     }
                     Object key = null;
-                    try (ResultSet generatedKeys = statement.getGeneratedKeys();) {
+                    try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
                         if (generatedKeys.next()) {
                             key = generatedKeys.getObject(1);
                         }
@@ -121,11 +119,11 @@ public class GeneratedKeysTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
 
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
@@ -134,7 +132,7 @@ public class GeneratedKeysTest {
                         assertEquals(1, prepared.executeUpdate());
 
                         Object key = null;
-                        try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
+                        try (ResultSet generatedKeys = prepared.getGeneratedKeys()) {
                             if (generatedKeys.next()) {
                                 key = generatedKeys.getObject(1);
                             }
@@ -162,11 +160,11 @@ public class GeneratedKeysTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
 
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
 
@@ -175,7 +173,7 @@ public class GeneratedKeysTest {
                         assertEquals(1, prepared.executeUpdate());
 
                         Object key = null;
-                        try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
+                        try (ResultSet generatedKeys = prepared.getGeneratedKeys()) {
                             if (generatedKeys.next()) {
                                 key = generatedKeys.getObject(1);
                             }
@@ -196,8 +194,8 @@ public class GeneratedKeysTest {
 
                     // async
                     try (PreparedStatementAsync delete = con.prepareStatement("DELETE FROM mytable").unwrap(PreparedStatementAsync.class);
-                            PreparedStatementAsync prepared = con.prepareStatement("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS)
-                                    .unwrap(PreparedStatementAsync.class)) {
+                         PreparedStatementAsync prepared = con.prepareStatement("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS)
+                                 .unwrap(PreparedStatementAsync.class)) {
 
                         assertEquals(1, delete.executeUpdateAsync().get().intValue());
 
@@ -205,7 +203,7 @@ public class GeneratedKeysTest {
 
                         Object key = null;
                         // getGeneratedKeys makes sense only if the Future has completed with success
-                        try (ResultSet generatedKeys = prepared.getGeneratedKeys();) {
+                        try (ResultSet generatedKeys = prepared.getGeneratedKeys()) {
                             if (generatedKeys.next()) {
                                 key = generatedKeys.getObject(1);
                             }

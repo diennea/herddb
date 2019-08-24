@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import herddb.model.Record;
@@ -42,8 +43,10 @@ public final class PageSet {
 
     private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
 
-    /** Active stored pages (active/size,average-record-size,dirt,hasDeletions)*/
-    private final ConcurrentMap<Long,DataPageMetaData> activePages = new ConcurrentHashMap<>();
+    /**
+     * Active stored pages (active/size,average-record-size,dirt,hasDeletions)
+     */
+    private final ConcurrentMap<Long, DataPageMetaData> activePages = new ConcurrentHashMap<>();
 
     public static final class DataPageMetaData {
 
@@ -72,25 +75,26 @@ public final class PageSet {
             output.writeVLong(dirt.sum());
         }
 
-        public static final DataPageMetaData deserialize(ExtendedDataInputStream input) throws IOException {
+        public static DataPageMetaData deserialize(ExtendedDataInputStream input) throws IOException {
             return new DataPageMetaData(input.readVLong(), input.readVLong(), input.readVLong());
         }
 
         @Override
         public String toString() {
-            return '[' +
-                    Long.toString(size) + ',' +
-                    Long.toString(avgRecordSize)  + ',' +
-                    Long.toString(dirt.sum()) + ']';
+            return '['
+                    + Long.toString(size) + ','
+                    + avgRecordSize + ','
+                    + dirt.sum() + ']';
         }
 
     }
-    void setActivePagesAtBoot(Map<Long,DataPageMetaData> activePagesAtBoot) {
+
+    void setActivePagesAtBoot(Map<Long, DataPageMetaData> activePagesAtBoot) {
         this.activePages.clear();
         this.activePages.putAll(activePagesAtBoot);
     }
 
-    Map<Long,DataPageMetaData> getActivePages() {
+    Map<Long, DataPageMetaData> getActivePages() {
         return new HashMap<>(activePages);
     }
 
@@ -106,8 +110,8 @@ public final class PageSet {
         final DataPageMetaData metadata = activePages.get(pageId);
         if (metadata == null) {
             LOGGER.log(Level.SEVERE,
-                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages );
-            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId );
+                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages);
+            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId);
         }
         metadata.dirt.add(metadata.avgRecordSize);
     }
@@ -116,17 +120,17 @@ public final class PageSet {
         final DataPageMetaData metadata = activePages.get(pageId);
         if (metadata == null) {
             LOGGER.log(Level.SEVERE,
-                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages );
-            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId );
+                    "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages);
+            throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId);
         }
         metadata.dirt.add(size);
     }
 
     void setPageDirty(Long pageId, Record dirtyRecord) {
-        if(dirtyRecord == null) {
+        if (dirtyRecord == null) {
             setPageDirty(pageId);
         } else {
-            setPageDirty(pageId,DataPage.estimateEntrySize(dirtyRecord));
+            setPageDirty(pageId, DataPage.estimateEntrySize(dirtyRecord));
         }
     }
 

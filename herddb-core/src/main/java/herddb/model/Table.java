@@ -17,8 +17,16 @@
  under the License.
 
  */
+
 package herddb.model;
 
+import com.google.common.collect.ImmutableSet;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.model.commands.AlterTableStatement;
+import herddb.sql.expressions.BindableTableScanColumnNameResolver;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,15 +43,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.google.common.collect.ImmutableSet;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import herddb.model.commands.AlterTableStatement;
-import herddb.sql.expressions.BindableTableScanColumnNameResolver;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * Table definition
@@ -64,7 +63,9 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     public final Map<Integer, Column> columnsBySerialPosition;
     public final String[] primaryKey;
     public final int[] primaryKeyProjection;
+    // CHECKSTYLE.OFF: MemberName
     public final boolean auto_increment;
+    // CHECKSTYLE.ON: MemberName
     private final Set<String> primaryKeyColumns;
     public final int maxSerialPosition;
 
@@ -191,7 +192,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     public byte[] serialize() {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
-        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
             doo.writeVLong(1); // version
             doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);
@@ -259,8 +260,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             }
         }
         Set<String> changedColumns = new HashSet<>();
-        Map<Integer, Column> realStructure
-                = Stream
+        Map<Integer, Column> realStructure =
+                Stream
                         .of(columns)
                         .collect(
                                 Collectors.toMap(
@@ -361,7 +362,9 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         private String uuid;
         private final List<String> primaryKey = new ArrayList<>();
         private String tablespace = TableSpace.DEFAULT;
+        // CHECKSTYLE.OFF: MemberName
         private boolean auto_increment;
+        // CHECKSTYLE.ON: MemberName
         private int maxSerialPosition = 0;
 
         private Builder() {
@@ -462,11 +465,12 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         /**
          * Validate whether the primary key type is valid.
          * Note: In order to keep backward compatibility we are allowing nullable data types to be part of primary key
+         *
          * @param type
          * @return true if a valid primary key type or false
          */
         private static boolean validatePrimaryKeyDataType(int type) {
-            switch(type) {
+            switch (type) {
                 case ColumnTypes.NOTNULL_INTEGER:
                 case ColumnTypes.INTEGER:
                 case ColumnTypes.NOTNULL_LONG:

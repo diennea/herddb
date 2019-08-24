@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -35,14 +36,14 @@ import java.util.List;
  */
 public class SystransactionsTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
-        .builder()
-        .name("systransactions")
-        .column("tablespace", ColumnTypes.STRING)
-        .column("txid", ColumnTypes.LONG)
-        .column("creationTimestamp", ColumnTypes.TIMESTAMP)
-        .primaryKey("txid", false)
-        .build();
+    private static final Table TABLE = Table
+            .builder()
+            .name("systransactions")
+            .column("tablespace", ColumnTypes.STRING)
+            .column("txid", ColumnTypes.LONG)
+            .column("creationTimestamp", ColumnTypes.TIMESTAMP)
+            .primaryKey("txid", false)
+            .build();
 
     public SystransactionsTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
@@ -55,10 +56,10 @@ public class SystransactionsTableManager extends AbstractSystemTableManager {
         for (Transaction tx : transactions) {
 
             result.add(RecordSerializer.makeRecord(
-                table,
-                "tablespace", tableSpaceManager.getTableSpaceName(),
-                "txid", tx.transactionId,
-                "creationtimestamp", new java.sql.Timestamp(tx.localCreationTimestamp)
+                    table,
+                    "tablespace", tableSpaceManager.getTableSpaceName(),
+                    "txid", tx.transactionId,
+                    "creationtimestamp", new java.sql.Timestamp(tx.localCreationTimestamp)
             ));
         }
         return result;

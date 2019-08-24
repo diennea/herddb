@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import java.util.HashMap;
@@ -31,7 +32,7 @@ import net.sf.jsqlparser.expression.JdbcParameter;
  */
 public class ImmutableExpressionsCache {
 
-    private static final class ImmutableJdbcParameter extends JdbcParameter {
+    private static class ImmutableJdbcParameter extends JdbcParameter {
 
         public ImmutableJdbcParameter(Integer index, boolean useFixedIndex) {
             super(index, useFixedIndex);

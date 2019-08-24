@@ -17,23 +17,8 @@
  under the License.
 
  */
+
 package herddb.cluster;
-
-import java.io.EOFException;
-import java.nio.charset.StandardCharsets;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiConsumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import org.apache.bookkeeper.client.BKException;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerEntry;
-import org.apache.bookkeeper.client.LedgerHandle;
 
 import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
@@ -45,10 +30,24 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import io.netty.buffer.ByteBuf;
+import java.io.EOFException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.LedgerEntry;
+import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
@@ -192,9 +191,11 @@ public class BookkeeperCommitLog extends CommitLog {
 
     }
 
-    public BookkeeperCommitLog(String tableSpaceUUID, String tableSpaceName, String localNodeId,
+    public BookkeeperCommitLog(
+            String tableSpaceUUID, String tableSpaceName, String localNodeId,
             ZookeeperMetadataStorageManager metadataStorageManager, BookKeeper bookkeeper,
-            BookkeeperCommitLogManager parent) throws LogNotAvailableException {
+            BookkeeperCommitLogManager parent
+    ) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableSpaceName = tableSpaceName;
@@ -291,25 +292,25 @@ public class BookkeeperCommitLog extends CommitLog {
         } else {
             res = _writer.writeEntry(edit);
             res.whenCompleteAsync((pos, error) -> {
-                if (error != null) {
-                    handleBookKeeperAsyncFailure(error, edit);
-                }
-            }
+                        if (error != null) {
+                            handleBookKeeperAsyncFailure(error, edit);
+                        }
+                    }
             );
             res.thenAccept((pos) -> {
-                if (lastLedgerId == pos.ledgerId) {
-                    lastSequenceNumber.accumulateAndGet(pos.offset,
-                            EnsureLongIncrementAccumulator.INSTANCE);
-                }
-                notifyListeners(pos, edit);
-            }
+                        if (lastLedgerId == pos.ledgerId) {
+                            lastSequenceNumber.accumulateAndGet(pos.offset,
+                                    EnsureLongIncrementAccumulator.INSTANCE);
+                        }
+                        notifyListeners(pos, edit);
+                    }
             );
         }
         if (!sync) {
             // client is not really interested to the result of the write
             // sending a fake completed result
             return new CommitLogResult(
-                    CompletableFuture.<LogSequenceNumber>completedFuture(null), true /* deferred */, false);
+                    CompletableFuture.completedFuture(null), true /* deferred */, false);
         } else {
             return new CommitLogResult(res, false /* deferred */, true);
         }
@@ -359,8 +360,10 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer,
-            boolean fencing) throws LogNotAvailableException {
+    public void recovery(
+            LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            boolean fencing
+    ) throws LogNotAvailableException {
         String tableSpaceDescription = tableSpaceDescription();
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
         LOGGER.log(Level.INFO, "Actual ledgers list:{0} tableSpace {1}",
@@ -375,7 +378,7 @@ public class BookkeeperCommitLog extends CommitLog {
             // TODO: download snapshot from another remote broker
             throw new FullRecoveryNeededException(new Exception(
                     "Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + " tablespace "
-                    + tableSpaceDescription));
+                            + tableSpaceDescription));
         }
         if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty()
                 && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
@@ -421,12 +424,12 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.INFO, "Tablespace " + tableSpaceDescription + ", Recovering from ledger "
                             + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
 
-                    final int BATCH_SIZE = 10000;
+                    final int batchSize = 10000;
                     if (lastAddConfirmed >= 0) {
 
-                        for (long b = first; b <= lastAddConfirmed;) {
+                        for (long b = first; b <= lastAddConfirmed; ) {
                             long start = b;
-                            long end = b + BATCH_SIZE;
+                            long end = b + batchSize;
                             if (end > lastAddConfirmed) {
                                 end = lastAddConfirmed;
                             }
@@ -614,8 +617,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     currentLedger.tryReadLastAddConfirmed();
                 }
 
-                if (currentLedger.isClosed() && currentLedger.getLastAddConfirmed()
-                        == nextEntryToRead - 1) {
+                if (currentLedger.isClosed() && currentLedger.getLastAddConfirmed() == nextEntryToRead - 1) {
                     if (LOGGER.isLoggable(Level.FINER)) {
                         LOGGER.finer(tableSpaceDescription() + " ledger " + currentLedger.getId()
                                 + " is closed and we have fully read it");
@@ -711,8 +713,10 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void followTheLeader(LogSequenceNumber lastPosition, BiConsumer<LogSequenceNumber, LogEntry> consumer,
-            FollowerContext context) throws LogNotAvailableException {
+    public void followTheLeader(
+            LogSequenceNumber lastPosition, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            FollowerContext context
+    ) throws LogNotAvailableException {
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.finer(tableSpaceDescription() + " followTheLeader lastPosition:" + lastPosition);
         }
@@ -742,7 +746,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
             ReadHandle lh = fContext.currentLedger;
             try (LastConfirmedAndEntry entryAndLac = lh.
-                    readLastAddConfirmedAndEntry(nextEntry, LONG_POLL_TIMEOUT, false);) {
+                    readLastAddConfirmedAndEntry(nextEntry, LONG_POLL_TIMEOUT, false)) {
                 if (entryAndLac.hasEntry()) {
                     org.apache.bookkeeper.client.api.LedgerEntry e = entryAndLac.getEntry();
                     acceptEntryForFollower(e, consumer);
@@ -778,8 +782,10 @@ public class BookkeeperCommitLog extends CommitLog {
         }
     }
 
-    private void acceptEntryForFollower(org.apache.bookkeeper.client.api.LedgerEntry e,
-            BiConsumer<LogSequenceNumber, LogEntry> consumer) throws EOFException {
+    private void acceptEntryForFollower(
+            org.apache.bookkeeper.client.api.LedgerEntry e,
+            BiConsumer<LogSequenceNumber, LogEntry> consumer
+    ) throws EOFException {
         long entryId = e.getEntryId();
         byte[] entryData = e.getEntryBytes();
         LogEntry statusEdit = LogEntry.deserialize(entryData);

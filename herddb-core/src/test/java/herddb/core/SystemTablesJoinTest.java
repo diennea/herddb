@@ -17,28 +17,25 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
  * Tests on basic JOIN queries
@@ -50,7 +47,7 @@ public class SystemTablesJoinTest {
     @Test
     public void testSimpleJoinNoWhere() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -58,11 +55,11 @@ public class SystemTablesJoinTest {
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
-                    + "systablespaces.tablespace_name,"
-                    + "sysnodes.address FROM"
-                    + " systablespaces "
-                    + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
-                    + " ORDER BY tablespace_name", Collections.emptyList()).consumeAndClose();
+                        + "systablespaces.tablespace_name,"
+                        + "sysnodes.address FROM"
+                        + " systablespaces "
+                        + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
+                        + " ORDER BY tablespace_name", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
@@ -72,23 +69,23 @@ public class SystemTablesJoinTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                    tuples.get(0).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
-                    )));
+                        tuples.get(0).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
+                        )));
                 assertTrue(
-                    tuples.get(1).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
-                    )));
+                        tuples.get(1).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
+                        )));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
-                    + "systablespaces.tablespace_name,"
-                    + "sysnodes.address FROM"
-                    + " systablespaces "
-                    + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
-                    + " ORDER BY tablespace_name DESC", Collections.emptyList()).consumeAndClose();
+                        + "systablespaces.tablespace_name,"
+                        + "sysnodes.address FROM"
+                        + " systablespaces "
+                        + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
+                        + " ORDER BY tablespace_name DESC", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
@@ -98,23 +95,23 @@ public class SystemTablesJoinTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                    tuples.get(0).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
-                    )));
+                        tuples.get(0).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
+                        )));
                 assertTrue(
-                    tuples.get(1).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
-                    )));
+                        tuples.get(1).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
+                        )));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
-                    + "systablespaces.tablespace_name,"
-                    + "sysnodes.address FROM"
-                    + " systablespaces "
-                    + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
-                    + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consumeAndClose();
+                        + "systablespaces.tablespace_name,"
+                        + "sysnodes.address FROM"
+                        + " systablespaces "
+                        + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
+                        + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
@@ -124,9 +121,9 @@ public class SystemTablesJoinTest {
                 assertEquals(1, tuples.size());
 
                 assertTrue(
-                    tuples.get(0).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
-                    )));
+                        tuples.get(0).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
+                        )));
 
             }
 

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +43,7 @@ public class LocalLockManager implements ILocalLockManager {
 
     private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<>();
 
-    private static final class LockInstance {
+    private static class LockInstance {
 
         private final StampedLock lock;
         private int count;

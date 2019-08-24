@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
 import herddb.model.DMLStatement;
-import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
@@ -42,9 +42,11 @@ public class SimpleInsertOp implements PlannerOp {
     }
 
     @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
-            boolean lockRequired, boolean forWrite) {
+            boolean lockRequired, boolean forWrite
+    ) {
 
         return tableSpaceManager
                 .executeStatementAsync(statement, context, transactionContext);

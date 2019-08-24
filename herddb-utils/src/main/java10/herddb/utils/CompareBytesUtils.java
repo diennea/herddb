@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.Arrays;
@@ -45,14 +46,18 @@ public final class CompareBytesUtils {
         return Arrays.equals(left, right);
     }
 
-    public static int compare(byte[] left, int fromIndex, int toIndex,
-            byte[] right, int fromIndex2, int toIndex2) {
+    public static int compare(
+            byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2
+    ) {
         return Arrays.compareUnsigned(left, fromIndex, toIndex,
                 right, fromIndex2, toIndex2);
     }
 
-    public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
-            byte[] right, int fromIndex2, int toIndex2) {
+    public static boolean arraysEquals(
+            byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2
+    ) {
         return Arrays.equals(left, fromIndex, toIndex,
                 right, fromIndex2, toIndex2);
     }

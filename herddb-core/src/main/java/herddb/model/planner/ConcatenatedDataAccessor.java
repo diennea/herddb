@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.utils.AbstractDataAccessor;
@@ -24,10 +25,11 @@ import herddb.utils.DataAccessor;
 
 /**
  * Concatenates two records
+ *
  * @author eolivelli
  */
 class ConcatenatedDataAccessor extends AbstractDataAccessor {
-    
+
     private final String[] fieldNames;
     private final DataAccessor a;
     private final DataAccessor b;
@@ -73,5 +75,5 @@ class ConcatenatedDataAccessor extends AbstractDataAccessor {
         }
         return res;
     }
-    
+
 }

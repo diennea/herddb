@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jmx;
 
 import javax.management.MXBean;
@@ -29,23 +30,23 @@ import javax.management.MXBean;
 @MXBean
 public interface TableManagerStatsMXBean {
 
-    public int getLoadedpages();
+    int getLoadedpages();
 
-    public long getLoadedPagesCount();
+    long getLoadedPagesCount();
 
-    public long getUnloadedPagesCount();
+    long getUnloadedPagesCount();
 
-    public long getTablesize();
+    long getTablesize();
 
-    public int getDirtypages();
+    int getDirtypages();
 
-    public int getDirtyrecords();
+    int getDirtyrecords();
 
-    public long getDirtyUsedMemory();
+    long getDirtyUsedMemory();
 
-    public long getMaxLogicalPageSize();
+    long getMaxLogicalPageSize();
 
-    public long getBuffersUsedMemory();
+    long getBuffersUsedMemory();
 
-    public long getKeysUsedMemory();
+    long getKeysUsedMemory();
 }

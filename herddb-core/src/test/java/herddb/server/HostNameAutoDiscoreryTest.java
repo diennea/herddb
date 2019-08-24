@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import org.junit.Rule;
@@ -35,8 +36,8 @@ public class HostNameAutoDiscoreryTest {
     @Test
     public void test() throws Exception {
         try (Server server = new Server(
-            new ServerConfiguration(folder.newFolder().toPath())
-                .set(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_AUTODISCOVERY))) {
+                new ServerConfiguration(folder.newFolder().toPath())
+                        .set(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_AUTODISCOVERY))) {
             server.start();
         }
     }

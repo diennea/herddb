@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
@@ -31,7 +33,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Properties;
-import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;

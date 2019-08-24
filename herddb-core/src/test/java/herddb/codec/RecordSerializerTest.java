@@ -17,27 +17,25 @@
  under the License.
 
  */
+
 package herddb.codec;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-
-import java.nio.ByteBuffer;
+import herddb.utils.Bytes;
+import herddb.utils.RawString;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Map;
 import java.util.TimeZone;
-
-import herddb.utils.Bytes;
-import herddb.utils.RawString;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
 /**
- *
  * @author enrico.olivelli
  */
 public class RecordSerializerTest {
@@ -48,17 +46,17 @@ public class RecordSerializerTest {
     @Test
     public void testToBean() {
         Table table = Table.builder()
-            .name("t1")
-            .column("pk", ColumnTypes.STRING)
-            .column("a", ColumnTypes.STRING)
-            .column("b", ColumnTypes.LONG)
-            .column("c", ColumnTypes.INTEGER)
-            .column("d", ColumnTypes.TIMESTAMP)
-            .column("e", ColumnTypes.BYTEARRAY)
-            .primaryKey("pk")
-            .build();
+                .name("t1")
+                .column("pk", ColumnTypes.STRING)
+                .column("a", ColumnTypes.STRING)
+                .column("b", ColumnTypes.LONG)
+                .column("c", ColumnTypes.INTEGER)
+                .column("d", ColumnTypes.TIMESTAMP)
+                .column("e", ColumnTypes.BYTEARRAY)
+                .primaryKey("pk")
+                .build();
         Record record = RecordSerializer.makeRecord(table, "pk", "a",
-            "a", "test", "b", 1L, "c", 2, "d", new java.sql.Timestamp(System.currentTimeMillis()), "e", "foo".getBytes(StandardCharsets.UTF_8));
+                "a", "test", "b", 1L, "c", 2, "d", new java.sql.Timestamp(System.currentTimeMillis()), "e", "foo".getBytes(StandardCharsets.UTF_8));
         Map<String, Object> toBean = RecordSerializer.toBean(record, table);
     }
 
@@ -83,16 +81,16 @@ public class RecordSerializerTest {
 
     @Test
     public void testSerializeWithNullAndNonNullTypes() {
-        byte iBytes [] = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER);
-        byte iBytesNonNullType[] = RecordSerializer.serialize(new Integer(10), ColumnTypes.NOTNULL_INTEGER);
+        byte[] iBytes = RecordSerializer.serialize(new Integer(10), ColumnTypes.INTEGER);
+        byte[] iBytesNonNullType = RecordSerializer.serialize(new Integer(10), ColumnTypes.NOTNULL_INTEGER);
         assertArrayEquals(iBytes, iBytesNonNullType);
 
-        byte lBytes [] = RecordSerializer.serialize(new Long(1982), ColumnTypes.NOTNULL_LONG);
-        byte lBytesNonNullType[] = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG);
+        byte[] lBytes = RecordSerializer.serialize(new Long(1982), ColumnTypes.NOTNULL_LONG);
+        byte[] lBytesNonNullType = RecordSerializer.serialize(new Long(1982), ColumnTypes.LONG);
         assertArrayEquals(lBytes, lBytesNonNullType);
 
-        byte sBytes [] = RecordSerializer.serialize("test", ColumnTypes.STRING);
-        byte sBytesNonNullType[] = RecordSerializer.serialize("test", ColumnTypes.NOTNULL_STRING);
+        byte[] sBytes = RecordSerializer.serialize("test", ColumnTypes.STRING);
+        byte[] sBytesNonNullType = RecordSerializer.serialize("test", ColumnTypes.NOTNULL_STRING);
         assertArrayEquals(sBytes, sBytesNonNullType);
     }
 
@@ -104,27 +102,26 @@ public class RecordSerializerTest {
     @Test
     public void testDeserializeWithNullAndNonNullTypes() {
         byte[] byteValueForInt = Bytes.from_int(1000).to_array();
-        int iValue = (int)RecordSerializer.deserialize(byteValueForInt, ColumnTypes.INTEGER);
+        int iValue = (int) RecordSerializer.deserialize(byteValueForInt, ColumnTypes.INTEGER);
         assertEquals(iValue, 1000);
 
-        int iValueNonNullType = (int)RecordSerializer.deserialize(byteValueForInt, ColumnTypes.NOTNULL_INTEGER);
+        int iValueNonNullType = (int) RecordSerializer.deserialize(byteValueForInt, ColumnTypes.NOTNULL_INTEGER);
         assertEquals(iValueNonNullType, 1000);
 
 
-        byte byteValueForLong[] = Bytes.from_long(99999).to_array();
-        long lValue = (long)RecordSerializer.deserialize(byteValueForLong, ColumnTypes.LONG);
+        byte[] byteValueForLong = Bytes.from_long(99999).to_array();
+        long lValue = (long) RecordSerializer.deserialize(byteValueForLong, ColumnTypes.LONG);
         assertEquals(lValue, 99999);
 
-        long lValueNonNullType = (long)RecordSerializer.deserialize(byteValueForLong, ColumnTypes.NOTNULL_LONG);
+        long lValueNonNullType = (long) RecordSerializer.deserialize(byteValueForLong, ColumnTypes.NOTNULL_LONG);
         assertEquals(lValueNonNullType, 99999);
 
 
-
-        byte strValueAsByteArray[] = Bytes.from_string("test").to_array();
-        RawString sValue = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
+        byte[] strValueAsByteArray = Bytes.from_string("test").to_array();
+        RawString sValue = (RawString) RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
         assertEquals(sValue, "test");
 
-        RawString sValueNonNullType = (RawString)RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.NOTNULL_STRING);
+        RawString sValueNonNullType = (RawString) RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.NOTNULL_STRING);
         assertEquals(sValueNonNullType, "test");
 
     }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import javax.script.ScriptEngine;

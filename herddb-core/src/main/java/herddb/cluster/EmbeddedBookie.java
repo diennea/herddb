@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
+import herddb.network.netty.NetworkUtils;
+import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,16 +33,12 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-
-import herddb.network.netty.NetworkUtils;
-import herddb.server.ServerConfiguration;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -48,7 +47,7 @@ import herddb.server.ServerConfiguration;
  */
 public class EmbeddedBookie implements AutoCloseable {
 
-    private final static Logger LOG = Logger.getLogger(EmbeddedBookie.class.getName());
+    private static final Logger LOG = Logger.getLogger(EmbeddedBookie.class.getName());
 
     private final Path baseDirectory;
     private final ServerConfiguration configuration;
@@ -162,7 +161,7 @@ public class EmbeddedBookie implements AutoCloseable {
         // dump actual BookKeeper configuration in order to use bookkeeper shell
         Path actual_bookkeeper_configuration = bookie_dir.resolve("embedded.bookie.properties");
         StringBuilder builder = new StringBuilder();
-        for (Iterator<String> key_it = conf.getKeys(); key_it.hasNext();) {
+        for (Iterator<String> key_it = conf.getKeys(); key_it.hasNext(); ) {
             String key = key_it.next() + "";
             Object value = conf.getProperty(key);
             if (value instanceof Collection) {

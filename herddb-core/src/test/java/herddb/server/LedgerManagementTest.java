@@ -17,36 +17,28 @@
  under the License.
 
  */
+
 package herddb.server;
 
-import herddb.cluster.BookkeeperCommitLog;
-import herddb.cluster.LedgersInfo;
-import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
+import herddb.cluster.BookkeeperCommitLog;
+import herddb.cluster.LedgersInfo;
+import herddb.model.ColumnTypes;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.Table;
+import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
+import herddb.model.commands.AlterTableSpaceStatement;
+import herddb.model.commands.CreateTableStatement;
+import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import herddb.model.ColumnTypes;
-import herddb.model.DataScanner;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.Table;
-import herddb.model.TableSpace;
-import herddb.model.TransactionContext;
-import herddb.model.Tuple;
-import herddb.model.commands.AlterTableSpaceStatement;
-import herddb.model.commands.CreateTableStatement;
-import herddb.utils.DataAccessor;
-import herddb.utils.ZKTestEnv;
 
 /**
  * Booting two servers, one table space
@@ -136,7 +128,7 @@ public class LedgerManagementTest {
             System.out.println("actualLedgersList2:" + actualLedgersList2 + " lastLedgerId " + log.getLastLedgerId());
             assertEquals(2, log.getLastLedgerId());
             assertEquals(1, actualLedgersList2.getActiveLedgers().size());
-            // ledger id 0 dropped at checkpoint 
+            // ledger id 0 dropped at checkpoint
             assertTrue(actualLedgersList2.getActiveLedgers().contains(2L));
         }
         Thread.sleep(100);
@@ -148,7 +140,7 @@ public class LedgerManagementTest {
             System.out.println("actualLedgersList:" + actualLedgersList + " lastLedgerId " + log.getLastLedgerId());
             assertEquals(3, log.getLastLedgerId());
             assertEquals(2, actualLedgersList.getActiveLedgers().size());
-            // ledger id 0 dropped at checkpoint 
+            // ledger id 0 dropped at checkpoint
             assertTrue(actualLedgersList.getActiveLedgers().contains(2L));
             assertTrue(actualLedgersList.getActiveLedgers().contains(3L));
         }

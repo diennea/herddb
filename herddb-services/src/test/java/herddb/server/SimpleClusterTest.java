@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import herddb.client.ClientConfiguration;
@@ -66,7 +67,7 @@ public class SimpleClusterTest {
             });
             runner.start();
             while (ServerMain.getRunningInstance() == null
-                || !ServerMain.getRunningInstance().isStarted()) {
+                    || !ServerMain.getRunningInstance().isStarted()) {
                 Thread.sleep(1000);
                 System.out.println("waiting for boot");
             }
@@ -75,7 +76,7 @@ public class SimpleClusterTest {
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(
-                    new ZookeeperClientSideMetadataProvider(zookeeperServer.getConnectString(), 40000, "/herddb")
+                        new ZookeeperClientSideMetadataProvider(zookeeperServer.getConnectString(), 40000, "/herddb")
                 );
                 try (HDBConnection con = client.openConnection()) {
                     try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10);) {

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import java.util.Collection;
@@ -174,7 +175,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
      *
      * @author diego.salvi
      */
-    private static final class PlainMetadata extends Page.Metadata {
+    private static class PlainMetadata extends Page.Metadata {
 
         private final int hashcode;
 

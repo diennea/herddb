@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -62,12 +63,14 @@ public class ValuesOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         Iterator<List<CompiledSQLExpression>> it = tuples.iterator();
         Transaction transaction = tableSpaceManager.getTransaction(transactionContext.transactionId);
-        
+
         DataScanner res = new DataScanner(transaction, fieldNames, columns) {
             @Override
             public boolean hasNext() throws DataScannerException {

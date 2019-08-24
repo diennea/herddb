@@ -17,21 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import org.junit.Test;
-
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
@@ -41,6 +33,12 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import org.junit.Test;
 
 /**
  * Suite of tests on RecordSet
@@ -59,7 +57,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -73,8 +71,8 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
             for (DataAccessor t : rs) {
-                expected_s1.remove((String) t.get("s1"));
-                expected_n1.remove((Integer) t.get("n1"));
+                expected_s1.remove(t.get("s1"));
+                expected_n1.remove(t.get("n1"));
             }
             assertTrue(expected_n1.isEmpty());
             assertTrue(expected_s1.isEmpty());
@@ -97,7 +95,7 @@ public abstract class RecordSetSuite {
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
         java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Long> expected_n1 = new HashSet<>();
             Set<Integer> expected_i1 = new HashSet<>();
@@ -120,8 +118,8 @@ public abstract class RecordSetSuite {
             rs.writeFinished();
             for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
-                expected_n1.remove((Long) t.get("n1"));
-                expected_i1.remove((Integer) t.get("i1"));
+                expected_n1.remove(t.get("n1"));
+                expected_i1.remove(t.get("i1"));
                 assertEquals(ts, t.get("t1"));
                 assertNull(t.get("null1"));
                 assertEquals(true, t.get("bo1"));
@@ -141,7 +139,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -161,7 +159,7 @@ public abstract class RecordSetSuite {
 
             for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
-                expected_n1.remove((Integer) t.get("n1"));
+                expected_n1.remove(t.get("n1"));
             }
             assertTrue(expected_n1.isEmpty());
             assertTrue(expected_s1.isEmpty());
@@ -177,7 +175,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -197,7 +195,7 @@ public abstract class RecordSetSuite {
 
             for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
-                expected_n1.remove((Integer) t.get("n1"));
+                expected_n1.remove(t.get("n1"));
             }
             assertTrue(expected_n1.isEmpty());
             assertTrue(expected_s1.isEmpty());
@@ -213,7 +211,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
                 String s1 = "test_" + i;
@@ -241,7 +239,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -280,7 +278,7 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -319,7 +317,7 @@ public abstract class RecordSetSuite {
         Set<String> expected_s2 = new HashSet<>();
         Set<Integer> expected_n2 = new HashSet<>();
         String[] fieldNames = Column.buildFieldNamesList(columns);
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -359,7 +357,7 @@ public abstract class RecordSetSuite {
             for (DataAccessor t : rs) {
                 System.out.println("t:" + t.toMap());
                 expected_s2.remove(t.get("s2").toString());
-                expected_n2.remove((Integer) t.get("n2"));
+                expected_n2.remove(t.get("n2"));
             }
             assertTrue(expected_s2.isEmpty());
             assertTrue(expected_n2.isEmpty());
@@ -378,7 +376,7 @@ public abstract class RecordSetSuite {
         Set<String> expected_s2 = new HashSet<>();
         Set<Integer> expected_n2 = new HashSet<>();
         String[] fieldNames = Column.buildFieldNamesList(columns);
-        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns)) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -416,8 +414,8 @@ public abstract class RecordSetSuite {
                 }
             }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
             for (DataAccessor t : rs) {
-                expected_s2.remove((String) t.get("s2"));
-                expected_n2.remove((Integer) t.get("n2"));
+                expected_s2.remove(t.get("s2"));
+                expected_n2.remove(t.get("n2"));
             }
             assertTrue(expected_s2.isEmpty());
             assertTrue(expected_n2.isEmpty());

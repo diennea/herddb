@@ -17,17 +17,16 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
-import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class CountColumnCalculator implements AggregatedColumnCalculator {
-    
+
     long count;
     String fieldName;
 
@@ -49,5 +48,5 @@ public class CountColumnCalculator implements AggregatedColumnCalculator {
     public Object getValue() {
         return count;
     }
-    
+
 }

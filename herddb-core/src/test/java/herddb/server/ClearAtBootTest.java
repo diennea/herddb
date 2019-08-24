@@ -17,24 +17,22 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import herddb.utils.RawString;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on clear at boot
@@ -53,11 +51,11 @@ public class ClearAtBootTest {
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 server.waitForStandaloneBoot();
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_0", 1, 2)).updateCount);
@@ -70,11 +68,11 @@ public class ClearAtBootTest {
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 server.waitForStandaloneBoot();
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_0", 1, 2)).updateCount);

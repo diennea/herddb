@@ -17,13 +17,14 @@
  under the License.
 
  */
+
 package herddb.client;
 
+import static herddb.utils.QueryUtils.discoverTablespace;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.model.TransactionContext;
 import herddb.network.ServerHostData;
-import static herddb.utils.QueryUtils.discoverTablespace;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +46,7 @@ import org.apache.bookkeeper.stats.Counter;
  */
 public class HDBConnection implements AutoCloseable {
 
-    private final static AtomicLong IDGENERATOR = new AtomicLong();
+    private static final AtomicLong IDGENERATOR = new AtomicLong();
     private final long id = IDGENERATOR.incrementAndGet();
     private final HDBClient client;
     private volatile boolean closed;
@@ -64,8 +65,8 @@ public class HDBConnection implements AutoCloseable {
                 .getStatsLogger()
                 .getCounter("leaderChangedErrors");
 
-        this.maxConnectionsPerServer
-                = client.getConfiguration().getInt(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT);
+        this.maxConnectionsPerServer =
+                client.getConfiguration().getInt(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER_DEFAULT);
 
         this.routes = new ConcurrentHashMap<>();
 
@@ -99,26 +100,27 @@ public class HDBConnection implements AutoCloseable {
         routes.clear();
         client.releaseConnection(this);
     }
+
     private static final Logger LOGGER = Logger.getLogger(HDBConnection.class.getName());
 
     public boolean waitForTableSpace(String tableSpace, int timeout) throws HDBException, ClientSideMetadataProviderException {
-        long start = System.currentTimeMillis();        
+        long start = System.currentTimeMillis();
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
                 try (ScanResultSet result = route.executeScan(tableSpace,
                         "select * "
-                        + "from systablespaces "
-                        + "where tablespace_name=?", false,
+                                + "from systablespaces "
+                                + "where tablespace_name=?", false,
                         Arrays.asList(tableSpace), TransactionContext.NOTRANSACTION_ID,
                         1,
-                        1);) {
+                        1)) {
                     boolean ok = result.hasNext();
                     if (ok) {
                         LOGGER.log(Level.INFO, "table space {0} is up now: info {1}", new Object[]{tableSpace,
-                            result
-                            .consume()
-                            .get(0)});
+                                result
+                                        .consume()
+                                        .get(0)});
                         return true;
                     }
                 }
@@ -272,15 +274,17 @@ public class HDBConnection implements AutoCloseable {
                 });
     }
 
-    public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues,
-            boolean usePreparedStatement, List<List<Object>> batch) throws ClientSideMetadataProviderException, HDBException {
+    public List<DMLResult> executeUpdates(
+            String tableSpace, String query, long tx, boolean returnValues,
+            boolean usePreparedStatement, List<List<Object>> batch
+    ) throws ClientSideMetadataProviderException, HDBException {
         if (batch.isEmpty()) {
             return Collections.emptyList();
         }
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }
-        int  trialCount = 0;
+        int trialCount = 0;
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
@@ -293,8 +297,10 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
-    public CompletableFuture<List<DMLResult>> executeUpdatesAsync(String tableSpace, String query, long tx, boolean returnValues,
-            boolean usePreparedStatement, List<List<Object>> batch) {
+    public CompletableFuture<List<DMLResult>> executeUpdatesAsync(
+            String tableSpace, String query, long tx, boolean returnValues,
+            boolean usePreparedStatement, List<List<Object>> batch
+    ) {
         if (batch.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
@@ -347,7 +353,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private void handleRetryError(Throwable retry, int trialCount) throws HDBException, ClientSideMetadataProviderException {
-        LOGGER.log(Level.INFO, "retry #{0}:" +retry, trialCount); // no stracktrace
+        LOGGER.log(Level.INFO, "retry #{0}:" + retry, trialCount); // no stracktrace
         int sleepTimeout = client.getOperationRetryDelay();
         int maxTrials = client.getMaxOperationRetryCount();
         if (retry instanceof RetryRequestException) {
@@ -356,7 +362,7 @@ public class HDBConnection implements AutoCloseable {
                 maxTrials = Integer.MAX_VALUE;
             }
             if (trialCount > maxTrials) {
-                throw new HDBException("Too many trials ("+trialCount+"/"+maxTrials+") for "+retry, retry);
+                throw new HDBException("Too many trials (" + trialCount + "/" + maxTrials + ") for " + retry, retry);
             }
             RetryRequestException retryError = (RetryRequestException) retry;
             if (retryError.isRequireMetadataRefresh()) {
@@ -365,19 +371,21 @@ public class HDBConnection implements AutoCloseable {
         }
         try {
             // linear back-off
-            Thread.sleep((trialCount + 1 )*sleepTimeout);
+            Thread.sleep((trialCount + 1) * sleepTimeout);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         }
     }
 
-    public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize,
-            boolean includeTransactionLog) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+    public void dumpTableSpace(
+            String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize,
+            boolean includeTransactionLog
+    ) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         route.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }
-    
+
     protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
         return all[random.nextInt(maxConnectionsPerServer)];
     }
@@ -458,10 +466,7 @@ public class HDBConnection implements AutoCloseable {
             return false;
         }
         final HDBConnection other = (HDBConnection) obj;
-        if (this.id != other.id) {
-            return false;
-        }
-        return true;
+        return this.id == other.id;
     }
 
 }

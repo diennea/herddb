@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -28,7 +29,7 @@ public class TransactionResult extends StatementExecutionResult {
 
     private final OutcomeType outcome;
 
-    public static enum OutcomeType {
+    public enum OutcomeType {
         BEGIN,
         COMMIT,
         ROLLBACK

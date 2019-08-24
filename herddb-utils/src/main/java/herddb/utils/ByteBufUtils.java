@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.utils;
 
-import java.nio.charset.StandardCharsets;
-
 import io.netty.buffer.ByteBuf;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Utilities for write variable length values on {@link ByteBuf}.
@@ -30,63 +30,63 @@ import io.netty.buffer.ByteBuf;
  */
 public class ByteBufUtils {
 
-    public static final void writeArray(ByteBuf buffer, byte[] array) {
+    public static void writeArray(ByteBuf buffer, byte[] array) {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
     }
 
-    public static final void writeArray(ByteBuf buffer, Bytes array) {
+    public static void writeArray(ByteBuf buffer, Bytes array) {
         writeVInt(buffer, array.getLength());
         buffer.writeBytes(array.getBuffer(), array.getOffset(), array.getLength());
     }
 
-    public static final void writeArray(ByteBuf buffer, byte[] array, int offset, int length) {
+    public static void writeArray(ByteBuf buffer, byte[] array, int offset, int length) {
         writeVInt(buffer, length);
         buffer.writeBytes(array, offset, length);
     }
 
-    public static final void writeString(ByteBuf buffer, String string) {
+    public static void writeString(ByteBuf buffer, String string) {
         writeArray(buffer, string.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static final void writeRawString(ByteBuf buffer, RawString string) {
+    public static void writeRawString(ByteBuf buffer, RawString string) {
         writeArray(buffer, string.getData(), string.getOffset(), string.getLength());
     }
 
-    public static final byte[] readArray(ByteBuf buffer) {
+    public static byte[] readArray(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return array;
     }
 
-    public static final String readString(ByteBuf buffer) {
+    public static String readString(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return new String(array, StandardCharsets.UTF_8);
     }
 
-    public static final RawString readRawString(ByteBuf buffer) {
+    public static RawString readRawString(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return RawString.newPooledRawString(array, 0, len);
     }
 
-    public static final RawString readUnpooledRawString(ByteBuf buffer) {
+    public static RawString readUnpooledRawString(ByteBuf buffer) {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
         return RawString.newUnpooledRawString(array, 0, len);
     }
 
-    public static final void skipArray(ByteBuf buffer) {
+    public static void skipArray(ByteBuf buffer) {
         final int len = readVInt(buffer);
         buffer.skipBytes(len);
     }
 
-    public static final void writeVInt(ByteBuf buffer, int i) {      
+    public static void writeVInt(ByteBuf buffer, int i) {
         if ((i & ~0x7F) != 0) {
             buffer.writeByte((byte) ((i & 0x7F) | 0x80));
             i >>>= 7;
@@ -110,7 +110,7 @@ public class ByteBufUtils {
         buffer.writeByte((byte) i);
     }
 
-    public static final int readVInt(ByteBuf buffer) {
+    public static int readVInt(ByteBuf buffer) {
         byte b = buffer.readByte();
         int i = b & 0x7F;
 
@@ -136,15 +136,15 @@ public class ByteBufUtils {
         return i;
     }
 
-    public static final void writeZInt(ByteBuf buffer, int i) {
+    public static void writeZInt(ByteBuf buffer, int i) {
         writeVInt(buffer, zigZagEncode(i));
     }
 
-    public static final int readZInt(ByteBuf buffer) {
+    public static int readZInt(ByteBuf buffer) {
         return zigZagDecode(readVInt(buffer));
     }
 
-    public static final void writeVLong(ByteBuf buffer, long i) {
+    public static void writeVLong(ByteBuf buffer, long i) {
         if (i < 0) {
             throw new IllegalArgumentException("cannot write negative vLong (got: " + i + ")");
         }
@@ -152,7 +152,7 @@ public class ByteBufUtils {
     }
 
     // write a potentially negative vLong
-    private static final void writeSignedVLong(ByteBuf buffer, long i) {
+    private static void writeSignedVLong(ByteBuf buffer, long i) {
         while ((i & ~0x7FL) != 0L) {
             buffer.writeByte((byte) ((i & 0x7FL) | 0x80L));
             i >>>= 7;
@@ -160,11 +160,11 @@ public class ByteBufUtils {
         buffer.writeByte((byte) i);
     }
 
-    public static final long readVLong(ByteBuf buffer) {
+    public static long readVLong(ByteBuf buffer) {
         return readVLong(buffer, false);
     }
 
-    private static final long readVLong(ByteBuf buffer, boolean allowNegative) {
+    private static long readVLong(ByteBuf buffer, boolean allowNegative) {
         byte b = buffer.readByte();
         if (b >= 0) {
             return b;
@@ -222,26 +222,26 @@ public class ByteBufUtils {
         }
     }
 
-    public static final void writeZLong(ByteBuf buffer, long i) {
+    public static void writeZLong(ByteBuf buffer, long i) {
         writeVLong(buffer, zigZagEncode(i));
     }
 
-    public static final long readZLong(ByteBuf buffer) {
+    public static long readZLong(ByteBuf buffer) {
         return zigZagDecode(readVLong(buffer));
     }
 
-    public static final void writeDouble(ByteBuf buffer, double i) {
+    public static void writeDouble(ByteBuf buffer, double i) {
         buffer.writeLong(Double.doubleToLongBits(i));
     }
 
-    public static final double readDouble(ByteBuf buffer) {
+    public static double readDouble(ByteBuf buffer) {
         return Double.longBitsToDouble(buffer.readLong());
     }
 
     /**
      * Same as {@link #zigZagEncode(long)} but on integers.
      */
-    private static final int zigZagEncode(int i) {
+    private static int zigZagEncode(int i) {
         return (i >> 31) ^ (i << 1);
     }
 
@@ -251,21 +251,21 @@ public class ByteBufUtils {
      * absolute value can be stored on <tt>n</tt> bits, the returned value will
      * be an unsigned long that can be stored on <tt>n+1</tt> bits.
      */
-    private static final long zigZagEncode(long l) {
+    private static long zigZagEncode(long l) {
         return (l >> 63) ^ (l << 1);
     }
 
     /**
      * Decode an int previously encoded with {@link #zigZagEncode(int)}.
      */
-    private static final int zigZagDecode(int i) {
+    private static int zigZagDecode(int i) {
         return ((i >>> 1) ^ -(i & 1));
     }
 
     /**
      * Decode a long previously encoded with {@link #zigZagEncode(long)}.
      */
-    private static final long zigZagDecode(long l) {
+    private static long zigZagDecode(long l) {
         return ((l >>> 1) ^ -(l & 1));
     }
 

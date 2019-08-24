@@ -17,37 +17,37 @@
  under the License.
 
  */
+
 package herddb.codec;
 
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
-import herddb.model.Record;
-import herddb.model.Table;
-import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import herddb.model.ColumnsList;
+import herddb.model.Record;
 import herddb.model.StatementExecutionException;
+import herddb.model.Table;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ByteArrayCursor;
+import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.SingleEntryMap;
 import herddb.utils.SystemProperties;
-
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -85,7 +85,7 @@ public final class RecordSerializer {
                 throw new IllegalArgumentException("bad column type " + type);
         }
     }
-    
+
     public static Object deserialize(byte[] data, int type) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
@@ -152,7 +152,7 @@ public final class RecordSerializer {
                 throw new IllegalArgumentException("bad column type " + type);
         }
     }
-    
+
     public static int deserializeCompare(Bytes data, int type, Object cvalue) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
@@ -160,10 +160,10 @@ public final class RecordSerializer {
                 return SQLRecordPredicateFunctions.compare(data.to_array(), cvalue);
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER: {
-                int v = data.to_int();                    
+                int v = data.to_int();
                 if (cvalue instanceof Integer) {
                     return Integer.compare(v, (int) cvalue);
-                } else if (cvalue instanceof Long) {                    
+                } else if (cvalue instanceof Long) {
                     return Long.compare(v, (long) cvalue);
                 }
                 return SQLRecordPredicateFunctions.compare(v, cvalue);
@@ -180,14 +180,14 @@ public final class RecordSerializer {
             }
             case ColumnTypes.STRING:
             case ColumnTypes.NOTNULL_STRING: {
-                    RawString string = data.to_RawString();
-                    if (cvalue instanceof RawString) {
-                        return string.compareTo((RawString) cvalue);
-                    } else if (cvalue instanceof String) {
-                        return string.compareToString(((String) cvalue));
-                    }
-                    return SQLRecordPredicateFunctions.compare(string, cvalue);
+                RawString string = data.to_RawString();
+                if (cvalue instanceof RawString) {
+                    return string.compareTo((RawString) cvalue);
+                } else if (cvalue instanceof String) {
+                    return string.compareToString(((String) cvalue));
                 }
+                return SQLRecordPredicateFunctions.compare(string, cvalue);
+            }
             case ColumnTypes.TIMESTAMP:
                 return SQLRecordPredicateFunctions.compare(data.to_timestamp(), cvalue);
             case ColumnTypes.NULL:
@@ -588,11 +588,12 @@ public final class RecordSerializer {
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(UTC);
 
-    public static final DateTimeFormatter getUTCTimestampFormatter() {
+    public static DateTimeFormatter getUTCTimestampFormatter() {
         return TIMESTAMP_FORMATTER;
     }
 
     public static Object convert(int type, Object value) throws StatementExecutionException {
+        // CHECKSTYLE.OFF: FallThrough
         switch (type) {
             case ColumnTypes.TIMESTAMP:
                 if ((value instanceof java.sql.Timestamp)) {
@@ -622,12 +623,13 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_INTEGER:
             case ColumnTypes.NOTNULL_STRING:
             case ColumnTypes.NOTNULL_LONG:
-                if(value == null) {
-                    throw new StatementExecutionException("Cannot have null value in non null type "+ ColumnTypes.sqlDataType(type));
+                if (value == null) {
+                    throw new StatementExecutionException("Cannot have null value in non null type " + ColumnTypes.sqlDataType(type));
                 }
             default:
                 return value;
         }
+        // CHECKSTYLE.ON: FallThrough
     }
 
     public static DataAccessor buildRawDataAccessor(Record record, Table table) {
@@ -643,7 +645,7 @@ public final class RecordSerializer {
         if (table.getColumn(property) == null) {
             throw new herddb.utils.IllegalDataAccessException("table " + table.tablespace + "." + table.name + " does not define column " + property);
         }
-        try (ByteArrayCursor din = value.newCursor();) {
+        try (ByteArrayCursor din = value.newCursor()) {
             while (!din.isEof()) {
                 int serialPosition;
                 serialPosition = din.readVIntNoEOFException();
@@ -664,7 +666,7 @@ public final class RecordSerializer {
 
     static Object accessRawDataFromValue(int index, Bytes value, Table table) throws IOException {
         Column column = table.getColumn(index);
-        try (ByteArrayCursor din = value.newCursor();) {
+        try (ByteArrayCursor din = value.newCursor()) {
             while (!din.isEof()) {
                 int serialPosition;
                 serialPosition = din.readVIntNoEOFException();
@@ -708,7 +710,7 @@ public final class RecordSerializer {
         if (table.primaryKey.length == 1) {
             return deserialize(key, table.getColumn(property).type);
         } else {
-            try (ByteArrayCursor din = key.newCursor();) {
+            try (ByteArrayCursor din = key.newCursor()) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     Bytes value = din.readBytesNoCopy();
                     if (primaryKeyColumn.equals(property)) {
@@ -726,7 +728,7 @@ public final class RecordSerializer {
             return deserialize(key, column.type);
         } else {
             final String cname = column.name;
-            try (ByteArrayCursor din = key.newCursor();) {
+            try (ByteArrayCursor din = key.newCursor()) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     Bytes value = din.readBytesNoCopy();
                     if (primaryKeyColumn.equals(cname)) {
@@ -792,8 +794,8 @@ public final class RecordSerializer {
             return serialize(v, c.type);
         } else {
             ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
-            // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
-            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
+            // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
+            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key)) {
                 int i = 0;
                 for (String pkColumn : columns) {
                     if (!pkColumn.equals(primaryKey[i])) {
@@ -831,7 +833,7 @@ public final class RecordSerializer {
         } else {
             ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
-            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
+            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key)) {
                 int i = 0;
                 for (String pkColumn : columns) {
                     if (!pkColumn.equals(primaryKey[i])) {
@@ -926,7 +928,7 @@ public final class RecordSerializer {
 
     public static byte[] serializeValueRaw(Map<String, Object> record, Table table, int expectedSize) {
         ByteArrayOutputStream value = new ByteArrayOutputStream(expectedSize <= 0 ? INITIAL_BUFFER_SIZE : expectedSize);
-        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value)) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
@@ -941,10 +943,12 @@ public final class RecordSerializer {
         return value.toByteArray();
     }
 
-    public static byte[] buildRecord(int expectedSize, Table table,
-            Function<String, Object> evaluator) {
+    public static byte[] buildRecord(
+            int expectedSize, Table table,
+            Function<String, Object> evaluator
+    ) {
         ByteArrayOutputStream value = new ByteArrayOutputStream(expectedSize <= 0 ? INITIAL_BUFFER_SIZE : expectedSize);
-        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value)) {
             for (Column c : table.columns) {
                 if (!table.isPrimaryKeyColumn(c.name)) {
                     Object v = evaluator.apply(c.name);
@@ -984,7 +988,7 @@ public final class RecordSerializer {
             }
 
             if (record.value != null && record.value.getLength() > 0) {
-                try (ByteArrayCursor din = record.value.newCursor();) {
+                try (ByteArrayCursor din = record.value.newCursor()) {
                     while (true) {
                         int serialPosition;
                         serialPosition = din.readVIntNoEOFException();

@@ -17,10 +17,8 @@
  under the License.
 
  */
-package herddb.core.system;
 
-import java.util.ArrayList;
-import java.util.List;
+package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
@@ -29,6 +27,8 @@ import herddb.core.stats.TableManagerStats;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Table Manager for the SYSTABLES virtual table
@@ -37,25 +37,25 @@ import herddb.model.Table;
  */
 public class SystablestatsTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
-        .builder()
-        .name("systablestats")
-        .column("tablespace", ColumnTypes.STRING)
-        .column("table_name", ColumnTypes.STRING)
-        .column("systemtable", ColumnTypes.STRING)
-        .column("tablesize", ColumnTypes.LONG)
-        .column("loadedpages", ColumnTypes.INTEGER)
-        .column("loadedpagescount", ColumnTypes.LONG)
-        .column("unloadedpagescount", ColumnTypes.LONG)
-        .column("dirtypages", ColumnTypes.INTEGER)
-        .column("dirtyrecords", ColumnTypes.LONG)
-        .column("maxlogicalpagesize", ColumnTypes.LONG)
-        .column("keysmemory", ColumnTypes.LONG)
-        .column("buffersmemory", ColumnTypes.LONG)
-        .column("dirtymemory", ColumnTypes.LONG)
-        .primaryKey("tablespace", false)
-        .primaryKey("table_name", false)
-        .build();
+    private static final Table TABLE = Table
+            .builder()
+            .name("systablestats")
+            .column("tablespace", ColumnTypes.STRING)
+            .column("table_name", ColumnTypes.STRING)
+            .column("systemtable", ColumnTypes.STRING)
+            .column("tablesize", ColumnTypes.LONG)
+            .column("loadedpages", ColumnTypes.INTEGER)
+            .column("loadedpagescount", ColumnTypes.LONG)
+            .column("unloadedpagescount", ColumnTypes.LONG)
+            .column("dirtypages", ColumnTypes.INTEGER)
+            .column("dirtyrecords", ColumnTypes.LONG)
+            .column("maxlogicalpagesize", ColumnTypes.LONG)
+            .column("keysmemory", ColumnTypes.LONG)
+            .column("buffersmemory", ColumnTypes.LONG)
+            .column("dirtymemory", ColumnTypes.LONG)
+            .primaryKey("tablespace", false)
+            .primaryKey("table_name", false)
+            .build();
 
     public SystablestatsTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
@@ -70,19 +70,19 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
             if (tableManager != null && !tableManager.isSystemTable()) {
                 TableManagerStats stats = tableManager.getStats();
                 result.add(RecordSerializer.makeRecord(
-                    table,
-                    "tablespace", r.tablespace,
-                    "table_name", r.name,
-                    "systemtable", r.name.startsWith("sys") ? "true" : "false",
-                    "tablesize", stats.getTablesize(),
-                    "loadedpages", stats.getLoadedpages(),
-                    "loadedpagescount", stats.getLoadedPagesCount(),
-                    "unloadedpagescount", stats.getUnloadedPagesCount(),
-                    "dirtypages", stats.getDirtypages(),
-                    "dirtyrecords", stats.getDirtyrecords(),
-                    "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
-                    "keysmemory", stats.getKeysUsedMemory(),
-                    "buffersmemory", stats.getBuffersUsedMemory()
+                        table,
+                        "tablespace", r.tablespace,
+                        "table_name", r.name,
+                        "systemtable", r.name.startsWith("sys") ? "true" : "false",
+                        "tablesize", stats.getTablesize(),
+                        "loadedpages", stats.getLoadedpages(),
+                        "loadedpagescount", stats.getLoadedPagesCount(),
+                        "unloadedpagescount", stats.getUnloadedPagesCount(),
+                        "dirtypages", stats.getDirtypages(),
+                        "dirtyrecords", stats.getDirtyrecords(),
+                        "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
+                        "keysmemory", stats.getKeysUsedMemory(),
+                        "buffersmemory", stats.getBuffersUsedMemory()
                 ));
             }
         }

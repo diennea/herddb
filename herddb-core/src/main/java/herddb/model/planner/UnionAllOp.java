@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
@@ -29,9 +30,6 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.DataAccessor;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import static org.apache.calcite.plan.RelOptRule.any;
 
 /**
  * Union all
@@ -50,12 +48,14 @@ public class UnionAllOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         try {
             StatementExecutionResult input = this.inputs.get(0).execute(tableSpaceManager,
-                    transactionContext, context, lockRequired,forWrite);
+                    transactionContext, context, lockRequired, forWrite);
             ScanResult downstream = (ScanResult) input;
             DataScanner dataScanner = new UnionAllDataScanner(downstream.dataScanner,
                     tableSpaceManager, transactionContext, context, lockRequired, forWrite);
@@ -77,8 +77,10 @@ public class UnionAllOp implements PlannerOp {
         final boolean lockRequired;
         final boolean forWrite;
 
-        public UnionAllDataScanner(DataScanner first, TableSpaceManager tableSpaceManager,
-                TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws DataScannerException {
+        public UnionAllDataScanner(
+                DataScanner first, TableSpaceManager tableSpaceManager,
+                TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+        ) throws DataScannerException {
             super(first.getTransaction(), first.getFieldNames(), first.getSchema());
             this.tableSpaceManager = tableSpaceManager;
             this.lockRequired = lockRequired;
@@ -105,6 +107,7 @@ public class UnionAllOp implements PlannerOp {
                 fetchNext();
             }
         }
+
         private DataAccessor next;
 
         @Override

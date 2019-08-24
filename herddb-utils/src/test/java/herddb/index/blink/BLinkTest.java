@@ -17,13 +17,19 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
+import herddb.core.PageReplacementPolicy;
+import herddb.core.RandomPageReplacementPolicy;
+import herddb.index.blink.BLink.SizeEvaluator;
+import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.Holder;
+import herddb.utils.Sized;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,15 +40,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-
 import org.junit.Test;
-
-import herddb.core.PageReplacementPolicy;
-import herddb.core.RandomPageReplacementPolicy;
-import herddb.index.blink.BLink.SizeEvaluator;
-import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
-import herddb.utils.Holder;
-import herddb.utils.Sized;
 
 /**
  * Simpler tests for {@link BLink}
@@ -158,8 +156,8 @@ public class BLinkTest {
     public void testCheckpointAndRestore() throws Exception {
 
         String[] data = new String[]{
-            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+                "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+                "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
         };
 
         BLinkIndexDataStorage<Sized<String>, Long> storage = new DummyBLinkIndexDataStorage<>();
@@ -194,8 +192,8 @@ public class BLinkTest {
     public void testUnknownSizeAndRestore() throws Exception {
 
         String[] data = new String[]{
-            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+                "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+                "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
         };
         StringSizeEvaluator evaluator = new StringSizeEvaluator();
         for (String d : data) {

@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.brin.BlockRangeIndex.Block;
@@ -36,7 +36,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class BlockRangeIndexStorageTest {
@@ -81,7 +80,7 @@ public class BlockRangeIndexStorageTest {
         do {
             Sized<Integer> si = Sized.valueOf(i++);
             index.put(si, si);
-        } while(index.getNumBlocks() < 4);
+        } while (index.getNumBlocks() < 4);
 
         /* First checkpoint after insertion */
         index.checkpoint();
@@ -105,8 +104,8 @@ public class BlockRangeIndexStorageTest {
         /* Copy to avoid concurrent modification */
         List<Entry<Sized<Integer>, Sized<Integer>>> toDelete = new ArrayList<>();
 
-        second.values.forEach((k,vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k,v))));
-        third.values.forEach((k,vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k,v))));
+        second.values.forEach((k, vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k, v))));
+        third.values.forEach((k, vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k, v))));
 
         /* Delete blocks 2 and 3 */
         toDelete.forEach(e -> index.delete(e.getKey(), e.getValue()));
@@ -124,7 +123,7 @@ public class BlockRangeIndexStorageTest {
         indexAfterBoot.boot(metadata);
 
         /* Check data equality between new and old index */
-        index.getBlocks().forEach((f,b) -> b.values.forEach((k,vl) -> {
+        index.getBlocks().forEach((f, b) -> b.values.forEach((k, vl) -> {
             List<Sized<Integer>> search = indexAfterBoot.search(k);
             Assert.assertEquals(vl, search);
         }));
@@ -149,12 +148,12 @@ public class BlockRangeIndexStorageTest {
             assertEquals(Sized.valueOf("a"), index.search(Sized.valueOf(i)).get(0));
         }
 
-        assertEquals(10,policy.size());
+        assertEquals(10, policy.size());
 
         index.clear();
 
         /* No pages should remain in memory after unload!! */
-        assertEquals(0,policy.size());
+        assertEquals(0, policy.size());
 
     }
 
@@ -169,8 +168,8 @@ public class BlockRangeIndexStorageTest {
 
         Sized<Integer> data = Sized.valueOf(1);
 
-        while(index.getNumBlocks() < 2) {
-            index.put(data,data);
+        while (index.getNumBlocks() < 2) {
+            index.put(data, data);
         }
 
         /* Ensure that the second block has a negative blockId (so we have both positive and negative blockIds) */

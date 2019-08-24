@@ -17,11 +17,15 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
+import herddb.core.RandomPageReplacementPolicy;
+import herddb.index.brin.BlockRangeIndex.Block;
+import herddb.utils.SizeAwareObject;
+import herddb.utils.Sized;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -31,13 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.Test;
-
-import herddb.core.RandomPageReplacementPolicy;
-import herddb.index.brin.BlockRangeIndex.Block;
-import herddb.utils.SizeAwareObject;
-import herddb.utils.Sized;
 
 /**
  * Unit tests for PagedBlockRangeIndex
@@ -203,7 +201,7 @@ public class BlockRangeIndexConcurrentTest {
                 threadpool.shutdown();
             }
 
-            for(Future<?> job : jobs) {
+            for (Future<?> job : jobs) {
                 /* Job exception rethrow */
                 try {
                     job.get(10, TimeUnit.SECONDS);
@@ -235,13 +233,13 @@ public class BlockRangeIndexConcurrentTest {
 
 
     private <X extends Comparable<X> & SizeAwareObject> void dumpIndex(BlockRangeIndex<X, ?> index) {
-        for (Block<X,?> b : index.getBlocks().values()) {
+        for (Block<X, ?> b : index.getBlocks().values()) {
             System.out.println("BLOCK " + b);
         }
     }
 
     private <X extends Comparable<X> & SizeAwareObject> void deepDumpIndex(BlockRangeIndex<X, ?> index) {
-        for (Block<X,?> block : index.getBlocks().values()) {
+        for (Block<X, ?> block : index.getBlocks().values()) {
             System.out.println("------------------------------------------");
             System.out.println("BLOCK " + block);
             System.out.println("------------------------------------------");
@@ -249,14 +247,14 @@ public class BlockRangeIndexConcurrentTest {
             /* Forcefully load the block to check internal data */
             block.ensureBlockLoaded();
 
-            block.values.forEach((k,v) -> System.out.println(k + ": " + v));
+            block.values.forEach((k, v) -> System.out.println(k + ": " + v));
         }
     }
 
     private void verifyIndex(BlockRangeIndex<Sized<Integer>, Sized<String>> index) {
         Integer lastmax = null;
         for (Block<Sized<Integer>, Sized<String>> b : index.getBlocks().values()) {
-            if (b.key == BlockRangeIndex.BlockStartKey.HEAD_KEY.HEAD_KEY) {
+            if (b.key == BlockRangeIndex.BlockStartKey.HEAD_KEY) {
                 System.out.println("check block " + lastmax + " -> -inf");
             } else {
                 System.out.println("check block " + lastmax + " -> " + b.key.minKey.dummy);

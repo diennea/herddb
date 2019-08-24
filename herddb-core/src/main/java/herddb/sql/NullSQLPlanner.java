@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.model.StatementExecutionException;
@@ -24,12 +25,13 @@ import java.util.List;
 
 /**
  * a Noop SQL planner, in case you don't need SQL (like in HerdDB Collections Framework)
+ *
  * @author enrico.olivelli
  */
 public class NullSQLPlanner implements AbstractSQLPlanner {
 
     @Override
-    public void clearCache() {        
+    public void clearCache() {
     }
 
     @Override
@@ -48,9 +50,11 @@ public class NullSQLPlanner implements AbstractSQLPlanner {
     }
 
     @Override
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan,
-                                     boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
-        throw new StatementExecutionException("SQL planner is disable on this server (query was '"+query+"'");
+    public TranslatedQuery translate(
+            String defaultTableSpace, String query, List<Object> parameters, boolean scan,
+            boolean allowCache, boolean returnValues, int maxRows
+    ) throws StatementExecutionException {
+        throw new StatementExecutionException("SQL planner is disable on this server (query was '" + query + "'");
     }
-    
+
 }

@@ -17,23 +17,21 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.HashSet;
-
-import org.junit.Test;
-
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.utils.Bytes;
+import java.util.Arrays;
 import java.util.Collections;
-import static org.junit.Assert.assertNull;
+import java.util.HashSet;
+import org.junit.Test;
 
 /**
  * Basic functionality
@@ -58,15 +56,15 @@ public class ReplicatedAlterTableTest extends ReplicatedLogtestcase {
                 execute(manager1, "INSERT INTO " + tableSpaceName + "." + tableName + " (k1,n1,s1) values('one',1, 'b')", Collections.emptyList());
                 execute(manager1, "INSERT INTO " + tableSpaceName + "." + tableName + " (k1,n1,s1) values('two',1, 'b')", Collections.emptyList());
                 assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
                 assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("two"), null, false),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));
                 manager2.setErrorIfNotLeader(false);
                 for (int i = 0; i < 100; i++) {
                     boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false),
-                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();
+                            StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();
                     System.out.println("ok:" + ok);
                     if (ok) {
                         break;
@@ -74,14 +72,14 @@ public class ReplicatedAlterTableTest extends ReplicatedLogtestcase {
                     Thread.sleep(100);
                 }
                 assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 execute(manager1, "EXECUTE RENAMETABLE '" + tableSpaceName + "','" + tableName + "','" + tableName2 + "'", Collections.emptyList());
                 execute(manager1, "INSERT INTO " + tableSpaceName + "." + tableName2 + " (k1,n1,s1) values('three',1, 'b')", Collections.emptyList());
                 assertNull(manager1.getTableSpaceManager(tableSpaceName).getTableManager(tableName));
 
                 assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName2, Bytes.from_string("one"), null, false),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName2, 10000, false));
                 assertNull(manager2.getTableSpaceManager(tableSpaceName).getTableManager(tableName));
@@ -102,7 +100,7 @@ public class ReplicatedAlterTableTest extends ReplicatedLogtestcase {
             assertTrue(manager1.waitForTable(tableSpaceName, tableName2, 10000, false));
             assertNull(manager1.getTableSpaceManager(tableSpaceName).getTableManager(tableName));
             assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName2, Bytes.from_string("one"), null, false),
-                StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
         }
 
     }

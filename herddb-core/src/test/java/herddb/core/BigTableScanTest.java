@@ -17,15 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.Test;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.TableManagerStats;
 import herddb.mem.MemoryCommitLogManager;
@@ -41,6 +36,9 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.Test;
 
 /**
  * Test on memory usage over a bigtable
@@ -53,24 +51,24 @@ public class BigTableScanTest {
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.setMaxMemoryReference(128 * 1024);
             manager.setMaxLogicalPageSize(32 * 1024);
-            manager.setMaxPKUsedMemory(manager.getMaxLogicalPageSize()*2);
-            
+            manager.setMaxPKUsedMemory(manager.getMaxLogicalPageSize() * 2);
+
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -86,7 +84,7 @@ public class BigTableScanTest {
 
             manager.checkpoint();
 
-            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, new FullTableScanPredicate()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, new FullTableScanPredicate()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)) {
                 AtomicInteger count = new AtomicInteger();
                 scan.forEach(tuple -> {
                     count.incrementAndGet();

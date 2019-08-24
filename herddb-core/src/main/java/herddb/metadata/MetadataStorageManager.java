@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.metadata;
 
 import herddb.model.DDLException;
@@ -148,5 +149,5 @@ public abstract class MetadataStorageManager implements AutoCloseable {
         }
         throw new MetadataStorageManagerException("cannot find a new node id");
     }
-  
+
 }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.client;
 
 import herddb.network.Channel;
@@ -65,6 +66,7 @@ public class HDBClient implements AutoCloseable {
     public HDBClient(ClientConfiguration configuration) {
         this(configuration, NullStatsLogger.INSTANCE);
     }
+
     public HDBClient(ClientConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
         this.statsLogger = statsLogger.scope("hdbclient");

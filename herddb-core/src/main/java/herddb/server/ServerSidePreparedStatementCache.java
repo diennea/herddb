@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import herddb.core.HerdDBInternalException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +42,7 @@ public final class ServerSidePreparedStatementCache {
     private final Cache<String, Long> preparedStatements;
     private final ConcurrentHashMap<Long, PreparedStatementInfo> statementsInfo = new ConcurrentHashMap<>();
 
-    private static final class PreparedStatementInfo {
+    private static class PreparedStatementInfo {
 
         private final String query;
         private final String tablespace;
@@ -59,7 +59,7 @@ public final class ServerSidePreparedStatementCache {
 
     public ServerSidePreparedStatementCache(long maxMemory) {
         this.preparedStatements = CacheBuilder
-                .<String, Long>newBuilder()
+                .newBuilder()
                 .maximumWeight(maxMemory)
                 .initialCapacity(200)
                 .weigher((String query, Long statementid) -> {
@@ -77,7 +77,7 @@ public final class ServerSidePreparedStatementCache {
                 })
                 .build();
     }
-   
+
     long prepare(String tableSpace, String text) {
         try {
             return preparedStatements.get(tableSpace + "#" + text, () -> {
@@ -90,6 +90,7 @@ public final class ServerSidePreparedStatementCache {
             throw new HerdDBInternalException(err.getCause());
         }
     }
+
     private static final Logger LOG = Logger.getLogger(ServerSidePreparedStatementCache.class.getName());
 
     public long getSize() {

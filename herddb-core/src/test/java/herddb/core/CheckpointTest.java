@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -25,21 +26,6 @@ import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.core.stats.TableManagerStats;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -55,6 +41,18 @@ import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.RandomString;
 import herddb.utils.RawString;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on checkpoints
@@ -83,7 +81,7 @@ public class CheckpointTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config1,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -293,7 +291,7 @@ public class CheckpointTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -382,7 +380,7 @@ public class CheckpointTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -469,7 +467,7 @@ public class CheckpointTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -561,7 +559,7 @@ public class CheckpointTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -714,7 +712,7 @@ public class CheckpointTest {
             TestUtils.commitTransaction(manager, "tblspace1", tx);
 
             for (Map.Entry<String, String> expected : expectedValues.entrySet()) {
-                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()));) {
+                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()))) {
                     List<DataAccessor> all = scan.consume();
                     assertEquals(1, all.size());
                     assertEquals(RawString.of(expected.getValue()), all.get(0).get(0));
@@ -724,7 +722,7 @@ public class CheckpointTest {
             manager.checkpoint();
 
             for (Map.Entry<String, String> expected : expectedValues.entrySet()) {
-                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()));) {
+                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()))) {
                     List<DataAccessor> all = scan.consume();
                     assertEquals(1, all.size());
                     assertEquals(RawString.of(expected.getValue()), all.get(0).get(0));
@@ -747,7 +745,7 @@ public class CheckpointTest {
             assertTrue(manager.waitForBootOfLocalTablespaces(60000));
 
             for (Map.Entry<String, String> expected : expectedValues.entrySet()) {
-                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()));) {
+                try (DataScanner scan = TestUtils.scan(manager, "SELECT n1 FROM tblspace1.tsql where k1=?", Arrays.asList(expected.getKey()))) {
                     List<DataAccessor> all = scan.consume();
                     assertEquals(1, all.size());
                     assertEquals(RawString.of(expected.getValue()), all.get(0).get(0));

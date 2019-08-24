@@ -17,13 +17,14 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import static herddb.utils.SQLRecordPredicateFunctions.compare;
 import static herddb.utils.SQLRecordPredicateFunctions.objectEquals;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import net.sf.jsqlparser.expression.operators.relational.Between;
 
 public class CompiledBetweenExpression implements CompiledSQLExpression {

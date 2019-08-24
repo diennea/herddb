@@ -17,14 +17,12 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
-import herddb.client.HDBConnection;
-import herddb.client.HDBException;
-import herddb.client.ZookeeperClientSideMetadataProvider;
-import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Level;

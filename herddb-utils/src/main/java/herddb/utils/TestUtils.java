@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.concurrent.Callable;
@@ -25,7 +26,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author francesco.caliumi
  */
 public class TestUtils {
@@ -48,8 +48,8 @@ public class TestUtils {
      * AssertionError#getCause}.
      *
      * @param expectedThrowable the expected type of the exception
-     * @param runnable a function that is expected to throw an exception when
-     * executed
+     * @param runnable          a function that is expected to throw an exception when
+     *                          executed
      * @since 4.13
      */
     public static void assertThrows(Class<? extends Throwable> expectedThrowable, ThrowingRunnable runnable) {
@@ -66,8 +66,8 @@ public class TestUtils {
      * {@link AssertionError#getCause}.
      *
      * @param expectedThrowable the expected type of the exception
-     * @param runnable a function that is expected to throw an exception when
-     * executed
+     * @param runnable          a function that is expected to throw an exception when
+     *                          executed
      * @return the exception thrown by {@code runnable}
      * @since 4.13
      */
@@ -125,14 +125,10 @@ public class TestUtils {
         String d = description == null ? "" : " " + description;
         throw new AssertionError("condition not met in time!" + d);
     }
+
     private static final Logger LOG = Logger.getLogger(TestUtils.class.getName());
 
-    public static Callable<Void> NOOP = new Callable<Void>() {
-        @Override
-        public Void call() {
-            return null;
-        }
-    };
+    public static final Callable<Void> NOOP = () -> null;
 
     public static boolean isExceptionPresentInChain(Throwable t, Class clazz) {
         if (t == null) {

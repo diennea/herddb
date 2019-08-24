@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.benchs;
 
 import java.util.concurrent.Callable;
 import javax.sql.DataSource;
 
 public abstract class Operation {
-
     public abstract Callable<Void> newInstance(int seed, int batchSize, DataSource dataSource) throws Exception;
 }

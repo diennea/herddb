@@ -17,16 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
-
-import java.io.IOException;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.file.FileDataStorageManager;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -35,9 +29,12 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
+import java.io.IOException;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class DropOldPagesTest extends BaseTestcase {
@@ -68,10 +65,10 @@ public class DropOldPagesTest extends BaseTestcase {
         String tableUuid = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable().uuid;
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         assertEquals(0, fileDataStorageManager.getTablePageFiles(tableSpaceUUID, tableUuid).size());
-        
+
         manager.checkpoint();
 
-        
+
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         assertEquals(1, fileDataStorageManager.getTablePageFiles(tableSpaceUUID, tableUuid).size());
         {

@@ -17,25 +17,8 @@
  under the License.
 
  */
+
 package herddb.cluster;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooDefs;
-import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.data.Stat;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.log.LogNotAvailableException;
@@ -47,6 +30,22 @@ import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * Metadata storage manager over Zookeeper
@@ -86,7 +85,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     public int getZkSessionTimeout() {
         return zkSessionTimeout;
-    }   
+    }
 
     private synchronized void restartZooKeeper() throws IOException, InterruptedException {
         ZooKeeper old = zooKeeper;
@@ -144,7 +143,8 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     public void start() throws MetadataStorageManagerException {
         start(true);
     }
-    public synchronized void start(boolean formatIfNeeded) throws MetadataStorageManagerException {   
+
+    public synchronized void start(boolean formatIfNeeded) throws MetadataStorageManagerException {
         if (started) {
             return;
         }
@@ -326,12 +326,12 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
             TableSpaceList list = listTablesSpaces();
             if (!list.tableSpaces.contains(TableSpace.DEFAULT)) {
                 TableSpace tableSpace = TableSpace.builder()
-                    .leader(localNodeId)
-                    .replica(localNodeId)
-                    .expectedReplicaCount(1)
-                    .maxLeaderInactivityTime(0)
-                    .name(TableSpace.DEFAULT)
-                    .build();
+                        .leader(localNodeId)
+                        .replica(localNodeId)
+                        .expectedReplicaCount(1)
+                        .maxLeaderInactivityTime(0)
+                        .name(TableSpace.DEFAULT)
+                        .build();
                 createTableSpaceNode(tableSpace);
             }
         } catch (TableSpaceAlreadyExistsException err) {

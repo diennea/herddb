@@ -17,18 +17,8 @@
  under the License.
 
  */
-package herddb.sql;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
+package herddb.sql;
 
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -58,6 +48,16 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -191,8 +191,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     @Override
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
-            boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
+    public TranslatedQuery translate(
+            String defaultTableSpace, String query, List<Object> parameters,
+            boolean scan, boolean allowCache, boolean returnValues, int maxRows
+    ) throws StatementExecutionException {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -237,8 +239,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return stmt;
     }
 
-    private ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
-            boolean scan, boolean returnValues, int maxRows) {
+    private ExecutionPlan plan(
+            String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
+            boolean scan, boolean returnValues, int maxRows
+    ) {
         verifyJdbcParametersIndexes(stmt);
         ExecutionPlan result;
         if (stmt instanceof CreateTable) {
@@ -266,10 +270,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return false;
         } else if (stmt instanceof Drop) {
             return false;
-        } else if (stmt instanceof Truncate) {
-            return false;
+        } else {
+            return !(stmt instanceof Truncate);
         }
-        return true;
     }
 
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
@@ -317,7 +320,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         tablebuilder.primaryKey(columnName, auto_increment);
                     }
 
-                    if(String.join("_",columnSpecs).equals("NOT_NULL")) {
+                    if (String.join("_", columnSpecs).equals("NOT_NULL")) {
                         type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
                     }
                 }
@@ -569,8 +572,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return discovery;
     }
 
-    private Expression collectConditionsForAlias(String alias, Expression expression,
-            List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
+    private Expression collectConditionsForAlias(
+            String alias, Expression expression,
+            List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName
+    ) throws StatementExecutionException {
         if (expression == null) {
             // no constraint on table
             return null;
@@ -895,7 +900,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                                 if (indexedColumn.equalsIgnoreCase(oldColumn.name)) {
                                     throw new StatementExecutionException(
                                             "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
-                                            + "index name is " + am.getIndexName());
+                                                    + "index name is " + am.getIndexName());
                                 }
                             }
                         }

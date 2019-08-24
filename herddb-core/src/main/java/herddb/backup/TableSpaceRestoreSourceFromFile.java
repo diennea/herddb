@@ -17,16 +17,17 @@
  under the License.
 
  */
+
 package herddb.backup;
 
 import herddb.client.TableSpaceRestoreSource;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Table;
-import herddb.utils.KeyValue;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.KeyValue;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
         this.in = in;
         this.listener = listener;
     }
+
     private long currentTableSize;
 
     @Override

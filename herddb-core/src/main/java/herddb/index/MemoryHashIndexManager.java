@@ -17,20 +17,8 @@
  under the License.
 
  */
-package herddb.index;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Stream;
+package herddb.index;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
@@ -51,6 +39,18 @@ import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Holder;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  * HASH index. The index resides entirely in memory. It is serialized fully on

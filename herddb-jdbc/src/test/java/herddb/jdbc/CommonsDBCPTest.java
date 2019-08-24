@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
-import org.junit.Test;
-
+import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
@@ -30,13 +30,11 @@ import java.sql.Statement;
 import java.util.Enumeration;
 import org.apache.commons.dbcp.BasicDataSource;
 import org.junit.After;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class CommonsDBCPTest {
@@ -52,8 +50,8 @@ public class CommonsDBCPTest {
             dataSource.setUrl("jdbc:herddb:server:localhost:7000?");
             dataSource.setDriverClassName(Driver.class.getName());
             try (Connection connection = dataSource.getConnection();
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -66,9 +64,9 @@ public class CommonsDBCPTest {
         }
     }
 
-    @After    
+    @After
     public void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }

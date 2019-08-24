@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.ConstValueRecordFunction;
@@ -70,7 +71,6 @@ public class GetStatement extends TableAwareStatement {
             predicate.validateContext(context);
         }
     }
-
 
 
 }

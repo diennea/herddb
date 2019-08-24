@@ -17,19 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Path;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import static org.junit.Assert.fail;
 import herddb.codec.RecordSerializer;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -58,7 +52,11 @@ import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
-import static org.junit.Assert.fail;
+import java.nio.file.Path;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Recovery from file
@@ -80,24 +78,24 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -106,10 +104,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -120,10 +118,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -144,10 +142,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -155,13 +153,13 @@ public class RestartTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -172,10 +170,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -186,10 +184,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -210,10 +208,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -221,13 +219,13 @@ public class RestartTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -253,10 +251,10 @@ public class RestartTest {
 //            // on the log there is an UPDATE for a record which is not on the log
 //        }
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -277,10 +275,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -288,13 +286,13 @@ public class RestartTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -309,10 +307,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -333,24 +331,24 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -365,10 +363,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -392,24 +390,24 @@ public class RestartTest {
         Index index;
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(Index.TYPE_BRIN).build();
 
@@ -425,7 +423,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
 
@@ -434,12 +432,12 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
-           
+
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             /* Access through key to page */
@@ -450,7 +448,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
 
@@ -471,24 +469,24 @@ public class RestartTest {
         Index index;
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(Index.TYPE_BRIN).build();
 
@@ -504,7 +502,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
 
@@ -512,10 +510,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(30000));
@@ -528,7 +526,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
 
@@ -552,24 +550,24 @@ public class RestartTest {
         Index index;
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(Index.TYPE_BRIN).build();
 
@@ -583,7 +581,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(0, scan1.consume().size());
             }
 
@@ -592,10 +590,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -608,7 +606,7 @@ public class RestartTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(0, scan1.consume().size());
             }
 
@@ -629,33 +627,33 @@ public class RestartTest {
         Table table2;
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             table1 = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             table2 = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t2")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t2")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             manager.executeStatement(new CreateTableStatement(table1), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.executeStatement(new CreateTableStatement(table2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -692,10 +690,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));

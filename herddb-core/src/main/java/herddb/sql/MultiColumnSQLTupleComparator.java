@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
@@ -37,7 +37,7 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
  */
 public class MultiColumnSQLTupleComparator implements TupleComparator {
 
-    private static final class OrderElement implements Serializable {
+    private static class OrderElement implements Serializable {
 
         private static final long serialVersionUID = 007;
 
@@ -50,6 +50,7 @@ public class MultiColumnSQLTupleComparator implements TupleComparator {
         }
 
     }
+
     private final List<OrderElement> orderByElements;
 
     MultiColumnSQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {

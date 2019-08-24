@@ -17,23 +17,11 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
-import herddb.cluster.BookkeeperCommitLog;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.HashSet;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import herddb.cluster.LedgersInfo;
-import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
 import herddb.core.TableSpaceManager;
@@ -58,7 +46,14 @@ import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Booting two servers, one table space
@@ -385,7 +380,7 @@ public class MultiServerTest {
                 .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1);
-                Server server_2 = new Server(serverconfig_2)) {
+             Server server_2 = new Server(serverconfig_2)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
 
@@ -586,7 +581,7 @@ public class MultiServerTest {
 
             Table table1 = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("t1").getTable();
             try (DataScanner scan = server_1.getManager()
-                    .scan(new ScanStatement(TableSpace.DEFAULT, table1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+                    .scan(new ScanStatement(TableSpace.DEFAULT, table1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> all = scan.consume();
                 all.forEach(d -> {
                     System.out.println("RECORD ON SERVER 1: " + d.toMap());
@@ -610,7 +605,7 @@ public class MultiServerTest {
                     }
 
                     try (DataScanner scan = server_2.getManager()
-                            .scan(new ScanStatement(TableSpace.DEFAULT, table2, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+                            .scan(new ScanStatement(TableSpace.DEFAULT, table2, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)) {
                         List<DataAccessor> all = scan.consume();
                         System.out.println("WAIT #" + i);
                         all.forEach(d -> {

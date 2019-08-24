@@ -9,7 +9,7 @@ import java.io.OutputStream;
  * <p>
  * Usefull when wrapped stream musn't be close but you want to wrap it in a try-with-resources manner
  * </p>
- * 
+ *
  * @author diego.salvi
  */
 public class NonClosingOutputStream extends FilterOutputStream {
@@ -28,5 +28,5 @@ public class NonClosingOutputStream extends FilterOutputStream {
     public void write(byte[] b, int off, int len) throws IOException {
         out.write(b, off, len);
     }
-    
+
 }

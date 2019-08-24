@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import java.util.Collections;

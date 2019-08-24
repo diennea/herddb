@@ -17,13 +17,11 @@
  under the License.
 
  */
+
 package herddb.utils;
 
-import herddb.model.TableSpace;
-import herddb.utils.QueryUtils;
-import herddb.utils.QueryUtils;
 import static org.junit.Assert.assertEquals;
-
+import herddb.model.TableSpace;
 import org.junit.Test;
 
 /**

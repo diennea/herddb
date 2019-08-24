@@ -17,44 +17,40 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.DMLResult;
 import herddb.client.GetResult;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
+import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
+import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.utils.RawString;
-
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import herddb.client.RoutedClientSideConnection;
-import herddb.core.TableSpaceManager;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic server/client boot test
@@ -88,14 +84,14 @@ public class SimpleClientServerTest {
 
     @Test
     public void test() throws Exception {
-        Path baseDir = folder.newFolder().toPath();;
+        Path baseDir = folder.newFolder().toPath();
         String _baseDir = baseDir.toString();
         try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -152,7 +148,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(),
-                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10);) {
+                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -163,7 +159,7 @@ public class SimpleClientServerTest {
                 }
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().
-                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10);) {
+                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
 
@@ -213,7 +209,7 @@ public class SimpleClientServerTest {
         Path baseDir = folder.newFolder().toPath();
         ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
         clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
-        try (HDBClient client = new HDBClient(clientConfiguration);) {
+        try (HDBClient client = new HDBClient(clientConfiguration)) {
             try (HDBConnection connection1 = client.openConnection()) {
 
                 try (Server server = new Server(new ServerConfiguration(baseDir))) {
@@ -281,7 +277,7 @@ public class SimpleClientServerTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -308,7 +304,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100);) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -317,7 +313,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100);) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -417,7 +413,7 @@ public class SimpleClientServerTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -459,13 +455,13 @@ public class SimpleClientServerTest {
 
     @Test
     public void testSQLIntegrityViolation() throws Exception {
-        Path baseDir = folder.newFolder().toPath();;
+        Path baseDir = folder.newFolder().toPath();
         try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -490,7 +486,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.
-                        emptyList(), 0, 0, 10);) {
+                        emptyList(), 0, 0, 10)) {
                     List<Map<String, Object>> rows = scan.consume();
                     int i = 0;
                     for (Map<String, Object> row : rows) {
@@ -508,6 +504,7 @@ public class SimpleClientServerTest {
             }
         }
     }
+
     private static final Logger LOG = Logger.getLogger(SimpleClientServerTest.class.getName());
 
     @Test
@@ -539,7 +536,7 @@ public class SimpleClientServerTest {
                 }
 
             };
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 // force using the first connection of two
@@ -583,7 +580,7 @@ public class SimpleClientServerTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -612,7 +609,7 @@ public class SimpleClientServerTest {
             assertTrue(tableSpaceManager.getTransactions().isEmpty());
 
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertEquals(0, connection.executeUpdate(TableSpace.DEFAULT,

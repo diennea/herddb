@@ -17,6 +17,7 @@ direction
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -26,7 +27,6 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
-import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -37,7 +37,6 @@ import herddb.model.TupleComparator;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection;
-import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.Wrapper;
@@ -68,14 +67,16 @@ public class SortOp implements PlannerOp, TupleComparator {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         // TODO merge projection + scan + sort + limit
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstreamScanResult = (ScanResult) input;
         final DataScanner inputScanner = downstreamScanResult.dataScanner;
 
-        try (DataScanner dataScanner = inputScanner;) {
+        try (DataScanner dataScanner = inputScanner) {
             MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
                     .createRecordSet(inputScanner.getFieldNames(),
                             inputScanner.getSchema());

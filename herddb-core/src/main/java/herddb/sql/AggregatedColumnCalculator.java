@@ -17,21 +17,22 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 
 /**
  * Aggregated Column Calculator
+ *
  * @author enrico.olivelli
  */
 public interface AggregatedColumnCalculator {
 
-    public Object getValue();
+    Object getValue();
 
-    public String getFieldName();
+    String getFieldName();
 
-    public void consume(herddb.utils.DataAccessor tuple) throws StatementExecutionException;
-    
+    void consume(herddb.utils.DataAccessor tuple) throws StatementExecutionException;
+
 }

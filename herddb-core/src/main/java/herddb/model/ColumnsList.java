@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -26,9 +27,9 @@ package herddb.model;
  */
 public interface ColumnsList {
 
-    public Column[] getColumns();
+    Column[] getColumns();
 
-    public Column getColumn(String name);
+    Column getColumn(String name);
 
-    public String[] getPrimaryKey();
+    String[] getPrimaryKey();
 }

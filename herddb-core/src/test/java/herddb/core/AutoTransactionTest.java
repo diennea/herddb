@@ -17,17 +17,12 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import org.junit.Test;
-
 import herddb.codec.RecordSerializer;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -42,10 +37,11 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
+import java.util.HashMap;
+import java.util.Map;
+import org.junit.Test;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class AutoTransactionTest extends BaseTestcase {
@@ -161,7 +157,7 @@ public class AutoTransactionTest extends BaseTestcase {
         DMLStatementExecutionResult executeUpdate = manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         long tx;
-        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
+        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
             tx = scan.getTransactionId();
             assertEquals(1, scan.consume().size());
         }
@@ -183,7 +179,7 @@ public class AutoTransactionTest extends BaseTestcase {
         DMLStatementExecutionResult executeUpdate = manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         long tx;
-        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, "no_table", Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
+        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, "no_table", Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
             fail();
         } catch (TableDoesNotExistException ok) {
         }

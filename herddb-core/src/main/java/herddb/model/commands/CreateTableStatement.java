@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.DDLStatement;
@@ -46,7 +47,7 @@ public class CreateTableStatement extends DDLStatement {
         this.tableDefinition = tableDefinition;
         this.additionalIndexes = additionalIndexes;
     }
-    
+
     @Override
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will autocreate a transaction if issued */

@@ -17,30 +17,26 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import static org.junit.Assert.assertTrue;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class SimpleSubqueryTest {
@@ -48,7 +44,7 @@ public class SimpleSubqueryTest {
     @Test
     public void tableAliasTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -127,7 +123,7 @@ public class SimpleSubqueryTest {
     @Test
     public void subQueryOnWhereTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -172,7 +168,7 @@ public class SimpleSubqueryTest {
     @Test
     public void deleteWithSubQueryTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -224,7 +220,7 @@ public class SimpleSubqueryTest {
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.table1 set n1=1000"
                     + "WHERE k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"
                     + "", Arrays.asList("subkey4")).getUpdateCount());
-            
+
             assertEquals(1, executeUpdate(manager, "DELETE  "
                     + "FROM tblspace1.table1 "
                     + "WHERE k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"

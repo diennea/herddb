@@ -17,10 +17,15 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
-
+import herddb.model.StatementExecutionException;
+import herddb.sql.CalcitePlanner;
+import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
+import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.RawString;
 import java.math.BigDecimal;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -28,24 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexCorrelVariable;
-import org.apache.calcite.rex.RexDynamicParam;
-import org.apache.calcite.rex.RexFieldAccess;
-import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlOperator;
-import org.apache.calcite.sql.type.BasicSqlType;
-import org.apache.calcite.sql.type.SqlTypeName;
-
-import herddb.model.StatementExecutionException;
-import herddb.sql.CalcitePlanner;
-import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
-import herddb.sql.functions.BuiltinFunctions;
-import herddb.utils.RawString;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -74,6 +61,17 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexCorrelVariable;
+import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexFieldAccess;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.type.BasicSqlType;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -83,9 +81,10 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 public class SQLExpressionCompiler {
 
     private static CompiledSQLExpression tryCompileBinaryExpression(
-        String validatedTableAlias,
-        BinaryExpression binExp,
-        BinaryExpressionBuilder compiledExpClass) {
+            String validatedTableAlias,
+            BinaryExpression binExp,
+            BinaryExpressionBuilder compiledExpClass
+    ) {
 
         CompiledSQLExpression left = compileExpression(validatedTableAlias, binExp.getLeftExpression());
         if (left == null) {
@@ -99,8 +98,10 @@ public class SQLExpressionCompiler {
     }
 
     // this method never returns NULL
-    public static CompiledSQLExpression compileExpression(String validatedTableAlias,
-        Expression exp) {
+    public static CompiledSQLExpression compileExpression(
+            String validatedTableAlias,
+            Expression exp
+    ) {
         if (exp instanceof BinaryExpression) {
             CompiledSQLExpression compiled = compileSpecialBinaryExpression(validatedTableAlias, exp);
             if (compiled != null) {
@@ -185,9 +186,9 @@ public class SQLExpressionCompiler {
         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
         if (validatedTableAlias != null) {
             if (c.getTable() != null && c.getTable().getName() != null
-                && !c.getTable().getName().equals(validatedTableAlias)) {
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
                 throw new StatementExecutionException("invalid column name " + c.getColumnName()
-                    + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
             }
         }
 
@@ -209,7 +210,7 @@ public class SQLExpressionCompiler {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) be.getLeftExpression();
             if (validatedTableAlias != null) {
                 if (c.getTable() != null && c.getTable().getName() != null
-                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                        && !c.getTable().getName().equals(validatedTableAlias)) {
                     return null;
                 }
             }
@@ -352,7 +353,7 @@ public class SQLExpressionCompiler {
     private static Object safeValue(Object value3, RelDataType relDataType, SqlTypeName sqlTypeName) {
         if (value3 instanceof BigDecimal) {
             if (relDataType instanceof BasicSqlType) {
-                sqlTypeName = ((BasicSqlType) relDataType).getSqlTypeName();
+                sqlTypeName = relDataType.getSqlTypeName();
             }
             if (sqlTypeName == SqlTypeName.DECIMAL) {
                 return ((BigDecimal) value3).doubleValue();

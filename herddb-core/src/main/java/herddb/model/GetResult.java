@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -35,9 +36,11 @@ public class GetResult extends StatementExecutionResult {
         this.table = table;
     }
 
-    public static final GetResult NOT_FOUND(long transactionId) {
+    // CHECKSTYLE.OFF: MethodName
+    public static GetResult NOT_FOUND(long transactionId) {
         return new GetResult(transactionId, null, null);
     }
+    // CHECKSTYLE.ON: MethodName
 
     public Table getTable() {
         return table;

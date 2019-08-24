@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.model.ExecutionPlan;

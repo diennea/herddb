@@ -17,26 +17,24 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-
-import org.apache.commons.lang.StringUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import org.apache.commons.lang.StringUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic client testing
@@ -54,12 +52,12 @@ public class ScanHugeTableTest {
             server.getManager().setMaxDataUsedMemory(750 * 1024 * 1024);
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement s = con.createStatement();
-                    PreparedStatement ps = con.prepareStatement("INSERT INTO mytable (n1, name) values(?,?)");) {
+                     Connection con = dataSource.getConnection();
+                     Statement s = con.createStatement();
+                     PreparedStatement ps = con.prepareStatement("INSERT INTO mytable (n1, name) values(?,?)")) {
                     s.execute("CREATE TABLE mytable (n1 int primary key, name string)");
 
                     String bigPrefix = StringUtils.repeat("Test", 300);
@@ -76,7 +74,7 @@ public class ScanHugeTableTest {
                                 ps.executeBatch();
                                 con.commit();
                                 long _stop = System.currentTimeMillis();
-                                System.out.println("written " + i + " records_ "+(_stop-_start)+" ms");
+                                System.out.println("written " + i + " records_ " + (_stop - _start) + " ms");
                             }
                         }
                         ps.executeBatch();

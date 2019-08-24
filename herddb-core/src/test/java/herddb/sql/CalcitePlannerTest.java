@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql;
 
+import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.beginTransaction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -31,11 +32,11 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
+import herddb.codec.DataAccessorForFullRecord;
+import herddb.core.DBManager;
+import herddb.mem.MemoryCommitLogManager;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.Projection;
 import herddb.model.ScanResult;
@@ -47,19 +48,9 @@ import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
-import herddb.model.commands.ScanStatement;
-import herddb.server.ServerSideScannerPeer;
-import herddb.utils.TuplesList;
-import org.junit.Assert;
-import org.junit.Test;
-
-import herddb.codec.DataAccessorForFullRecord;
-import herddb.core.DBManager;
-import herddb.mem.MemoryCommitLogManager;
-import herddb.mem.MemoryDataStorageManager;
-import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.InsertOp;
@@ -76,16 +67,23 @@ import herddb.model.planner.SortedBindableTableScanOp;
 import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
+import herddb.server.ServerSideScannerPeer;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import herddb.utils.TuplesList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class CalcitePlannerTest {
 
     @Test
     public void simplePlansTests() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
 
             manager.start();
@@ -194,7 +192,7 @@ public class CalcitePlannerTest {
     @Test
     public void dirtySQLPlansTests() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
 
             manager.start();
@@ -234,7 +232,7 @@ public class CalcitePlannerTest {
     @Test
     public void joinsPlansTests() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -262,8 +260,8 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "n1", 1234
-                ))));
+                                "k2", "mykey2", "n2", 1234, "n1", 1234
+                        ))));
 
             }
             {
@@ -284,13 +282,13 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "n1", null
-                ))));
+                                "k2", "mykey2", "n2", 1234, "n1", null
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234, "n1", null
-                ))));
+                                "k2", "mykey", "n2", 1234, "n1", null
+                        ))));
 
             }
             {
@@ -310,13 +308,13 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "halfn1", 617.0
-                ))));
+                                "k2", "mykey2", "n2", 1234, "halfn1", 617.0
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234, "halfn1", 617.0
-                ))));
+                                "k2", "mykey", "n2", 1234, "halfn1", 617.0
+                        ))));
 
             }
             {
@@ -333,8 +331,8 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
-                ))));
+                                "k2", "mykey2", "n2", 1234
+                        ))));
 
             }
             {
@@ -352,12 +350,12 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
-                ))));
+                                "k2", "mykey2", "n2", 1234
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234
-                ))));
+                                "k2", "mykey", "n2", 1234
+                        ))));
 
             }
 
@@ -376,12 +374,12 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
-                ))));
+                                "k2", "mykey2", "n2", 1234
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234
-                ))));
+                                "k2", "mykey", "n2", 1234
+                        ))));
 
             }
 
@@ -404,8 +402,8 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().allMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey6a", "n2", 1236
-                ))));
+                                "k2", "mykey6a", "n2", 1236
+                        ))));
 
             }
             {
@@ -423,13 +421,13 @@ public class CalcitePlannerTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234
-                ))));
+                                "k2", "mykey", "n2", 1234
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
-                ))));
+                                "k2", "mykey2", "n2", 1234
+                        ))));
 
             }
 
@@ -439,7 +437,7 @@ public class CalcitePlannerTest {
     @Test
     public void explainPlanTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -452,7 +450,7 @@ public class CalcitePlannerTest {
             execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
                     + "s1) values('testk1','tests1')", Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "EXPLAIN SELECT k1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "EXPLAIN SELECT k1 FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(4, consume.size());
                 consume.get(0).forEach((k, b) -> {
@@ -474,7 +472,7 @@ public class CalcitePlannerTest {
     @Test
     public void showCreateTableTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -501,7 +499,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> records = dataScanner.consume(2);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
-                Tuple values = (Tuple)records.get(0);
+                Tuple values = (Tuple) records.get(0);
                 assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
@@ -518,7 +516,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> records = dataScanner.consume(2);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
-                Tuple values = (Tuple)records.get(0);
+                Tuple values = (Tuple) records.get(0);
                 assertTrue("CREATE TABLE tblspace1.test22(k1 string not null,s1 string not null,n1 integer,Primary key(k1,n1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
@@ -528,7 +526,7 @@ public class CalcitePlannerTest {
     @Test
     public void showCreateTableTest_with_Indexes() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -554,7 +552,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> records = dataScanner.consume(2);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
-                Tuple values = (Tuple)records.get(0);
+                Tuple values = (Tuple) records.get(0);
                 assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary KEY(k1,n1),INDEX ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
 
                 // Drop the table and indexes and recreate them again.
@@ -564,22 +562,22 @@ public class CalcitePlannerTest {
                 execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
 
                 //ensure table has been dropped
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
                     assertTrue(scan.consume().isEmpty());
                 }
 
                 //ensure index has been dropped
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
                     assertTrue(scan.consume().isEmpty());
                 }
 
                 execute(manager, showCreateCommandOutput, Collections.emptyList());
                 // Ensure the table is getting created
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
                     assertFalse(scan.consume().isEmpty());
                 }
                 // Ensure index got created as well.
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
                     assertFalse(scan.consume().isEmpty());
                 }
             }
@@ -589,7 +587,7 @@ public class CalcitePlannerTest {
     @Test
     public void showCreateTable_with_recreating_table_from_command_output() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -612,14 +610,14 @@ public class CalcitePlannerTest {
                 List<DataAccessor> records = dataScanner.consume(2);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
-                Tuple values = (Tuple)records.get(0);
+                Tuple values = (Tuple) records.get(0);
                 assertTrue("CREATE TABLE tblspace1.test23(k1 integer auto_increment,s1 string not null,n1 integer,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
 
                 //drop the table
                 execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
 
                 //ensure table has been dropped
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
                     assertTrue(scan.consume().isEmpty());
                 }
 
@@ -627,7 +625,7 @@ public class CalcitePlannerTest {
                 String showCreateTableResult = values.get("tabledef").toString();
                 execute(manager, showCreateTableResult, Collections.emptyList());
                 // Ensure the table is getting created
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList());) {
+                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
                     assertFalse(scan.consume().isEmpty());
                 }
 
@@ -638,7 +636,7 @@ public class CalcitePlannerTest {
     @Test(expected = TableDoesNotExistException.class)
     public void showCreateTable_Non_Existent_Table() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -653,7 +651,7 @@ public class CalcitePlannerTest {
     @Test(expected = TableSpaceDoesNotExistException.class)
     public void showCreateTable_Non_Existent_TableSpace() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
 
@@ -665,7 +663,7 @@ public class CalcitePlannerTest {
     @Test(expected = TableDoesNotExistException.class)
     public void showCreateTable_Within_TransactionContext() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -686,7 +684,7 @@ public class CalcitePlannerTest {
     @Test
     public void zeroCopyProjectionTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -699,7 +697,7 @@ public class CalcitePlannerTest {
             execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
                     + "s1) values('testk1','tests1')", Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
@@ -712,7 +710,7 @@ public class CalcitePlannerTest {
                 assertEquals(RawString.of("tests1"), record.get("s1"));
 
             }
-            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
@@ -725,7 +723,7 @@ public class CalcitePlannerTest {
                 assertEquals(RawString.of("tests1"), record.get("s1"));
 
             }
-            try (DataScanner scan = scan(manager, "SELECT s1,k1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT s1,k1 FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
@@ -737,7 +735,7 @@ public class CalcitePlannerTest {
                 assertEquals(RawString.of("testk1"), record.get("k1"));
                 assertEquals(RawString.of("tests1"), record.get("s1"));
             }
-            try (DataScanner scan = scan(manager, "SELECT s1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT s1 FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
@@ -747,7 +745,7 @@ public class CalcitePlannerTest {
                 assertEquals(RawString.of("tests1"), record.get("s1"));
             }
 
-            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);

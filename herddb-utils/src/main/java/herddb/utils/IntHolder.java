@@ -17,24 +17,25 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Holds a native {@code int} value.
- * 
+ *
  * @author diego.salvi
  */
 @SuppressFBWarnings("URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD")
 public class IntHolder {
-    
+
     public int value;
-    
+
     public IntHolder() {
         this.value = 0;
     }
-    
+
     public IntHolder(int value) {
         this.value = value;
     }

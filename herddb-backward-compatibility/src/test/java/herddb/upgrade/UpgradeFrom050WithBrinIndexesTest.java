@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.upgrade;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
@@ -45,8 +48,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -75,7 +76,7 @@ public class UpgradeFrom050WithBrinIndexesTest {
 
         File dbdatadir = folder.newFolder("dbdata050_" + file);
 
-        try (InputStream in = UpgradeFrom050WithBrinIndexesTest.class.getResourceAsStream(file);) {
+        try (InputStream in = UpgradeFrom050WithBrinIndexesTest.class.getResourceAsStream(file)) {
             ZIPUtils.unZip(in, dbdatadir);
         }
         final Path dbdata = dbdatadir.toPath().resolve("dbdata");
@@ -126,7 +127,7 @@ public class UpgradeFrom050WithBrinIndexesTest {
                         true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("TABLE CONTENTS");
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
 
                     for (DataAccessor r : scan1.consume()) {
                         System.out.println("RECORD " + r.toMap());
@@ -155,7 +156,7 @@ public class UpgradeFrom050WithBrinIndexesTest {
         ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
 
         int size = 0;
-        try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+        try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
 
             for (DataAccessor r : scan1.consume()) {
                 System.out.println("FOUND " + r.toMap());
@@ -171,7 +172,7 @@ public class UpgradeFrom050WithBrinIndexesTest {
         assertEquals(tcase.expectedRecordCount, size);
     }
 
-    private static final class TestCase {
+    private static class TestCase {
 
         private String query;
         private Class<? extends IndexOperation> expectedIndexAccessType;

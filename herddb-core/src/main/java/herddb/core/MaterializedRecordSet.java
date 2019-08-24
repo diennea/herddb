@@ -17,17 +17,18 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.Projection;
+import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
 import java.util.Iterator;
-import herddb.model.ScanLimits;
 
 /**
  * a Simple MaterializedRecordSet held in memory

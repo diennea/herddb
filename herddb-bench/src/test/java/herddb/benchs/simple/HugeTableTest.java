@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.benchs.simple;
 
 import herddb.benchs.BaseBench;
 import herddb.benchs.InsertOperation;
-import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import org.junit.Test;
 
@@ -34,9 +34,9 @@ public class HugeTableTest extends BaseBench {
 
     public HugeTableTest() {
         super(20,
-            1000000,
-            100000,
-            2);
+                1000000,
+                100000,
+                2);
         addOperation(new InsertOperation());
     }
 

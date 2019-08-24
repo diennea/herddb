@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
 import herddb.network.ServerSideConnectionAcceptor;
@@ -175,7 +176,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
     }
 
     private Channel channel;
-    private Channel local_channel;
+    private Channel localChannel;
     private StatsLogger statsLogger;
 
     private static final ThreadFactory threadFactory = new ThreadFactory() {
@@ -249,7 +250,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         if (address.isUnresolved()) {
-            throw new IOException("Bind address "+host+":"+port+" cannot be resolved");
+            throw new IOException("Bind address " + host + ":" + port + " cannot be resolved");
         }
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
             @Override
@@ -267,7 +268,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
                 ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
                 ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
-//                
+//
                 ch.pipeline().addLast("messagedecoder", new ProtocolMessageDecoder());
                 ch.pipeline().addLast(new ServerInboundMessageHandler(session));
             }
@@ -287,10 +288,10 @@ public class NettyChannelAcceptor implements AutoCloseable {
             b.group(bossGroup, workerGroup)
                     .channel(NetworkUtils.isEnableEpoolNative() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);            
+                    .option(ChannelOption.SO_BACKLOG, 128);
             ChannelFuture f = b.bind(address).sync();
             this.channel = f.channel();
-           
+
         }
 
         if (enableJVMNetwork) {
@@ -305,7 +306,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);
 
             ChannelFuture local_f = b_local.bind(new LocalAddress(hostAddress + ":" + port + ":" + ssl)).sync();
-            this.local_channel = local_f.channel();
+            this.localChannel = local_f.channel();
         }
 
     }
@@ -315,8 +316,8 @@ public class NettyChannelAcceptor implements AutoCloseable {
         if (channel != null) {
             channel.close();
         }
-        if (local_channel != null) {
-            local_channel.close();
+        if (localChannel != null) {
+            localChannel.close();
         }
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();

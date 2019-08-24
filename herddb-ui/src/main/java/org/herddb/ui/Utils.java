@@ -17,12 +17,13 @@
  under the License.
 
  */
+
 package org.herddb.ui;
 
 
 public class Utils {
 
-    public final static String TS_DEFAULT_PARAM = "defaultts";
+    public static final String TS_DEFAULT_PARAM = "defaultts";
 
     private static String getBoolean(boolean bool) {
         if (bool) {
@@ -31,16 +32,18 @@ public class Utils {
             return "<span><i class='ti-close' style='color: red'></i></span>";
         }
     }
+
     public static Object formatValue(Object obj) {
         return formatValue(obj, false);
     }
+
     public static Object formatValue(Object obj, boolean isboolean) {
         if (isboolean) {
             if (obj instanceof Integer) {
                 Integer bj = (Integer) obj;
                 if (bj == 0) {
                     return getBoolean(false);
-                } else if (bj == 1){
+                } else if (bj == 1) {
                     return getBoolean(true);
                 }
             }
@@ -52,8 +55,7 @@ public class Utils {
                 String bj = (String) obj;
                 if (bj.equalsIgnoreCase("true")) {
                     return getBoolean(true);
-                } else
-                    if (bj.equalsIgnoreCase("false")) {
+                } else if (bj.equalsIgnoreCase("false")) {
                     return getBoolean(false);
                 }
             }

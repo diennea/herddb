@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -29,7 +31,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,31 +50,31 @@ public class SimpleTableScanWithNullsTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Connection con2 = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Connection con2 = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
 
                     statement.execute("CREATE TABLE `sm_machine` (\n"
-                        + "  `ip` varchar(20) NOT NULL DEFAULT '',\n"
-                        + "  `firefox_version` int(50) DEFAULT NULL,\n"
-                        + "  `chrome_version` int(50) DEFAULT NULL,\n"
-                        + "  `ie_version` int(50) DEFAULT NULL,\n"
-                        + "  `log` varchar(2000) DEFAULT NULL,\n"
-                        + "  `offset` int(50) DEFAULT NULL,\n"
-                        + "  PRIMARY KEY (`ip`)\n"
-                        + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+                            + "  `ip` varchar(20) NOT NULL DEFAULT '',\n"
+                            + "  `firefox_version` int(50) DEFAULT NULL,\n"
+                            + "  `chrome_version` int(50) DEFAULT NULL,\n"
+                            + "  `ie_version` int(50) DEFAULT NULL,\n"
+                            + "  `log` varchar(2000) DEFAULT NULL,\n"
+                            + "  `offset` int(50) DEFAULT NULL,\n"
+                            + "  PRIMARY KEY (`ip`)\n"
+                            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
                     statement.executeUpdate("INSERT INTO `sm_machine` "
 //                            + "(`ip`,`firefox_version`,`chrome_version`,"
 //                            + "`ie_version`,`log`,`offset`) "
                             + "VALUES"
-                        + "('10.168.10.106',26,36,9,NULL,1),"
-                        + "('10.168.10.107',26,31,10,NULL,1),"
-                        + "('10.168.10.108',26,36,11,NULL,2),"
-                        + "('10.168.10.109',33,38,10,NULL,3),"
-                        + "('10.168.10.110',33,38,10,NULL,4)");
+                            + "('10.168.10.106',26,36,9,NULL,1),"
+                            + "('10.168.10.107',26,31,10,NULL,1),"
+                            + "('10.168.10.108',26,36,11,NULL,2),"
+                            + "('10.168.10.109',33,38,10,NULL,3),"
+                            + "('10.168.10.110',33,38,10,NULL,4)");
                     statement.executeQuery("SELECT * FROM sm_machine").close();
 
                     try (ResultSet rs = statement.executeQuery("SELECT bad_field FROM sm_machine")) {
@@ -82,7 +83,7 @@ public class SimpleTableScanWithNullsTest {
                     }
 
                     try (PreparedStatement statement2 = con.prepareStatement("SELECT bad_field FROM sm_machine");
-                        ResultSet rs = statement2.executeQuery()) {
+                         ResultSet rs = statement2.executeQuery()) {
                         fail();
                     } catch (SQLException ok) {
                     }

@@ -17,15 +17,15 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
+import io.netty.channel.epoll.Epoll;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
-
-import io.netty.channel.epoll.Epoll;
 
 /**
  * Network utility
@@ -36,8 +36,8 @@ public class NetworkUtils {
 
     private static final boolean ENABLE_EPOOL_NATIVE =
             System.getProperty("os.name").equalsIgnoreCase("linux")
-            && !Boolean.getBoolean("herddb.network.disablenativeepoll")
-            && Epoll.isAvailable();
+                    && !Boolean.getBoolean("herddb.network.disablenativeepoll")
+                    && Epoll.isAvailable();
 
     public static boolean isEnableEpoolNative() {
         return ENABLE_EPOOL_NATIVE;
@@ -53,7 +53,7 @@ public class NetworkUtils {
 
     public static int assignFirstFreePort() throws IOException {
         try (
-            ServerSocket socket = new ServerSocket(0);) {
+                ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
 
         }

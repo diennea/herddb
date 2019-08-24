@@ -17,70 +17,62 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.server.StaticClientSideMetadataProvider;
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
-
 /**
  * Prepared statements set parameters testing
- * 
+ *
  * @author diego.salvi
  */
-public class PreparedStatemetParametersTest
-{
+public class PreparedStatemetParametersTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
-    
+
     /**
      * Execute a prepared statement without a needed parameter
      */
     @Test(expected = SQLException.class)
-    public void missingParameter() throws Exception
-    {
-        try ( Server server = new Server(new ServerConfiguration(folder.newFolder().toPath())) )
-        {
+    public void missingParameter() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            
-            try ( HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath())) )
-            {
-                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server) );
-                
-                try ( BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client) )
-                {
-                    
-                    try ( Connection con = dataSource.getConnection();
-                          Statement statement = con.createStatement(); )
-                    {
+
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
+
+                    try (Connection con = dataSource.getConnection();
+                         Statement statement = con.createStatement()) {
                         statement.execute("CREATE TABLE mytable (c1 int primary key)");
                     }
-                    
-                    try ( Connection con = dataSource.getConnection();
-                          PreparedStatement statement = con.prepareStatement("INSERT INTO mytable values (?)"); )
-                    {
+
+                    try (Connection con = dataSource.getConnection();
+                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable values (?)")) {
                         int rows = statement.executeUpdate();
-                        
+
                         Assert.assertEquals(1, rows);
                     }
-                    
+
                 }
             }
         }
     }
-    
+
 }

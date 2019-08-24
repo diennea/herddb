@@ -17,18 +17,13 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
@@ -37,9 +32,12 @@ import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
 import herddb.utils.TestUtils;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic server/client boot test
@@ -57,7 +55,7 @@ public class SimpleClientScanTest {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
@@ -97,7 +95,7 @@ public class SimpleClientScanTest {
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 10); // more than one socket
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
@@ -145,8 +143,10 @@ public class SimpleClientScanTest {
 
     }
 
-    private void checkCloseScannerOnConnectionClose(final HDBClient client, HDBConnection primary,
-            final Server server, boolean withTransaction) throws HDBException, InterruptedException, ClientSideMetadataProviderException {
+    private void checkCloseScannerOnConnectionClose(
+            final HDBClient client, HDBConnection primary,
+            final Server server, boolean withTransaction
+    ) throws HDBException, InterruptedException, ClientSideMetadataProviderException {
         try (HDBConnection connection2 = client.openConnection()) {
             {
                 // scan with fetchSize = 1, we will have 100 chunks
@@ -209,8 +209,10 @@ public class SimpleClientScanTest {
         assertNotNull(peerWithScanner);
     }
 
-    private void checkCloseResultSetNotFullyScanned(final HDBConnection connection, final Server server,
-            boolean withTransaction) throws HDBException, ClientSideMetadataProviderException, InterruptedException {
+    private void checkCloseResultSetNotFullyScanned(
+            final HDBConnection connection, final Server server,
+            boolean withTransaction
+    ) throws HDBException, ClientSideMetadataProviderException, InterruptedException {
         long tx = withTransaction ? connection.beginTransaction(TableSpace.DEFAULT) : 0;
         // scan with fetchSize = 1, we will have 100 chunks
         ServerSideConnectionPeer peerWithScanner = null;

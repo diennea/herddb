@@ -17,19 +17,16 @@
  under the License.
 
  */
+
 package herddb.core;
 
-import herddb.codec.DataAccessorForFullRecord;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
+import static org.junit.Assert.assertThat;
+import herddb.codec.DataAccessorForFullRecord;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -38,9 +35,10 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.junit.Assert.assertThat;
+import org.junit.Test;
 
 /**
  * Tests on table creation. An heap is a table without primary key, that is that
@@ -53,7 +51,7 @@ public class HeapTest {
     @Test
     public void testHeapTable() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -65,7 +63,7 @@ public class HeapTest {
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().size());
 
-            try (DataScanner dataScanner = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner dataScanner = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
 
                 // this is mostly what is done while serializing the result set to the network client
                 String[] columns = dataScanner.getFieldNames();
@@ -101,7 +99,7 @@ public class HeapTest {
     @Test
     public void insertWithoutValuesAndPrimaryKeyIsNotTheFirstColumn() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

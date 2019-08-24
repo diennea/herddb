@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.upgrade;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.file.FileCommitLogManager;
@@ -29,7 +32,6 @@ import herddb.model.DataScanner;
 import herddb.model.ScanResult;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
-import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import java.io.File;
@@ -40,8 +42,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -62,7 +62,7 @@ public class RunHerdDB070Test {
 
         File dbdatadir = folder.newFolder("dbdata070_" + file);
 
-        try (InputStream in = RunHerdDB070Test.class.getResourceAsStream(file);) {
+        try (InputStream in = RunHerdDB070Test.class.getResourceAsStream(file)) {
             ZIPUtils.unZip(in, dbdatadir);
         }
         System.out.println("UNZIPPED TO " + dbdatadir);
@@ -148,7 +148,7 @@ public class RunHerdDB070Test {
                 TranslatedQuery translated = manager
                         .getPlanner().translate(tableSpace,
                                 "SELECT * FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id\n"
-                                + "            ",
+                                        + "            ",
                                 Collections.emptyList(),
                                 true, true, false, -1);
                 System.out.println("TABLE CONTENTS");

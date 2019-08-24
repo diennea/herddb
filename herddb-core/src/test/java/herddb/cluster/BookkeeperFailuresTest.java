@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
 import static herddb.core.TestUtils.scan;
@@ -25,22 +26,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.client.LedgerHandle;
-import org.apache.bookkeeper.client.api.LedgerMetadata;
-import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.ActivatorRunRequest;
 import herddb.core.TableSpaceManager;
@@ -61,9 +46,22 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.LedgerMetadata;
+import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * We are going to fence forcibly a ledger during the normal execution
@@ -135,15 +133,15 @@ public class BookkeeperFailuresTest {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            try (BookKeeper bk = createBookKeeper();) {
+            try (BookKeeper bk = createBookKeeper()) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8))) {
                 }
             }
 
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                        makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         TransactionContext.NO_TRANSACTION);
                 fail();
             } catch (StatementExecutionException expected) {
@@ -183,7 +181,7 @@ public class BookkeeperFailuresTest {
                     table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION);
 
-            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList())) {
                 assertEquals(4, scan.consume().size());
             }
         }
@@ -235,9 +233,9 @@ public class BookkeeperFailuresTest {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            try (BookKeeper bk = createBookKeeper();) {
+            try (BookKeeper bk = createBookKeeper()) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8))) {
                 }
             }
 
@@ -292,7 +290,7 @@ public class BookkeeperFailuresTest {
                     table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION);
 
-            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             }
         }
@@ -340,7 +338,7 @@ public class BookkeeperFailuresTest {
 
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                        makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         TransactionContext.NO_TRANSACTION);
                 fail();
             } catch (StatementExecutionException expected) {
@@ -382,7 +380,7 @@ public class BookkeeperFailuresTest {
                     table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION);
 
-            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList())) {
                 assertEquals(4, scan.consume().size());
             }
         }
@@ -429,18 +427,17 @@ public class BookkeeperFailuresTest {
             long ledgerId = log.getLastSequenceNumber().ledgerId;
             assertTrue(ledgerId >= 0);
 
-            Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId
-                    == transactionId).findFirst().get();
+            Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId == transactionId).findFirst().get();
             // Transaction will synch, so every addEntry will be acked, but will not be "confirmed" yet
             transaction.sync();
 
             try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(),
-                    new TransactionContext(transactionId));) {
+                    new TransactionContext(transactionId))) {
                 assertEquals(3, scan.consume().size());
             }
 
             try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(),
-                    TransactionContext.NO_TRANSACTION);) {
+                    TransactionContext.NO_TRANSACTION)) {
                 // no record, but the table exists!
                 assertEquals(0, scan.consume().size());
             }
@@ -453,7 +450,7 @@ public class BookkeeperFailuresTest {
             // transaction will continue and see the failure only the time of the commit
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                        makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         new TransactionContext(transactionId));
                 System.out.println("Insert of c,4 OK"); // this will piggyback the LAC for the transaction
             } catch (StatementExecutionException expected) {
@@ -463,7 +460,7 @@ public class BookkeeperFailuresTest {
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                        makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         new TransactionContext(transactionId));
                 System.out.println("Insert of c,5 OK");  // this will piggyback the LAC for the transaction
             } catch (StatementExecutionException expected) {
@@ -473,7 +470,7 @@ public class BookkeeperFailuresTest {
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                        makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         new TransactionContext(transactionId));
                 System.out.println("Insert of c,6 OK");  // this will piggyback the LAC for the transaction
             } catch (StatementExecutionException expected) {
@@ -503,8 +500,8 @@ public class BookkeeperFailuresTest {
             }
 
             try (BookKeeper bk = createBookKeeper();
-                    LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, "herddb".
-                            getBytes(StandardCharsets.UTF_8))) {
+                 LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, "herddb".
+                         getBytes(StandardCharsets.UTF_8))) {
                 BookKeeperAdmin admin = new BookKeeperAdmin(bk);
                 try {
                     LedgerMetadata ledgerMetadata = admin.getLedgerMetadata(handle);
@@ -540,7 +537,7 @@ public class BookkeeperFailuresTest {
                     table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION);
 
-            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             }
         }
@@ -592,7 +589,7 @@ public class BookkeeperFailuresTest {
 
             // we should recover
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
-                    makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION);
 
             assertNotEquals(ledgerId, log.getWriter().getOut().getId());
@@ -608,7 +605,7 @@ public class BookkeeperFailuresTest {
 
             // set server2 as new leader
             server.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0),
+                            new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0),
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             // stop server1
@@ -621,7 +618,7 @@ public class BookkeeperFailuresTest {
                 server2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
 
                 // the server must have all of the data
-                try (DataScanner scan = scan(server2.getManager(), "SELECT * FROM t1", Collections.emptyList());) {
+                try (DataScanner scan = scan(server2.getManager(), "SELECT * FROM t1", Collections.emptyList())) {
                     List<DataAccessor> consume = scan.consume();
                     assertEquals(4, consume.size());
                 }

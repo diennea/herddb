@@ -1,13 +1,11 @@
 package herddb.index.blink;
 
-import java.util.function.Function;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.index.blink.BLinkTest.DummyBLinkIndexDataStorage;
+import java.util.function.Function;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests on {@link BLink} about constant size retrieved from {@link SizeEvaluator}
@@ -19,7 +17,7 @@ public class BLinkConstantSizeTest {
     /**
      * Dynamic sizing
      */
-    private static class DummySizeEvaluator implements SizeEvaluator<Long,Long> {
+    private static class DummySizeEvaluator implements SizeEvaluator<Long, Long> {
 
         static final long KEY_CONSTANT_SIZE = 1;
         static final long VALUE_CONSTANT_SIZE = 1;
@@ -51,7 +49,7 @@ public class BLinkConstantSizeTest {
     /**
      * Constant sizing
      */
-    private static final class DummyConstantSizeEvaluator extends DummySizeEvaluator {
+    private static class DummyConstantSizeEvaluator extends DummySizeEvaluator {
 
         @Override
         public long evaluateKey(Long key) {
@@ -96,7 +94,7 @@ public class BLinkConstantSizeTest {
 
         long maxSize = 2048L;
 
-        Function<SizeEvaluator<Long,Long>,Long> sizeEvaluation = (evaluator) -> {
+        Function<SizeEvaluator<Long, Long>, Long> sizeEvaluation = (evaluator) -> {
             try (BLink<Long, Long> blink = new BLink<>(maxSize, evaluator, new RandomPageReplacementPolicy(3), new DummyBLinkIndexDataStorage<>())) {
                 long size;
                 long data = 0;

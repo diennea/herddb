@@ -17,18 +17,18 @@
  under the License.
 
  */
+
 package herddb.storage;
 
+import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-
-import herddb.log.LogSequenceNumber;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
 
 /**
  * Status of an index on disk
@@ -43,8 +43,10 @@ public class IndexStatus {
     public final Set<Long> activePages;
     public final long newPageId;
 
-    public IndexStatus(String indexName, LogSequenceNumber sequenceNumber,
-            long newPageId, final Set<Long> activePages, byte[] indexData) {
+    public IndexStatus(
+            String indexName, LogSequenceNumber sequenceNumber,
+            long newPageId, final Set<Long> activePages, byte[] indexData
+    ) {
         this.indexName = indexName;
         this.sequenceNumber = sequenceNumber;
         this.newPageId = newPageId;
@@ -127,10 +129,7 @@ public class IndexStatus {
         if (!Arrays.equals(this.indexData, other.indexData)) {
             return false;
         }
-        if (!Objects.equals(this.activePages, other.activePages)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.activePages, other.activePages);
     }
 
 }

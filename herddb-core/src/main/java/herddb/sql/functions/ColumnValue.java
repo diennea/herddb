@@ -17,14 +17,13 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
-import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
 import java.util.Objects;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class ColumnValue implements AggregatedColumnCalculator {

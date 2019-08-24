@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.Column;
@@ -38,13 +39,14 @@ public class AlterTableStatement extends DDLStatement {
     private final String newTableName;
 
     public AlterTableStatement(
-        List<Column> addColumns,
-        List<Column> modifyColumns,
-        List<String> dropColumns,
-        Boolean changeAutoIncrement,
-        String table,
-        String tableSpace,
-        String newTableName) {
+            List<Column> addColumns,
+            List<Column> modifyColumns,
+            List<String> dropColumns,
+            Boolean changeAutoIncrement,
+            String table,
+            String tableSpace,
+            String newTableName
+    ) {
         super(tableSpace);
         this.table = table;
         this.addColumns = addColumns;

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -71,7 +72,7 @@ public class ColumnTypes {
     }
 
     public static boolean isNotNullDataType(int type) {
-        switch(type) {
+        switch (type) {
             case NOTNULL_INTEGER:
             case NOTNULL_LONG:
             case NOTNULL_STRING:
@@ -84,12 +85,13 @@ public class ColumnTypes {
     /**
      * Utility method that takes in type and returns the supported not null equivalent. If the current
      * version does not support not null constraints on the type the method throws an exception
+     *
      * @param type
      * @return
      * @throws StatementExecutionException
      */
     public static int getNonNullTypeForPrimitiveType(int type) throws StatementExecutionException {
-        switch(type) {
+        switch (type) {
             case STRING:
                 return NOTNULL_STRING;
             case INTEGER:
@@ -102,7 +104,7 @@ public class ColumnTypes {
             case BOOLEAN:
             case NULL:
             default:
-                throw new StatementExecutionException("Not null constraints not supported for column type "+ type);
+                throw new StatementExecutionException("Not null constraints not supported for column type " + type);
         }
     }
 

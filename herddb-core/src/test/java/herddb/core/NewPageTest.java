@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -25,7 +26,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -42,10 +42,10 @@ import java.util.Collections;
 import org.junit.Test;
 
 /**
-* Tests on <i>new</i> pages behaviours.
-*
-* @author diego.salvi
-*/
+ * Tests on <i>new</i> pages behaviours.
+ *
+ * @author diego.salvi
+ */
 public class NewPageTest {
 
     /**
@@ -65,7 +65,7 @@ public class NewPageTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config1,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -157,7 +157,7 @@ public class NewPageTest {
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
                 null, null, config1,
-                null);) {
+                null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);

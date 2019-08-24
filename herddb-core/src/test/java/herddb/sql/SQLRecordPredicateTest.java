@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.sql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
@@ -35,39 +38,35 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.expressions.CompiledSQLExpression;
 import java.util.Arrays;
 import java.util.Collections;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class SQLRecordPredicateTest {
 
     @Test
     public void testEvaluateExpression() throws Exception {
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 
             Table table = Table
-                .builder()
-                .name("t1")
-                .column("pk", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("pk")
-                .build();
+                    .builder()
+                    .name("t1")
+                    .column("pk", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("pk")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT,
-                    "SELECT * "
-                    + "FROM t1 "
-                    + "where pk >= ?", Collections.emptyList(), true, true, false, -1);
+                        "SELECT * "
+                                + "FROM t1 "
+                                + "where pk >= ?", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate() instanceof SQLRecordPredicate);
                 SQLRecordPredicate pred = (SQLRecordPredicate) scan.getPredicate();
@@ -81,14 +80,14 @@ public class SQLRecordPredicateTest {
                 Record record = RecordSerializer.makeRecord(table, "pk", "test", "name", "myname");
                 assertEquals(Boolean.TRUE, pred.evaluate(record, ctx));
 
-                long _start = System.currentTimeMillis();
-                int SIZE = 20_000_000;
-                for (int i = 0; i < SIZE; i++) {
+                long start = System.currentTimeMillis();
+                int size = 20_000_000;
+                for (int i = 0; i < size; i++) {
                     pred.evaluate(record, ctx);
                 }
-                long _end = System.currentTimeMillis();
-                double speed = (int) (SIZE * 1000d / (_end - _start));
-                System.out.println("speed: " + speed + " eval/s" + " per " + SIZE + " records");
+                long end = System.currentTimeMillis();
+                double speed = (int) (size * 1000d / (end - start));
+                System.out.println("speed: " + speed + " eval/s" + " per " + size + " records");
 
             }
         }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 /**
@@ -31,5 +32,5 @@ public interface Sink<V> {
      * @return false in case you want to stop scanning the collection
      */
     boolean accept(V value) throws Exception;
- 
+
 }

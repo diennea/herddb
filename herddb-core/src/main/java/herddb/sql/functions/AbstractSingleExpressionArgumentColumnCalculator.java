@@ -17,46 +17,36 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
-import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.DataAccessor;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.JdbcParameter;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.expression.TimestampValue;
-import net.sf.jsqlparser.schema.Column;
 
 /**
- *
  * @author enrico.olivelli
  */
 public abstract class AbstractSingleExpressionArgumentColumnCalculator implements AggregatedColumnCalculator {
 
-    final protected String fieldName;
-    final protected CompiledSQLExpression expression;
-    final protected ValueComputer valueExtractor;
+    protected final String fieldName;
+    protected final CompiledSQLExpression expression;
+    protected final ValueComputer valueExtractor;
 
     @FunctionalInterface
-    public static interface ValueComputer {
+    public interface ValueComputer {
 
-        public Comparable apply(DataAccessor tuple) throws StatementExecutionException;
+        Comparable apply(DataAccessor tuple) throws StatementExecutionException;
     }
 
-    protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, CompiledSQLExpression expression,
+    protected AbstractSingleExpressionArgumentColumnCalculator(
+            String fieldName, CompiledSQLExpression expression,
             StatementEvaluationContext context
     ) throws StatementExecutionException {
         this.fieldName = fieldName;
         this.expression = expression;
-        valueExtractor = (DataAccessor t) -> {
-            return (Comparable) this.expression.evaluate(t, context);
-        };
+        valueExtractor = (DataAccessor t) -> (Comparable) this.expression.evaluate(t, context);
     }
 }

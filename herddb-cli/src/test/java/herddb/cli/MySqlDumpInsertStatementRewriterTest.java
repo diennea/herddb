@@ -17,16 +17,18 @@
  under the License.
 
  */
+
 package herddb.cli;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class MySqlDumpInsertStatementRewriterTest {
@@ -44,9 +46,9 @@ public class MySqlDumpInsertStatementRewriterTest {
         check("INSERT INTO table VALUES (a,2)", null, null);
 
         check("INSERT INTO table VALUES ('a',1),('b','c')", "INSERT INTO table VALUES (?,?),(?,?)", Arrays.asList("a", Long.valueOf(1),
-            "b", "c"));
+                "b", "c"));
         check("INSERT INTO table VALUES ('a',null),('b','c')", "INSERT INTO table VALUES (?,?),(?,?)", Arrays.asList("a", null,
-            "b", "c"));
+                "b", "c"));
     }
 
     private static void check(String original, String rewritten, List<Object> expectedParameters) {
@@ -55,7 +57,7 @@ public class MySqlDumpInsertStatementRewriterTest {
             assertNull(result);
             return;
         }
-        assertEquals("table",result.tableName);
+        assertEquals("table", result.tableName);
         assertNotNull(result);
         assertEquals(rewritten, result.query);
         assertEquals(expectedParameters, result.jdbcParameters);

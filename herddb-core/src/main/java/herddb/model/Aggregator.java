@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -32,5 +33,5 @@ public interface Aggregator {
      * @param scanner
      * @return
      */
-    public DataScanner aggregate(DataScanner scanner, StatementEvaluationContext context) throws StatementExecutionException;
+    DataScanner aggregate(DataScanner scanner, StatementEvaluationContext context) throws StatementExecutionException;
 }

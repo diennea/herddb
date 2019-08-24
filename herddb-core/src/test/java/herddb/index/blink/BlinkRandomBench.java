@@ -17,8 +17,13 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
+import herddb.core.MemoryManager;
+import herddb.log.LogSequenceNumber;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.utils.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
@@ -33,11 +38,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
-import herddb.core.MemoryManager;
-import herddb.log.LogSequenceNumber;
-import herddb.mem.MemoryDataStorageManager;
-import herddb.utils.Bytes;
 
 public class BlinkRandomBench {
 
@@ -126,7 +126,7 @@ public class BlinkRandomBench {
                 // MemoryManager mem = new MemoryManager(5 * (1L << 20), (128L << 10), (128L << 10));
 
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
-                        BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
+                     BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
 
                     idx.start(LogSequenceNumber.START_OF_TIME);
 

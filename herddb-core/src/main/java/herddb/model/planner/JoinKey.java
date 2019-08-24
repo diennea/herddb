@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Arrays;
@@ -29,13 +29,15 @@ import org.apache.calcite.linq4j.function.Function1;
 
 /**
  * Selected key for join. It is a specialized projection, which must be Comparable
+ *
  * @author eolivelli
  */
 @SuppressFBWarnings("BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS")
 class JoinKey implements Comparable<JoinKey> {
 
     public static Function1<DataAccessor, JoinKey> keyExtractor(
-            int[] projection) {
+            int[] projection
+    ) {
         return (DataAccessor a) -> new JoinKey(a, projection);
     }
 
@@ -65,25 +67,26 @@ class JoinKey implements Comparable<JoinKey> {
         }
         return true;
     }
-    private int _hashcode = Integer.MIN_VALUE;
+
+    private int hashcode = Integer.MIN_VALUE;
 
     @Override
     public int hashCode() {
-        if (_hashcode == Integer.MIN_VALUE) {
+        if (hashcode == Integer.MIN_VALUE) {
             int size = this.selectedFields.length;
             int res = 0;
             // leverage zero-copy and to not create temporary arrays
             for (int i = 0; i < size; i++) {
                 res += Objects.hashCode(get(i));
             }
-            _hashcode = res;
+            hashcode = res;
         }
-        return _hashcode;
+        return hashcode;
     }
 
     @Override
     public int compareTo(JoinKey o) {
-        JoinKey da = (JoinKey) o;
+        JoinKey da = o;
         int size = this.selectedFields.length;
         // leverage zero-copy and to not create temporary arrays
         for (int i = 0; i < size; i++) {

@@ -17,12 +17,8 @@
  under the License.
 
  */
-package herddb.core;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
+package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
 import herddb.model.Index;
@@ -30,10 +26,14 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.Channel;
 import herddb.proto.Pdu;
-import herddb.utils.KeyValue;
 import herddb.proto.PduCodec;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
+import herddb.utils.KeyValue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * Dumps data of a table
@@ -43,20 +43,21 @@ import herddb.storage.TableStatus;
 class SingleTableDumper implements FullTableScanConsumer {
 
     private final AbstractTableManager tableManager;
-    private final Channel _channel;
+    private final Channel channel;
     private final String dumpId;
     private final String tableSpaceName;
     private final int timeout;
     private final int fetchSize;
 
-    public SingleTableDumper(String tableSpaceName, AbstractTableManager tableManager, Channel _channel, String dumpId, int timeout, int fetchSize) {
+    public SingleTableDumper(String tableSpaceName, AbstractTableManager tableManager, Channel channel, String dumpId, int timeout, int fetchSize) {
         this.tableSpaceName = tableSpaceName;
         this.tableManager = tableManager;
-        this._channel = _channel;
+        this.channel = channel;
         this.dumpId = dumpId;
         this.timeout = timeout;
         this.fetchSize = fetchSize;
     }
+
     final List<KeyValue> batch = new ArrayList<>();
 
     @Override
@@ -69,11 +70,11 @@ class SingleTableDumper implements FullTableScanConsumer {
                     .stream()
                     .map(Index::serialize)
                     .collect(Collectors.toList());
-            long id = _channel.generateRequestId();
-            try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+            long id = channel.generateRequestId();
+            try (Pdu pdu = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "beginTable", tableDefinition, stats.getTablesize(),
                     tableStatus.sequenceNumber.ledgerId, tableStatus.sequenceNumber.offset,
-                    indexes, null), timeout);) {
+                    indexes, null), timeout)) {
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HerdDBInternalException(err);
@@ -106,8 +107,8 @@ class SingleTableDumper implements FullTableScanConsumer {
             if (!batch.isEmpty()) {
                 sendBatch();
             }
-            long id = _channel.generateRequestId();
-            try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+            long id = channel.generateRequestId();
+            try (Pdu pdu = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "endTable", null, 0,
                     0, 0,
                     null, null), timeout)) {
@@ -119,8 +120,8 @@ class SingleTableDumper implements FullTableScanConsumer {
     }
 
     private void sendBatch() throws TimeoutException, InterruptedException {
-        long id = _channel.generateRequestId();
-        try (Pdu pdu = _channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        long id = channel.generateRequestId();
+        try (Pdu pdu = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "data", null, 0,
                 0, 0,
                 null, batch), timeout)) {

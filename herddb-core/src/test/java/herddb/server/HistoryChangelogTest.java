@@ -17,8 +17,12 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.DMLResult;
 import herddb.client.GetResult;
@@ -44,9 +48,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -59,11 +60,11 @@ import org.junit.rules.TemporaryFolder;
  */
 public class HistoryChangelogTest {
 
-    private static int TABLESIZE = 10000;
-    private static int MULTIPLIER = 20;
-    private static int THREADPOLSIZE = 10;
+    private static final int TABLESIZE = 10000;
+    private static final int MULTIPLIER = 20;
+    private static final int THREADPOLSIZE = 10;
 
-    private static final class Element {
+    private static class Element {
 
         private final int status;
         private final long hid;
@@ -99,23 +100,23 @@ public class HistoryChangelogTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id long primary key, hid long, status integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id long primary key, hid long, status integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long resultCreateTableHistory = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE history (id long, hid long, status integer, primary key (id,hid) )", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE history (id long, hid long, status integer, primary key (id,hid) )", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTableHistory);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 for (long i = 0; i < TABLESIZE; i++) {
                     int status = 0;
                     connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,hid,status) values(?,?,?)", tx, false, true,
-                        Arrays.asList(i, 0, status));
+                            "INSERT INTO mytable (id,hid,status) values(?,?,?)", tx, false, true,
+                            Arrays.asList(i, 0, status));
                     elements.put(i, new Element(0, status));
                 }
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
@@ -126,48 +127,48 @@ public class HistoryChangelogTest {
                     AtomicLong updates = new AtomicLong();
                     for (int i = 0; i < TABLESIZE * MULTIPLIER; i++) {
                         futures.add(threadPool.submit(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
+                                                          @Override
+                                                          public void run() {
+                                                              try {
 
-                                    long id = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                    doneElements.add(id);
-                                    Element element = elements.remove(id);
-                                    if (element == null) {
-                                        return;
-                                    }
-                                 
-                                    int new_status = element.status + 1;
-                                    long next_hid = element.hid + 1;
+                                                                  long id = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                                                  doneElements.add(id);
+                                                                  Element element = elements.remove(id);
+                                                                  if (element == null) {
+                                                                      return;
+                                                                  }
 
-                                    long transactionId;
-                                    updates.incrementAndGet();
+                                                                  int new_status = element.status + 1;
+                                                                  long next_hid = element.hid + 1;
 
-                                    DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                        "UPDATE mytable set hid=?,status=? WHERE id=?", TransactionContext.AUTOTRANSACTION_ID, false, true,
-                                        Arrays.asList(next_hid, new_status, id));
+                                                                  long transactionId;
+                                                                  updates.incrementAndGet();
 
-                                    transactionId = updateResult.transactionId;
-                                    if (updateResult.updateCount <= 0) {
-                                        throw new RuntimeException("not updated ?");
-                                    }
-                                    DMLResult insertResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                        "INSERT INTO history (id,hid,status) values (?,?,?)", transactionId, false, true,
-                                        Arrays.asList(id, next_hid, new_status));
-                                    if (insertResult.updateCount <= 0) {
-                                        throw new RuntimeException("not inserted ?");
-                                    }
-                                    connection.commitTransaction(TableSpace.DEFAULT, transactionId);
+                                                                  DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
+                                                                          "UPDATE mytable set hid=?,status=? WHERE id=?", TransactionContext.AUTOTRANSACTION_ID, false, true,
+                                                                          Arrays.asList(next_hid, new_status, id));
 
-                                    // make the element available again
-                                    elements.put(id, new Element(new_status, next_hid));
+                                                                  transactionId = updateResult.transactionId;
+                                                                  if (updateResult.updateCount <= 0) {
+                                                                      throw new RuntimeException("not updated ?");
+                                                                  }
+                                                                  DMLResult insertResult = connection.executeUpdate(TableSpace.DEFAULT,
+                                                                          "INSERT INTO history (id,hid,status) values (?,?,?)", transactionId, false, true,
+                                                                          Arrays.asList(id, next_hid, new_status));
+                                                                  if (insertResult.updateCount <= 0) {
+                                                                      throw new RuntimeException("not inserted ?");
+                                                                  }
+                                                                  connection.commitTransaction(TableSpace.DEFAULT, transactionId);
 
-                                } catch (Exception err) {
-                                    err.printStackTrace();
-                                    throw new RuntimeException(err);
-                                }
-                            }
-                        }
+                                                                  // make the element available again
+                                                                  elements.put(id, new Element(new_status, next_hid));
+
+                                                              } catch (Exception err) {
+                                                                  err.printStackTrace();
+                                                                  throw new RuntimeException(err);
+                                                              }
+                                                          }
+                                                      }
                         ));
                     }
                     for (Future f : futures) {
@@ -187,27 +188,27 @@ public class HistoryChangelogTest {
                     assertEquals(TABLESIZE, stats.getTablesize());
 
                     for (Map.Entry<Long, Element> entry : elements.entrySet()) {
-                    {
-                        GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
-                        assertNotNull(res.data);
-                        assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
-                        assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
+                        {
+                            GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
+                                    TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
+                            assertNotNull(res.data);
+                            assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
+                            assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
+                        }
+                        if (doneElements.contains(entry.getKey())) {
+                            ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
+                                            + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
+                                    TransactionContext.NOTRANSACTION_ID, -1, 10000);
+                            List<Map<String, Object>> consume = res.consume();
+                            assertEquals(1, consume.size());
+                            Map<String, Object> data = consume.get(0);
+                            System.out.println("data:" + data);
+                            assertEquals(entry.getValue().status, data.get("status"));
+                            assertEquals(entry.getValue().hid, data.get("hid"));
+                            assertEquals(entry.getValue().hid, data.get("maxhid"));
+                            assertEquals(entry.getKey(), data.get("id"));
+                        }
                     }
-                    if (doneElements.contains(entry.getKey())) {
-                        ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
-                            + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
-                            TransactionContext.NOTRANSACTION_ID, -1, 10000);
-                        List<Map<String, Object>> consume = res.consume();
-                        assertEquals(1, consume.size());
-                        Map<String, Object> data = consume.get(0);
-                        System.out.println("data:" + data);
-                        assertEquals(entry.getValue().status, data.get("status"));
-                        assertEquals(entry.getValue().hid, data.get("hid"));
-                        assertEquals(entry.getValue().hid, data.get("maxhid"));
-                        assertEquals(entry.getKey(), data.get("id"));
-                    }
-                }
                 } finally {
                     threadPool.shutdown();
                     threadPool.awaitTermination(1, TimeUnit.MINUTES);
@@ -221,21 +222,21 @@ public class HistoryChangelogTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 for (Map.Entry<Long, Element> entry : elements.entrySet()) {
                     {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT,
                                 "SELECT status,hid FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
+                                TransactionContext.NOTRANSACTION_ID, true, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
                         assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
                         assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
                     }
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
-                            + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
-                            TransactionContext.NOTRANSACTION_ID, -1, 10000);
+                                        + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
+                                TransactionContext.NOTRANSACTION_ID, -1, 10000);
                         List<Map<String, Object>> consume = res.consume();
                         assertEquals(1, consume.size());
                         Map<String, Object> data = consume.get(0);

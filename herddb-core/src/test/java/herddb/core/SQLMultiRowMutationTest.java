@@ -17,32 +17,27 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class SQLMultiRowMutationTest {
@@ -50,7 +45,7 @@ public class SQLMultiRowMutationTest {
     @Test
     public void updateMulti() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

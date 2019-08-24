@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import herddb.utils.SystemProperties;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -26,8 +28,6 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-import herddb.utils.SystemProperties;
 
 /**
  * Server configuration
@@ -58,36 +58,36 @@ public final class ServerConfiguration {
     public static final String PROPERTY_LOGDIR = "server.log.dir";
     public static final String PROPERTY_LOGDIR_DEFAULT = "txlog";
 
-    public final static String PROPERTY_MAX_UNSYNCHED_BATCH = "txlog.maxsyncbatchsize";
-    public final static int PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT = 10_000;
+    public static final String PROPERTY_MAX_UNSYNCHED_BATCH = "txlog.maxsyncbatchsize";
+    public static final int PROPERTY_MAX_UNSYNCHED_BATCH_DEFAULT = 10_000;
 
-    public final static String PROPERTY_MAX_UNSYNCHED_BATCH_BYTES = "txlog.maxsyncbatchbytes";
-    public final static int PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT = 512 * 1024;
+    public static final String PROPERTY_MAX_UNSYNCHED_BATCH_BYTES = "txlog.maxsyncbatchbytes";
+    public static final int PROPERTY_MAX_UNSYNCHED_BATCH_BYTES_DEFAULT = 512 * 1024;
 
-    public final static String PROPERTY_MAX_SYNC_TIME = "txlog.synctimeout";
-    public final static int PROPERTY_MAX_SYNC_TIME_DEFAULT = 1;
+    public static final String PROPERTY_MAX_SYNC_TIME = "txlog.synctimeout";
+    public static final int PROPERTY_MAX_SYNC_TIME_DEFAULT = 1;
 
-    public final static String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
-    public final static int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;  /* disabled */
+    public static final String PROPERTY_DEFERRED_SYNC_PERIOD = "txlog.deferredsyncperiod";
+    public static final int PROPERTY_DEFERRED_SYNC_PERIOD_DEFAULT = 0;  /* disabled */
 
-    public final static boolean USE_O_DIRECT_DEFAULT = SystemProperties.getBooleanSystemProperty(
+    public static final boolean USE_O_DIRECT_DEFAULT = SystemProperties.getBooleanSystemProperty(
             "herddb.file.use_o_direct_default", false);
 
-    public final static String PROPERTY_TXLOG_USE_ODIRECT = "txlog.use_o_direct";
-    public final static boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
+    public static final String PROPERTY_TXLOG_USE_ODIRECT = "txlog.use_o_direct";
+    public static final boolean PROPERTY_TXLOG_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
-    public final static String PROPERTY_MAX_LOG_FILE_SIZE = "txlog.maxfilesize";
-    public final static long PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT = 64L * 1024L * 1024L;
+    public static final String PROPERTY_MAX_LOG_FILE_SIZE = "txlog.maxfilesize";
+    public static final long PROPERTY_MAX_LOG_FILE_SIZE_DEFAULT = 64L * 1024L * 1024L;
 
-    public final static String PROPERTY_REQUIRE_FSYNC = "requirefsync";
-    public final static boolean PROPERTY_REQUIRE_FSYNC_DEFAULT = SystemProperties.getBooleanSystemProperty(
+    public static final String PROPERTY_REQUIRE_FSYNC = "requirefsync";
+    public static final boolean PROPERTY_REQUIRE_FSYNC_DEFAULT = SystemProperties.getBooleanSystemProperty(
             "herddb.file.requirefsync", true);
 
-    public final static String PROPERTY_PAGE_USE_ODIRECT = "page.use_o_direct";
-    public final static boolean PROPERTY_PAGE_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
+    public static final String PROPERTY_PAGE_USE_ODIRECT = "page.use_o_direct";
+    public static final boolean PROPERTY_PAGE_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
-    public final static String PROPERTY_INDEX_USE_ODIRECT = "index.use_o_direct";
-    public final static boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
+    public static final String PROPERTY_INDEX_USE_ODIRECT = "index.use_o_direct";
+    public static final boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
     public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
@@ -122,7 +122,7 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookkeeper.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
-    
+
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH = "server.bookkeeper.ledgers.path";
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT = "/ledgers";
 
@@ -140,7 +140,7 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
-    
+
     public static final String PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT = "server.abandoned.transactions.timeout";
     public static final long PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
 
@@ -248,7 +248,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";
     public static final boolean PROPERTY_JMX_ENABLE_DEFAULT = true;
 
-    public static final String PROPERTY_PLANNER_TYPE = "server.planner.type";    
+    public static final String PROPERTY_PLANNER_TYPE = "server.planner.type";
     public static final String PLANNER_TYPE_NONE = "none";
     public static final String PLANNER_TYPE_CALCITE = "calcite";
     public static final String PROPERTY_PLANNER_TYPE_DEFAULT = PLANNER_TYPE_CALCITE;
@@ -392,6 +392,7 @@ public final class ServerConfiguration {
             }
         }
     }
+
     private static final Logger LOG = Logger.getLogger(ServerConfiguration.class.getName());
 
     public List<String> keys() {

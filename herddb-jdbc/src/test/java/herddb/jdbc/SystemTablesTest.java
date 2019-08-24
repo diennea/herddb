@@ -17,29 +17,31 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import herddb.model.StatementExecutionException;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.model.TableSpace;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic client testing
@@ -56,11 +58,11 @@ public class SystemTablesTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE INDEX mytableindex ON mytable(name)");
                     statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string not null, ts timestamp)");
@@ -137,7 +139,7 @@ public class SystemTablesTest {
                                 String value = rs.getString(i + 1);
                                 record.add(value);
                                 // Assert that name column has the appropriate data type and type names
-                                if(value != null && value.equalsIgnoreCase("name")) {
+                                if (value != null && value.equalsIgnoreCase("name")) {
                                     assertTrue(rs.getString("DATA_TYPE").equalsIgnoreCase("string"));
                                     assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
                                 }
@@ -283,14 +285,14 @@ public class SystemTablesTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try {
-                     BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                     Connection con = dataSource.getConnection();
-                     Statement statement = con.createStatement();
-                     statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
-                } catch(SQLException ex) {
+                    BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();
+                    statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
+                } catch (SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
                     assertTrue(ex.getMessage().contains("Not null constraints not supported for column type 6"));
                 }
@@ -303,7 +305,7 @@ public class SystemTablesTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try {
                     BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
@@ -316,7 +318,7 @@ public class SystemTablesTest {
                         insertPs.addBatch();
                     }
                     insertPs.executeBatch();
-                } catch(SQLException ex) {
+                } catch (SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
                     assertTrue(ex.getMessage().contains("Cannot have null value in non null type string"));
                 }

@@ -17,12 +17,14 @@
  under the License.
 
  */
+
 package herddb.sql;
 
-import herddb.core.DBManager;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -35,7 +37,6 @@ import herddb.utils.RawString;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 public class SimplerPlannerTest {
@@ -43,7 +44,7 @@ public class SimplerPlannerTest {
     @Test
     public void simpleInsertTests() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -67,7 +68,7 @@ public class SimplerPlannerTest {
     @Test
     public void plannerBasicStatementsTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -77,7 +78,7 @@ public class SimplerPlannerTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
@@ -99,7 +100,7 @@ public class SimplerPlannerTest {
 
             try (DataScanner scan = scan(manager, "SELECT * "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY k1", Collections.emptyList());) {
+                    + " ORDER BY k1", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
@@ -111,7 +112,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT * "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY k1 desc", Collections.emptyList());) {
+                    + " ORDER BY k1 desc", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
@@ -123,7 +124,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1,n1 "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY k1 desc", Collections.emptyList());) {
+                    + " ORDER BY k1 desc", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(2, results.get(0).getFieldNames().length);
@@ -135,7 +136,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY n1 desc", Collections.emptyList());) {
+                    + " ORDER BY n1 desc", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -145,7 +146,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY n1 desc limit 1", Collections.emptyList());) {
+                    + " ORDER BY n1 desc limit 1", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -154,7 +155,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " ORDER BY n1 desc limit 1,1", Collections.emptyList());) {
+                    + " ORDER BY n1 desc limit 1,1", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -163,7 +164,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " WHERE k1='mykey'", Collections.emptyList());) {
+                    + " WHERE k1='mykey'", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -172,7 +173,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " WHERE k1='mykey' aNd n1>3", Collections.emptyList());) {
+                    + " WHERE k1='mykey' aNd n1>3", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -180,7 +181,7 @@ public class SimplerPlannerTest {
             }
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
-                    + " WHERE k1>='mykey' aNd n1>3 and n1<=1234", Collections.emptyList());) {
+                    + " WHERE k1>='mykey' aNd n1>3 and n1<=1234", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -189,7 +190,7 @@ public class SimplerPlannerTest {
             try (DataScanner scan = scan(manager, "SELECT k1 "
                     + " FROM tblspace1.tsql"
                     + " WHERE k1='mykey' or not n1<3"
-                    + " order by k1", Collections.emptyList());) {
+                    + " order by k1", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
@@ -197,18 +198,18 @@ public class SimplerPlannerTest {
                 assertEquals(RawString.of("mykey2"), results.get(1).get(0));
             }
             try (DataScanner scan = scan(manager, "SELECT count(*) "
-                    + " FROM tblspace1.tsql",
-                    Collections.emptyList());) {
+                            + " FROM tblspace1.tsql",
+                    Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(1, results.get(0).getFieldNames().length);
                 assertEquals(2L, results.get(0).get(0));
             }
             try (DataScanner scan = scan(manager, "SELECT count(*), n1, k1 "
-                    + " FROM tblspace1.tsql"
-                    + " GROUP by k1, n1"
-                    + " ORDER BY k1",
-                    Collections.emptyList());) {
+                            + " FROM tblspace1.tsql"
+                            + " GROUP by k1, n1"
+                            + " ORDER BY k1",
+                    Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
@@ -220,10 +221,10 @@ public class SimplerPlannerTest {
                 assertEquals(1235, results.get(1).get(1));
             }
             try (DataScanner scan = scan(manager, "SELECT n1, count(*) as cc "
-                    + " FROM tblspace1.tsql"
-                    + " GROUP by n1"
-                    + " ORDER BY n1",
-                    Collections.emptyList());) {
+                            + " FROM tblspace1.tsql"
+                            + " GROUP by n1"
+                            + " ORDER BY n1",
+                    Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(2, results.size());
                 assertEquals(2, results.get(0).getFieldNames().length);
@@ -234,10 +235,10 @@ public class SimplerPlannerTest {
             }
             if (manager.getPlanner() instanceof CalcitePlanner) {
                 try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
-                        + " FROM tblspace1.tsql"
-                        + " GROUP by k1"
-                        + " ORDER BY sum(n1)",
-                        Collections.emptyList());) {
+                                + " FROM tblspace1.tsql"
+                                + " GROUP by k1"
+                                + " ORDER BY sum(n1)",
+                        Collections.emptyList())) {
                     List<DataAccessor> results = scan.consume();
                     assertEquals(2, results.size());
                     assertEquals(3, results.get(0).getFieldNames().length);
@@ -251,8 +252,8 @@ public class SimplerPlannerTest {
                 }
             }
             try (DataScanner scan = scan(manager, "SELECT sum(n1) as ss, min(n1) as mi, max(n1) as ma"
-                    + " FROM tblspace1.tsql",
-                    Collections.emptyList());) {
+                            + " FROM tblspace1.tsql",
+                    Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
@@ -264,10 +265,10 @@ public class SimplerPlannerTest {
             }
             if (manager.getPlanner() instanceof CalcitePlanner) {
                 try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
-                        + " FROM tblspace1.tsql"
-                        + " GROUP by k1"
-                        + " HAVING sum(n1) <= 1234",
-                        Collections.emptyList());) {
+                                + " FROM tblspace1.tsql"
+                                + " GROUP by k1"
+                                + " HAVING sum(n1) <= 1234",
+                        Collections.emptyList())) {
                     List<DataAccessor> results = scan.consume();
                     assertEquals(1, results.size());
                     assertEquals(3, results.get(0).getFieldNames().length);
@@ -282,7 +283,7 @@ public class SimplerPlannerTest {
     @Test
     public void plannerDeleteTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -292,13 +293,13 @@ public class SimplerPlannerTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList()).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(0, results.size());
             }
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(0, results.size());
             }
@@ -308,7 +309,7 @@ public class SimplerPlannerTest {
     @Test
     public void plannerUpdateTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -318,24 +319,24 @@ public class SimplerPlannerTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1111", Collections.emptyList()).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1111", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1111", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1112 where k1='mykey'", Collections.emptyList()).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1112", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1112", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }
             assertEquals(0, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1112 where k1='no'", Collections.emptyList()).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=n1+1 where k1='mykey'", Collections.emptyList()).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1113", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1113", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=? where k1=?", Arrays.asList(1114, "mykey")).getUpdateCount());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1114", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1114", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }

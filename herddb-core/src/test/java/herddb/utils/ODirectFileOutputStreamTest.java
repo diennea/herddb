@@ -17,16 +17,16 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -34,6 +34,7 @@ import org.junit.rules.TemporaryFolder;
 /**
  * Testing O_DIRECT. This file should be in core project, because it leverages Multi-Release JAR
  * feature of JDK10
+ *
  * @author enrico.olivelli
  */
 public class ODirectFileOutputStreamTest {
@@ -52,7 +53,7 @@ public class ODirectFileOutputStreamTest {
 
     @Test
     public void testSimple() throws Exception {
-        byte[] test = "foo".getBytes("ASCII");
+        byte[] test = "foo".getBytes(StandardCharsets.US_ASCII);
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
@@ -69,7 +70,7 @@ public class ODirectFileOutputStreamTest {
 
     @Test
     public void testTwoWritesInsideFirstBlock() throws Exception {
-        byte[] test = "foo".getBytes("ASCII");
+        byte[] test = "foo".getBytes(StandardCharsets.US_ASCII);
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
@@ -88,7 +89,7 @@ public class ODirectFileOutputStreamTest {
 
     @Test
     public void testTwoBlocksLastPadded() throws Exception {
-        byte[] test = "foobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobar".getBytes("ASCII");
+        byte[] test = "foobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobar".getBytes(StandardCharsets.US_ASCII);
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
@@ -113,12 +114,12 @@ public class ODirectFileOutputStreamTest {
 
     @Test
     public void testThreeBlocksLastPadded() throws Exception {
-        byte[] test = "foobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobar".getBytes("ASCII");
+        byte[] test = "foobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobarfoobar".getBytes(StandardCharsets.US_ASCII);
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
         int countWritten = 0;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(), 2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             while (oo.getWrittenBlocks() < 2) {
@@ -138,12 +139,12 @@ public class ODirectFileOutputStreamTest {
 
     @Test
     public void testTwoBlocksExact() throws Exception {
-        byte[] test = "four".getBytes("ASCII");
+        byte[] test = "four".getBytes(StandardCharsets.US_ASCII);
         int blocksize;
         File file = tmp.newFile();
         ODirectFileOutputStream _oo;
         int countWritten = 0;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(), 2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             assertTrue(blocksize % test.length == 0);
@@ -169,7 +170,7 @@ public class ODirectFileOutputStreamTest {
         File file = tmp.newFile();
         byte[] test;
         ODirectFileOutputStream _oo;
-        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(),2)) {
+        try (ODirectFileOutputStream oo = new ODirectFileOutputStream(file.toPath(), 2)) {
             _oo = oo;
             blocksize = oo.getAlignment();
             test = new byte[blocksize];

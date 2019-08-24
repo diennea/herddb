@@ -1,4 +1,3 @@
-
 /*
  Licensed to Diennea S.r.l. under one
  or more contributor license agreements. See the NOTICE file
@@ -18,21 +17,8 @@
  under the License.
 
  */
+
 package herddb.server;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
 
 import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
@@ -63,6 +49,18 @@ import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Version;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * HerdDB Server
@@ -265,7 +263,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         // to enable network
         boolean isLocal = ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode);
         boolean nextworkEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_NETWORK_ENABLED,
-                isLocal ? false : ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
+                !isLocal && ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
         if (!nextworkEnabled) {
             acceptor.setEnableRealNetwork(false);
             LOGGER.log(Level.INFO, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
@@ -433,7 +431,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     Map<Long, ServerSideConnectionPeer> getConnections() {
         return connections;
-    }   
+    }
 
     void connectionClosed(ServerSideConnectionPeer connection) {
         connections.remove(connection.getConnectionId());

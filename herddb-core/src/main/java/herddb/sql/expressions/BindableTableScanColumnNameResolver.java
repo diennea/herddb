@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.Column;
@@ -32,9 +33,10 @@ public interface BindableTableScanColumnNameResolver {
     /**
      * Returns the namr of the column in a table. It is assumed that the
      * index is relative to the logical structure of the table
+     *
      * @param columnReference
-     * @return 
-     * @see Table#getColumns() 
+     * @return
+     * @see Table#getColumns()
      */
-    public Column resolveColumName(int columnReference);
+    Column resolveColumName(int columnReference);
 }

@@ -2,6 +2,7 @@ package herddb.network;
 
 import static herddb.network.Utils.buildAckRequest;
 import static herddb.network.Utils.buildAckResponse;
+import static org.junit.Assert.assertEquals;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyConnector;
 import herddb.network.netty.NetworkUtils;
@@ -14,8 +15,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
 
 public class NetworkChannelTest {
@@ -24,7 +23,7 @@ public class NetworkChannelTest {
     public void test() throws Exception {
         try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
             acceptor.setEnableJVMNetwork(false);
-            acceptor.setAcceptor((ServerSideConnectionAcceptor) (Channel channel) -> {
+            acceptor.setAcceptor((Channel channel) -> {
                 channel.setMessagesReceiver(new ChannelEventListener() {
                     @Override
                     public void requestReceived(Pdu message, Channel channel) {
@@ -63,7 +62,7 @@ public class NetworkChannelTest {
         if (NetworkUtils.isEnableEpoolNative()) {
             try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
                 acceptor.setEnableJVMNetwork(false);
-                acceptor.setAcceptor((ServerSideConnectionAcceptor) (Channel channel) -> {
+                acceptor.setAcceptor((Channel channel) -> {
                     channel.setMessagesReceiver(new ChannelEventListener() {
                         @Override
                         public void requestReceived(Pdu message, Channel channel) {

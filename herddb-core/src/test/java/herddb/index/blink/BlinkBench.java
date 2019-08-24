@@ -17,8 +17,13 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
+import herddb.core.MemoryManager;
+import herddb.log.LogSequenceNumber;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.utils.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -34,11 +39,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-
-import herddb.core.MemoryManager;
-import herddb.log.LogSequenceNumber;
-import herddb.mem.MemoryDataStorageManager;
-import herddb.utils.Bytes;
 
 public class BlinkBench {
 
@@ -125,7 +125,7 @@ public class BlinkBench {
                 MemoryManager mem = new MemoryManager(5 * (1L << 20), 10 * (128L << 10), (128L << 10));
 
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
-                        BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
+                     BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
 
                     idx.start(LogSequenceNumber.START_OF_TIME);
 
@@ -155,8 +155,9 @@ public class BlinkBench {
 
                                     long id = gen.getAndIncrement();
 
-                                    if (id > maxID)
+                                    if (id > maxID) {
                                         break;
+                                    }
 
                                     // System.out.println("T" + Thread.currentThread().getId() + " " +
                                     // System.currentTimeMillis() + " START INSERT " + id);
@@ -244,8 +245,9 @@ public class BlinkBench {
 
                                     long id = gen.getAndIncrement();
 
-                                    if (id > maxID)
+                                    if (id > maxID) {
                                         break;
+                                    }
 
                                     long r = idx.get(Bytes.from_long(id));
 
@@ -283,7 +285,6 @@ public class BlinkBench {
                     } catch (InterruptedException e) {
                         e.printStackTrace(System.out);
                     }
-
 
 
                     long write = endw - startw;

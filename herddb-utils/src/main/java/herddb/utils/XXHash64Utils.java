@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.IOException;
@@ -34,10 +35,10 @@ import net.jpountz.xxhash.XXHashFactory;
  */
 public class XXHash64Utils {
 
-    private final static int DEFAULT_SEED = 0x9747b28c;
-    private final static XXHashFactory factory = XXHashFactory.fastestInstance();
-    private final static XXHash64 HASHER = factory.hash64();
-    private final static int HASH_LEN = 8;
+    private static final int DEFAULT_SEED = 0x9747b28c;
+    private static final XXHashFactory factory = XXHashFactory.fastestInstance();
+    private static final XXHash64 HASHER = factory.hash64();
+    private static final int HASH_LEN = 8;
 
     public static byte[] digest(byte[] array, int offset, int len) {
         long hash = HASHER.hash(array, offset, len, DEFAULT_SEED);

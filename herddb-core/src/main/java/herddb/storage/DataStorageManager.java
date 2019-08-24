@@ -17,16 +17,8 @@
  under the License.
 
  */
-package herddb.storage;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+package herddb.storage;
 
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -38,8 +30,15 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.utils.ByteArrayCursor;
-import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -55,27 +54,27 @@ public abstract class DataStorageManager implements AutoCloseable {
     /**
      * Load a data page in memory
      *
-     * @param tableSpace 
+     * @param tableSpace
      * @param uuid
      * @param pageId
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract List<Record> readPage(String tableSpace, String uuid, Long pageId)
-        throws DataStorageManagerException, DataPageDoesNotExistException;
+            throws DataStorageManagerException;
 
     public abstract void initIndex(String tableSpace, String uuid) throws DataStorageManagerException;
-    
+
     public abstract void initTable(String tableSpace, String uuid) throws DataStorageManagerException;
 
     @FunctionalInterface
-    public static interface DataReader<X> {
+    public interface DataReader<X> {
 
-        public X read(ByteArrayCursor in) throws IOException;
+        X read(ByteArrayCursor in) throws IOException;
     }
 
     public abstract <X> X readIndexPage(String tableSpace, String uuid, Long pageId, DataReader<X> reader)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Load the full data of a table
@@ -86,7 +85,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void fullTableScan(String tableSpace, String uuid, FullTableScanConsumer consumer)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Load the full data of a table
@@ -98,7 +97,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void fullTableScan(String tableSpace, String uuid, LogSequenceNumber sequenceNumber, FullTableScanConsumer consumer)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Write a page on disk
@@ -110,12 +109,12 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void writePage(String tableSpace, String uuid, long pageId, Collection<Record> newPage)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     @FunctionalInterface
-    public static interface DataWriter {
+    public interface DataWriter {
 
-        public void write(ExtendedDataOutputStream out) throws IOException;
+        void write(ExtendedDataOutputStream out) throws IOException;
     }
 
     public abstract void writeIndexPage(String tableSpace, String uuid, long pageId, DataWriter writer);
@@ -131,11 +130,15 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @return
      * @throws DataStorageManagerException
      */
-    public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String uuid,
-        TableStatus tableStatus, boolean pin) throws DataStorageManagerException;
+    public abstract List<PostCheckpointAction> tableCheckpoint(
+            String tableSpace, String uuid,
+            TableStatus tableStatus, boolean pin
+    ) throws DataStorageManagerException;
 
-    public abstract List<PostCheckpointAction> indexCheckpoint(String tableSpace, String uuid,
-        IndexStatus indexStatus, boolean pin) throws DataStorageManagerException;
+    public abstract List<PostCheckpointAction> indexCheckpoint(
+            String tableSpace, String uuid,
+            IndexStatus indexStatus, boolean pin
+    ) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk
@@ -147,7 +150,7 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract int getActualNumberOfPages(String tableSpace, String uuid) throws DataStorageManagerException;
 
     public abstract TableStatus getLatestTableStatus(String tableSpace, String uuid)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Returns the {@link TableStatus} relative to given sequence number.
@@ -155,7 +158,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException if no status exists for given data or it cannot be read
      */
     public abstract TableStatus getTableStatus(String tableSpace, String uuid, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Returns the {@link IndexStatus} relative to given sequence number.
@@ -163,7 +166,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException if no status exists for given data or it cannot be read
      */
     public abstract IndexStatus getIndexStatus(String tableSpace, String uuid, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Boots the Storage Manager
@@ -189,7 +192,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException
      */
     public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     /**
      * Load indexes metadata
@@ -200,10 +203,12 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException
      */
     public abstract List<Index> loadIndexes(LogSequenceNumber sequenceNumber, String tableSpace)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
-    public abstract void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace,
-        Consumer<Transaction> consumer) throws DataStorageManagerException;
+    public abstract void loadTransactions(
+            LogSequenceNumber sequenceNumber, String tableSpace,
+            Consumer<Transaction> consumer
+    ) throws DataStorageManagerException;
 
     /**
      * Writes tables metadata
@@ -214,29 +219,33 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @param indexlist
      * @throws DataStorageManagerException
      */
-    public abstract Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables,
-        List<Index> indexlist, boolean prepareActions) throws DataStorageManagerException;
+    public abstract Collection<PostCheckpointAction> writeTables(
+            String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables,
+            List<Index> indexlist, boolean prepareActions
+    ) throws DataStorageManagerException;
 
     public abstract Collection<PostCheckpointAction> writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
-    public abstract Collection<PostCheckpointAction> writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber,
-        Collection<Transaction> transactions) throws DataStorageManagerException;
+    public abstract Collection<PostCheckpointAction> writeTransactionsAtCheckpoint(
+            String tableSpace, LogSequenceNumber sequenceNumber,
+            Collection<Transaction> transactions
+    ) throws DataStorageManagerException;
 
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
 
     public abstract KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     public abstract void releaseKeyToPageMap(String tablespace, String name, KeyToPageIndex index);
 
     public abstract RecordSetFactory createRecordSetFactory();
 
     public abstract void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot)
-        throws DataStorageManagerException;
+            throws DataStorageManagerException;
 
     public abstract void dropIndex(String tableSpaceUUID, String name) throws DataStorageManagerException;
 
@@ -257,46 +266,52 @@ public abstract class DataStorageManager implements AutoCloseable {
         return pinAndGetPages(tableSpace, uuid, status.activePages, indexPagesPins, pin);
     }
 
-    protected Set<LogSequenceNumber> pinTableAndGetCheckpoints(String tableSpace, String uuid, TableStatus status,
-        boolean pin) {
+    protected Set<LogSequenceNumber> pinTableAndGetCheckpoints(
+            String tableSpace, String uuid, TableStatus status,
+            boolean pin
+    ) {
         return pinAndGetCheckpoints(tableSpace, uuid, status.sequenceNumber, tableCheckpointPins, pin);
     }
 
-    protected Set<LogSequenceNumber> pinIndexAndGetCheckpoints(String tableSpace, String uuid, IndexStatus status,
-        boolean pin) {
+    protected Set<LogSequenceNumber> pinIndexAndGetCheckpoints(
+            String tableSpace, String uuid, IndexStatus status,
+            boolean pin
+    ) {
         return pinAndGetCheckpoints(tableSpace, uuid, status.sequenceNumber, indexCheckpointPins, pin);
     }
 
     public void unPinTableCheckpoint(String tableSpace, String uuid, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
 
         final TableStatus status = getTableStatus(tableSpace, uuid, sequenceNumber);
 
         if (status == null) {
             throw new DataStorageManagerException("Cannot unpin a not pinned checkpoint "
-                + tableSpace + "." + uuid + "." + sequenceNumber.ledgerId + "." + sequenceNumber.offset);
+                    + tableSpace + "." + uuid + "." + sequenceNumber.ledgerId + "." + sequenceNumber.offset);
         }
 
-        _unPinPages(tableSpace, uuid, status.activePages.keySet(), tablePagesPins);
-        _unPinCheckPoint(tableSpace, uuid, status.sequenceNumber, tableCheckpointPins);
+        unPinPages(tableSpace, uuid, status.activePages.keySet(), tablePagesPins);
+        unPinCheckPoint(tableSpace, uuid, status.sequenceNumber, tableCheckpointPins);
     }
 
     public void unPinIndexCheckpoint(String tableSpace, String uuid, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
 
         final IndexStatus status = getIndexStatus(tableSpace, uuid, sequenceNumber);
 
         if (status == null) {
             throw new DataStorageManagerException("Cannot unpin a not pinned checkpoint "
-                + tableSpace + "." + uuid + "." + sequenceNumber.ledgerId + "." + sequenceNumber.offset);
+                    + tableSpace + "." + uuid + "." + sequenceNumber.ledgerId + "." + sequenceNumber.offset);
         }
 
-        _unPinPages(tableSpace, uuid, status.activePages, indexPagesPins);
-        _unPinCheckPoint(tableSpace, uuid, status.sequenceNumber, indexCheckpointPins);
+        unPinPages(tableSpace, uuid, status.activePages, indexPagesPins);
+        unPinCheckPoint(tableSpace, uuid, status.sequenceNumber, indexCheckpointPins);
     }
 
-    private Map<Long, Integer> pinAndGetPages(String tableSpace, String name, Collection<Long> activePages,
-        Map<String, Map<Long, Integer>> pagesPins, boolean pin) {
+    private Map<Long, Integer> pinAndGetPages(
+            String tableSpace, String name, Collection<Long> activePages,
+            Map<String, Map<Long, Integer>> pagesPins, boolean pin
+    ) {
         LOG.log(Level.FINER, "pinAndGetPages {0}.{1} activePages: {2}, pagesPins:{3} (pin: {4})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
         final Map<Long, Integer> pins;
         final String pinkey = tableSpace + "_" + name;
@@ -321,9 +336,11 @@ public abstract class DataStorageManager implements AutoCloseable {
 
         return pins;
     }
-    
-    private Set<LogSequenceNumber> pinAndGetCheckpoints(String tableSpace, String uuid,
-        LogSequenceNumber sequenceNumber, Map<String, Set<LogSequenceNumber>> checkpointsPins, boolean pin) {
+
+    private Set<LogSequenceNumber> pinAndGetCheckpoints(
+            String tableSpace, String uuid,
+            LogSequenceNumber sequenceNumber, Map<String, Set<LogSequenceNumber>> checkpointsPins, boolean pin
+    ) {
 
         final Set<LogSequenceNumber> checkpoints;
         final String pinkey = tableSpace + "_" + uuid;
@@ -347,8 +364,8 @@ public abstract class DataStorageManager implements AutoCloseable {
         return checkpoints;
     }
 
-    private void _unPinPages(String tableSpace, String name, Collection<Long> activePages, Map<String, Map<Long, Integer>> pagesPins)
-        throws DataStorageManagerException {
+    private void unPinPages(String tableSpace, String name, Collection<Long> activePages, Map<String, Map<Long, Integer>> pagesPins)
+            throws DataStorageManagerException {
 
         final String pinkey = tableSpace + "_" + name;
 
@@ -374,8 +391,8 @@ public abstract class DataStorageManager implements AutoCloseable {
         }
     }
 
-    private void _unPinCheckPoint(String tableSpace, String name, LogSequenceNumber sequenceNumber, Map<String, Set<LogSequenceNumber>> checkpointsPins)
-        throws DataStorageManagerException {
+    private void unPinCheckPoint(String tableSpace, String name, LogSequenceNumber sequenceNumber, Map<String, Set<LogSequenceNumber>> checkpointsPins)
+            throws DataStorageManagerException {
 
         final String pinkey = tableSpace + "_" + name;
 

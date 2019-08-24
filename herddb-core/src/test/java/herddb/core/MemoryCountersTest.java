@@ -17,10 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.stats.TableManagerStats;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -30,12 +33,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.SimpleFormatter;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -69,7 +66,7 @@ public class MemoryCountersTest {
     public void memoryCountersNotEmpty() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-            new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+                new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -80,7 +77,7 @@ public class MemoryCountersTest {
             java.sql.Timestamp tt1 = new java.sql.Timestamp(System.currentTimeMillis());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)",
-                Arrays.asList("mykey", Integer.valueOf(1234), tt1)).getUpdateCount());
+                    Arrays.asList("mykey", Integer.valueOf(1234), tt1)).getUpdateCount());
 
             TableManagerStats stats = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getStats();
             assertTrue(stats.getBuffersUsedMemory() > 0);

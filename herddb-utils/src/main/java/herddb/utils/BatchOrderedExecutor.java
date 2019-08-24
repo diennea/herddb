@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import herddb.core.HerdDBInternalException;
@@ -38,9 +39,9 @@ public class BatchOrderedExecutor<T> implements Consumer<T> {
     private final Executor<T> executor;
     private final Comparator<T> bufferComparator;
 
-    public static interface Executor<VV> {
+    public interface Executor<V> {
 
-        public void execute(List<VV> batch) throws HerdDBInternalException;
+        void execute(List<V> batch) throws HerdDBInternalException;
     }
 
     public BatchOrderedExecutor(int batchsize, Executor<T> executor, Comparator<T> bufferComparator) {

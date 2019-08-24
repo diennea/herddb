@@ -17,10 +17,12 @@
  under the License.
 
  */
+
 package herddb.log;
 
 /**
  * A Full recovery is needed in order to boot
+ *
  * @author enrico.olivelli
  */
 public class FullRecoveryNeededException extends LogNotAvailableException {
@@ -36,5 +38,5 @@ public class FullRecoveryNeededException extends LogNotAvailableException {
     public FullRecoveryNeededException(Throwable cause) {
         super(cause);
     }
-    
+
 }

@@ -9,7 +9,7 @@ jobs:
   include:
   - stage: test
     jdk: oraclejdk11
-    script: mvn verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false jacoco:report coveralls:report
+    script: mvn verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false jacoco:report coveralls:report checkstyle:check
 
 branches:
   only:

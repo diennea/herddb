@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 /**
@@ -48,7 +49,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @param value
      * @throws CollectionsException
      */
-    public void put(K key, V value) throws CollectionsException;
+    void put(K key, V value) throws CollectionsException;
 
     /**
      * Remove a mapping. Noop if a mapping did not exist.
@@ -56,7 +57,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * @param key
      * @throws CollectionsException
      */
-    public void remove(K key) throws CollectionsException;
+    void remove(K key) throws CollectionsException;
 
     /**
      * Retrieve a mapping or null if the key is not mapped. Null keys and null values are not supported.
@@ -103,7 +104,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
      *
      * @param sink
-     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws SinkException        in case that the Sink callback throws an exception
      * @throws CollectionsException
      */
     void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException;
@@ -112,7 +113,7 @@ public interface TmpMap<K, V> extends AutoCloseable {
      * Scan the collection. Any exception thrown by the Sink will be re-throw wrapped by an SinkException
      *
      * @param sink
-     * @throws SinkException in case that the Sink callback throws an exception
+     * @throws SinkException        in case that the Sink callback throws an exception
      * @throws CollectionsException
      */
     void forEachKey(Sink<K> sink) throws CollectionsException, SinkException;

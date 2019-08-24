@@ -17,15 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-
-import org.junit.After;
-import org.junit.Before;
-
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -38,9 +33,11 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
+import java.util.Collections;
+import org.junit.After;
+import org.junit.Before;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class BaseTestcase {
@@ -92,17 +89,17 @@ public class BaseTestcase {
         commitLogManager = makeCommitLogManager();
         dataStorageManager = makeDataStorageManager();
         System.setErr(System.out);
-        manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager,null, null);
+        manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager, null, null);
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(tableSpace, Collections.singleton(nodeId), nodeId, 1, 0, 0);
-        manager.executeStatement(st1,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
+        manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableSpaceUUID = metadataStorageManager.describeTableSpace(tableSpace).uuid;
         tableName = "t1";
         table = createTable();
 
         CreateTableStatement st2 = new CreateTableStatement(table);
-        manager.executeStatement(st2,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
+        manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
     }
 
     @After

@@ -17,8 +17,14 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.TableSpace;
 import herddb.utils.ZKTestEnv;
@@ -30,11 +36,6 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.After;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,15 +64,15 @@ public class ZookeeperMetadataStorageManagerTest {
     @Test
     public void testSessionExpired() throws Exception {
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
-            testEnv.getTimeout(), testEnv.getPath());) {
+                testEnv.getTimeout(), testEnv.getPath())) {
             man.start();
 
             TableSpace tableSpace = TableSpace
-                .builder()
-                .leader("test")
-                .replica("test")
-                .name(TableSpace.DEFAULT)
-                .build();
+                    .builder()
+                    .leader("test")
+                    .replica("test")
+                    .name(TableSpace.DEFAULT)
+                    .build();
             man.registerTableSpace(tableSpace);
             assertEquals(1, man.listTableSpaces().size());
             ZooKeeper actual = man.getZooKeeper();
@@ -85,7 +86,7 @@ public class ZookeeperMetadataStorageManagerTest {
                 } catch (MetadataStorageManagerException ok) {
                     System.out.println("ok: " + ok);
                     assertTrue(ok.getCause() instanceof KeeperException.ConnectionLossException
-                        || ok.getCause() instanceof KeeperException.SessionExpiredException);
+                            || ok.getCause() instanceof KeeperException.SessionExpiredException);
                     if (ok.getCause() instanceof KeeperException.SessionExpiredException) {
                         break;
                     }
