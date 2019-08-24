@@ -17,10 +17,12 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
  * This exception tells that the query as been routed to a server which is no (more) the leader for the tablespace
+ *
  * @author enrico.olivelli
  */
 public class NotLeaderException extends StatementExecutionException {
@@ -36,5 +38,5 @@ public class NotLeaderException extends StatementExecutionException {
     public NotLeaderException(Throwable cause) {
         super(cause);
     }
-    
+
 }

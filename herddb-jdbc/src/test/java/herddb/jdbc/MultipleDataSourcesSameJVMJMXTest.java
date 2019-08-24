@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -30,7 +32,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,14 +51,14 @@ public class MultipleDataSourcesSameJVMJMXTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        BasicHerdDBDataSource dataSource_2 = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Connection con_2 = dataSource_2.getConnection();
-                        Statement statement = con.createStatement();
-                        Statement statement_2 = con.createStatement();) {
+                     BasicHerdDBDataSource dataSource_2 = new BasicHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();
+                     Connection con_2 = dataSource_2.getConnection();
+                     Statement statement = con.createStatement();
+                     Statement statement_2 = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));

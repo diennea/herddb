@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.model.Column;
@@ -39,7 +40,8 @@ public class EnumerableDataScanner extends DataScanner {
 
     public EnumerableDataScanner(
             Transaction transaction, String[] fieldNames, Column[] schema,
-            Enumerable<DataAccessor> wrapped) {
+            Enumerable<DataAccessor> wrapped
+    ) {
         super(transaction, fieldNames, schema);
         this.wrapped = wrapped.enumerator();
         fetchNext();

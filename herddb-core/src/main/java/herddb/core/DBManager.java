@@ -17,36 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import java.lang.management.ManagementFactory;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.core.stats.ConnectionsInfoProvider;
@@ -66,10 +40,8 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
-import herddb.model.LimitedDataScanner;
 import herddb.model.NodeMetadata;
 import herddb.model.NotLeaderException;
 import herddb.model.ScanResult;
@@ -100,9 +72,35 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
@@ -114,7 +112,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
 
-    private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
@@ -166,15 +164,19 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return t;
     });
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
-            CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+    public DBManager(
+            String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
+            CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData
+    ) {
         this(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, tmpDirectory, hostData, new ServerConfiguration(),
                 null);
     }
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
+    public DBManager(
+            String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
             CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration,
-            StatsLogger statsLogger) {
+            StatsLogger statsLogger
+    ) {
         this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
         int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
@@ -183,8 +185,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             // use this only for tests on in HerdDB Collections framework
             // without a threadpool every statement will be executed
             // on any system thread (Netty, BookKeeper...).
-            this.callbacksExecutor = MoreExecutors.newDirectExecutorService();            
-        }  else {
+            this.callbacksExecutor = MoreExecutors.newDirectExecutorService();
+        } else {
             this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, ASYNC_WORKERS_THREAD_FACTORY);
         }
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
@@ -236,7 +238,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxPKUsedMemory = configuration.getLong(
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
-                
+
     }
 
     public boolean isHaltOnTableSpaceBootError() {
@@ -569,8 +571,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
             if (!availableOtherNodes.isEmpty()) {
                 int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
-                TableSpace.Builder newTableSpaceBuilder
-                        = TableSpace
+                TableSpace.Builder newTableSpaceBuilder =
+                        TableSpace
                                 .builder()
                                 .cloning(tableSpace);
                 while (!availableOtherNodes.isEmpty() && countMissing > 0) {
@@ -884,19 +886,19 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public void dumpTableSpace(String tableSpace, String dumpId, Pdu message, Channel _channel, int fetchSize, boolean includeLog) {
+    public void dumpTableSpace(String tableSpace, String dumpId, Pdu message, Channel channel, int fetchSize, boolean includeLog) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         ByteBuf resp;
         if (manager == null) {
             resp = PduCodec.ErrorResponse.write(message.messageId, "tableSpace " + tableSpace + " not booted here");
-            _channel.sendReplyMessage(message.messageId, resp);
+            channel.sendReplyMessage(message.messageId, resp);
             return;
         } else {
             resp = PduCodec.AckResponse.write(message.messageId);
-            _channel.sendReplyMessage(message.messageId, resp);
+            channel.sendReplyMessage(message.messageId, resp);
         }
         try {
-            manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);
+            manager.dumpTableSpace(dumpId, channel, fetchSize, includeLog);
         } catch (Exception error) {
             LOGGER.log(Level.SEVERE, "error on dump", error);
         }
@@ -908,8 +910,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private void tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
         LOGGER.log(Level.SEVERE, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
-        TableSpace.Builder newTableSpaceBuilder
-                = TableSpace
+        TableSpace.Builder newTableSpaceBuilder =
+                TableSpace
                         .builder()
                         .cloning(tableSpace)
                         .leader(nodeId);
@@ -986,7 +988,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         runLock.lock();
                         try {
 
-                            if (activatorPaused == true) {
+                            if (activatorPaused) {
                                 LOGGER.log(Level.SEVERE, "{0} activator paused", nodeId);
                                 resume.awaitUninterruptibly();
                                 LOGGER.log(Level.SEVERE, "{0} activator resumed", nodeId);
@@ -1180,12 +1182,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     if (tableSpaceInfo != null
                             && tableSpaceInfo.maxLeaderInactivityTime > 0
                             && !tableSpaceManager.isFailed()) {
-                        List<TableSpaceReplicaState> allReplicas
-                                = metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
+                        List<TableSpaceReplicaState> allReplicas =
+                                metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
                         TableSpaceReplicaState leaderState = allReplicas
                                 .stream()
                                 .filter(t -> t.mode == TableSpaceReplicaState.MODE_LEADER
-                                && !t.nodeId.equals(nodeId)
+                                        && !t.nodeId.equals(nodeId)
                                 )
                                 .findAny()
                                 .orElse(null);
@@ -1260,11 +1262,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public long getAbandonedTransactionsTimeout() {
         return abandonedTransactionsTimeout;
-    }    
+    }
 
     public void setAbandonedTransactionsTimeout(long abandonedTransactionsTimeout) {
         this.abandonedTransactionsTimeout = abandonedTransactionsTimeout;
-    }        
+    }
 
     public long getLastCheckPointTs() {
         return lastCheckPointTs.get();

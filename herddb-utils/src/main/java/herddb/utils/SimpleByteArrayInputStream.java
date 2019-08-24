@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.InputStream;
-import java.util.Objects;
 
 /**
  * A very simple InputStream which wraps a byte buffer

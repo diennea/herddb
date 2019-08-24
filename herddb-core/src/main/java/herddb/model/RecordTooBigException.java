@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -26,7 +27,9 @@ package herddb.model;
  */
 public class RecordTooBigException extends StatementExecutionException {
 
-    /** Default Serial Version UID */
+    /**
+     * Default Serial Version UID
+     */
     private static final long serialVersionUID = 1L;
 
     public RecordTooBigException(String message) {

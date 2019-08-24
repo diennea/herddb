@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import herddb.model.DataScanner;
@@ -48,6 +49,7 @@ public class ServerSideScannerPeer implements AutoCloseable {
             LOG.log(Level.SEVERE, "error con closing scanner " + ex, ex);
         }
     }
+
     private static final Logger LOG = Logger.getLogger(ServerSideScannerPeer.class.getName());
 
     @Override

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.utils.Wrapper;

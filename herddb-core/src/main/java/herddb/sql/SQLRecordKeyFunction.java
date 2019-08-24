@@ -17,25 +17,26 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.model.Column;
+import herddb.model.ColumnsList;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
-import herddb.model.ColumnsList;
-import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
-import herddb.utils.DataAccessor;
 
 /**
  * Record mutator using SQL
@@ -79,8 +80,10 @@ public class SQLRecordKeyFunction extends RecordFunction {
         this.fullPrimaryKey = (primaryKey.length == columns.length);
     }
 
-    public SQLRecordKeyFunction(List<String> expressionToColumn,
-            List<CompiledSQLExpression> expressions, ColumnsList table) {
+    public SQLRecordKeyFunction(
+            List<String> expressionToColumn,
+            List<CompiledSQLExpression> expressions, ColumnsList table
+    ) {
         this.table = table;
         final int size = expressions.size();
         this.columns = new Column[size];
@@ -118,13 +121,13 @@ public class SQLRecordKeyFunction extends RecordFunction {
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
         if (isConstant) {
-            byte[] cachedResult = (byte[]) statementEvaluationContext.getConstant(this);
+            byte[] cachedResult = statementEvaluationContext.getConstant(this);
             if (cachedResult != null) {
                 return cachedResult;
             }
         }
 
-        Map<String, Object> pk = new HashMap<>();        
+        Map<String, Object> pk = new HashMap<>();
         for (int i = 0; i < columns.length; i++) {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);

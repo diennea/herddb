@@ -17,24 +17,8 @@
  under the License.
 
  */
-package herddb.index.blink;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Stream;
+package herddb.index.blink;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.AbstractIndexManager;
@@ -59,6 +43,22 @@ import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to {@link DataStorageManager}.
@@ -148,8 +148,10 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-        TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException {
+    public Stream<Entry<Bytes, Long>> scanner(
+            IndexOperation operation, StatementEvaluationContext context,
+            TableContext tableContext, AbstractIndexManager index
+    ) throws DataStorageManagerException, StatementExecutionException {
         if (operation instanceof PrimaryIndexSeek) {
             PrimaryIndexSeek seek = (PrimaryIndexSeek) operation;
             byte[] seekValue = seek.value.computeNewValue(null, context, tableContext);
@@ -226,7 +228,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public void truncate() {
         getTree().truncate();
     }
-    
+
     @Override
     public void dropData() {
         truncate();
@@ -259,7 +261,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                memoryManager.getPKPageReplacementPolicy(), indexDataStorage);
+                    memoryManager.getPKPageReplacementPolicy(), indexDataStorage);
             LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{indexName});
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpace, indexName, sequenceNumber);
@@ -267,8 +269,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 BLinkMetadata<Bytes> metadata = MetadataSerializer.INSTANCE.read(status.indexData);
 
                 tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                    memoryManager.getPKPageReplacementPolicy(), indexDataStorage,
-                    metadata);
+                        memoryManager.getPKPageReplacementPolicy(), indexDataStorage,
+                        metadata);
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
             }
@@ -301,9 +303,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus, pin));
 
             LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} pages",
-                new Object[]{indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
+                    new Object[]{indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
             LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
-                new Object[]{indexName, sequenceNumber, activePages.toString()});
+                    new Object[]{indexName, sequenceNumber, activePages.toString()});
 
             return result;
 
@@ -334,7 +336,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         return tree;
     }
 
-    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
+    private static class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
 
         /**
          * <pre>
@@ -396,7 +398,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         public static final MetadataSerializer INSTANCE = new MetadataSerializer();
 
-        /** Original Version */
+        /**
+         * Original Version
+         */
         private static final long VERSION_0 = 0L;
 
         /**
@@ -580,7 +584,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
          */
         public BLinkNodeMetadata<Bytes> readV1(ByteArrayCursor cursor, boolean recalculateSize) throws IOException {
             /* Actually node metadata v0 and v1 are identical, this method exists only to be more explicit */
-            return readV0(cursor,recalculateSize);
+            return readV0(cursor, recalculateSize);
         }
 
         /**
@@ -659,7 +663,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
                             map.put(in.readBytes(),
-                                in.readVLong());
+                                    in.readVLong());
                             break;
 
                         case NODE_PAGE_INF_BLOCK:

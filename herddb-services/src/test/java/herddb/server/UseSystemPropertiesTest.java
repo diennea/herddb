@@ -17,13 +17,14 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Properties;
-import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -57,7 +58,7 @@ public class UseSystemPropertiesTest {
             });
             runner.start();
             while (ServerMain.getRunningInstance() == null
-                || !ServerMain.getRunningInstance().isStarted()) {
+                    || !ServerMain.getRunningInstance().isStarted()) {
                 Thread.sleep(1000);
                 System.out.println("waiting for boot");
             }

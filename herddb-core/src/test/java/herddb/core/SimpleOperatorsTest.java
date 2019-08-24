@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -24,13 +25,6 @@ import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -40,9 +34,12 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
+import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
- *
  * @author francesco.caliumi
  */
 public class SimpleOperatorsTest {
@@ -50,7 +47,7 @@ public class SimpleOperatorsTest {
     @Test
     public void simpleArithmeticOperationsTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -70,37 +67,37 @@ public class SimpleOperatorsTest {
                     .getUpdateCount());
 
             // Simple constants
-            try (DataScanner scan1 = scan(manager, "SELECT 0.5 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 0.5 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(0.5, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(1L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 'asd' FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 'asd' FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals("asd", scan1.consume().get(0).get(0).toString());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT true FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT true FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(true, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT false FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT false FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(false, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT CURRENT_TIMESTAMP FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT CURRENT_TIMESTAMP FROM tblspace1.tsql", Collections.emptyList())) {
                 long instant = ((java.sql.Timestamp) scan1.consume().get(0).get(0)).getTime();
                 assertTrue(Math.abs(System.currentTimeMillis() - instant) < 200);
             }
 
             // Simple column access
-            try (DataScanner scan1 = scan(manager, "SELECT k1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals("mykey", scan1.consume().get(0).get(0).toString());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT l1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT l1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(2L, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT t1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT t1 FROM tblspace1.tsql", Collections.emptyList())) {
                 final Timestamp currentTs = (java.sql.Timestamp) scan1.consume().get(0).get(0);
                 System.out.println("currentTs:" + currentTs);
                 long instant = currentTs.getTime();
@@ -108,139 +105,139 @@ public class SimpleOperatorsTest {
                 System.out.println("delta:" + delta);
                 assertTrue("too slow ? " + delta, delta < 60000);
             }
-            try (DataScanner scan1 = scan(manager, "SELECT nu FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT nu FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(null, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT b1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT b1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(true, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT d1 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT d1 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(1.5, scan1.consume().get(0).get(0));
             }
 
             // Simple expressions
-            try (DataScanner scan1 = scan(manager, "SELECT 4+3+2 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 4+3+2 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(9L, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 7-3-2 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 7-3-2 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(2L, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 1/2/2 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 1/2/2 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(0.25, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 4*3*2 FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT 4*3*2 FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(24L, scan1.consume().get(0).get(0));
             }
 
             // Functions
-            try (DataScanner scan1 = scan(manager, "SELECT lower('CiAo') FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT lower('CiAo') FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals("ciao", scan1.consume().get(0).get(0).toString());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT upper('CiAo') FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT upper('CiAo') FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals("CIAO", scan1.consume().get(0).get(0).toString());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT abs(-123) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT abs(-123) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(123L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT abs(123) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT abs(123) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(123L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT abs(-123.5) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT abs(-123.5) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(123.5, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT abs(123.5) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT abs(123.5) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(123.5, scan1.consume().get(0).get(0));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(98766.0, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765, 2) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765, 2) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(98765.99, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765, -2) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT round(98765.98765, -2) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(98800.0, scan1.consume().get(0).get(0));
             }
 
             // Simple comparisons
             // Warning: jSQLParser doesn't handle this kind of expressions in select clause
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<2", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2<1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2<1", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<1", Collections.emptyList());) {
-                assertEquals(0, scan1.consume().size());
-            }
-
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2>1", Collections.emptyList());) {
-                assertEquals(1, scan1.consume().size());
-            }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>2", Collections.emptyList());) {
-                assertEquals(0, scan1.consume().size());
-            }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<1", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<=2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2>1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2<=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>2", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>1", Collections.emptyList())) {
+                assertEquals(0, scan1.consume().size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<=2", Collections.emptyList())) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2<=1", Collections.emptyList())) {
+                assertEquals(0, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<=1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2>=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2>=1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>=2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>=2", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1>=1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 2=1", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1=1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<>2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1<>2", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
             // Logic expressions
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) or (1>0)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) or (1>0)", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) or not (1>0)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) or not (1>0)", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) and (1>0)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE (1>2) and (1>0)", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (1>2) and (1>0)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (1>2) and (1>0)", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
             // Null exprssion
             // Warning: Parser doesn't handle this kind of expressions in select clause
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE null is null", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE null is null", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE null is not null", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE null is not null", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 is null", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 is null", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 is not null", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 is not null", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
@@ -250,7 +247,7 @@ public class SimpleOperatorsTest {
                     + " WHEN k1='mykeys' THEN 2 "
                     + " ELSE 3 "
                     + "END as mycase "
-                    + "FROM tblspace1.tsql", Collections.emptyList());) {
+                    + "FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(1L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
             try (DataScanner scan1 = scan(manager, "SELECT CASE "
@@ -258,7 +255,7 @@ public class SimpleOperatorsTest {
                     + " WHEN k1='mykey' THEN 2 "
                     + " ELSE 3 "
                     + "END as mycase "
-                    + "FROM tblspace1.tsql", Collections.emptyList());) {
+                    + "FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(2L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
             try (DataScanner scan1 = scan(manager, "SELECT CASE "
@@ -266,39 +263,39 @@ public class SimpleOperatorsTest {
                     + " WHEN k1='mykeyb' THEN 2 "
                     + " ELSE 3 "
                     + "END as mycase "
-                    + "FROM tblspace1.tsql", Collections.emptyList());) {
+                    + "FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(3L, ((Number) scan1.consume().get(0).get(0)).longValue());
             }
 
             // Like expressions
             // Warning: Parser doesn't handle this kind of expressions in select clause
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_b____'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_b____'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_B____'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_B____'", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_b%'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_b%'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_d%'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '_d%'", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE 'AbBbCc'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE 'AbBbCc'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"));) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"))) {
                 assertEquals(1, scan1.consume().size());
             }
 
             // In expressions
             // Warning: jsqlParser doesn't handle this kind of expressions in select clause
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in (1,2,3)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in (1,2,3)", Collections.emptyList())) {
                 if (manager.getPlanner() instanceof CalcitePlanner) {
                     assertEquals(0, scan1.consume().size());
                 } else {
@@ -306,38 +303,38 @@ public class SimpleOperatorsTest {
                 }
             }
             if ((manager.getPlanner() instanceof DDLSQLPlanner)) {
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in ('1',2,3)", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in ('1',2,3)", Collections.emptyList())) {
                     assertEquals(1, scan1.consume().size());
                 }
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in ('1',2,3)", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in ('1',2,3)", Collections.emptyList())) {
                     assertEquals(0, scan1.consume().size());
                 }
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in (1)", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in (1)", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
 
             // Between expressions
             // Warning: Parser doesn't handle this kind of expressions in select clause
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 3 BETWEEN 1 AND 5", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 3 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 BETWEEN 1 AND 5", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 5 BETWEEN 1 AND 5", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 5 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 0 BETWEEN 1 AND 5", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 0 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 6 BETWEEN 1 AND 5", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 6 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT ((4+(3+2)-1)*2) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT ((4+(3+2)-1)*2) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(16L, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT ((3/2)*3+(1/2)) FROM tblspace1.tsql", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT ((3/2)*3+(1/2)) FROM tblspace1.tsql", Collections.emptyList())) {
                 assertEquals(5.0, scan1.consume().get(0).get(0));
             }
 

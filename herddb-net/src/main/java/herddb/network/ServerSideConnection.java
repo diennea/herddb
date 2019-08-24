@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 /**
@@ -26,5 +27,5 @@ package herddb.network;
  */
 public interface ServerSideConnection {
 
-    public long getConnectionId();
+    long getConnectionId();
 }

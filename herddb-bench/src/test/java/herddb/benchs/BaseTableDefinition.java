@@ -17,14 +17,15 @@
  under the License.
 
  */
+
 package herddb.benchs;
 
 public class BaseTableDefinition {
 
     public static final String CREATE_TABLE = "CREATE TABLE usertable("
-        + "pk string primary key, "
-        + "field1 string,"
-        + "field2 string)";
+            + "pk string primary key, "
+            + "field1 string,"
+            + "field2 string)";
 
     public static final String INSERT = "INSERT INTO usertable(pk,field1,field2) values(?,?,?)";
     public static final String COUNT = "SELECT COUNT(*) FROM usertable";

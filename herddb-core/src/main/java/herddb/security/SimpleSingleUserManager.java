@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.security;
 
 import herddb.client.ClientConfiguration;
@@ -29,21 +30,21 @@ import herddb.server.ServerConfiguration;
  */
 public class SimpleSingleUserManager extends UserManager {
 
-    private final String admin_username;
-    private final String admin_password;
+    private final String adminUsername;
+    private final String adminPassword;
 
     public static final String PROPERTY_ADMIN_USERNAME = "admin.username";
     public static final String PROPERTY_ADMIN_PASSWORD = "admin.password";
 
     public SimpleSingleUserManager(ServerConfiguration configuration) {
-        admin_username = configuration.getString(PROPERTY_ADMIN_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
-        admin_password = configuration.getString(PROPERTY_ADMIN_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
+        adminUsername = configuration.getString(PROPERTY_ADMIN_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
+        adminPassword = configuration.getString(PROPERTY_ADMIN_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
     }
 
     @Override
     public String getExpectedPassword(String username) {
-        if (admin_username.equalsIgnoreCase(username)) {
-            return admin_password;
+        if (adminUsername.equalsIgnoreCase(username)) {
+            return adminPassword;
         } else {
             return null;
         }

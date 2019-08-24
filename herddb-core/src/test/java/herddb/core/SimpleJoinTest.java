@@ -17,18 +17,15 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
+import static org.junit.Assume.assumeThat;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -39,8 +36,9 @@ import herddb.sql.CalcitePlanner;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.junit.Assume.assumeThat;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
  * Tests on basic JOIN queries
@@ -52,7 +50,7 @@ public class SimpleJoinTest {
     @Test
     public void testSimpleJoinNoWhere() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -481,14 +479,14 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "first", "a",
-                        "seco", "a"
-                ))));
+                                "first", "a",
+                                "seco", "a"
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "first", "b",
-                        "seco", "b"
-                ))));
+                                "first", "b",
+                                "seco", "b"
+                        ))));
             }
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
@@ -505,9 +503,9 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "first", "b",
-                        "seco", "b"
-                ))));
+                                "first", "b",
+                                "seco", "b"
+                        ))));
 
             }
 
@@ -528,27 +526,27 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "s1", "A",
-                        "k2", "c", "n2", 3
-                ))));
+                                "s1", "A",
+                                "k2", "c", "n2", 3
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "s1", "A",
-                        "k2", "d", "n2", 4
-                ))));
+                                "s1", "A",
+                                "k2", "d", "n2", 4
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "s1", "B",
-                        "k2", "c", "n2", 3
-                ))));
+                                "s1", "B",
+                                "k2", "c", "n2", 3
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "s1", "B",
-                        "k2", "d", "n2", 4
-                ))));
+                                "s1", "B",
+                                "k2", "d", "n2", 4
+                        ))));
 
             }
 
@@ -572,27 +570,27 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "n1", 1, "s1", "A",
-                        "k2", "c", "n2", 3, "s2", "A"
-                ))));
+                                "k1", "a", "n1", 1, "s1", "A",
+                                "k2", "c", "n2", 3, "s2", "A"
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "n1", 1, "s1", "A",
-                        "k2", "d", "n2", 4, "s2", "A"
-                ))));
+                                "k1", "a", "n1", 1, "s1", "A",
+                                "k2", "d", "n2", 4, "s2", "A"
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "b", "n1", 2, "s1", "B",
-                        "k2", "c", "n2", 3, "s2", "A"
-                ))));
+                                "k1", "b", "n1", 2, "s1", "B",
+                                "k2", "c", "n2", 3, "s2", "A"
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "b", "n1", 2, "s1", "B",
-                        "k2", "d", "n2", 4, "s2", "A"
-                ))));
+                                "k1", "b", "n1", 2, "s1", "B",
+                                "k2", "d", "n2", 4, "s2", "A"
+                        ))));
 
             }
 
@@ -699,9 +697,9 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a",
-                        "k2", "d"
-                ))));
+                                "k1", "a",
+                                "k2", "d"
+                        ))));
 
             }
             if (manager.getPlanner() instanceof CalcitePlanner) {
@@ -723,16 +721,16 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "k2", "c", "s1", "A", "s2", "A"
-                ))));
+                                "k1", "a", "k2", "c", "s1", "A", "s2", "A"
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "k2", "d", "s1", "A", "s2", "A"
-                ))));
+                                "k1", "a", "k2", "d", "s1", "A", "s2", "A"
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "b", "k2", null, "s1", "B", "s2", null
-                ))));
+                                "k1", "b", "k2", null, "s1", "B", "s2", null
+                        ))));
 
             }
             if (manager.getPlanner() instanceof CalcitePlanner) {
@@ -754,12 +752,12 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "k2", "c", "s1", "A", "s2", "A"
-                ))));
+                                "k1", "a", "k2", "c", "s1", "A", "s2", "A"
+                        ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "a", "k2", "d", "s1", "A", "s2", "A"
-                ))));
+                                "k1", "a", "k2", "d", "s1", "A", "s2", "A"
+                        ))));
 
             }
         }
@@ -768,7 +766,7 @@ public class SimpleJoinTest {
     @Test
     public void testSubQueryInSelect() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -787,8 +785,8 @@ public class SimpleJoinTest {
             {
                 List<DataAccessor> tuples = scan(manager,
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
-                        + " tblspace1.table1 t1 "
-                        + " group by k1", Collections.emptyList()).consumeAndClose();
+                                + " tblspace1.table1 t1 "
+                                + " group by k1", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
@@ -802,22 +800,22 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4
-                ))));
+                                "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4
+                        ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", RawString.of("b"), "maxn1", 2, "maxn2", null
-                ))));
+                                "k1", RawString.of("b"), "maxn1", 2, "maxn2", null
+                        ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager,
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
-                        + " tblspace1.table1 t1 "
-                        + " group by k1"
-                        + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consumeAndClose();
+                                + " tblspace1.table1 t1 "
+                                + " group by k1"
+                                + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);

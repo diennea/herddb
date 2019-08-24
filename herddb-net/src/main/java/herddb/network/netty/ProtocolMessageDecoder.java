@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
 import herddb.proto.Pdu;
@@ -26,7 +27,6 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
-import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 

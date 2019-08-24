@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.BufferedInputStream;
@@ -46,11 +47,11 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     private boolean compressionEnabled = false;
     private final Serializer<T> serializer;
 
-    public static interface Serializer<T> {
+    public interface Serializer<T> {
 
-        public T read(ExtendedDataInputStream oo) throws IOException;
+        T read(ExtendedDataInputStream oo) throws IOException;
 
-        public void write(T object, ExtendedDataOutputStream oo) throws IOException;
+        void write(T object, ExtendedDataOutputStream oo) throws IOException;
     }
 
     public void enableCompression() {
@@ -192,6 +193,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
             throw new UnsupportedOperationException("Not supported");
         }
     }
+
     private static final int DISK_BUFFER_SIZE = 1024 * 128;
 
     private void openReader() {
@@ -330,6 +332,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         }
 
     }
+
     private OutputStream out;
     private SimpleBufferedOutputStream bout;
     private OutputStream zippedout;
@@ -343,6 +346,6 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     private boolean written;
     private int size;
     private int countread;
-    private static Logger logger = Logger.getLogger(DiskArrayList.class.getName());
+    private static final Logger logger = Logger.getLogger(DiskArrayList.class.getName());
     private final Path tmpDir;
 }

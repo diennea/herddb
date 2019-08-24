@@ -17,17 +17,17 @@
  under the License.
 
  */
-package herddb.model;
 
-import java.lang.ref.WeakReference;
-import java.util.Map;
-import java.util.Objects;
+package herddb.model;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapDataAccessor;
 import herddb.utils.SizeAwareObject;
+import java.lang.ref.WeakReference;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * A generic record
@@ -65,7 +65,7 @@ public final class Record implements SizeAwareObject {
      */
     private static final long CONSTANT_BYTE_SIZE = 24 + 32;
 
-    public static final long estimateSize(Bytes key, byte[] value) {
+    public static long estimateSize(Bytes key, byte[] value) {
         return key.getEstimatedSize() + Bytes.estimateSize(value) + CONSTANT_BYTE_SIZE;
     }
 
@@ -97,6 +97,7 @@ public final class Record implements SizeAwareObject {
 
     /**
      * Ensure that this value is not retaining strong references to a shared buffer
+     *
      * @return the record itself or a copy
      */
     public Record nonShared() {
@@ -108,7 +109,7 @@ public final class Record implements SizeAwareObject {
         return this;
     }
 
-    public final Map<String, Object> toBean(Table table) {
+    public Map<String, Object> toBean(Table table) {
         WeakReference<Map<String, Object>> cachedRef = cache;
         Map<String, Object> res = cachedRef != null ? cachedRef.get() : null;
         if (res != null) {
@@ -130,16 +131,16 @@ public final class Record implements SizeAwareObject {
     }
 
     @Override
-    public final String toString() {
+    public String toString() {
         return "Record{" + "key=" + key + ", value=" + value + '}';
     }
 
-    public final void clearCache() {
+    public void clearCache() {
         cache = null;
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         int hash = 3;
         hash = 53 * hash + Objects.hashCode(this.key);
         hash = 53 * hash + Objects.hashCode(this.value);
@@ -147,7 +148,7 @@ public final class Record implements SizeAwareObject {
     }
 
     @Override
-    public final boolean equals(Object obj) {
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
@@ -161,10 +162,7 @@ public final class Record implements SizeAwareObject {
         if (!Objects.equals(this.key, other.key)) {
             return false;
         }
-        if (!Objects.equals(this.value, other.value)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.value, other.value);
     }
 
 }

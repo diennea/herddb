@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.utils;
 
+import herddb.model.Index;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import herddb.model.Index;
 
 /**
  * Utilities
@@ -75,8 +75,8 @@ public class QueryUtils {
     /**
      * Prefix for INDEX CREATE before tablespace.tablename
      */
-    private static final String PREFIX_INDEX_CREATE
-        = "create\\W+(?:(" + Index.TYPE_HASH + "|" + Index.TYPE_BRIN + ")\\W+)?index\\W+.+\\W+on\\W+";
+    private static final String PREFIX_INDEX_CREATE =
+            "create\\W+(?:(" + Index.TYPE_HASH + "|" + Index.TYPE_BRIN + ")\\W+)?index\\W+.+\\W+on\\W+";
 
     /**
      * Prefix for INDEX DROP before tablespace.tablename
@@ -87,24 +87,24 @@ public class QueryUtils {
      * Combines prefixes and add tablespace.tablename groups
      */
     private static final Pattern TABLE_SPACE_NAME_PATTERN = Pattern.compile(
-        "(?:" + PREFIX_SELECT
-        + "|" + PREFIX_UPDATE
-        + "|" + PREFIX_INSERT
-        + "|" + PREFIX_DELETE
-        + "|" + PREFIX_TABLE_CREATE
-        + "|" + PREFIX_TABLE_DROP
-        + "|" + PREFIX_TABLE_TRUNCATE
-        + "|" + PREFIX_TABLE_ALTER
-        + "|" + PREFIX_INDEX_CREATE
-        + "|" + PREFIX_INDEX_DROP
-        + ")"
-        + "(?<tablespace>\\S+\\.)?(?<tablename>\\S+)", Pattern.CASE_INSENSITIVE);
+            "(?:" + PREFIX_SELECT
+                    + "|" + PREFIX_UPDATE
+                    + "|" + PREFIX_INSERT
+                    + "|" + PREFIX_DELETE
+                    + "|" + PREFIX_TABLE_CREATE
+                    + "|" + PREFIX_TABLE_DROP
+                    + "|" + PREFIX_TABLE_TRUNCATE
+                    + "|" + PREFIX_TABLE_ALTER
+                    + "|" + PREFIX_INDEX_CREATE
+                    + "|" + PREFIX_INDEX_DROP
+                    + ")"
+                    + "(?<tablespace>\\S+\\.)?(?<tablename>\\S+)", Pattern.CASE_INSENSITIVE);
 
     /**
      * Extract a tablespace for a given query. If no tablespace is given on the query provided default will be returned.
      *
      * @param defaultTableSpace default tablespace if no tablespace can be discovered
-     * @param query sql query from which extract a tablespace
+     * @param query             sql query from which extract a tablespace
      * @return discovered tablespace
      */
     public static String discoverTablespace(String defaultTableSpace, String query) {

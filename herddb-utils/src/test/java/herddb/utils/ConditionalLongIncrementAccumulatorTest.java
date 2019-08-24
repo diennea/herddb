@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.utils;
 
-import herddb.utils.MinDeltaLongIncrementAccumulator;
+import static org.junit.Assert.assertEquals;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 public class ConditionalLongIncrementAccumulatorTest {
 

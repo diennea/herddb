@@ -17,15 +17,16 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.model.TableSpace;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.Statement;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -43,16 +44,16 @@ public class CreateTableSpaceWithStaticMetadataProviderTest {
     @Test
     public void test() throws Exception {
 
-        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource();) {
+        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.setMaxActive(20);
-            try (Connection con = dataSource.getConnection();) {
+            try (Connection con = dataSource.getConnection()) {
             }
             assertTrue(dataSource.getClient().getClientSideMetadataProvider() instanceof StaticClientSideMetadataProvider);
 
             try (Connection con = dataSource.getConnection();
-                Statement statement = con.createStatement();) {
+                 Statement statement = con.createStatement()) {
                 String leader = dataSource.getClient().getClientSideMetadataProvider().getTableSpaceLeader(TableSpace.DEFAULT);
                 statement.execute("CREATE TABLESPACE 'mytablespace','wait:5000','leader:" + leader + "'");
                 statement.execute("CREATE TABLE mytablespace.mytable(pk int primary key)");
@@ -63,21 +64,21 @@ public class CreateTableSpaceWithStaticMetadataProviderTest {
     @Test
     public void testStandAloneServer() throws Exception {
 
-        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource();) {
+        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_STANDALONE);
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
             dataSource.setStartServer(true);
             dataSource.setMaxActive(20);
-            try (Connection con = dataSource.getConnection();) {
+            try (Connection con = dataSource.getConnection()) {
             }
             assertTrue(dataSource.getClient().getClientSideMetadataProvider() instanceof StaticClientSideMetadataProvider);
 
             try (Connection con = dataSource.getConnection();
-                Statement statement = con.createStatement();) {
+                 Statement statement = con.createStatement()) {
                 String leader = dataSource.getClient().getClientSideMetadataProvider().getTableSpaceLeader(TableSpace.DEFAULT);
-                System.out.println("leader:"+leader);
+                System.out.println("leader:" + leader);
                 statement.execute("CREATE TABLESPACE 'mytablespace','wait:5000','leader:" + leader + "'");
                 statement.execute("CREATE TABLE mytablespace.mytable(pk int primary key)");
             }

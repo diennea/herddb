@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index;
 
 /**
@@ -26,5 +27,5 @@ package herddb.index;
  */
 public interface IndexOperation {
 
-    public String getIndexName();
+    String getIndexName();
 }

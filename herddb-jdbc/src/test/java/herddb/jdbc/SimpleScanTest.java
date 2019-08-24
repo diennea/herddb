@@ -17,27 +17,25 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Simple SQL scan tests
@@ -61,13 +59,13 @@ public class SimpleScanTest {
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
 
                     try (Connection con = dataSource.getConnection();
-                            Statement statement = con.createStatement();) {
+                         Statement statement = con.createStatement()) {
                         statement.execute("CREATE TABLE mytable (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, b1 bool, d1 double)");
 
                     }
 
                     try (Connection con = dataSource.getConnection();
-                            PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)");) {
+                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)")) {
 
                         for (int n = 0; n < 10; ++n) {
                             int i = 1;
@@ -150,13 +148,13 @@ public class SimpleScanTest {
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
 
                     try (Connection con = dataSource.getConnection();
-                            Statement statement = con.createStatement();) {
+                         Statement statement = con.createStatement()) {
                         statement.execute("CREATE TABLE mytable (id string)"); // no primary key
 
                     }
 
                     try (Connection con = dataSource.getConnection();
-                            PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(id) values(?)");) {
+                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(id) values(?)")) {
 
                         for (int n = 0; n < 10; ++n) {
                             int i = 1;

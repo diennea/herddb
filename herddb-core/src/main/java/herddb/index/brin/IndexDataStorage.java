@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import java.io.IOException;
@@ -30,10 +31,10 @@ import java.util.Map;
  */
 public interface IndexDataStorage<K, V> {
 
-    public static final long NEW_PAGE = -1;
+    long NEW_PAGE = -1;
 
-    public List<Map.Entry<K, V>> loadDataPage(long pageId) throws IOException;
+    List<Map.Entry<K, V>> loadDataPage(long pageId) throws IOException;
 
-    public long createDataPage(List<Map.Entry<K, V>> values) throws IOException;
+    long createDataPage(List<Map.Entry<K, V>> values) throws IOException;
 
 }

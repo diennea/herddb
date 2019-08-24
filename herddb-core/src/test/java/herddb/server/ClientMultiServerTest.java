@@ -17,22 +17,12 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
@@ -52,6 +42,14 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Booting two servers, one table space
@@ -136,16 +134,16 @@ public class ClientMultiServerTest {
                 client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                        HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10);) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
                         assertEquals(1, scan.consume().size());
                     }
                     // switch leader to server2
                     server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                             new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-                    // wait that server_1 leaves leadership                    
+                    // wait that server_1 leaves leadership
                     for (int i = 0; i < 100; i++) {
                         TableSpaceManager tManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
                         if (tManager != null && !tManager.isLeader()) {
@@ -157,7 +155,7 @@ public class ClientMultiServerTest {
                     assertTrue(tManager != null && !tManager.isLeader());
 
                     // the client MUST automatically look for the new leader
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10);) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
                         assertEquals(1, scan.consume().size());
                     }
 
@@ -165,9 +163,9 @@ public class ClientMultiServerTest {
 
                 // assert  that server_1 is not accepting request any more
                 try (HDBClient client_to_1 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                        HDBConnection connection = client_to_1.openConnection()) {
+                     HDBConnection connection = client_to_1.openConnection()) {
                     client_to_1.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_1));
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10);) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
                         fail("server_1 MUST not accept queries");
                     } catch (ClientSideMetadataProviderException ok) {
                     }
@@ -175,9 +173,9 @@ public class ClientMultiServerTest {
 
                 // assert that server_2 is accepting requests
                 try (HDBClient client_to_2 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                        HDBConnection connection = client_to_2.openConnection()) {
+                     HDBConnection connection = client_to_2.openConnection()) {
                     client_to_2.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_2));
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10);) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
                         assertEquals(1, scan.consume().size());
                     }
                 }

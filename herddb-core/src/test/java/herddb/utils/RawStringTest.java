@@ -17,9 +17,11 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import static org.junit.Assert.assertEquals;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 /**
@@ -32,7 +34,7 @@ public class RawStringTest {
 
     @Test
     public void test() throws Exception {
-        byte[] test2 = "aaaaaaaaab".getBytes("utf-8");
+        byte[] test2 = "aaaaaaaaab".getBytes(StandardCharsets.UTF_8);
         RawString a = RawString.of("b");
         RawString b = RawString.newPooledRawString(test2, 9, 1);
         assertEquals(a, b);

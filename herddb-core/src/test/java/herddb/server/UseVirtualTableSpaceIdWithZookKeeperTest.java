@@ -17,24 +17,16 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
 import herddb.client.ZookeeperClientSideMetadataProvider;
-import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.HashSet;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
@@ -48,10 +40,16 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import static org.junit.Assert.assertEquals;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Booting two servers, one table space
@@ -90,19 +88,19 @@ public class UseVirtualTableSpaceIdWithZookKeeperTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -113,7 +111,7 @@ public class UseVirtualTableSpaceIdWithZookKeeperTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -126,26 +124,26 @@ public class UseVirtualTableSpaceIdWithZookKeeperTest {
                     Thread.sleep(100);
                 }
                 assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                    TransactionContext.NO_TRANSACTION).found());
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                        TransactionContext.NO_TRANSACTION).found());
 
                 ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
                 try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
                     client.setClientSideMetadataProvider(new ZookeeperClientSideMetadataProvider(testEnv.getAddress(),
-                        testEnv.getTimeout(), testEnv.getPath()));
+                            testEnv.getTimeout(), testEnv.getPath()));
                     try (ScanResultSet scan = connection.executeScan(null,
-                        "SELECT * FROM " + server_1.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
+                            "SELECT * FROM " + server_1.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10)) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }
                     try (ScanResultSet scan = connection.executeScan(null,
-                        "SELECT * FROM " + server_2.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
+                            "SELECT * FROM " + server_2.getManager().getVirtualTableSpaceId() + ".sysnodes", true, Collections.emptyList(), 0, 0, 10)) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT * FROM sysnodes", true, Collections.emptyList(), 0, 0, 10);) {
+                            "SELECT * FROM sysnodes", true, Collections.emptyList(), 0, 0, 10)) {
                         List<Map<String, Object>> all = scan.consume();
                         assertEquals(2, all.size());
                     }

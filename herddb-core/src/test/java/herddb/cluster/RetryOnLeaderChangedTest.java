@@ -17,8 +17,12 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
+import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.GetResult;
 import herddb.client.HDBClient;
@@ -27,9 +31,6 @@ import herddb.client.ScanResultSet;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.core.TestUtils;
-
-import static herddb.core.TestUtils.scan;
-
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.TableSpace;
@@ -41,14 +42,10 @@ import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.test.TestStatsProvider;
 import org.junit.After;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.util.function.Consumer;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -131,8 +128,8 @@ public class RetryOnLeaderChangedTest {
                 clientConfiguration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
 
                 StatsLogger logger = statsProvider.getStatsLogger("ds");
-                try (HDBClient client1 = new HDBClient(clientConfiguration, logger);) {
-                    try (HDBConnection connection = client1.openConnection();) {
+                try (HDBClient client1 = new HDBClient(clientConfiguration, logger)) {
+                    try (HDBConnection connection = client1.openConnection()) {
 
                         // create table and insert data
                         connection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLE ttt.t1(k1 int primary key, n1 int)",
@@ -146,7 +143,7 @@ public class RetryOnLeaderChangedTest {
 
                         // use client2, so that it opens a connection to current leader
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0);) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
                             assertEquals(3, scan.consume().size());
                         }
 
@@ -155,7 +152,7 @@ public class RetryOnLeaderChangedTest {
 
                         // perform operation
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0);) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
                             assertEquals(3, scan.consume().size());
                         }
                         // check the client handled "not leader error"
@@ -233,14 +230,14 @@ public class RetryOnLeaderChangedTest {
         testKillLeader((connection) -> {
             try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
                     "SELECT * FROM ttt.t1", false, Collections.emptyList(),
-                    TransactionContext.NOTRANSACTION_ID, 0, 0);) {
+                    TransactionContext.NOTRANSACTION_ID, 0, 0)) {
                 assertEquals(3, scan.consume().size());
             } catch (Exception err) {
                 throw new RuntimeException(err);
             }
         });
     }
-    
+
     @Test
     public void testKillLeaderDuringUpdate() throws Exception {
         testKillLeader((connection) -> {
@@ -253,8 +250,8 @@ public class RetryOnLeaderChangedTest {
             }
         });
     }
-    
-     @Test
+
+    @Test
     public void testKillLeaderDuringUpdates() throws Exception {
         testKillLeader((connection) -> {
 
@@ -346,8 +343,8 @@ public class RetryOnLeaderChangedTest {
                 clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT, 1000);
 
                 StatsLogger logger = statsProvider.getStatsLogger("ds");
-                try (HDBClient client1 = new HDBClient(clientConfiguration, logger);) {
-                    try (HDBConnection connection = client1.openConnection();) {
+                try (HDBClient client1 = new HDBClient(clientConfiguration, logger)) {
+                    try (HDBConnection connection = client1.openConnection()) {
 
                         // create table and insert data
                         connection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLE ttt.t1(k1 int primary key, n1 int)",
@@ -361,7 +358,7 @@ public class RetryOnLeaderChangedTest {
 
                         // use client2, so that it opens a connection to current leader
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0);) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
                             assertEquals(3, scan.consume().size());
                         }
 
@@ -401,7 +398,7 @@ public class RetryOnLeaderChangedTest {
         for (int i = 0; i < 100; i++) {
             try (DataScanner scan = scan(matadataServer,
                     "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + node + "'",
-                    Collections.emptyList());) {
+                    Collections.emptyList())) {
                 List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
                 if (tuples.get(0).get("mode").equals(expectedMode)) {

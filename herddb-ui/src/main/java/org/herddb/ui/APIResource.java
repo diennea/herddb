@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package org.herddb.ui;
 
+import static org.herddb.ui.Utils.TS_DEFAULT_PARAM;
+import static org.herddb.ui.Utils.formatValue;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpaceDoesNotExistException;
@@ -34,25 +37,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.sql.DataSource;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+import javax.sql.DataSource;
 import javax.ws.rs.FormParam;
+import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import static org.herddb.ui.Utils.TS_DEFAULT_PARAM;
-import static org.herddb.ui.Utils.formatValue;
 
 @Path("api")
 @Produces(MediaType.APPLICATION_JSON)
 @SuppressFBWarnings(value = "OBL_UNSATISFIED_OBLIGATION", justification = "This is a spotbugs bug")
 public class APIResource {
+
+    private static final Logger LOG = Logger.getLogger(APIResource.class.getName());
 
     @Context
     private HttpServletRequest servletRequest;
@@ -103,7 +106,8 @@ public class APIResource {
     @SuppressFBWarnings({"J2EE_STORE_OF_NON_SERIALIZABLE_OBJECT_INTO_SESSION"})
     @POST
     @Path("/login")
-    public Map<String, Object> login(@FormParam("datasource") String ds,
+    public Map<String, Object> login(
+            @FormParam("datasource") String ds,
             @FormParam("username") String username,
             @FormParam("password") String pwd,
             @FormParam("defaultts") String defaultts
@@ -116,8 +120,8 @@ public class APIResource {
         da.setUsername(username);
         da.setPassword(pwd);
         try (Connection conn = da.getConnection();
-                Statement s = conn.createStatement();
-                ResultSet rs = s.executeQuery("SELECT count(*) from " + defaultts + ".systables")) {
+             Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery("SELECT count(*) from " + defaultts + ".systables")) {
             res.put("ok", true);
             HttpSession session = servletRequest.getSession(true);
             session.setMaxInactiveInterval(60 * 5);
@@ -138,7 +142,6 @@ public class APIResource {
         }
         return res;
     }
-    private static final Logger LOG = Logger.getLogger(APIResource.class.getName());
 
     @GET
     @Path("/test")
@@ -154,8 +157,8 @@ public class APIResource {
     @Path("/tablespaces")
     public List<List<Object>> tablespaces(@QueryParam(TS_DEFAULT_PARAM) String defaultTs) {
         try (Connection con = getConnection();
-                Statement s = con.createStatement();
-                ResultSet rs = s.executeQuery("SELECT * from " + defaultTs + ".systablespaces")) {
+             Statement s = con.createStatement();
+             ResultSet rs = s.executeQuery("SELECT * from " + defaultTs + ".systablespaces")) {
             List<List<Object>> result = new ArrayList<>();
             while (rs.next()) {
                 List<Object> row = new ArrayList<>();
@@ -180,9 +183,9 @@ public class APIResource {
         Map<String, List<List<Object>>> result = new HashMap<>();
 
         try (Connection con = getConnection();
-                PreparedStatement indexes = con.prepareStatement("SELECT * from " + ts + ".sysindexes where table_name=?");
-                PreparedStatement stats = con.prepareStatement("SELECT * from " + ts + ".systablestats where table_name=?");
-                PreparedStatement metadata = con.prepareStatement("SELECT * from " + ts + ".syscolumns where table_name=?")) {
+             PreparedStatement indexes = con.prepareStatement("SELECT * from " + ts + ".sysindexes where table_name=?");
+             PreparedStatement stats = con.prepareStatement("SELECT * from " + ts + ".systablestats where table_name=?");
+             PreparedStatement metadata = con.prepareStatement("SELECT * from " + ts + ".syscolumns where table_name=?")) {
             metadata.setString(1, table);
             indexes.setString(1, table);
             stats.setString(1, table);
@@ -241,8 +244,8 @@ public class APIResource {
     @Path("/nodes")
     public List<List<Object>> nodes(@QueryParam(TS_DEFAULT_PARAM) String defaultTs) {
         try (Connection con = getConnection();
-                Statement s = con.createStatement();
-                ResultSet rs = s.executeQuery("SELECT * from " + defaultTs + ".sysnodes")) {
+             Statement s = con.createStatement();
+             ResultSet rs = s.executeQuery("SELECT * from " + defaultTs + ".sysnodes")) {
             int count = rs.getMetaData().getColumnCount();
 
             List<List<Object>> result = new ArrayList<>();
@@ -264,8 +267,8 @@ public class APIResource {
     @Path("/node")
     public Map<String, List<List<Object>>> node(@QueryParam("nd") String nodeid) {
         try (Connection con = getConnection();
-                Statement s = con.createStatement();
-                ResultSet rs = s.executeQuery("SELECT * from " + nodeid + ".sysconfig")) {
+             Statement s = con.createStatement();
+             ResultSet rs = s.executeQuery("SELECT * from " + nodeid + ".sysconfig")) {
             int count = rs.getMetaData().getColumnCount();
 
             List<List<Object>> nodes = new ArrayList<>();
@@ -291,7 +294,7 @@ public class APIResource {
         Map<String, List<List<Object>>> result = new HashMap<>();
 
         try (Connection con = getConnection();
-                PreparedStatement stats = con.prepareStatement("SELECT * from " + ts + ".systablestats");) {
+             PreparedStatement stats = con.prepareStatement("SELECT * from " + ts + ".systablestats");) {
             try (ResultSet rs = stats.executeQuery()) {
                 List<List<Object>> statsResult = new ArrayList<>();
                 while (rs.next()) {
@@ -325,7 +328,7 @@ public class APIResource {
         Map<String, List<List<Object>>> result = new HashMap<>();
 
         try (Connection con = getConnection();
-                PreparedStatement tables = con.prepareStatement("SELECT * from " + ts + ".systables where systemtable=false");) {
+             PreparedStatement tables = con.prepareStatement("SELECT * from " + ts + ".systables where systemtable=false");) {
             try (ResultSet rs = tables.executeQuery()) {
                 List<List<Object>> statsResult = new ArrayList<>();
                 while (rs.next()) {
@@ -348,7 +351,7 @@ public class APIResource {
         Map<String, List<List<Object>>> result = new HashMap<>();
 
         try (Connection con = getConnection();
-                PreparedStatement repState = con.prepareStatement("SELECT * from " + ts + ".systablespacereplicastate where tablespace_name=?");) {
+             PreparedStatement repState = con.prepareStatement("SELECT * from " + ts + ".systablespacereplicastate where tablespace_name=?");) {
             repState.setString(1, ts);
             try (ResultSet rs = repState.executeQuery()) {
                 List<List<Object>> statsResult = new ArrayList<>();
@@ -377,7 +380,7 @@ public class APIResource {
         Map<String, List<List<Object>>> result = new HashMap<>();
 
         try (Connection con = getConnection();
-                PreparedStatement transactions = con.prepareStatement("SELECT * from " + ts + ".systransactions")) {
+             PreparedStatement transactions = con.prepareStatement("SELECT * from " + ts + ".systransactions")) {
             try (ResultSet rs = transactions.executeQuery()) {
                 List<List<Object>> statsResult = new ArrayList<>();
                 while (rs.next()) {

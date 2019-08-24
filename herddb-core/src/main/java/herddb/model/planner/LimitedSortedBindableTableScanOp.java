@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
 import herddb.model.DataScanner;
-import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -53,9 +53,11 @@ public class LimitedSortedBindableTableScanOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-        TransactionContext transactionContext,
-        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
         return new ScanResult(transactionContext.transactionId, scan);
     }

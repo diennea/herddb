@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -26,10 +28,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Enumeration;
 import java.util.Properties;
-import org.apache.zookeeper.server.ServerConfig;
 import org.junit.After;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,8 +49,8 @@ public class JdbcDriverLocalTest {
         Properties props = new Properties();
         props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
         try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
-                Statement statement = connection.createStatement();
-                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
             while (rs.next()) {
                 System.out.println("table: " + rs.getString(1));
@@ -61,8 +60,8 @@ public class JdbcDriverLocalTest {
         }
 
         try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
-                Statement statement = connection.createStatement();
-                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
             while (rs.next()) {
                 System.out.println("table: " + rs.getString(1));
@@ -75,7 +74,7 @@ public class JdbcDriverLocalTest {
 
     @After
     public void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }

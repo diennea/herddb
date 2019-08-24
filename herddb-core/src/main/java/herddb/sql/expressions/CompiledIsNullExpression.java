@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
@@ -52,6 +53,6 @@ public class CompiledIsNullExpression implements CompiledSQLExpression {
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledIsNullExpression(not,
-            left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
 }

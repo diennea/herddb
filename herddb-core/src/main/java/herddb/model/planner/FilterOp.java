@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
@@ -27,8 +28,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.model.commands.ScanStatement;
-import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
@@ -72,9 +71,11 @@ public class FilterOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         try {
             // TODO merge projection + scan + sort + limit
             StatementExecutionResult input = this.input.execute(tableSpaceManager,

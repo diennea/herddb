@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import io.netty.util.internal.PlatformDependent;
@@ -53,8 +54,10 @@ public final class CompareBytesUtils {
         return Arrays.equals(left, right);
     }
 
-    public static int compare(byte[] left, int fromIndex, int toIndex,
-            byte[] right, int fromIndex2, int toIndex2) {
+    public static int compare(
+            byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2
+    ) {
         for (int i = fromIndex, j = fromIndex2; i < toIndex && j < toIndex2; i++, j++) {
             int a = (left[i] & 0xff);
             int b = (right[j] & 0xff);
@@ -67,8 +70,10 @@ public final class CompareBytesUtils {
         return len1 - len2;
     }
 
-    public static boolean arraysEquals(byte[] left, int fromIndex, int toIndex,
-            byte[] right, int fromIndex2, int toIndex2) {
+    public static boolean arraysEquals(
+            byte[] left, int fromIndex, int toIndex,
+            byte[] right, int fromIndex2, int toIndex2
+    ) {
 
         int aLength = toIndex - fromIndex;
         int bLength = toIndex2 - fromIndex2;

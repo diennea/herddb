@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
@@ -47,8 +48,10 @@ public class SimpleDeleteOp implements PlannerOp {
     }
 
     @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
-            TransactionContext transaction, StatementEvaluationContext context, boolean lockRequired, boolean forWrite)
+    public CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
+            TransactionContext transaction, StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    )
             throws StatementExecutionException {
 
         return tableSpaceManager.executeStatementAsync(statement, context, transaction);

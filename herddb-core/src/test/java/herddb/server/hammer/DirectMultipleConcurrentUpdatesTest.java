@@ -17,22 +17,16 @@
  under the License.
 
  */
+
 package herddb.server.hammer;
 
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import herddb.core.DBManager;
-import herddb.core.TestUtils;
 import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -41,7 +35,11 @@ import herddb.model.TransactionContext;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -50,8 +48,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Concurrent updates
@@ -145,58 +144,58 @@ public class DirectMultipleConcurrentUpdatesTest {
                 AtomicLong gets = new AtomicLong();
                 for (int i = 0; i < TABLESIZE * MULTIPLIER; i++) {
                     futures.add(threadPool.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                boolean update = ThreadLocalRandom.current().nextBoolean();
-                                int k = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                long value = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                long transactionId;
-                                String key = "test_" + k;
-                                Long actual = expectedValue.remove(key);
-                                if (actual == null) {
-                                    // another thread working on this entry, skip
-                                    skipped.incrementAndGet();
-                                    return;
-                                }
-                                if (update) {
-                                    updates.incrementAndGet();
-                                    DMLStatementExecutionResult updateResult
-                                            = TestUtils.executeUpdate(manager,
-                                                    "UPDATE mytable set n1=? WHERE id=?",
-                                                    Arrays.asList(value, "test_" + k),
-                                                    new TransactionContext(useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID));
-                                    long count = updateResult.getUpdateCount();
-                                    transactionId = updateResult.transactionId;
-                                    if (count <= 0) {
-                                        throw new RuntimeException("not updated ?");
-                                    }
-                                } else {
-                                    gets.incrementAndGet();
-                                    DataScanner res = TestUtils.scan(manager,
-                                            "SELECT * FROM mytable where id=?", Arrays.asList("test_" + k),
-                                            new TransactionContext(useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID));
-                                    if (!res.hasNext()) {
-                                        throw new RuntimeException("not found?");
-                                    }
-                                    res.close();
-                                    transactionId = res.getTransactionId();
-                                    // value did not change actually
-                                    value = actual;
-                                }
-                                if (useTransactions) {
-                                    if (transactionId <= 0) {
-                                        throw new RuntimeException("no transaction ?");
-                                    }
-                                    commitTransaction(manager, TableSpace.DEFAULT, transactionId);
-                                }
-                                expectedValue.put(key, value);
+                                                      @Override
+                                                      public void run() {
+                                                          try {
+                                                              boolean update = ThreadLocalRandom.current().nextBoolean();
+                                                              int k = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                                              long value = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                                              long transactionId;
+                                                              String key = "test_" + k;
+                                                              Long actual = expectedValue.remove(key);
+                                                              if (actual == null) {
+                                                                  // another thread working on this entry, skip
+                                                                  skipped.incrementAndGet();
+                                                                  return;
+                                                              }
+                                                              if (update) {
+                                                                  updates.incrementAndGet();
+                                                                  DMLStatementExecutionResult updateResult =
+                                                                          TestUtils.executeUpdate(manager,
+                                                                                  "UPDATE mytable set n1=? WHERE id=?",
+                                                                                  Arrays.asList(value, "test_" + k),
+                                                                                  new TransactionContext(useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID));
+                                                                  long count = updateResult.getUpdateCount();
+                                                                  transactionId = updateResult.transactionId;
+                                                                  if (count <= 0) {
+                                                                      throw new RuntimeException("not updated ?");
+                                                                  }
+                                                              } else {
+                                                                  gets.incrementAndGet();
+                                                                  DataScanner res = TestUtils.scan(manager,
+                                                                          "SELECT * FROM mytable where id=?", Arrays.asList("test_" + k),
+                                                                          new TransactionContext(useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID));
+                                                                  if (!res.hasNext()) {
+                                                                      throw new RuntimeException("not found?");
+                                                                  }
+                                                                  res.close();
+                                                                  transactionId = res.getTransactionId();
+                                                                  // value did not change actually
+                                                                  value = actual;
+                                                              }
+                                                              if (useTransactions) {
+                                                                  if (transactionId <= 0) {
+                                                                      throw new RuntimeException("no transaction ?");
+                                                                  }
+                                                                  commitTransaction(manager, TableSpace.DEFAULT, transactionId);
+                                                              }
+                                                              expectedValue.put(key, value);
 
-                            } catch (Exception err) {
-                                throw new RuntimeException(err);
-                            }
-                        }
-                    }
+                                                          } catch (Exception err) {
+                                                              throw new RuntimeException(err);
+                                                          }
+                                                      }
+                                                  }
                     ));
                 }
                 for (Future f : futures) {

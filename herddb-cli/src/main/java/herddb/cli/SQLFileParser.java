@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.io.Reader;
  */
 public class SQLFileParser {
 
-    private static enum State {
+    private enum State {
         OUT,
         INSQL,
         INSTRING,
@@ -42,9 +43,9 @@ public class SQLFileParser {
         MULTILINECOMMENT_STARTEND
     }
 
-    public static interface StatementAcceptor {
+    public interface StatementAcceptor {
 
-        public void accept(Statement statement) throws Exception;
+        void accept(Statement statement) throws Exception;
     }
 
     public static final class Statement {

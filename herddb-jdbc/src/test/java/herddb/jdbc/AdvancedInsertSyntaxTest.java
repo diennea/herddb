@@ -17,8 +17,12 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -31,9 +35,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -53,13 +54,13 @@ public class AdvancedInsertSyntaxTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement create = con.createStatement();
-                    PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)");
-                    PreparedStatement statement_return_keys = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)", Statement.RETURN_GENERATED_KEYS);) {
+                     Connection con = dataSource.getConnection();
+                     Statement create = con.createStatement();
+                     PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)");
+                     PreparedStatement statement_return_keys = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)", Statement.RETURN_GENERATED_KEYS)) {
                     create.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
                     statement.setString(1, "v1");
@@ -85,12 +86,12 @@ public class AdvancedInsertSyntaxTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement create = con.createStatement();
-                    PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)");) {
+                     Connection con = dataSource.getConnection();
+                     Statement create = con.createStatement();
+                     PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)")) {
                     create.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
                     create.execute("CREATE TABLE mytable2 (n1 int primary key auto_increment, name string)");
 

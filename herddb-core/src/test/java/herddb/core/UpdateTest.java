@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.beginTransaction;
@@ -26,22 +27,17 @@ import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
- *
- *
  * @author diego.salvi
  */
 public class UpdateTest {
@@ -49,7 +45,7 @@ public class UpdateTest {
     @Test
     public void updateWithJDBC() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -83,7 +79,7 @@ public class UpdateTest {
         int inserts = 100;
 
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -115,9 +111,9 @@ public class UpdateTest {
 
                 for (int i = 0; i < inserts; ++i) {
                     try {
-                    assertEquals(1, scan(manager,
-                            "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
-                            Arrays.asList(Integer.valueOf(i)), ctx).consumeAndClose().size());
+                        assertEquals(1, scan(manager,
+                                "SELECT k1, n1 FROM tblspace1.tsql WHERE k1 = ? AND n1 = 100",
+                                Arrays.asList(Integer.valueOf(i)), ctx).consumeAndClose().size());
                     } catch (AssertionError e) {
 
                         throw e;

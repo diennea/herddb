@@ -17,10 +17,8 @@
  under the License.
 
  */
-package herddb.core;
 
-import java.util.Collections;
-import java.util.List;
+package herddb.core;
 
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -31,6 +29,8 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.sql.TranslatedQuery;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Utility
@@ -75,6 +75,7 @@ public class TestUtils {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
     }
+
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, int maxRows, TransactionContext transactionContext) throws StatementExecutionException {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, maxRows);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;

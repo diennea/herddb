@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.nio.file.Path;
-
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -73,7 +73,7 @@ public class ZKTestEnv implements AutoCloseable {
                 .newBuilder()
                 .connectString("localhost:1282")
                 .sessionTimeoutMs(10000)
-                .build()){
+                .build()) {
 
             boolean rootExists = zkc.exists(getPath(), false) != null;
 

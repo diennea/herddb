@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
+import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;

@@ -17,16 +17,17 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,18 +45,18 @@ public class GetConnectionTest {
     @Test
     public void test() throws Exception {
 
-        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource();) {
+        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
 
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             try (Connection con = dataSource.getConnection();
-                Statement statement = con.createStatement();) {
+                 Statement statement = con.createStatement()) {
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
             }
             for (int i = 0; i < 2; i++) {
                 try (Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                     Statement statement = con.createStatement()) {
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1" + i + "','name1')"));
                 }
 

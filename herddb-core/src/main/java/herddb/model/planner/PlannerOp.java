@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.core.HerdDBInternalException;
@@ -37,11 +38,13 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
  */
 public interface PlannerOp extends Wrapper {
 
-    public String getTablespace();
+    String getTablespace();
 
-    public default StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    default StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         CompletableFuture<StatementExecutionResult> res = executeAsync(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         try {
             return res.get();
@@ -63,9 +66,11 @@ public interface PlannerOp extends Wrapper {
         }
     }
 
-    public default CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+    default CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) {
         try {
             return CompletableFuture.completedFuture(execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite));
         } catch (StatementExecutionException err) {
@@ -78,17 +83,17 @@ public interface PlannerOp extends Wrapper {
      *
      * @return
      */
-    public default PlannerOp optimize() {
+    default PlannerOp optimize() {
         return this;
     }
-    
+
     /**
      * This operation is barely a directly a wrapper for a low level Statement.
      * It is expected that unwrap(Statement.class) will return the wrapped statement
-     * 
+     *
      * @return true for simple DML operations
      */
-    public default boolean isSimpleStatementWrapper() {
+    default boolean isSimpleStatementWrapper() {
         return false;
     }
 }

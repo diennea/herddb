@@ -17,17 +17,12 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import org.junit.Test;
-
 import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
@@ -38,10 +33,11 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import java.util.HashMap;
+import java.util.Map;
+import org.junit.Test;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class MultipleColumnPrimaryKeyTest extends BaseTestcase {
@@ -49,15 +45,15 @@ public class MultipleColumnPrimaryKeyTest extends BaseTestcase {
     @Override
     protected Table createTable() {
         return Table
-            .builder()
-            .name(tableName)
-            .tablespace(tableSpace)
-            .column("id", ColumnTypes.STRING)
-            .column("name", ColumnTypes.STRING)
-            .column("number", ColumnTypes.INTEGER)
-            .primaryKey("id")
-            .primaryKey("name")
-            .build();
+                .builder()
+                .name(tableName)
+                .tablespace(tableSpace)
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .column("number", ColumnTypes.INTEGER)
+                .primaryKey("id")
+                .primaryKey("name")
+                .build();
     }
 
     @Test

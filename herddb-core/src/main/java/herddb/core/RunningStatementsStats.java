@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,9 +31,9 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class RunningStatementsStats {
 
-    final private ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
 
-    final private StatsLogger mainStatsLogger;
+    private final StatsLogger mainStatsLogger;
 
     RunningStatementsStats(StatsLogger mainStatsLogger) {
         this.mainStatsLogger = mainStatsLogger;
@@ -55,7 +56,6 @@ public class RunningStatementsStats {
     }
 
     public void unregisterRunningStatement(RunningStatementInfo info) {
-
         runningStatements.remove(info.getId());
     }
 

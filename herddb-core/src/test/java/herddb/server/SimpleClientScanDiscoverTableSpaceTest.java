@@ -17,22 +17,20 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic server/client boot test
@@ -49,11 +47,11 @@ public class SimpleClientScanDiscoverTableSpaceTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 connection.executeUpdate(TableSpace.DEFAULT, "EXECUTE CREATETABLESPACE 'foo','wait:100000'", 0, false, true, Collections.emptyList());
-                
+
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE foo.mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
@@ -68,7 +66,7 @@ public class SimpleClientScanDiscoverTableSpaceTest {
                 // maxRows
                 assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM foo.mytable", true, Collections.emptyList(), 0, 17, 10).consume().size());
 
-                // empty result set                
+                // empty result set
                 assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM foo.mytable WHERE id='none'", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // single fetch result test

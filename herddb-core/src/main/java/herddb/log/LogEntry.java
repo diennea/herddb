@@ -17,11 +17,8 @@
  under the License.
 
  */
-package herddb.log;
 
-import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
+package herddb.log;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.Bytes;
@@ -32,6 +29,9 @@ import herddb.utils.SystemProperties;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.PooledByteBufAllocator;
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
 
 /**
  * An entry on the log
@@ -45,8 +45,8 @@ public class LogEntry {
     private static final byte[] EMPTY_STRING_SERIALIZED;
 
     static {
-        try (ByteArrayOutputStream oo = new ByteArrayOutputStream();) {
-            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+        try (ByteArrayOutputStream oo = new ByteArrayOutputStream()) {
+            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
                 doo.writeUTF("");
             }
             EMPTY_STRING_LEN = oo.size();
@@ -56,6 +56,7 @@ public class LogEntry {
         }
 
     }
+
     private static final int WRITE_UTF_HEADER_LEN = EMPTY_STRING_LEN;
 
     public final short type;
@@ -85,11 +86,11 @@ public class LogEntry {
     }
 
     private static final int DEFAULT_BUFFER_SIZE = SystemProperties.getIntSystemProperty("herddb.log.initentrysize", 2024);
-    
+
     public ByteBuf serializeAsByteBuf() {
         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.directBuffer(DEFAULT_BUFFER_SIZE);
-        try (ExtendedDataOutputStream doo
-                = new ExtendedDataOutputStream(new ByteBufOutputStream(buffer))) {
+        try (ExtendedDataOutputStream doo =
+                     new ExtendedDataOutputStream(new ByteBufOutputStream(buffer))) {
             serialize(doo);
             return buffer;
         } catch (IOException err) {
@@ -98,7 +99,6 @@ public class LogEntry {
     }
 
     /**
-     *
      * @param doo
      * @return an estimate on the number of written bytes
      * @throws IOException

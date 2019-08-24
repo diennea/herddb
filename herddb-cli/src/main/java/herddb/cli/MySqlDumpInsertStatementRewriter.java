@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import java.util.ArrayList;
 import java.util.List;
-import static org.codehaus.groovy.ast.tools.GeneralUtils.params;
 
 /**
  * Rewrites MySQL dump INSERT statements in order to leverage PreparedStatement feature, and so "cache" the execution

@@ -17,29 +17,26 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
-
+import herddb.core.TestUtils;
+import herddb.model.ColumnTypes;
+import herddb.model.DataScanner;
+import herddb.model.Table;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.utils.DataAccessor;
+import herddb.utils.ZKTestEnv;
 import java.util.Collections;
 import java.util.List;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import herddb.core.TestUtils;
-import herddb.model.ColumnTypes;
-import herddb.model.DataScanner;
-import herddb.model.Table;
-import herddb.model.Tuple;
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
-import herddb.utils.DataAccessor;
-import herddb.utils.ZKTestEnv;
 
 /**
  * Booting two servers, one table space
@@ -97,7 +94,7 @@ public class MultiServerCreateTableSpaceWaitTest {
 
                 TestUtils.execute(server_1.getManager(), "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','wait:60000'", Collections.emptyList());
 
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList())) {
                     List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);

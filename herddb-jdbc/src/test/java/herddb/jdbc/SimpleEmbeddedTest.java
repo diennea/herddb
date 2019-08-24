@@ -17,21 +17,16 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
-import herddb.server.StaticClientSideMetadataProvider;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.util.HashSet;
-import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import herddb.client.ClientConfiguration;
+import herddb.server.ServerConfiguration;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,11 +44,11 @@ public class SimpleEmbeddedTest {
     @Test
     public void test() throws Exception {
 
-        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource();) {
+        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             try (Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                 Statement statement = con.createStatement()) {
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                 assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
                 try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {

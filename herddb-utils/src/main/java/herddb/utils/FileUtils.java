@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.utils;
 
+import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -30,8 +32,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 
-import io.netty.util.internal.PlatformDependent;
-
 /**
  * Utilities
  *
@@ -39,8 +39,8 @@ import io.netty.util.internal.PlatformDependent;
  */
 public class FileUtils {
 
-    private static final boolean USE_DIRECT_BUFFER
-        = SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", false);
+    private static final boolean USE_DIRECT_BUFFER =
+            SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", false);
 
     public static void cleanDirectory(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
@@ -65,7 +65,7 @@ public class FileUtils {
     public static byte[] fastReadFile(Path f) throws IOException {
         int len = (int) Files.size(f);
         if (USE_DIRECT_BUFFER) {
-        try (SeekableByteChannel c = Files.newByteChannel(f, StandardOpenOption.READ)) {
+            try (SeekableByteChannel c = Files.newByteChannel(f, StandardOpenOption.READ)) {
                 ByteBuffer buffer = ByteBuffer.allocateDirect(len);
                 try {
                     long res = c.read(buffer);
@@ -82,7 +82,7 @@ public class FileUtils {
             }
         } else {
             byte[] result = new byte[len];
-            try (RandomAccessFile raf = new RandomAccessFile(f.toFile(),"r")) {
+            try (RandomAccessFile raf = new RandomAccessFile(f.toFile(), "r")) {
                 long res = raf.read(result, 0, len);
                 if (res != len) {
                     throw new IOException("not all file " + f.toAbsolutePath() + " was read with NIO len=" + len + " read=" + res);

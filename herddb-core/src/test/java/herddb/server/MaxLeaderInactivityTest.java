@@ -17,28 +17,25 @@
  under the License.
 
  */
+
 package herddb.server;
 
-import herddb.core.TableSpaceManager;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
-
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import herddb.core.TableSpaceManager;
+import herddb.core.TestUtils;
+import herddb.model.DataScanner;
+import herddb.utils.DataAccessor;
+import herddb.utils.ZKTestEnv;
 import java.util.Collections;
 import java.util.List;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import herddb.core.TestUtils;
-import herddb.model.DataScanner;
-import herddb.model.Tuple;
-import herddb.utils.DataAccessor;
-import herddb.utils.ZKTestEnv;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Booting two servers, one table space
@@ -77,10 +74,10 @@ public class MaxLeaderInactivityTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -95,17 +92,17 @@ public class MaxLeaderInactivityTest {
                 for (int i = 0; i < 40; i++) {
                     TableSpaceManager tableSpaceManager2 = server_2.getManager().getTableSpaceManager("ttt");
                     if (tableSpaceManager2 != null
-                        && tableSpaceManager2.isLeader()) {
+                            && tableSpaceManager2.isLeader()) {
                         break;
                     }
                     Thread.sleep(500);
                 }
                 assertTrue(server_2.getManager().getTableSpaceManager("ttt") != null
-                    && server_2.getManager().getTableSpaceManager("ttt").isLeader());
+                        && server_2.getManager().getTableSpaceManager("ttt").isLeader());
 
                 TestUtils.execute(server_1.getManager(), "ALTER TABLESPACE 'ttt','maxLeaderInactivityTime:5000'", Collections.emptyList());
 
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList())) {
                     List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);
@@ -116,7 +113,7 @@ public class MaxLeaderInactivityTest {
 
                 // wait for server_1 to announce as follower
                 for (int i = 0; i < 100; i++) {
-                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList());) {
+                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList())) {
                         List<DataAccessor> tuples = scan.consume();
 //                        for (Tuple t : tuples) {
 //                            System.out.println("tuple:" + t);
@@ -135,7 +132,7 @@ public class MaxLeaderInactivityTest {
             // wait for server_1 to announce as leader
             for (int i = 0; i < 100; i++) {
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE "
-                    + "where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList());) {
+                        + "where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList())) {
                     List<DataAccessor> tuples = scan.consume();
                     for (DataAccessor t : tuples) {
                         System.out.println("tuple2:" + t);
@@ -165,10 +162,10 @@ public class MaxLeaderInactivityTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -191,7 +188,7 @@ public class MaxLeaderInactivityTest {
                 TestUtils.execute(server_1.getManager(), "ALTER TABLESPACE 'ttt','maxLeaderInactivityTime:10000'", Collections.emptyList());
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where "
-                    + "tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
+                        + "tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList())) {
                     List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);
@@ -202,7 +199,7 @@ public class MaxLeaderInactivityTest {
 
                 // we want server 2 to be leader forever
                 for (int i = 0; i < 20; i++) {
-                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt'", Collections.emptyList());) {
+                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt'", Collections.emptyList())) {
                         List<DataAccessor> tuples = scan.consume();
 //                        for (Tuple t : tuples) {
 //                            System.out.println("tuple:" + t);

@@ -17,18 +17,11 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Path;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.codec.RecordSerializer;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -50,6 +43,11 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import java.nio.file.Path;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on index creation
@@ -83,10 +81,10 @@ public class IndexCreationTest {
         Index index;
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -94,13 +92,13 @@ public class IndexCreationTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
 
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -115,10 +113,10 @@ public class IndexCreationTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            new FileDataStorageManager(dataPath),
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -130,7 +128,7 @@ public class IndexCreationTest {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
 

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -25,24 +26,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
-import herddb.model.Tuple;
 import herddb.utils.DataAccessor;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class AlterTablespaceSQLTest {
@@ -50,7 +45,7 @@ public class AlterTablespaceSQLTest {
     @Test
     public void createAlterTableSpace() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
             execute(manager, "EXECUTE CREATETABLESPACE 'ttt'", Collections.emptyList());
@@ -73,7 +68,7 @@ public class AlterTablespaceSQLTest {
             assertTrue(ttt3.replicas.contains("othernode"));
             assertTrue(ttt3.replicas.contains(nodeId));
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList())) {
                 List<DataAccessor> tuples = scan.consume();
                 assertEquals(5, tuples.size());
                 for (DataAccessor t : tuples) {
@@ -84,7 +79,7 @@ public class AlterTablespaceSQLTest {
                     assertNotNull(t.get("leader"));
                 }
             }
-            try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='ttt3'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='ttt3'", Collections.emptyList())) {
                 List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
                 for (DataAccessor t : tuples) {
@@ -98,7 +93,7 @@ public class AlterTablespaceSQLTest {
     @Test
     public void escapeTableSpaceName() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
             execute(manager, "CREATE TABLESPACE `default`,'leader:" + nodeId + "'", Collections.emptyList());
@@ -116,7 +111,7 @@ public class AlterTablespaceSQLTest {
             assertTrue(ttt3.replicas.contains("othernode"));
             assertTrue(ttt3.replicas.contains(nodeId));
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList())) {
                 List<DataAccessor> tuples = scan.consume();
                 assertEquals(2, tuples.size());
                 for (DataAccessor t : tuples) {
@@ -127,7 +122,7 @@ public class AlterTablespaceSQLTest {
                     assertNotNull(t.get("leader"));
                 }
             }
-            try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='default'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='default'", Collections.emptyList())) {
                 List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
                 for (DataAccessor t : tuples) {

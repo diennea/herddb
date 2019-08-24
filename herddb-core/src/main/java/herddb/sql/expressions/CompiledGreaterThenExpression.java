@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
 
@@ -49,7 +49,7 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
     public String getOperator() {
         return ">";
     }
-    
+
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledGreaterThenExpression(not,

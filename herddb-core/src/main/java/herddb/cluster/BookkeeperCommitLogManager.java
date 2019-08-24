@@ -17,8 +17,13 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
+import herddb.log.CommitLog;
+import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,16 +33,10 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.stats.StatsLogger;
-
-import herddb.log.CommitLog;
-import herddb.log.CommitLogManager;
-import herddb.log.LogNotAvailableException;
-import herddb.server.ServerConfiguration;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -86,7 +85,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         }
 
         LOG.config("BookKeeper client configuration:");
-        for (Iterator e = config.getKeys(); e.hasNext();) {
+        for (Iterator e = config.getKeys(); e.hasNext(); ) {
             Object key = e.next();
             LOG.log(Level.CONFIG, "{0}={1}", new Object[]{key, config.getProperty(key + "")});
         }
@@ -110,8 +109,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     @Override
     public void start() throws LogNotAvailableException {
         try {
-            this.bookKeeper
-                    = BookKeeper
+            this.bookKeeper =
+                    BookKeeper
                             .forConfig(config)
                             .statsLogger(statsLogger)
                             .build();
@@ -143,6 +142,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             }
         }
     }
+
     private static final Logger LOG = Logger.getLogger(BookkeeperCommitLogManager.class.getName());
 
     public int getEnsemble() {

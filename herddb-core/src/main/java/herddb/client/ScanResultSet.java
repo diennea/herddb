@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.client;
 
 import herddb.utils.DataAccessor;
@@ -47,7 +48,7 @@ public abstract class ScanResultSet implements AutoCloseable {
     public void close() {
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
+    public List<Map<String, Object>> consume() throws HDBException {
         List<Map<String, Object>> result = new ArrayList<>();
         while (hasNext()) {
             Map<String, Object> record = next().toMap();

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.security;
 
 /**
@@ -25,6 +26,6 @@ package herddb.security;
  * @author enrico.olivelli
  */
 public abstract class UserManager {
-        
+
     public abstract String getExpectedPassword(String username);
 }

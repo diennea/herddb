@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -27,15 +28,10 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLRecordPredicate;
-import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
-import java.util.Objects;
-import java.util.function.BiConsumer;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
-import org.apache.calcite.linq4j.function.Function1;
 import org.apache.calcite.linq4j.function.Function2;
 
 /**
@@ -56,12 +52,14 @@ public class JoinOp implements PlannerOp {
     private final boolean generateNullsOnRight;
     private final boolean mergeJoin;
 
-    public JoinOp(String[] fieldNames,
+    public JoinOp(
+            String[] fieldNames,
             Column[] columns, int[] leftKeys, PlannerOp left,
             int[] rightKeys, PlannerOp right,
             boolean generateNullsOnLeft,
             boolean generateNullsOnRight,
-            boolean mergeJoin) {
+            boolean mergeJoin
+    ) {
         this.fieldNames = fieldNames;
         this.columns = columns;
         this.leftKeys = leftKeys;
@@ -79,9 +77,11 @@ public class JoinOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
                 context, lockRequired, forWrite);
         transactionContext = new TransactionContext(resLeft.transactionId);
@@ -93,24 +93,24 @@ public class JoinOp implements PlannerOp {
 
         Enumerable<DataAccessor> result = mergeJoin
                 ? EnumerableDefaults.mergeJoin(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
-                        JoinKey.keyExtractor(leftKeys),
-                        JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
-                        generateNullsOnLeft,
-                        generateNullsOnRight
-                )
+                resLeft.dataScanner.createEnumerable(),
+                resRight.dataScanner.createEnumerable(),
+                JoinKey.keyExtractor(leftKeys),
+                JoinKey.keyExtractor(rightKeys),
+                resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
+                generateNullsOnLeft,
+                generateNullsOnRight
+        )
                 : EnumerableDefaults.join(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
-                        JoinKey.keyExtractor(leftKeys),
-                        JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
-                        null,
-                        generateNullsOnLeft,
-                        generateNullsOnRight
-                );
+                resLeft.dataScanner.createEnumerable(),
+                resRight.dataScanner.createEnumerable(),
+                JoinKey.keyExtractor(leftKeys),
+                JoinKey.keyExtractor(rightKeys),
+                resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
+                null,
+                generateNullsOnLeft,
+                generateNullsOnRight
+        );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
@@ -118,21 +118,21 @@ public class JoinOp implements PlannerOp {
 
     private Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection(
             String[] fieldNamesFromLeft,
-            String[] fieldNamesFromRight) {
+            String[] fieldNamesFromRight
+    ) {
         DataAccessor nullsOnLeft = DataAccessor.ALL_NULLS(fieldNamesFromLeft);
         DataAccessor nullsOnRight = DataAccessor.ALL_NULLS(fieldNamesFromRight);
 
         return (DataAccessor a, DataAccessor b)
                 -> new ConcatenatedDataAccessor(fieldNames,
-                        a != null ? a : nullsOnLeft,
-                        b != null ? b : nullsOnRight);
+                a != null ? a : nullsOnLeft,
+                b != null ? b : nullsOnRight);
     }
 
     @Override
     public String toString() {
         return "JoinOp{" + "leftKeys=" + Arrays.toString(leftKeys) + ", left=" + left + ", rightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + ", fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns) + ", generateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + '}';
     }
-    
-    
+
 
 }

@@ -17,23 +17,25 @@
  under the License.
 
  */
+
 package herddb.storage;
 
 import herddb.model.Record;
 
 /**
  * Receives all data from a table
+ *
  * @author enrico.olivelli
  */
 public interface FullTableScanConsumer {
-    
-    public void acceptTableStatus(TableStatus tableStatus);
-    
-    public void startPage(long pageId);
-    
-    public void acceptRecord(Record record);
-    
-    public void endPage();
 
-    public void endTable();
+    void acceptTableStatus(TableStatus tableStatus);
+
+    void startPage(long pageId);
+
+    void acceptRecord(Record record);
+
+    void endPage();
+
+    void endTable();
 }

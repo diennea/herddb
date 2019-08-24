@@ -17,12 +17,11 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
-import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
@@ -39,7 +38,7 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 //        Object leftValue = left.evaluate(bean, context);
 //        Object rightValue = right.evaluate(bean, context);
 //        boolean res = SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
-        
+
         boolean res = left.opEqualsTo(bean, context, right);
         if (not) {
             return !res;
@@ -57,7 +56,7 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
     public String getOperator() {
         return "=";
     }
-    
+
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledEqualsExpression(not,

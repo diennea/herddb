@@ -17,25 +17,12 @@
  under the License.
 
  */
+
 package herddb.server;
 
-import herddb.backup.DumpedTableMetadata;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import herddb.backup.DumpedTableMetadata;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
@@ -53,6 +40,17 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ZKTestEnv;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Booting two servers, one table space
@@ -107,48 +105,48 @@ public class DownloadTableSpaceTest {
             AtomicBoolean start = new AtomicBoolean();
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection con = client.openConnection()) {
+                 HDBConnection con = client.openConnection()) {
                 client.setClientSideMetadataProvider(new ZookeeperClientSideMetadataProvider(testEnv.getAddress(), testEnv.getTimeout(), testEnv.getPath()));
                 CountDownLatch count = new CountDownLatch(1);
                 con.dumpTableSpace(TableSpace.DEFAULT, new TableSpaceDumpReceiver() {
 
-                    Table table;
+                            Table table;
 
-                    @Override
-                    public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-                        System.out.println("start at " + logSequenceNumber);
-                        start.set(true);
-                    }
+                            @Override
+                            public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
+                                System.out.println("start at " + logSequenceNumber);
+                                start.set(true);
+                            }
 
-                    @Override
-                    public void finish(LogSequenceNumber logSequenceNumber) {
-                        System.out.println("finish!");
-                        count.countDown();
-                    }
+                            @Override
+                            public void finish(LogSequenceNumber logSequenceNumber) {
+                                System.out.println("finish!");
+                                count.countDown();
+                            }
 
-                    @Override
-                    public void endTable() {
-                        System.out.println("endTable");
-                        table = null;
-                    }
+                            @Override
+                            public void endTable() {
+                                System.out.println("endTable");
+                                table = null;
+                            }
 
-                    @Override
-                    public void receiveTableDataChunk(List<Record> records) {
+                            @Override
+                            public void receiveTableDataChunk(List<Record> records) {
 //                        System.out.println("receiveTableDataChunk " + records);
-                        for (Record r : records) {
-                            Map<String, Object> bean = r.toBean(table);
+                                for (Record r : records) {
+                                    Map<String, Object> bean = r.toBean(table);
 //                            System.out.println("received:" + bean);
-                            logical_data.add(bean);
-                        }
-                    }
+                                    logical_data.add(bean);
+                                }
+                            }
 
-                    @Override
-                    public void beginTable(DumpedTableMetadata table, Map<String, Object> stats) {
-                        System.out.println("beginTable " + table);
-                        this.table = table.table;
-                    }
+                            @Override
+                            public void beginTable(DumpedTableMetadata table, Map<String, Object> stats) {
+                                System.out.println("beginTable " + table);
+                                this.table = table.table;
+                            }
 
-                }, 89, false
+                        }, 89, false
                 );
                 assertTrue(count.await(20, TimeUnit.SECONDS));
                 assertEquals(1000, logical_data.size());

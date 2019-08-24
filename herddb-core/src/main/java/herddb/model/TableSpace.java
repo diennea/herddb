@@ -17,18 +17,18 @@
  under the License.
 
  */
+
 package herddb.model;
 
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * A set of Tables. All tables in the same TableSpace are handled by the same server at once. All the operations on the
@@ -65,8 +65,10 @@ public class TableSpace {
 
     public final Object metadataStorageVersion;
 
-    private TableSpace(String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount,
-        long maxLeaderInactivityTime, Object metadataStorageVersion) {
+    private TableSpace(
+            String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount,
+            long maxLeaderInactivityTime, Object metadataStorageVersion
+    ) {
         this.name = name;
         this.uuid = uuid;
         this.leaderId = leaderId;

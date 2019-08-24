@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -29,8 +32,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -57,13 +58,13 @@ public class SimpleExpressionsTest {
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
 
                     try (Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                         Statement statement = con.createStatement()) {
                         statement.execute("CREATE TABLE mytable (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, b1 bool, d1 double)");
 
                     }
 
                     try (Connection con = dataSource.getConnection();
-                        PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)");) {
+                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)")) {
                         int i = 1;
                         statement.setString(i++, "mykey");
                         statement.setInt(i++, 1);

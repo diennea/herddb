@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;

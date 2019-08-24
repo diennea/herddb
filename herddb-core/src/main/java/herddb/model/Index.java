@@ -17,22 +17,22 @@
  under the License.
 
  */
-package herddb.model;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Index definition
@@ -59,8 +59,10 @@ public class Index implements ColumnsList {
         return columnNames;
     }
 
-    private Index(String uuid,
-            String name, String table, String tablespace, String type, Column[] columns) {
+    private Index(
+            String uuid,
+            String name, String table, String tablespace, String type, Column[] columns
+    ) {
         this.name = name;
         this.uuid = uuid;
         this.table = table;
@@ -127,7 +129,7 @@ public class Index implements ColumnsList {
 
     public byte[] serialize() {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
-        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
             doo.writeVLong(1); // version
             doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);

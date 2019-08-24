@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
- *
  * @author enrico.olivelli
  */
 public final class QueryWithParameters {

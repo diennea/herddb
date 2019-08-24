@@ -17,11 +17,8 @@
  under the License.
 
  */
-package herddb.index;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
+package herddb.index;
 
 import herddb.core.AbstractIndexManager;
 import herddb.core.PostCheckpointAction;
@@ -31,6 +28,9 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Index which maps every key of a table to the page which contains the key.
@@ -39,7 +39,7 @@ import herddb.utils.Bytes;
  */
 public interface KeyToPageIndex extends AutoCloseable {
 
-    public long getUsedMemory();
+    long getUsedMemory();
 
     boolean requireLoadAtStartup();
 
@@ -56,12 +56,12 @@ public interface KeyToPageIndex extends AutoCloseable {
     void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     @Override
-    public void close();
+    void close();
 
     /**
      * Ensures that all data is persisted to memory
      */
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException;
+    List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException;
 
     /**
      * Unpin a previously pinned checkpont (see
@@ -69,16 +69,18 @@ public interface KeyToPageIndex extends AutoCloseable {
      *
      * @throws DataStorageManagerException
      */
-    public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
-    public void truncate();
-    
-    public void dropData();
+    void truncate();
 
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-            TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException;
+    void dropData();
 
-    public void put(Bytes key, Long currentPage);
+    Stream<Map.Entry<Bytes, Long>> scanner(
+            IndexOperation operation, StatementEvaluationContext context,
+            TableContext tableContext, AbstractIndexManager index
+    ) throws DataStorageManagerException, StatementExecutionException;
+
+    void put(Bytes key, Long currentPage);
 
     /**
      * Attempt to put a new value in the index. The mapping will be update only if current mapping
@@ -89,14 +91,14 @@ public interface KeyToPageIndex extends AutoCloseable {
      *
      * @return {@code false} if the put wasn't executed
      */
-    public boolean put(Bytes key, Long newPage, Long expectedPage);
+    boolean put(Bytes key, Long newPage, Long expectedPage);
 
-    public boolean containsKey(Bytes key);
+    boolean containsKey(Bytes key);
 
-    public Long get(Bytes key);
+    Long get(Bytes key);
 
-    public Long remove(Bytes key);
+    Long remove(Bytes key);
 
-    public boolean isSortedAscending();
+    boolean isSortedAscending();
 
 }

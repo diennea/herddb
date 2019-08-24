@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
@@ -28,8 +31,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Enumeration;
 import org.junit.After;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -53,13 +54,13 @@ public class PrettySQLExceptionTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
-                Statement statement = connection.createStatement();
-                ResultSet rs = statement.executeQuery("SELECT * FROM bad_table")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM bad_table")) {
                 fail();
             } catch (SQLException errorExpected) {
                 System.out.println("EXCEPTION MESSAGE: " + errorExpected.getMessage());
                 assertTrue("herddb.model.TableDoesNotExistException: no such table bad_table in tablespace default"
-                    .equals(errorExpected.getMessage()) || errorExpected.getMessage().contains("Object 'BAD_TABLE' not found"));
+                        .equals(errorExpected.getMessage()) || errorExpected.getMessage().contains("Object 'BAD_TABLE' not found"));
             }
 
         }
@@ -67,7 +68,7 @@ public class PrettySQLExceptionTest {
 
     @After
     public void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }

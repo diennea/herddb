@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
 import herddb.utils.SimpleByteArrayInputStream;
@@ -127,6 +128,7 @@ public class LedgersInfo {
         }
         return res;
     }
+
     private static final Logger LOG = Logger.getLogger(LedgersInfo.class.getName());
 
     public synchronized List<Long> getActiveLedgers() {

@@ -17,8 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
@@ -28,7 +30,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Enumeration;
 import org.junit.After;
-import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -74,8 +75,8 @@ public class JdbcDriverZookeeperTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:zookeeper:" + testEnv.getAddress() + "" + testEnv.getPath());
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -88,7 +89,7 @@ public class JdbcDriverZookeeperTest {
 
     @After
     public void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }

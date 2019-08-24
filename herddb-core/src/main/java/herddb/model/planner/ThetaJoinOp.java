@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -27,9 +28,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
 import org.apache.calcite.linq4j.Enumerable;
@@ -53,13 +52,15 @@ public class ThetaJoinOp implements PlannerOp {
     private final boolean generateNullsOnRight;
     private final CompiledSQLExpression condition;
 
-    public ThetaJoinOp(String[] fieldNames,
+    public ThetaJoinOp(
+            String[] fieldNames,
             Column[] columns, PlannerOp left,
             PlannerOp right,
             CompiledSQLExpression condition,
             boolean generateNullsOnLeft,
             boolean generateNullsOnRight,
-            boolean mergeJoin) {
+            boolean mergeJoin
+    ) {
         this.fieldNames = fieldNames;
         this.columns = columns;
         this.left = left.optimize();
@@ -75,9 +76,11 @@ public class ThetaJoinOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public StatementExecutionResult execute(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
                 context, lockRequired, forWrite);
         transactionContext = new TransactionContext(resLeft.transactionId);
@@ -101,7 +104,8 @@ public class ThetaJoinOp implements PlannerOp {
 
     private Predicate2<DataAccessor, DataAccessor> predicate(
             Function2<DataAccessor, DataAccessor, DataAccessor> projection,
-            StatementEvaluationContext context) {
+            StatementEvaluationContext context
+    ) {
         return (DataAccessor v0, DataAccessor v1) -> {
             DataAccessor currentRow = projection.apply(v0, v1);
             return SQLRecordPredicateFunctions.toBoolean(condition.evaluate(currentRow, context));
@@ -110,14 +114,15 @@ public class ThetaJoinOp implements PlannerOp {
 
     private Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection(
             String[] fieldNamesFromLeft,
-            String[] fieldNamesFromRight) {
+            String[] fieldNamesFromRight
+    ) {
         final DataAccessor nullsOnLeft = DataAccessor.ALL_NULLS(fieldNamesFromLeft);
         final DataAccessor nullsOnRight = DataAccessor.ALL_NULLS(fieldNamesFromRight);
 
         return (DataAccessor a, DataAccessor b)
                 -> new ConcatenatedDataAccessor(fieldNames,
-                        a != null ? a : nullsOnLeft,
-                        b != null ? b : nullsOnRight);
+                a != null ? a : nullsOnLeft,
+                b != null ? b : nullsOnRight);
 
     }
 

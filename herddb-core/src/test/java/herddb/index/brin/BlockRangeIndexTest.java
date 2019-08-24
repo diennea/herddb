@@ -17,18 +17,19 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.brin.BlockRangeIndex.Block;
 import herddb.utils.Sized;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -287,7 +288,7 @@ public class BlockRangeIndexTest {
 
         /* Now deleted block has been unloaded AND his page removed from store */
 
- /* Delete remaining values (next should have been handled to avoid errors) */
+        /* Delete remaining values (next should have been handled to avoid errors) */
         for (int i = 0; i < elements; i++) {
             index.delete(Sized.valueOf(1), Sized.valueOf("test_" + i));
         }
@@ -358,7 +359,7 @@ public class BlockRangeIndexTest {
     }
 
     private void dumpIndex(BlockRangeIndex<?, ?> index) {
-        for (BlockRangeIndex.Block<?,?> b : index.getBlocks().values()) {
+        for (BlockRangeIndex.Block<?, ?> b : index.getBlocks().values()) {
             System.out.println("BLOCK " + b);
         }
     }
@@ -381,7 +382,7 @@ public class BlockRangeIndexTest {
             for (i = 0; i < 60; i++) {
                 byte[] s = new byte[10];
                 random.nextBytes(s);
-                index.put(Sized.valueOf(random.nextInt(200)), Sized.valueOf(new String(s, "ASCII")));
+                index.put(Sized.valueOf(random.nextInt(200)), Sized.valueOf(new String(s, StandardCharsets.US_ASCII)));
                 if (random.nextInt(10) == 3) {
                     index.checkpoint();
                     numCheckpoints++;
@@ -493,7 +494,7 @@ public class BlockRangeIndexTest {
         assertFalse(block2.values.containsKey(s1));
         assertTrue(block2.values.containsKey(s2));
 
-        assertEquals(Arrays.asList(s2,s2), block2.values.get(s2));
+        assertEquals(Arrays.asList(s2, s2), block2.values.get(s2));
 
 
         index.put(s2, s2);
@@ -524,14 +525,14 @@ public class BlockRangeIndexTest {
         assertFalse(block2.values.containsKey(s1));
         assertTrue(block2.values.containsKey(s2));
 
-        assertEquals(Arrays.asList(s2,s2), block2.values.get(s2));
+        assertEquals(Arrays.asList(s2, s2), block2.values.get(s2));
 
         block3.ensureBlockLoaded();
 
         assertFalse(block3.values.containsKey(s1));
         assertTrue(block3.values.containsKey(s2));
 
-        assertEquals(Arrays.asList(s2,s2), block3.values.get(s2));
+        assertEquals(Arrays.asList(s2, s2), block3.values.get(s2));
 
     }
 }

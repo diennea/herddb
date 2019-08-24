@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import herddb.model.Record;
@@ -46,11 +47,11 @@ public final class DataPage extends Page<TableManager> {
      */
     public static final long CONSTANT_ENTRY_BYTE_SIZE = 32;
 
-    public static final long estimateEntrySize(Bytes key, byte[] value) {
+    public static long estimateEntrySize(Bytes key, byte[] value) {
         return Record.estimateSize(key, value) + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
     }
 
-    public static final long estimateEntrySize(Record record) {
+    public static long estimateEntrySize(Record record) {
         return record.getEstimatedSize() + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
     }
 
@@ -98,17 +99,17 @@ public final class DataPage extends Page<TableManager> {
      */
     DataPage toImmutable() {
 
-         if (immutable) {
+        if (immutable) {
             throw new IllegalStateException("page " + pageId + " already is immutable!");
         }
 
-         if (writable) {
+        if (writable) {
             throw new IllegalStateException("page " + pageId + " cannot be converted to immutable because still writable!");
         }
 
-         return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
+        return new DataPage(owner, pageId, maxSize, usedMemory.get(), data, true);
 
-     }
+    }
 
     Record remove(Bytes key) {
         if (immutable) {
@@ -249,7 +250,6 @@ public final class DataPage extends Page<TableManager> {
     void flushRecordsCache() {
         data.values().forEach(r -> r.clearCache());
     }
-
 
 
 }

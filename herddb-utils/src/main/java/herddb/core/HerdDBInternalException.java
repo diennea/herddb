@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 /**
@@ -26,7 +27,9 @@ package herddb.core;
  */
 public class HerdDBInternalException extends RuntimeException {
 
-    /** Default Serial Version UID */
+    /**
+     * Default Serial Version UID
+     */
     private static final long serialVersionUID = 1L;
 
     public HerdDBInternalException() {

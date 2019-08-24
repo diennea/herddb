@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -96,11 +97,11 @@ public abstract class DataScanner implements AutoCloseable {
         forEach(records::add);
         return records;
     }
-    
+
     public List<DataAccessor> consumeAndClose() throws DataScannerException {
-         List<DataAccessor> res = consume();
-         close();
-         return res;
+        List<DataAccessor> res = consume();
+        close();
+        return res;
     }
 
     public List<DataAccessor> consume(int fetchSize) throws DataScannerException {
@@ -171,5 +172,4 @@ public abstract class DataScanner implements AutoCloseable {
 
         };
     }
-;
 }

@@ -17,20 +17,21 @@
  under the License.
 
  */
+
 package herddb.mem;
 
-import herddb.core.*;
+import herddb.core.MaterializedRecordSet;
+import herddb.core.RecordSetFactory;
 import herddb.model.Column;
 import herddb.model.Projection;
+import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import herddb.model.ScanLimits;
 
 /**
  * a Simple MaterializedRecordSet held in memory

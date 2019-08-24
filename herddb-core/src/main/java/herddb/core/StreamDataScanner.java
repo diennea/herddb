@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import herddb.model.Column;
@@ -39,7 +40,8 @@ class StreamDataScanner extends DataScanner {
 
     public StreamDataScanner(
             Transaction transaction, String[] fieldNames, Column[] schema,
-            Stream<DataAccessor> wrapped) {
+            Stream<DataAccessor> wrapped
+    ) {
         super(transaction, fieldNames, schema);
         this.wrapped = wrapped.iterator();
         fetchNext();

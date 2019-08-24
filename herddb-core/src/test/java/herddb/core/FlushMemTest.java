@@ -17,17 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -37,10 +33,11 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class FlushMemTest extends BaseTestcase {
@@ -61,7 +58,7 @@ public class FlushMemTest extends BaseTestcase {
         String tableUuid = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable().uuid;
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         manager.checkpoint();
-        
+
         assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableUuid, 1L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 

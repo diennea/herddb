@@ -17,12 +17,8 @@
  under the License.
 
  */
-package herddb.core;
 
-import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
+package herddb.core;
 
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -36,7 +32,10 @@ import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import herddb.utils.DataAccessor;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Index runtime
@@ -80,7 +79,6 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * Boots the index, this method usually reload state from the DataStorageManager
      *
      * @param sequenceNumber sequence number from which boot the index
-     *
      * @throws DataStorageManagerException
      */
     public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
@@ -98,7 +96,6 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      *
      * @param sequenceNumber sequence number from which boot the index
      * @return {@code false} if index cannot be started and need a rebuild, @code true} otherwise
-     *
      * @throws DataStorageManagerException
      */
     protected abstract boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;

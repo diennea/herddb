@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.client;
 
 import herddb.network.ServerHostData;
@@ -35,7 +36,7 @@ public interface ClientSideMetadataProvider extends AutoCloseable {
      * @return
      * @throws ClientSideMetadataProviderException
      */
-    public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException;
+    String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException;
 
     /**
      * Returns the actual address of a node
@@ -44,13 +45,13 @@ public interface ClientSideMetadataProvider extends AutoCloseable {
      * @return
      * @throws ClientSideMetadataProviderException
      */
-    public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException;
+    ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException;
 
     @Override
-    public default void close() {
+    default void close() {
     }
 
-    public default void requestMetadataRefresh() throws ClientSideMetadataProviderException {
+    default void requestMetadataRefresh() throws ClientSideMetadataProviderException {
         throw new ClientSideMetadataProviderException("not working in cluser mode. metadata refresh is not possible");
     }
 

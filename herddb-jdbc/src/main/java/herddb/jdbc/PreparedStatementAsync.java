@@ -17,10 +17,10 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -30,10 +30,10 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface PreparedStatementAsync extends PreparedStatement {
 
-    public CompletableFuture<int[]> executeBatchAsync();
+    CompletableFuture<int[]> executeBatchAsync();
 
-    public CompletableFuture<Long> executeLargeUpdateAsync();
+    CompletableFuture<Long> executeLargeUpdateAsync();
 
-    public CompletableFuture<Integer> executeUpdateAsync();
+    CompletableFuture<Integer> executeUpdateAsync();
 
 }

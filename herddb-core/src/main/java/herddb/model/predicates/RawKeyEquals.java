@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.predicates;
 
 import herddb.index.PrimaryIndexSeek;

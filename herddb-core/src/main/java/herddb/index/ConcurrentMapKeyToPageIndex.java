@@ -17,16 +17,8 @@
  under the License.
 
  */
-package herddb.index;
 
-import java.util.AbstractMap;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
+package herddb.index;
 
 import herddb.core.PostCheckpointAction;
 import herddb.log.LogSequenceNumber;
@@ -37,6 +29,14 @@ import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
+import java.util.AbstractMap;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Implementation of KeyToPageIndex which uses any ConcurrentMap
@@ -49,7 +49,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     private final AtomicLong usedMemory = new AtomicLong();
 
     // assume that an entry holds 24 bytes (a Long pointer + long value + extra overhead)
-    private final static long ENTRY_OVERHEAD = 8 + 8 + 8 + 8 + 8;
+    private static final long ENTRY_OVERHEAD = 8 + 8 + 8 + 8 + 8;
 
     public ConcurrentMapKeyToPageIndex(ConcurrentMap<Bytes, Long> map) {
         this.map = map;
@@ -240,10 +240,10 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public void dropData() {     
+    public void dropData() {
         truncate();
     }
-    
+
     @Override
     public long getUsedMemory() {
         return usedMemory.get();

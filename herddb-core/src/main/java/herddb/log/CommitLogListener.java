@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.log;
 
 /**
@@ -26,6 +27,6 @@ package herddb.log;
  */
 public interface CommitLogListener {
 
-    public default void logEntry(LogSequenceNumber logPos, LogEntry data) {
+    default void logEntry(LogSequenceNumber logPos, LogEntry data) {
     }
 }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
 import herddb.model.StatementEvaluationContext;

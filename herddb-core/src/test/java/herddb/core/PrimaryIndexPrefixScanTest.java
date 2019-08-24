@@ -17,28 +17,19 @@
  under the License.
 
  */
+
 package herddb.core;
 
 
-import herddb.file.FileDataStorageManager;
-import herddb.index.PrimaryIndexPrefixScan;
-import herddb.index.PrimaryIndexRangeScan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-
-import org.junit.Test;
-
+import herddb.file.FileDataStorageManager;
+import herddb.index.PrimaryIndexPrefixScan;
 import herddb.mem.MemoryCommitLogManager;
-import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
-import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
@@ -48,11 +39,10 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
@@ -69,7 +59,7 @@ public class PrimaryIndexPrefixScanTest {
         String nodeId = "localhost";
         Path dataPath = folder.newFolder("data").toPath();
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(),
-                new FileDataStorageManager(dataPath), new MemoryCommitLogManager(), null, null);) {
+                new FileDataStorageManager(dataPath), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -102,13 +92,13 @@ public class PrimaryIndexPrefixScanTest {
                     + "WHERE n1=1", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> rows = scan1.consume();
                 // Assert we got 2 rows.
                 assertEquals(2, rows.size());
-                for(DataAccessor row : rows) {
+                for (DataAccessor row : rows) {
 
-                    if(row.get("name").equals("r1")) {
+                    if (row.get("name").equals("r1")) {
                         assertEquals(row.get("n1"), 1);
                         assertEquals(row.get("n2"), 5);
                     } else {

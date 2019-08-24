@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -29,7 +30,6 @@ import herddb.utils.IntHolder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -58,7 +58,7 @@ public class PlansCache {
         KRYO_AVAILABLE = _KRYO_AVAILABLE;
     }
 
-    private static final class ExecutionPlanContainer {
+    private static class ExecutionPlanContainer {
 
         private final ExecutionPlan plan;
         private final int weight;
@@ -69,7 +69,7 @@ public class PlansCache {
         }
 
         private int computeWeigth(ExecutionPlan plan) {
-            
+
             if (!KRYO_AVAILABLE) {
                 return 1;
             }
@@ -92,7 +92,7 @@ public class PlansCache {
                     res.value += b.length;
                 }
 
-            });) {
+            })) {
                 kryo.writeObject(oo, plan);
             }
             return res.value;
@@ -105,17 +105,17 @@ public class PlansCache {
         LOG.log(Level.INFO, "Max query plan cache size: {0} bytes", maxBytes + "");
 
         this.cache = CacheBuilder
-            .newBuilder()
-            .recordStats()
-            .weigher((String sql, ExecutionPlanContainer plan) -> {
-                return plan.weight;
-            })
-            .maximumWeight(maxBytes)
-            .removalListener((RemovalNotification<String, ExecutionPlanContainer> notification) -> {
-                LOG.log(Level.FINE, "Removed query {0} -> {1} size {2} bytes", new Object[]{notification.getCause(),
-                    notification.getKey(), notification.getValue().weight});
-            })
-            .build();
+                .newBuilder()
+                .recordStats()
+                .weigher((String sql, ExecutionPlanContainer plan) -> {
+                    return plan.weight;
+                })
+                .maximumWeight(maxBytes)
+                .removalListener((RemovalNotification<String, ExecutionPlanContainer> notification) -> {
+                    LOG.log(Level.FINE, "Removed query {0} -> {1} size {2} bytes", new Object[]{notification.getCause(),
+                            notification.getKey(), notification.getValue().weight});
+                })
+                .build();
 
     }
 

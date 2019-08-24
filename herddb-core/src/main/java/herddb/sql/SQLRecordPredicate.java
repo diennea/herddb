@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
@@ -28,7 +29,12 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
 import herddb.model.TuplePredicate;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -36,11 +42,6 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
-import herddb.sql.expressions.SQLExpressionCompiler;
-import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.ConstantExpression;
-import herddb.utils.DataAccessor;
-import herddb.utils.SQLRecordPredicateFunctions;
 
 /**
  * Predicate expressed using SQL syntax
@@ -161,7 +162,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     return value;
             }
         } catch (ClassCastException err) {
-            throw new IllegalArgumentException("Unexpected error on cast of value "+value+" ("+value.getClass()+"): "+err, err);
+            throw new IllegalArgumentException("Unexpected error on cast of value " + value + " (" + value.getClass() + "): " + err, err);
         }
     }
 

@@ -17,20 +17,18 @@
  under the License.
 
  */
+
 package herddb.file;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-
+import herddb.model.Record;
+import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.List;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import herddb.model.Record;
-import herddb.utils.Bytes;
 
 /**
  * @author enrico.olivelli
@@ -42,9 +40,9 @@ public class FileDataStorageManagerTest {
 
     @Test
     public void testReadWriteDataPage() throws Exception {
-        try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
+        try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath())) {
             List<Record> page = Arrays.asList(
-                new Record(Bytes.from_int(1), Bytes.from_int(2)));
+                    new Record(Bytes.from_int(1), Bytes.from_int(2)));
             man.initTable("test1", "table1");
             man.writePage("test1", "table1", 1L, page);
             List<Record> result = man.readPage("test1", "table1", 1L);
@@ -54,7 +52,7 @@ public class FileDataStorageManagerTest {
 
     @Test
     public void testReadWriteIndexPage() throws Exception {
-        try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
+        try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath())) {
             byte[] page = Bytes.intToByteArray(1);
             man.initIndex("test1", "table1");
             man.writeIndexPage("test1", "table1", 1L, (out) -> {

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import java.util.ArrayList;
@@ -345,171 +346,199 @@ public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVi
     }
 
     @Override
-    public void visit(ExistsExpression ee
+    public void visit(
+            ExistsExpression ee
     ) {
         ee.getRightExpression().accept(this);
     }
 
     @Override
-    public void visit(AllComparisonExpression ace
+    public void visit(
+            AllComparisonExpression ace
     ) {
         throw new UnsupportedOperationException();
 
     }
 
     @Override
-    public void visit(AnyComparisonExpression ace
+    public void visit(
+            AnyComparisonExpression ace
     ) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void visit(Concat concat
+    public void visit(
+            Concat concat
     ) {
         acceptBinaryExpression(concat);
 
     }
 
     @Override
-    public void visit(Matches mtchs
+    public void visit(
+            Matches mtchs
     ) {
         acceptBinaryExpression(mtchs);
     }
 
     @Override
-    public void visit(BitwiseAnd ba
+    public void visit(
+            BitwiseAnd ba
     ) {
         acceptBinaryExpression(ba);
     }
 
     @Override
-    public void visit(BitwiseOr bo
+    public void visit(
+            BitwiseOr bo
     ) {
         acceptBinaryExpression(bo);
     }
 
     @Override
-    public void visit(BitwiseXor bx
+    public void visit(
+            BitwiseXor bx
     ) {
         acceptBinaryExpression(bx);
     }
 
     @Override
-    public void visit(CastExpression ce
+    public void visit(
+            CastExpression ce
     ) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void visit(Modulo modulo
+    public void visit(
+            Modulo modulo
     ) {
         acceptBinaryExpression(modulo);
     }
 
     @Override
-    public void visit(AnalyticExpression ae
+    public void visit(
+            AnalyticExpression ae
     ) {
 
     }
 
     @Override
-    public void visit(WithinGroupExpression wge
+    public void visit(
+            WithinGroupExpression wge
     ) {
 
     }
 
     @Override
-    public void visit(ExtractExpression ee
+    public void visit(
+            ExtractExpression ee
     ) {
 
     }
 
     @Override
-    public void visit(IntervalExpression ie
+    public void visit(
+            IntervalExpression ie
     ) {
 
     }
 
     @Override
-    public void visit(OracleHierarchicalExpression ohe
+    public void visit(
+            OracleHierarchicalExpression ohe
     ) {
 
     }
 
     @Override
-    public void visit(RegExpMatchOperator remo
+    public void visit(
+            RegExpMatchOperator remo
     ) {
         acceptBinaryExpression(remo);
     }
 
     @Override
-    public void visit(JsonExpression je
+    public void visit(
+            JsonExpression je
     ) {
 
     }
 
     @Override
-    public void visit(RegExpMySQLOperator rmsql
+    public void visit(
+            RegExpMySQLOperator rmsql
     ) {
 
     }
 
     @Override
-    public void visit(UserVariable uv
+    public void visit(
+            UserVariable uv
     ) {
 
     }
 
     @Override
-    public void visit(NumericBind nb
+    public void visit(
+            NumericBind nb
     ) {
 
     }
 
     @Override
-    public void visit(KeepExpression ke
+    public void visit(
+            KeepExpression ke
     ) {
 
     }
 
     @Override
-    public void visit(MySQLGroupConcat msqlgc
+    public void visit(
+            MySQLGroupConcat msqlgc
     ) {
 
     }
 
     @Override
-    public void visit(RowConstructor rc
+    public void visit(
+            RowConstructor rc
     ) {
 
     }
 
     @Override
-    public void visit(OracleHint oh
+    public void visit(
+            OracleHint oh
     ) {
 
     }
 
     @Override
-    public void visit(TimeKeyExpression tke
+    public void visit(
+            TimeKeyExpression tke
     ) {
 
     }
 
     @Override
-    public void visit(DateTimeLiteralExpression dtle
+    public void visit(
+            DateTimeLiteralExpression dtle
     ) {
 
     }
 
     @Override
-    public void visit(ExpressionList el
+    public void visit(
+            ExpressionList el
     ) {
         el.getExpressions().forEach(e -> e.accept(this));
     }
 
     @Override
-    public void visit(MultiExpressionList mel
+    public void visit(
+            MultiExpressionList mel
     ) {
         mel.getExprList().forEach(e -> e.accept(this));
     }

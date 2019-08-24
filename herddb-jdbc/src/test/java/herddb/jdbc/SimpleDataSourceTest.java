@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -30,8 +33,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -51,11 +52,11 @@ public class SimpleDataSourceTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,NamE) values('k1','name1')"));
@@ -107,7 +108,7 @@ public class SimpleDataSourceTest {
                     }
 
                     try (PreparedStatement ps = con.prepareStatement("SELECT * FROM mytable");
-                        ResultSet rs = ps.executeQuery()) {
+                         ResultSet rs = ps.executeQuery()) {
                         Set<String> foundKeys = new HashSet<>();
                         while (rs.next()) {
                             foundKeys.add(rs.getString("key"));
@@ -118,12 +119,12 @@ public class SimpleDataSourceTest {
 
                     }
                     try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) as total FROM mytable");
-                        ResultSet rs = ps.executeQuery()) {
+                         ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("total"));
                     }
                     try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) as cc FROM mytable");
-                        ResultSet rs = ps.executeQuery()) {
+                         ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("cc"));
                         assertEquals(10, rs.getLong(1));

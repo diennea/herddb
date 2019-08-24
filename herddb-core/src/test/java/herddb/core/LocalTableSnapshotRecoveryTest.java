@@ -17,18 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
-
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -39,6 +31,12 @@ import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableStatement;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Recovery from file
@@ -85,7 +83,7 @@ public class LocalTableSnapshotRecoveryTest {
             TestUtils.execute(manager, "INSERT INTO t1(id,name) values(?,?)", Arrays.asList("c", "d"));
             manager.getTableSpaceManager(TableSpace.DEFAULT).getTableManager("t1").flush();
             TestUtils.execute(manager, "INSERT INTO t1(id,name) values(?,?)", Arrays.asList("e", "f"));
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM t1", Collections.emptyList());) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM t1", Collections.emptyList())) {
                 assertEquals(3, scan.consume().size());
             }
 
@@ -99,7 +97,7 @@ public class LocalTableSnapshotRecoveryTest {
             manager.start();
 
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM t1", Collections.emptyList());) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM t1", Collections.emptyList())) {
                 assertEquals(3, scan.consume().size());
             }
         }

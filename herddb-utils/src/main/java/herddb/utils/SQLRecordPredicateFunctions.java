@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.utils;
 
+import herddb.core.HerdDBInternalException;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import herddb.core.HerdDBInternalException;
 
 /**
  * Predicate expressed using SQL syntax
@@ -32,7 +32,7 @@ import herddb.core.HerdDBInternalException;
  */
 public interface SQLRecordPredicateFunctions {
 
-    public static boolean toBoolean(Object result) {
+    static boolean toBoolean(Object result) {
         if (result == null) {
             return false;
         }
@@ -42,7 +42,7 @@ public interface SQLRecordPredicateFunctions {
         return "true".equalsIgnoreCase(result.toString());
     }
 
-    public static int compareNullTo(Object b) {
+    static int compareNullTo(Object b) {
         if (b == null) {
             return 0;
         } else {
@@ -50,7 +50,7 @@ public interface SQLRecordPredicateFunctions {
         }
     }
 
-    public static int compare(Object a, Object b) {
+    static int compare(Object a, Object b) {
         if (a == null) {
             if (b == null) {
                 return 0;
@@ -70,10 +70,10 @@ public interface SQLRecordPredicateFunctions {
             return -((RawString) b).compareToString((String) a);
         }
         if (a instanceof Integer && b instanceof Integer) {
-            return ((Integer) a) - ((Integer) b);
+            return (Integer) a - (Integer) b;
         }
         if (a instanceof Long && b instanceof Long) {
-            double delta = ((Long) a) - ((Long) b);
+            double delta = (Long) a - (Long) b;
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Number && b instanceof Number) {
@@ -97,7 +97,7 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
-    public static Object add(Object a, Object b) throws IllegalArgumentException {
+    static Object add(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {
             return null;
         }
@@ -108,16 +108,16 @@ public interface SQLRecordPredicateFunctions {
             b = 0;
         }
         if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) + ((Long) b);
+            return (Long) a + (Long) b;
         }
         if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) + ((Integer) b));
+            return (long) ((Integer) a + (Integer) b);
         }
         if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) + ((Long) b));
+            return ((Integer) a + (Long) b);
         }
         if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) + ((Integer) b));
+            return ((Long) a + (Integer) b);
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() + ((Number) b).doubleValue();
@@ -125,7 +125,7 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException("cannot add " + a + " and " + b);
     }
 
-    public static Object subtract(Object a, Object b) throws IllegalArgumentException {
+    static Object subtract(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {
             return null;
         }
@@ -136,16 +136,16 @@ public interface SQLRecordPredicateFunctions {
             b = 0;
         }
         if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) - ((Long) b);
+            return (Long) a - (Long) b;
         }
         if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) - ((Integer) b));
+            return (long) ((Integer) a - (Integer) b);
         }
         if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) - ((Long) b));
+            return ((Integer) a - (Long) b);
         }
         if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) - ((Integer) b));
+            return ((Long) a - (Integer) b);
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() - ((Number) b).doubleValue();
@@ -153,7 +153,7 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException("cannot subtract " + a + " and " + b);
     }
 
-    public static Object multiply(Object a, Object b) throws IllegalArgumentException {
+    static Object multiply(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {
             return null;
         }
@@ -164,16 +164,16 @@ public interface SQLRecordPredicateFunctions {
             b = 0;
         }
         if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) * ((Long) b);
+            return (Long) a * (Long) b;
         }
         if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) * ((Integer) b));
+            return (long) ((Integer) a * (Integer) b);
         }
         if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) * ((Long) b));
+            return ((Integer) a * (Long) b);
         }
         if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) * ((Integer) b));
+            return ((Long) a * (Integer) b);
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() * ((Number) b).doubleValue();
@@ -181,7 +181,7 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException("cannot multiply " + a + " and " + b);
     }
 
-    public static Object divide(Object a, Object b) throws IllegalArgumentException {
+    static Object divide(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {
             return null;
         }
@@ -197,7 +197,7 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException("cannot divide " + a + " and " + b);
     }
 
-    public static boolean objectEquals(Object a, Object b) {
+    static boolean objectEquals(Object a, Object b) {
         if (a == null || b == null) {
             return a == b;
         }
@@ -224,7 +224,7 @@ public interface SQLRecordPredicateFunctions {
         return Objects.equals(a, b);
     }
 
-    public static Pattern compileLikePattern(String b) throws HerdDBInternalException {
+    static Pattern compileLikePattern(String b) throws HerdDBInternalException {
 
         /*
          * We presume that in string there will be 1 or 2 '%' or '_' characters. To avoid multiple array
@@ -239,7 +239,7 @@ public interface SQLRecordPredicateFunctions {
         int limit = b.length();
         for (int idx = 0; idx < limit; ++idx) {
             char ch = b.charAt(idx);
-            switch(ch) {
+            switch (ch) {
                 case '%':
                     builder.append("\\E.*\\Q");
                     break;
@@ -262,7 +262,7 @@ public interface SQLRecordPredicateFunctions {
         }
     }
 
-    public static boolean like(Object a, Object b) {
+    static boolean like(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }
@@ -270,7 +270,7 @@ public interface SQLRecordPredicateFunctions {
         return matches(a, pattern);
     }
 
-    public static boolean matches(Object a, Pattern pattern) {
+    static boolean matches(Object a, Pattern pattern) {
         if (a == null) {
             return false;
         }

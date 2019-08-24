@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.model.planner.PlannerOp;
@@ -29,25 +30,27 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ExecutionPlan {
 
-    private final static AtomicLong ID = new AtomicLong();
+    private static final AtomicLong ID = new AtomicLong();
     private final long id = ID.incrementAndGet();
     public final Statement mainStatement;
     // this is actually only for tests and debug
     public final PlannerOp originalRoot;
 
-    private ExecutionPlan(Statement mainStatement,
-            PlannerOp originalRoot) {
+    private ExecutionPlan(
+            Statement mainStatement,
+            PlannerOp originalRoot
+    ) {
         this.mainStatement = mainStatement;
-      
+
         this.originalRoot = originalRoot;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement,  null);
+        return new ExecutionPlan(statement, null);
     }
 
     public static ExecutionPlan simple(Statement statement, PlannerOp root) {
-        return new ExecutionPlan(statement,  root);
+        return new ExecutionPlan(statement, root);
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {

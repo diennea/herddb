@@ -17,12 +17,11 @@
  under the License.
 
  */
+
 package herddb.benchs.simple;
 
 import herddb.benchs.BaseBench;
-import herddb.benchs.SelectByPKOperation;
 import herddb.benchs.UpdateByPKOperation;
-import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import org.junit.Test;
 
@@ -35,9 +34,9 @@ public class ConcurrentUpdatesTest extends BaseBench {
 
     public ConcurrentUpdatesTest() {
         super(20,
-            1000000,
-            100000,
-            2);
+                1000000,
+                100000,
+                2);
         addOperation(new UpdateByPKOperation());
     }
 

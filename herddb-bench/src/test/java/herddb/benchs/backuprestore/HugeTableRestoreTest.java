@@ -17,16 +17,14 @@
  under the License.
 
  */
+
 package herddb.benchs.backuprestore;
-
-import java.io.IOException;
-import java.util.Map;
-
-import org.junit.Test;
 
 import herddb.backup.ProgressListener;
 import herddb.benchs.BaseBench;
-import herddb.server.ServerConfiguration;
+import java.io.IOException;
+import java.util.Map;
+import org.junit.Test;
 
 /**
  * Simple concurrent reads and writes on a single table
@@ -37,9 +35,9 @@ public class HugeTableRestoreTest extends BaseBench {
 
     public HugeTableRestoreTest() {
         super(20,
-            1_000_000,
-            0,
-            2);
+                1_000_000,
+                0,
+                2);
     }
 
     @Override

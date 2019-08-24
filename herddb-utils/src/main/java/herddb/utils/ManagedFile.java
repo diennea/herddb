@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class ManagedFile implements AutoCloseable {
     }
 
     private static final Set<StandardOpenOption> DEFAULT_OPTIONS_SET = EnumSet.of(
-            StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE );
+            StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
 
     private static final StandardOpenOption[] DEFAULT_OPTIONS =
             DEFAULT_OPTIONS_SET.toArray(new StandardOpenOption[DEFAULT_OPTIONS_SET.size()]);
@@ -105,7 +106,6 @@ public class ManagedFile implements AutoCloseable {
      * Forces any updates to be written to the storage device that contains it.
      *
      * @throws IOException
-     *
      * @see FileChannel#force(boolean)
      */
     public void sync() throws IOException {
@@ -119,7 +119,6 @@ public class ManagedFile implements AutoCloseable {
      * Forces any updates to be written to the storage device that contains it.
      *
      * @throws IOException
-     *
      * @see FileChannel#force(boolean)
      */
     public void sync(boolean metaData) throws IOException {

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -36,7 +37,7 @@ import java.util.List;
  */
 public class SyslogstatusManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("syslogstatus")
             .column("tablespace_uuid", ColumnTypes.STRING)

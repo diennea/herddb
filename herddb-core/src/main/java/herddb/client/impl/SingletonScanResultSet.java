@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.client.impl;
 
 import herddb.client.HDBException;
@@ -24,12 +25,9 @@ import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapDataAccessor;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class SingletonScanResultSet extends ScanResultSet {

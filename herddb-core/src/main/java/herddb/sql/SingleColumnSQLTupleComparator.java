@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -48,7 +49,7 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
     }
 
     private SingleColumnSQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements, String[] primarykey) throws StatementExecutionException {
-        
+
         if (tableAlias != null) {
             for (OrderByElement element : orderByElements) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
@@ -62,8 +63,8 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
         this.columnName = column.getColumnName();
         this.asc = element.isAsc();
         this.primarykey = primarykey != null
-            && primarykey.length == 1
-            && primarykey[0].equals(this.columnName);
+                && primarykey.length == 1
+                && primarykey[0].equals(this.columnName);
 
     }
 

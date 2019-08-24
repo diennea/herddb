@@ -17,10 +17,8 @@
  under the License.
 
  */
-package herddb.core;
 
-import java.util.List;
-import java.util.function.Consumer;
+package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
 import herddb.index.KeyToPageIndex;
@@ -40,8 +38,10 @@ import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 /**
  * Abstract of Table
@@ -50,40 +50,40 @@ import java.util.concurrent.ExecutionException;
  */
 public interface AbstractTableManager extends AutoCloseable {
 
-    public TableManagerStats getStats();
+    TableManagerStats getStats();
 
-    public Table getTable();
+    Table getTable();
 
     long getCreatedInTransaction();
 
-    public List<Index> getAvailableIndexes();
+    List<Index> getAvailableIndexes();
 
-    public KeyToPageIndex getKeyToPageIndex();
+    KeyToPageIndex getKeyToPageIndex();
 
-    public LogSequenceNumber getBootSequenceNumber();
+    LogSequenceNumber getBootSequenceNumber();
 
-    public long getNextPrimaryKeyValue();
+    long getNextPrimaryKeyValue();
 
-    public boolean isSystemTable();
+    boolean isSystemTable();
 
     /**
      * Check if the table manage has been fully started
      */
     boolean isStarted();
 
-    public void start() throws DataStorageManagerException;
+    void start() throws DataStorageManagerException;
 
     @Override
-    public void close();
+    void close();
 
-    public void flush() throws DataStorageManagerException;
+    void flush() throws DataStorageManagerException;
 
-    public void dump(LogSequenceNumber sequenceNumber, FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
+    void dump(LogSequenceNumber sequenceNumber, FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
 
     /**
      * Perform a faster checkpoint
      */
-    public TableCheckpoint checkpoint(boolean pin) throws DataStorageManagerException;
+    TableCheckpoint checkpoint(boolean pin) throws DataStorageManagerException;
 
     /**
      * Performs a full deep checkpoint cleaning as much space as possible.
@@ -93,24 +93,24 @@ public interface AbstractTableManager extends AutoCloseable {
      * if they need for internal logic.
      * </p>
      */
-    public TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException;
+    TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException;
 
     /**
      * Unpin a previously pinned checkpont (see {@link #checkpoint(boolean)})
      *
      * @throws DataStorageManagerException
      */
-    public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
-    public void dropTableData() throws DataStorageManagerException;
+    void dropTableData() throws DataStorageManagerException;
 
-    public void tableAltered(Table table, Transaction transaction) throws DDLException;
+    void tableAltered(Table table, Transaction transaction) throws DDLException;
 
-    public void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
+    void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
 
-    public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;
+    void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;
 
-    public void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
+    void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
 
     default StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         CompletableFuture<StatementExecutionResult> res = executeStatementAsync(statement, transaction, context);
@@ -134,12 +134,14 @@ public interface AbstractTableManager extends AutoCloseable {
 
     CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context);
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
-            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException;
+    DataScanner scan(
+            ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException;
 
-    public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
+    void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
-    static final class TableCheckpoint {
+    final class TableCheckpoint {
 
         final String tableName;
         final LogSequenceNumber sequenceNumber;

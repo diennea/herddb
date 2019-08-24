@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -39,19 +40,19 @@ import java.util.List;
  */
 public class SystablespacereplicastateTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
-        .builder()
-        .name("systablespacereplicastate")
-        .column("tablespace_name", ColumnTypes.STRING)
-        .column("uuid", ColumnTypes.NOTNULL_STRING)
-        .column("nodeid", ColumnTypes.NOTNULL_STRING)
-        .column("mode", ColumnTypes.STRING)
-        .column("timestamp", ColumnTypes.TIMESTAMP)
-        .column("maxleaderinactivitytime", ColumnTypes.LONG)
-        .column("inactivitytime", ColumnTypes.LONG)
-        .primaryKey("uuid", false)
-        .primaryKey("nodeid", false)
-        .build();
+    private static final Table TABLE = Table
+            .builder()
+            .name("systablespacereplicastate")
+            .column("tablespace_name", ColumnTypes.STRING)
+            .column("uuid", ColumnTypes.NOTNULL_STRING)
+            .column("nodeid", ColumnTypes.NOTNULL_STRING)
+            .column("mode", ColumnTypes.STRING)
+            .column("timestamp", ColumnTypes.TIMESTAMP)
+            .column("maxleaderinactivitytime", ColumnTypes.LONG)
+            .column("inactivitytime", ColumnTypes.LONG)
+            .primaryKey("uuid", false)
+            .primaryKey("nodeid", false)
+            .build();
 
     public SystablespacereplicastateTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
@@ -69,14 +70,14 @@ public class SystablespacereplicastateTableManager extends AbstractSystemTableMa
                     List<TableSpaceReplicaState> tableSpaceReplicaStates = tableSpaceManager.getMetadataStorageManager().getTableSpaceReplicaState(t.uuid);
                     for (TableSpaceReplicaState state : tableSpaceReplicaStates) {
                         result.add(RecordSerializer.makeRecord(
-                            table,
-                            "tablespace_name", t.name,
-                            "uuid", t.uuid,
-                            "nodeid", state.nodeId,
-                            "timestamp", new java.sql.Timestamp(state.timestamp),
-                            "maxleaderinactivitytime", t.maxLeaderInactivityTime,
-                            "inactivitytime", now - state.timestamp,
-                            "mode", TableSpaceReplicaState.modeToSQLString(state.mode))
+                                table,
+                                "tablespace_name", t.name,
+                                "uuid", t.uuid,
+                                "nodeid", state.nodeId,
+                                "timestamp", new java.sql.Timestamp(state.timestamp),
+                                "maxleaderinactivitytime", t.maxLeaderInactivityTime,
+                                "inactivitytime", now - state.timestamp,
+                                "mode", TableSpaceReplicaState.modeToSQLString(state.mode))
                         );
                     }
                 }

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.benchs;
 
 import java.sql.Connection;
@@ -26,7 +27,6 @@ import java.util.concurrent.Callable;
 import javax.sql.DataSource;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class SelectByPKOperation extends Operation {

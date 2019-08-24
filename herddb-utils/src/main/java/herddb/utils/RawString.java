@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.Recycler;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 /**
  * A container for strings. Data is decoded to a real java.lang.String only if
@@ -132,14 +132,14 @@ public class RawString implements Comparable<RawString> {
             final RawString other = (RawString) obj;
             return (this.hashCode() == other.hashCode())
                     && CompareBytesUtils.arraysEquals(this.data, offset, offset + length,
-                            other.data, other.offset, other.length + other.offset);
+                    other.data, other.offset, other.length + other.offset);
         }
         if (obj instanceof Boolean) {
             boolean b = (Boolean) obj;
             return b ? CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
                     TRUE, 0, 4)
                     : CompareBytesUtils.arraysEquals(this.data, offset, length + offset,
-                            FALSE, 0, 5);
+                    FALSE, 0, 5);
         }
         String otherString = obj.toString();
         byte[] other_data = otherString

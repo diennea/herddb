@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
+import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -101,5 +102,5 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
         }
     }
 
-  
+
 }

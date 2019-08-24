@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
 import herddb.file.FileCommitLog;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -947,7 +947,8 @@ public class SimpleRecoveryTest {
             commitLogManager.start();
             try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
 
-                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
+                }, false);
 
                 log.startWriting();
 
@@ -958,8 +959,8 @@ public class SimpleRecoveryTest {
             }
         }
 
-        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
-        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+        final boolean original = TableManager.ignoreMissingTransactionsOnRecovery;
+        TableManager.ignoreMissingTransactionsOnRecovery = true;
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
@@ -977,7 +978,7 @@ public class SimpleRecoveryTest {
             }
 
         } finally {
-            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
+            TableManager.ignoreMissingTransactionsOnRecovery = original;
         }
 
     }
@@ -1030,7 +1031,8 @@ public class SimpleRecoveryTest {
             commitLogManager.start();
             try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
 
-                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
+                }, false);
 
                 log.startWriting();
 
@@ -1041,8 +1043,8 @@ public class SimpleRecoveryTest {
             }
         }
 
-        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
-        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+        final boolean original = TableManager.ignoreMissingTransactionsOnRecovery;
+        TableManager.ignoreMissingTransactionsOnRecovery = true;
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
@@ -1060,7 +1062,7 @@ public class SimpleRecoveryTest {
             }
 
         } finally {
-            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
+            TableManager.ignoreMissingTransactionsOnRecovery = original;
         }
 
     }
@@ -1115,7 +1117,8 @@ public class SimpleRecoveryTest {
             commitLogManager.start();
             try (FileCommitLog log = commitLogManager.createCommitLog(tablespaceUUID, "tblspace1", nodeId)) {
 
-                log.recovery(LogSequenceNumber.START_OF_TIME, (n,e) -> {}, false);
+                log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
+                }, false);
 
                 log.startWriting();
 
@@ -1126,8 +1129,8 @@ public class SimpleRecoveryTest {
             }
         }
 
-        final boolean original = TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY;
-        TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = true;
+        final boolean original = TableManager.ignoreMissingTransactionsOnRecovery;
+        TableManager.ignoreMissingTransactionsOnRecovery = true;
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
@@ -1147,7 +1150,7 @@ public class SimpleRecoveryTest {
             }
 
         } finally {
-            TableManager.IGNORE_MISSING_TRANSACTIONS_ON_RECOVERY = original;
+            TableManager.ignoreMissingTransactionsOnRecovery = original;
         }
 
     }

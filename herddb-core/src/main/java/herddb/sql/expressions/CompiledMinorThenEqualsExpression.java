@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.utils.SQLRecordPredicateFunctions.compare;
 
 public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpression {
 
@@ -49,7 +49,7 @@ public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpressi
     public String getOperator() {
         return "<=";
     }
-    
+
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledMinorThenEqualsExpression(not,

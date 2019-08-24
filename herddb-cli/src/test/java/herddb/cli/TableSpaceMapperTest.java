@@ -17,11 +17,12 @@
  under the License.
 
  */
+
 package herddb.cli;
 
+import static org.junit.Assert.assertEquals;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.insert.Insert;
-import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 public class TableSpaceMapperTest {

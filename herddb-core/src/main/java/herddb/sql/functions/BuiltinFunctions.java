@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
 import herddb.model.Column;
@@ -43,7 +44,7 @@ public class BuiltinFunctions {
     /**
      * @see SqlSumEmptyIsZeroAggFunction
      */
-    public static final String SUM0 = "$sum0";//Calcite Sum empty is zero
+    public static final String SUM0 = "$sum0"; //Calcite Sum empty is zero
     public static final String MIN = "min";
     public static final String MAX = "max";
     /**
@@ -89,16 +90,20 @@ public class BuiltinFunctions {
         return null;
     }
 
-    public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
-        StatementEvaluationContext context) throws StatementExecutionException {
+    public static AggregatedColumnCalculator getColumnCalculator(
+            Function f, String fieldName,
+            StatementEvaluationContext context
+    ) throws StatementExecutionException {
         String functionName = f.getName();
         CompiledSQLExpression firstParam = f.getParameters() == null || f.getParameters().getExpressions() == null || f.getParameters().getExpressions().isEmpty() ? null
-            : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
+                : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
         return getColumnCalculator(functionName, fieldName, firstParam, context);
     }
 
-    public static AggregatedColumnCalculator getColumnCalculator(String functionName, String fieldName,
-        CompiledSQLExpression firstParam, StatementEvaluationContext context) throws StatementExecutionException {
+    public static AggregatedColumnCalculator getColumnCalculator(
+            String functionName, String fieldName,
+            CompiledSQLExpression firstParam, StatementEvaluationContext context
+    ) throws StatementExecutionException {
         switch (functionName) {
             case COUNT:
                 return new CountColumnCalculator(fieldName);

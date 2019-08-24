@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.stats;
 
 import herddb.jmx.TableManagerStatsMXBean;

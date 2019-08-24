@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.mem;
 
 import herddb.log.CommitLog;
@@ -42,7 +43,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
     public MemoryCommitLogManager() {
         this(true);
     }
-    
+
     public MemoryCommitLogManager(boolean testSerialize) {
         this.testSerialize = testSerialize;
     }
@@ -59,7 +60,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
                     synch = true;
                 }
                 if (testSerialize) {
-                     // this is useful only for internal testing
+                    // this is useful only for internal testing
                     // NOOP, but trigger serialization subsystem
                     try {
                         entry.serialize(ExtendedDataOutputStream.NULL);
@@ -95,8 +96,10 @@ public class MemoryCommitLogManager extends CommitLogManager {
             }
 
             @Override
-            public void recovery(LogSequenceNumber snapshotSequenceNumber,
-                                 BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
+            public void recovery(
+                    LogSequenceNumber snapshotSequenceNumber,
+                    BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing
+            ) throws LogNotAvailableException {
             }
 
             @Override

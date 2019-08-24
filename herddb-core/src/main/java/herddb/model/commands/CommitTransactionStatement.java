@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.commands;
 
 import herddb.model.Statement;
@@ -38,5 +39,5 @@ public class CommitTransactionStatement extends Statement {
     public long getTransactionId() {
         return transactionId;
     }
-    
+
 }

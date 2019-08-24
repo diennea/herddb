@@ -17,20 +17,21 @@
  under the License.
 
  */
+
 package herddb.server;
 
-import java.io.File;
-import java.nio.file.Paths;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import herddb.daemons.PidFileLocker;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
 import java.util.logging.LogManager;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider;
 import org.apache.bookkeeper.stats.prometheus.PrometheusServlet;
@@ -162,13 +163,14 @@ public class ServerMain implements AutoCloseable {
             System.exit(1);
         }
     }
+
     private static final Logger LOG = Logger.getLogger(ServerMain.class.getName());
 
     public boolean isStarted() {
         return started;
     }
 
-    private final static CountDownLatch running = new CountDownLatch(1);
+    private static final CountDownLatch running = new CountDownLatch(1);
 
     public static ServerMain getRunningInstance() {
         return runningInstance;
@@ -246,6 +248,6 @@ public class ServerMain implements AutoCloseable {
     public String getMetricsUrl() {
         return metricsUrl;
     }
-        
+
 
 }

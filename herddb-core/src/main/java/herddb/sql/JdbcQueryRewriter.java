@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.model.StatementExecutionException;
@@ -135,12 +136,12 @@ import net.sf.jsqlparser.statement.update.Update;
  * @author enrico.olivelli
  */
 class JdbcQueryRewriter implements StatementVisitor,
-    SelectVisitor,
-    OrderByVisitor,
-    ExpressionVisitor,
-    SelectItemVisitor,
-    ItemsListVisitor,
-    FromItemVisitor {
+        SelectVisitor,
+        OrderByVisitor,
+        ExpressionVisitor,
+        SelectItemVisitor,
+        ItemsListVisitor,
+        FromItemVisitor {
 
     JdbcQueryRewriter() {
     }
@@ -179,11 +180,11 @@ class JdbcQueryRewriter implements StatementVisitor,
         }
         if (select.getWithItemsList() != null) {
             select.getWithItemsList().forEach(
-                i -> {
-                    if (i != null) {
-                        i.accept(this);
+                    i -> {
+                        if (i != null) {
+                            i.accept(this);
+                        }
                     }
-                }
             );
         }
     }
@@ -343,7 +344,7 @@ class JdbcQueryRewriter implements StatementVisitor,
     private void visitJoin(Join j) {
         if (j.getOnExpression() != null) {
             j.getOnExpression().accept(this);
-        };
+        }
         if (j.getRightItem() != null) {
             j.getRightItem().accept(this);
         }
@@ -365,9 +366,9 @@ class JdbcQueryRewriter implements StatementVisitor,
         }
         if (plainSelect.getJoins() != null) {
             plainSelect.getJoins().forEach(
-                j -> {
-                    visitJoin(j);
-                }
+                    j -> {
+                        visitJoin(j);
+                    }
             );
         }
         if (plainSelect.getOrderByElements() != null) {
@@ -541,7 +542,7 @@ class JdbcQueryRewriter implements StatementVisitor,
             SubSelect ss = (SubSelect) inExpression.getRightItemsList();
             if (!(ss.getSelectBody() instanceof PlainSelect)) {
                 throw new StatementExecutionException("unsupported operand " + inExpression.getClass()
-                    + " with subquery of type " + ss.getClass() + "(" + ss + ")");
+                        + " with subquery of type " + ss.getClass() + "(" + ss + ")");
             }
             visit(ss);
         }

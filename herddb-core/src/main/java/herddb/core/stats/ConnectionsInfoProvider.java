@@ -17,12 +17,14 @@
  under the License.
 
  */
+
 package herddb.core.stats;
 
 /**
  * Provides informations about actual clients
+ *
  * @author enrico.olivelli
  */
 public interface ConnectionsInfoProvider {
-    public ConnectionsInfo getActualConnections();
+    ConnectionsInfo getActualConnections();
 }

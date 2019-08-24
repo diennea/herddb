@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 import java.nio.charset.StandardCharsets;
@@ -26,8 +27,6 @@ import java.security.NoSuchProviderException;
 
 /**
  * Utility for Secure hashes
- *
- *
  */
 public class HashUtils {
 

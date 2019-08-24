@@ -17,21 +17,10 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
 import static org.junit.Assert.assertEquals;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.Collections;
-import java.util.Map;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.backup.BackupUtils;
 import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
@@ -58,6 +47,15 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.Collections;
+import java.util.Map;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests around backup/restore
@@ -96,10 +94,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -111,11 +109,11 @@ public class BackupRestoreTest {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             Index index = Index.builder().onTable(table).column("d", ColumnTypes.INTEGER).type(Index.TYPE_BRIN).build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeStatement(new CreateIndexStatement(index), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -128,7 +126,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -154,7 +152,9 @@ public class BackupRestoreTest {
         }
     }
 
-    /** Check that restore a dirty delete doesn't revive a record (it is: a phantom deleted record on a dirty page) */
+    /**
+     * Check that restore a dirty delete doesn't revive a record (it is: a phantom deleted record on a dirty page)
+     */
     @Test
     public void test_backup_restore_with_deletes() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
@@ -170,10 +170,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -219,7 +219,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -244,7 +244,9 @@ public class BackupRestoreTest {
         }
     }
 
-    /** Check that restore a dirty update restores the latest record version */
+    /**
+     * Check that restore a dirty update restores the latest record version
+     */
     @Test
     public void test_backup_restore_with_updates() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
@@ -260,10 +262,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -311,7 +313,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(5, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -348,10 +350,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -363,19 +365,19 @@ public class BackupRestoreTest {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table1 = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             Index index = Index.builder().onTable(table1).column("d", ColumnTypes.INTEGER).type(Index.TYPE_BRIN).build();
 
             Table table2 = Table.builder()
-                .name("t2")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t2")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
 
             server_1.getManager().executeStatement(new CreateTableStatement(table1), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeStatement(new CreateTableStatement(table2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -389,7 +391,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -401,8 +403,8 @@ public class BackupRestoreTest {
                             if (type.equals("beginTable") && "t1".equals(context.get("table"))) {
                                 try {
                                     server_1.getManager().executeUpdate(
-                                        new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                                        TransactionContext.NO_TRANSACTION);
+                                            new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                            TransactionContext.NO_TRANSACTION);
                                 } catch (StatementExecutionException err) {
                                     throw new RuntimeException(err);
                                 }
@@ -442,10 +444,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -457,19 +459,19 @@ public class BackupRestoreTest {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table1 = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             Index index = Index.builder().onTable(table1).column("d", ColumnTypes.INTEGER).type(Index.TYPE_BRIN).build();
 
             Table table2 = Table.builder()
-                .name("t2")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t2")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
 
             server_1.getManager().executeStatement(new CreateTableStatement(table1), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeStatement(new CreateTableStatement(table2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -485,7 +487,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -497,8 +499,8 @@ public class BackupRestoreTest {
                             if (type.equals("beginTable") && "t1".equals(context.get("table"))) {
                                 try {
                                     server_1.getManager().executeUpdate(
-                                        new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                                        new TransactionContext(tx1));
+                                            new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                            new TransactionContext(tx1));
                                     TestUtils.commitTransaction(server_1.getManager(), TableSpace.DEFAULT, tx1);
                                 } catch (StatementExecutionException err) {
                                     throw new RuntimeException(err);
@@ -539,10 +541,10 @@ public class BackupRestoreTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
         client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
@@ -554,19 +556,19 @@ public class BackupRestoreTest {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table1 = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             Index index = Index.builder().onTable(table1).column("d", ColumnTypes.INTEGER).type(Index.TYPE_BRIN).build();
 
             Table table2 = Table.builder()
-                .name("t2")
-                .column("c", ColumnTypes.INTEGER)
-                .column("d", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t2")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
 
             server_1.getManager().executeStatement(new CreateTableStatement(table1), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeStatement(new CreateTableStatement(table2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -580,7 +582,7 @@ public class BackupRestoreTest {
                 server_2.start();
 
                 try (HDBClient client = new HDBClient(client_configuration);
-                    HDBConnection connection = client.openConnection()) {
+                     HDBConnection connection = client.openConnection()) {
 
                     assertEquals(4, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", true, Collections.emptyList(), 0, 0, 10).consume().size());
 
@@ -593,8 +595,8 @@ public class BackupRestoreTest {
                                 try {
                                     long tx1 = TestUtils.beginTransaction(server_1.getManager(), TableSpace.DEFAULT);
                                     server_1.getManager().executeUpdate(
-                                        new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                                        new TransactionContext(tx1));
+                                            new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table1, "c", 5, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                                            new TransactionContext(tx1));
                                     TestUtils.commitTransaction(server_1.getManager(), TableSpace.DEFAULT, tx1);
                                 } catch (StatementExecutionException err) {
                                     throw new RuntimeException(err);

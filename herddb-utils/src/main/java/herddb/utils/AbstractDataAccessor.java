@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.util.Objects;
@@ -45,21 +46,21 @@ public abstract class AbstractDataAccessor implements DataAccessor {
         }
         return false;
     }
-  
-    private int _hashcode = Integer.MIN_VALUE;
+
+    private int hashcode = Integer.MIN_VALUE;
 
     @Override
     public int hashCode() {
-        if (_hashcode == Integer.MIN_VALUE) {
+        if (hashcode == Integer.MIN_VALUE) {
             int size = this.getNumFields();
             int res = 0;
             // leverage zero-copy and to not create temporary arrays
             for (int i = 0; i < size; i++) {
                 res += Objects.hashCode(get(i));
             }
-            _hashcode = res;
+            hashcode = res;
         }
-        return _hashcode;
+        return hashcode;
     }
 
 }

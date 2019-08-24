@@ -1,4 +1,3 @@
-
 /*
  Licensed to Diennea S.r.l. under one
  or more contributor license agreements. See the NOTICE file
@@ -18,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 import java.io.ByteArrayInputStream;

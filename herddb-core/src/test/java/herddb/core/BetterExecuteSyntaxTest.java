@@ -17,22 +17,20 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TransactionResult;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
  * Tests about statement rewriting for EXECUTE syntax
@@ -44,7 +42,7 @@ public class BetterExecuteSyntaxTest {
     @Test
     public void betterSyntax() throws Exception {
 
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
@@ -58,7 +56,7 @@ public class BetterExecuteSyntaxTest {
 
             execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
 
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
                 DataAccessor first = scan.consume().get(0);
                 Number count = (Number) first.get(first.getFieldNames()[0]);
                 assertEquals(0, count.intValue());

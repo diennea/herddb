@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
 import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
@@ -273,10 +273,7 @@ public class TmpMapTest {
                 return false;
             }
             final MyPojo other = (MyPojo) obj;
-            if (this.wrapped != other.wrapped) {
-                return false;
-            }
-            return true;
+            return this.wrapped == other.wrapped;
         }
 
     }

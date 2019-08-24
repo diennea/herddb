@@ -17,12 +17,10 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
-
-import org.junit.Test;
-
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
@@ -31,10 +29,9 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.predicates.RawValueEquals;
 import herddb.utils.Bytes;
+import org.junit.Test;
 
 /**
- * 
- *
  * @author enrico.olivelli
  */
 public class SimpleDMLTest extends BaseTestcase {

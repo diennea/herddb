@@ -17,8 +17,13 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -30,10 +35,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -54,12 +55,12 @@ public class MysqlCompatilityTest {
             server.start();
             server.waitForStandaloneBoot();
 //            assumeTrue(server.getManager().getPlanner() instanceof SQLPlanner);
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Connection con2 = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Connection con2 = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
 
                     statement.execute("DROP TABLE IF EXISTS `sm_machine`;");
                     statement.execute("CREATE TABLE `sm_machine` (\n"
@@ -160,12 +161,12 @@ public class MysqlCompatilityTest {
             server.waitForStandaloneBoot();
             assumeTrue(server.getManager().getPlanner() instanceof DDLSQLPlanner);
 
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Connection con2 = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Connection con2 = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     con.setAutoCommit(false);
                     statement.execute("CREATE TABLE `queuebouncecategory_history` (\n"
                             + "  `queueid` int(11) NOT NULL,\n"

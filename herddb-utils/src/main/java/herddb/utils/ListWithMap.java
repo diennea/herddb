@@ -31,27 +31,26 @@ import java.util.Map;
  * If necessary elements can be removed in O1 with {@link #remove(Object)}
  * </p>
  *
- * @author diego.salvi
- *
  * @param <E>
+ * @author diego.salvi
  */
 public class ListWithMap<E> {
 
     /**
      * Pointer to first node.
      * Invariant: (head == null && tail == null) ||
-     *            (head.prev == null && head.item != null)
+     * (head.prev == null && head.item != null)
      */
     private Node<E> head;
 
     /**
      * Pointer to last node.
      * Invariant: (head == null && tail == null) ||
-     *            (tail.next == null && tail.item != null)
+     * (tail.next == null && tail.item != null)
      */
     private Node<E> tail;
 
-    private Map<E,Node<E>> space;
+    private Map<E, Node<E>> space;
 
     public ListWithMap() {
 
@@ -60,7 +59,7 @@ public class ListWithMap<E> {
         space = new HashMap<>();
     }
 
-    public void append( E e ){
+    public void append(E e) {
         final Node<E> ref = tail;
         final Node<E> node = new Node<>(ref, e, null);
         tail = node;
@@ -153,7 +152,7 @@ public class ListWithMap<E> {
     public void clear() {
 
         Node<E> ref = head;
-        while(ref != null) {
+        while (ref != null) {
             Node<E> next = ref.next;
 
             ref.item = null;
@@ -184,7 +183,7 @@ public class ListWithMap<E> {
         final List<E> list = new ArrayList<>(space.size());
 
         Node<E> ref = head;
-        while(ref != null) {
+        while (ref != null) {
             list.add(ref.item);
             ref = ref.next;
         }

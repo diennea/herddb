@@ -17,20 +17,10 @@
  under the License.
 
  */
+
 package herddb.server.security;
 
 import static org.junit.Assert.assertEquals;
-
-import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
@@ -39,6 +29,14 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement
@@ -57,7 +55,7 @@ public class JAASMD5Test {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,

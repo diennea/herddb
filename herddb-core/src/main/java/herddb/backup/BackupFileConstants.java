@@ -17,10 +17,12 @@
  under the License.
 
  */
+
 package herddb.backup;
 
 /**
  * Shared constants for backup files
+ *
  * @author enrico.olivelli
  */
 public class BackupFileConstants {

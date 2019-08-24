@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import java.io.IOException;
@@ -24,7 +25,6 @@ import java.io.InputStream;
 import java.util.Properties;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class Version {

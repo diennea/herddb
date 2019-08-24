@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -35,7 +36,7 @@ public class ConstValueRecordFunction extends RecordFunction {
     public ConstValueRecordFunction(byte[] value) {
         this.value = value;
     }
-    
+
     public ConstValueRecordFunction(Bytes value) {
         this.value = value.to_array();
     }

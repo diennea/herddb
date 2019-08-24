@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network;
 
 import herddb.proto.Pdu;
@@ -37,7 +38,7 @@ public abstract class Channel implements AutoCloseable {
 
     public interface PduCallback {
 
-        public void responseReceived(Pdu message, Throwable error);
+        void responseReceived(Pdu message, Throwable error);
     }
 
     protected ChannelEventListener messagesReceiver;
@@ -67,7 +68,7 @@ public abstract class Channel implements AutoCloseable {
     @Override
     public abstract void close();
 
-    private final static AtomicLong requestIdGeneator = new AtomicLong();
+    private static final AtomicLong requestIdGeneator = new AtomicLong();
 
     public final long generateRequestId() {
         return requestIdGeneator.incrementAndGet();
@@ -94,7 +95,7 @@ public abstract class Channel implements AutoCloseable {
             throw new RuntimeException(err.getCause());
         } catch (TimeoutException timeoutException) {
             long _stop = System.currentTimeMillis();
-            TimeoutException err = new TimeoutException("Request timedout (" + ((_stop - _start)/1000) + "s). Slow server or internal error");
+            TimeoutException err = new TimeoutException("Request timedout (" + ((_stop - _start) / 1000) + "s). Slow server or internal error");
             err.initCause(timeoutException);
             throw err;
         }

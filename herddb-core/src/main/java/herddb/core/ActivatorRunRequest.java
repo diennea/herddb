@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 /**
@@ -33,7 +34,7 @@ public enum ActivatorRunRequest {
     public boolean enableTableCheckPoints() {
         return this == FULL || this == TABLECHECKPOINTS;
     }
-    
+
     public boolean enableAbandonedTransactionsMaintenaince() {
         return this == FULL;
     }

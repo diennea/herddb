@@ -17,10 +17,12 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
  * Invalid Table Space DDL error
+ *
  * @author enrico.olivelli
  */
 public class InvalidTableSpaceException extends DDLException {
@@ -32,5 +34,5 @@ public class InvalidTableSpaceException extends DDLException {
     public InvalidTableSpaceException(String message, Throwable cause) {
         super(message, cause);
     }
-    
+
 }

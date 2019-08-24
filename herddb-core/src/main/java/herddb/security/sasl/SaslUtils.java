@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.security.sasl;
 
 import java.util.Base64;
@@ -50,6 +51,5 @@ public class SaslUtils {
         return Base64.getEncoder().encodeToString(password).toCharArray();
     }
 
-  
 
 }

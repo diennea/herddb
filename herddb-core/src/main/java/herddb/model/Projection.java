@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.model.planner.ProjectOp.IdentityProjection;
@@ -29,11 +30,14 @@ import herddb.utils.DataAccessor;
  */
 public interface Projection {
 
-    public static Projection IDENTITY(String[] fieldNames, Column[] columns) {
+    // CHECKSTYLE.OFF: MethodName
+    static Projection IDENTITY(String[] fieldNames, Column[] columns) {
         return new IdentityProjection(fieldNames, columns);
     }
+    // CHECKSTYLE.ON: MethodName
 
-    public static Projection PRIMARY_KEY(Table table) {
+    // CHECKSTYLE.OFF: MethodName
+    static Projection PRIMARY_KEY(Table table) {
         final Column[] columns = new Column[table.primaryKey.length];
 
         int i = 0;
@@ -62,11 +66,12 @@ public interface Projection {
             }
         };
     }
+    // CHECKSTYLE.ON: MethodName
 
-    public Column[] getColumns();
+    Column[] getColumns();
 
-    public String[] getFieldNames();
+    String[] getFieldNames();
 
-    public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException;
+    DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException;
 
 }

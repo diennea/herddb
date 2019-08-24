@@ -17,11 +17,11 @@
  under the License.
 
  */
+
 package herddb.log;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 /**
  * Result of the write to the commit log

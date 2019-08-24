@@ -17,17 +17,12 @@
  under the License.
 
  */
+
 package herddb.core;
 
-import herddb.index.PrimaryIndexRangeScan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-
-import org.junit.Test;
-
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
@@ -46,9 +41,10 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
+import java.util.Collections;
+import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  * @author diego.salvi
  */
@@ -97,33 +93,33 @@ public class IndexScanRangeTest {
     private void secondaryIndexPrefixScan(String indexType) throws Exception {
 
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
@@ -139,7 +135,7 @@ public class IndexScanRangeTest {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(3, scan1.consume().size());
                 }
             }
@@ -151,32 +147,32 @@ public class IndexScanRangeTest {
     private void secondaryIndexSeek(String indexType) throws Exception {
 
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("n1", ColumnTypes.INTEGER)
-                .build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
@@ -190,10 +186,10 @@ public class IndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager
-                    .getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
+                        .getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(3, scan1.consume().size());
                 }
             }
@@ -205,32 +201,32 @@ public class IndexScanRangeTest {
     private void secondaryIndexRangeScan(String indexType) throws Exception {
 
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("n1", ColumnTypes.INTEGER)
-                .build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
@@ -247,7 +243,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(5, scan1.consume().size());
                 }
             }
@@ -257,7 +253,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(1, scan1.consume().size());
                 }
             }
@@ -267,7 +263,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(4, scan1.consume().size());
                 }
             }
@@ -277,7 +273,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(4, scan1.consume().size());
                 }
             }
@@ -287,7 +283,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(0, scan1.consume().size());
                 }
             }
@@ -297,7 +293,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(4, scan1.consume().size());
                 }
             }
@@ -307,7 +303,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(4, scan1.consume().size());
                 }
             }
@@ -317,7 +313,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(0, scan1.consume().size());
                 }
             }
@@ -327,7 +323,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(1, scan1.consume().size());
                 }
             }
@@ -337,7 +333,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(3, scan1.consume().size());
                 }
             }
@@ -347,7 +343,7 @@ public class IndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(2, scan1.consume().size());
                 }
             }
@@ -359,32 +355,32 @@ public class IndexScanRangeTest {
     private void noIndexOperation(String indexType) throws Exception {
 
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("n1", ColumnTypes.INTEGER)
-                .build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
@@ -402,7 +398,7 @@ public class IndexScanRangeTest {
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
 
                 assertNull(scan.getPredicate().getIndexOperation());
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(5, scan1.consume().size());
                 }
             }

@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.jmx;
 
 import herddb.core.HerdDBInternalException;
 import java.lang.management.ManagementFactory;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanRegistrationException;
@@ -34,7 +34,6 @@ import javax.management.ObjectName;
 
 /**
  * Utility for MBeans registration
- *
  */
 public class JMXUtils {
 

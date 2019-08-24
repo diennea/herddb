@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.storage;
 
 /**
@@ -26,7 +27,7 @@ package herddb.storage;
  */
 public interface FullIndexScanConsumer {
 
-    public void acceptIndexStatus(IndexStatus tableStatus);
+    void acceptIndexStatus(IndexStatus tableStatus);
 
-    public void acceptPage(long pageId, byte[] data);
+    void acceptPage(long pageId, byte[] data);
 }

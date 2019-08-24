@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.join;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -43,9 +44,9 @@ public class DataScannerJoinExecutor {
     private final Object[] tmpTuple;
 
     @FunctionalInterface
-    public static interface TupleAcceptor {
+    public interface TupleAcceptor {
 
-        public void accept(Tuple tuple) throws StatementExecutionException;
+        void accept(Tuple tuple) throws StatementExecutionException;
     }
 
     public DataScannerJoinExecutor(String[] fieldNames, Column[] schema, List<DataScanner> scanners, TupleAcceptor consumer) {

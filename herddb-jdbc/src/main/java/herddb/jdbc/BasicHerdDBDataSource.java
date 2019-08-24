@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import herddb.client.ClientConfiguration;
@@ -163,7 +164,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     protected synchronized void doWaitForTableSpace() throws SQLException {
         if (waitForTableSpaceTimeout > 0 && !waitForTableSpace.isEmpty()) {
-            try (HDBConnection con = client.openConnection();) {
+            try (HDBConnection con = client.openConnection()) {
                 con.waitForTableSpace(waitForTableSpace, waitForTableSpaceTimeout);
             } catch (HDBException | ClientSideMetadataProviderException err) {
                 throw new SQLException(err);

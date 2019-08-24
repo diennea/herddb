@@ -17,31 +17,27 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.Test;
-
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class SelectCountTest {
@@ -49,7 +45,7 @@ public class SelectCountTest {
     @Test
     public void simpleCountTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -64,17 +60,17 @@ public class SelectCountTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql ", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql ", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
-            
+
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql  WHERE k1 = ? AND n1 = ?", Arrays.asList("mykey", Integer.valueOf(1)));) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql  WHERE k1 = ? AND n1 = ?", Arrays.asList("mykey", Integer.valueOf(1)))) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(1), result.get(0).get(0));
@@ -84,5 +80,5 @@ public class SelectCountTest {
         }
     }
 
-   
+
 }

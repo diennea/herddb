@@ -17,20 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import java.util.List;
-
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
@@ -51,10 +44,13 @@ import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.Holder;
 import herddb.utils.ZKTestEnv;
+import java.util.List;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- *
- *
  * @author enrico.olivelli
  */
 public class SimpleClusterTest extends BaseTestcase {

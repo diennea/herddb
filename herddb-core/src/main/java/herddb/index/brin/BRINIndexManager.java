@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index.brin;
 
 import herddb.codec.RecordSerializer;
@@ -88,7 +89,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 storageLayer);
     }
 
-    private static final class PageContents {
+    private static class PageContents {
 
         public static final int TYPE_METADATA = 9;
         public static final int TYPE_BLOCKDATA = 10;
@@ -100,11 +101,11 @@ public class BRINIndexManager extends AbstractIndexManager {
         byte[] serialize() throws IOException {
             try (ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
                  ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)) {
-                 serialize(eout);
+                serialize(eout);
 
-                 eout.flush();
+                eout.flush();
 
-                 return out.toByteArray();
+                return out.toByteArray();
             }
         }
 
@@ -199,8 +200,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             nextBlockId = in.readZLong();
                         }
 
-                        BlockRangeIndexMetadata.BlockMetadata<Bytes> md
-                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, blockId, size, pageId, nextBlockId);
+                        BlockRangeIndexMetadata.BlockMetadata<Bytes> md = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, blockId, size, pageId, nextBlockId);
                         result.metadata.add(md);
                     }
                     break;
@@ -209,7 +209,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                     result.pageData = new ArrayList<>(values);
                     for (int i = 0; i < values; i++) {
                         Bytes key = in.readBytesNoCopy();
-                        Bytes value =in.readBytesNoCopy();
+                        Bytes value = in.readBytesNoCopy();
                         result.pageData.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
                     }
                     break;
@@ -220,7 +220,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
 
         static PageContents deserialize(byte[] pagedata) throws IOException {
-            try (ByteArrayCursor ein = ByteArrayCursor.wrap(pagedata);) {
+            try (ByteArrayCursor ein = ByteArrayCursor.wrap(pagedata)) {
                 return deserialize(ein);
             }
         }
@@ -230,9 +230,11 @@ public class BRINIndexManager extends AbstractIndexManager {
      * Signal that an old unsupported version of page metadata has been read. In
      * such cases the index will need a full rebuild.
      */
-    private static final class UnsupportedMetadataVersionException extends HerdDBInternalException {
+    private static class UnsupportedMetadataVersionException extends HerdDBInternalException {
 
-        /** Default Serial Version UID */
+        /**
+         * Default Serial Version UID
+         */
         private static final long serialVersionUID = 1L;
 
         private final long version;
@@ -263,7 +265,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             try {
                 status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             } catch (DataStorageManagerException e) {
-                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[] {index.name, e});
+                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[]{index.name, e});
                 return false;
             }
 
@@ -273,7 +275,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
             } catch (UnsupportedMetadataVersionException e) {
-                LOGGER.log(Level.SEVERE, "cannot load index {0} due to an old metadata version ({1}) found, it will be rebuilt", new Object[] {index.name, e.version});
+                LOGGER.log(Level.SEVERE, "cannot load index {0} due to an old metadata version ({1}) found, it will be rebuilt", new Object[]{index.name, e.version});
                 return false;
             }
 
@@ -318,19 +320,19 @@ public class BRINIndexManager extends AbstractIndexManager {
 
                     /* Medatada safety check (do not trust blindly ordering) */
                     if (blockData.nextBlockId != null) {
-                        if (nextID == null ) {
+                        if (nextID == null) {
                             LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected notingh but {0} found",
-                                    new Object[] {index.name, blockData.nextBlockId});
+                                    new Object[]{index.name, blockData.nextBlockId});
                             invalid = true;
-                        } else  if (nextID != blockData.nextBlockId.longValue()) {
+                        } else if (nextID != blockData.nextBlockId.longValue()) {
                             LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but {2} found",
-                                    new Object[] {index.name, nextID, blockData.nextBlockId});
+                                    new Object[]{index.name, nextID, blockData.nextBlockId});
                             invalid = true;
                         }
                     } else {
                         if (nextID != null) {
                             LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but nothing found",
-                                    new Object[] {index.name, nextID});
+                                    new Object[]{index.name, nextID});
                             invalid = true;
                         }
 
@@ -343,7 +345,6 @@ public class BRINIndexManager extends AbstractIndexManager {
                     LOGGER.log(Level.WARNING, data.generateDetailedInternalStatus());
                 }
             }
-
 
 
             PageContents page = new PageContents();
@@ -359,9 +360,9 @@ public class BRINIndexManager extends AbstractIndexManager {
             result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
 
             LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} blocks",
-                    new Object[] {index.name, sequenceNumber, Integer.toString(page.metadata.size())});
+                    new Object[]{index.name, sequenceNumber, Integer.toString(page.metadata.size())});
             LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
-                    new Object[] {index.name, sequenceNumber, activePages});
+                    new Object[]{index.name, sequenceNumber, activePages});
 
             return result;
         } catch (IOException err) {

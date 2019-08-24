@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
+import herddb.core.ClockProPolicy;
+import herddb.index.blink.BLink.SizeEvaluator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -32,12 +35,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
-
 import org.junit.Assert;
 import org.junit.Test;
-
-import herddb.core.ClockProPolicy;
-import herddb.index.blink.BLink.SizeEvaluator;
 
 /**
  * Tests on concurcurrent checkpoint
@@ -63,7 +62,7 @@ public class ConcurrentCheckpointBLinkTest {
             return evaluateKey(key) + evaluateValue(value);
         }
 
-        private static final Long INFINITY = Long.valueOf(Long.MAX_VALUE);
+        private static final Long INFINITY = Long.MAX_VALUE;
 
         @Override
         public Long getPosiviveInfinityKey() {
@@ -72,7 +71,7 @@ public class ConcurrentCheckpointBLinkTest {
 
     }
 
-    private static final class Reporter {
+    private static class Reporter {
 
         private final long intervalMS;
 
@@ -94,7 +93,7 @@ public class ConcurrentCheckpointBLinkTest {
             long now = System.currentTimeMillis();
 
             if (now >= nextReport) {
-                long elapsed = now  - (nextReport - intervalMS);
+                long elapsed = now - (nextReport - intervalMS);
                 nextReport = now + intervalMS;
 
                 return new Timings(now - start, elapsed);
@@ -120,14 +119,17 @@ public class ConcurrentCheckpointBLinkTest {
         public long getTotalTime() {
             return totalTime;
         }
+
         public long getReportTime() {
             return reportTime;
         }
 
     }
 
-    /** Insert new data booking "blocks" */
-    private static final class Writer implements Callable<Long> {
+    /**
+     * Insert new data booking "blocks"
+     */
+    private static class Writer implements Callable<Long> {
 
         private final BLink<Long, Long> blink;
         private final boolean debug;
@@ -141,9 +143,11 @@ public class ConcurrentCheckpointBLinkTest {
 
         private final Reporter reporter;
 
-        public Writer(BLink<Long, Long> blink, boolean debug, AtomicLong nextKeyBlock, long keyBlocks, long keyBlockSize,
-                      long startKey, BlockingQueue<Long> insertedBlocks, StampedLock checkpointLock,
-                      CyclicBarrier startBarrier) {
+        public Writer(
+                BLink<Long, Long> blink, boolean debug, AtomicLong nextKeyBlock, long keyBlocks, long keyBlockSize,
+                long startKey, BlockingQueue<Long> insertedBlocks, StampedLock checkpointLock,
+                CyclicBarrier startBarrier
+        ) {
             super();
             this.blink = blink;
             this.debug = debug;
@@ -180,12 +184,12 @@ public class ConcurrentCheckpointBLinkTest {
                         System.out.printf("[TID %3d] Write   from %3d to %3d block %3d\n", tid, startBlockKey, maxBlockKey, keyBlock);
                     }
 
-                    for(long key = startBlockKey; key < maxBlockKey; ++key) {
+                    for (long key = startBlockKey; key < maxBlockKey; ++key) {
 
                         long stamp = checkpointLock.readLockInterruptibly();
                         try {
 
-                            Long lkey = Long.valueOf(key);
+                            Long lkey = key;
                             blink.insert(lkey, lkey);
 
                             ++inserted;
@@ -228,8 +232,10 @@ public class ConcurrentCheckpointBLinkTest {
 
     }
 
-    /** Delete data "blocks" */
-    private static final class Deleter implements Callable<Long> {
+    /**
+     * Delete data "blocks"
+     */
+    private static class Deleter implements Callable<Long> {
 
         private final BLink<Long, Long> blink;
         private final boolean debug;
@@ -244,9 +250,11 @@ public class ConcurrentCheckpointBLinkTest {
 
         private final Reporter reporter;
 
-        public Deleter(BLink<Long, Long> blink, boolean debug, AtomicLong deletingBlocks, AtomicLong deletedBlocks, long keyBlocks,
-                       long keyBlockSize, long startKey, BlockingQueue<Long> insertedBlocks, StampedLock checkpointLock,
-                       CyclicBarrier startBarrier) {
+        public Deleter(
+                BLink<Long, Long> blink, boolean debug, AtomicLong deletingBlocks, AtomicLong deletedBlocks, long keyBlocks,
+                long keyBlockSize, long startKey, BlockingQueue<Long> insertedBlocks, StampedLock checkpointLock,
+                CyclicBarrier startBarrier
+        ) {
             super();
             this.blink = blink;
             this.debug = debug;
@@ -275,7 +283,7 @@ public class ConcurrentCheckpointBLinkTest {
 
             try {
 
-                while(deletingBlocks.getAndIncrement() < keyBlocks) {
+                while (deletingBlocks.getAndIncrement() < keyBlocks) {
 
                     Long keyBlock = insertedBlocks.take();
 
@@ -286,12 +294,12 @@ public class ConcurrentCheckpointBLinkTest {
                         System.out.printf("[TID %3d] Delete  from %3d to %3d block %3d\n", tid, startBlockKey, maxBlockKey, keyBlock);
                     }
 
-                    for(long key = startBlockKey; key < maxBlockKey; ++key) {
+                    for (long key = startBlockKey; key < maxBlockKey; ++key) {
 
                         long stamp = checkpointLock.readLockInterruptibly();
                         try {
 
-                            blink.delete(Long.valueOf(key));
+                            blink.delete(key);
 
                             ++deleted;
 
@@ -333,8 +341,10 @@ public class ConcurrentCheckpointBLinkTest {
 
     }
 
-    /** Read data */
-    private static final class Reader implements Callable<Long> {
+    /**
+     * Read data
+     */
+    private static class Reader implements Callable<Long> {
 
         private final BLink<Long, Long> blink;
         private final boolean debug;
@@ -374,7 +384,7 @@ public class ConcurrentCheckpointBLinkTest {
 
             try {
 
-                while(!stop.get()) {
+                while (!stop.get()) {
 
                     long maxInsertedBlock = insertedBlocks.get();
                     long countDeletedBlock = deletedBlocks.get();
@@ -395,7 +405,7 @@ public class ConcurrentCheckpointBLinkTest {
 
                         for (long key = endSearchKey - 1L; key >= startSearchKey; --key) {
 
-                            Long lkey = Long.valueOf(key);
+                            Long lkey = key;
                             Long found = blink.search(lkey);
 
                             if (found != null) {
@@ -434,8 +444,10 @@ public class ConcurrentCheckpointBLinkTest {
 
     }
 
-    /** Checkpoint BLink */
-    private static final class Checkpointer implements Callable<Long> {
+    /**
+     * Checkpoint BLink
+     */
+    private static class Checkpointer implements Callable<Long> {
 
         private final BLink<Long, Long> blink;
         private final boolean debug;
@@ -468,7 +480,7 @@ public class ConcurrentCheckpointBLinkTest {
 
             reporter.start();
 
-            while(!stop.get()) {
+            while (!stop.get()) {
 
                 try {
 
@@ -523,7 +535,9 @@ public class ConcurrentCheckpointBLinkTest {
 
     }
 
-    /** Execute a checkpoint on an index with many empty nodes */
+    /**
+     * Execute a checkpoint on an index with many empty nodes
+     */
     @Test
     public void concurrentReadWithManyEmptyNodes() throws Exception {
 

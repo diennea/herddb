@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 import herddb.utils.Bytes;
@@ -29,8 +30,8 @@ import java.io.OutputStream;
  */
 public interface ValueSerializer<K> {
 
-    public void serialize(K object, OutputStream outputStream) throws Exception;
+    void serialize(K object, OutputStream outputStream) throws Exception;
 
-    public K deserialize(Bytes bytes) throws Exception;
+    K deserialize(Bytes bytes) throws Exception;
 
 }

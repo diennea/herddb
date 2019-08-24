@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.metadata;
 
 import java.io.BufferedReader;
@@ -40,12 +41,12 @@ public class NodeIdGenerator {
 
     public NodeIdGenerator() {
         try (InputStream in = NodeIdGenerator.class.getResourceAsStream("nodeidslist.txt");
-            InputStreamReader read = new InputStreamReader(in, StandardCharsets.UTF_8);
-            BufferedReader r = new BufferedReader(read)) {
+             InputStreamReader read = new InputStreamReader(in, StandardCharsets.UTF_8);
+             BufferedReader r = new BufferedReader(read)) {
             list = r
-                .lines()
-                .map(String::trim).filter(line -> !line.isEmpty() && !line.startsWith("#"))
-                .collect(Collectors.toList());
+                    .lines()
+                    .map(String::trim).filter(line -> !line.isEmpty() && !line.startsWith("#"))
+                    .collect(Collectors.toList());
         } catch (IOException err) {
             throw new RuntimeException(err);
         }

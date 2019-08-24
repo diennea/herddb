@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import herddb.client.HDBException;
@@ -270,7 +271,7 @@ public class HerdDBResultSet implements ResultSet {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
-            wasNull = false;           
+            wasNull = false;
             if (lastValue instanceof Number) {
                 return ((Number) lastValue).floatValue();
             }
@@ -278,7 +279,8 @@ public class HerdDBResultSet implements ResultSet {
         } else {
             wasNull = true;
             return 0;
-        }}
+        }
+    }
 
     @Override
     public double getDouble(int columnLabel) throws SQLException {

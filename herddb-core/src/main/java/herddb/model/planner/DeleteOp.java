@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model.planner;
 
 import herddb.codec.RecordSerializer;
@@ -62,9 +63,11 @@ public class DeleteOp implements PlannerOp {
     }
 
     @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(
+            TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
-            boolean lockRequired, boolean forWrite) {
+            boolean lockRequired, boolean forWrite
+    ) {
         final boolean returnValues = false; // not supported for deletes
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
@@ -73,7 +76,7 @@ public class DeleteOp implements PlannerOp {
 
         List<DMLStatement> statements = new ArrayList<>();
 
-        try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
+        try (DataScanner inputScanner = downstreamScanResult.dataScanner) {
             while (inputScanner.hasNext()) {
 
                 DataAccessor row = inputScanner.next();
@@ -124,8 +127,8 @@ public class DeleteOp implements PlannerOp {
                     }
                     long newTransactionId = res.transactionId;
                     if (current == statements.size()) {
-                        DMLStatementExecutionResult finalDMLResult
-                                = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
+                        DMLStatementExecutionResult finalDMLResult =
+                                new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
                                         lastKey.get(), lastNewValue.get());
                         finalResult.complete(finalDMLResult);
                         return;
@@ -133,8 +136,8 @@ public class DeleteOp implements PlannerOp {
 
                     DMLStatement nextStatement = statements.get(current);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
-                    CompletableFuture<StatementExecutionResult> nextPromise
-                            = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
+                    CompletableFuture<StatementExecutionResult> nextPromise =
+                            tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
                     nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }

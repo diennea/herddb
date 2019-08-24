@@ -17,36 +17,33 @@
  under the License.
 
  */
+
 package herddb.cluster;
 
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Booting two servers, one table space
@@ -108,23 +105,23 @@ public class TablespaceReplicasStateTest {
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList())) {
                     List<DataAccessor> results = scan.consume();
                     assertEquals(2, results.size());
                 }
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
-                    + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
+                        + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
                 }
 
                 try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate "
-                    + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
+                        + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
                 }
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
-                    + "where nodeId='" + server_1.getNodeId() + "' and mode='leader'", Collections.emptyList());) {
+                        + "where nodeId='" + server_1.getNodeId() + "' and mode='leader'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
                 }
 
@@ -132,13 +129,13 @@ public class TablespaceReplicasStateTest {
                         new HashSet<>(Arrays.asList("server1")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 for (int i = 0; i < 100; i++) {
-                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList());) {
+                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList())) {
                         if (scan.consume().size() > 0) {
                             break;
                         }
                     }
                 }
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
                 }
             }

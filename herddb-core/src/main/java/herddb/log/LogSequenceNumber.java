@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.log;
 
 import herddb.utils.Bytes;
@@ -61,10 +62,7 @@ public final class LogSequenceNumber {
         if (this.ledgerId != other.ledgerId) {
             return false;
         }
-        if (this.offset != other.offset) {
-            return false;
-        }
-        return true;
+        return this.offset == other.offset;
     }
 
     @Override
@@ -95,8 +93,8 @@ public final class LogSequenceNumber {
 
     public static LogSequenceNumber deserialize(byte[] array) {
         return new LogSequenceNumber(
-            Bytes.toLong(array, 0),
-            Bytes.toLong(array, 8));
+                Bytes.toLong(array, 0),
+                Bytes.toLong(array, 8));
     }
 
 }

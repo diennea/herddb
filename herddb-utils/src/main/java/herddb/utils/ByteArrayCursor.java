@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -33,14 +34,15 @@ import java.io.IOException;
  *
  * @author enrico.olivelli
  */
-@SuppressFBWarnings({"EI_EXPOSE_REP","EI_EXPOSE_REP2"})
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class ByteArrayCursor implements Closeable {
 
-    private static Recycler<ByteArrayCursor> RECYCLER = new Recycler<ByteArrayCursor>() {
+    private static final Recycler<ByteArrayCursor> RECYCLER = new Recycler<ByteArrayCursor>() {
 
         @Override
         protected ByteArrayCursor newObject(
-                Handle<ByteArrayCursor> handle) {
+                Handle<ByteArrayCursor> handle
+        ) {
             return new ByteArrayCursor(handle);
         }
 
@@ -59,7 +61,7 @@ public class ByteArrayCursor implements Closeable {
         res.end = array.length;
         return res;
     }
-    
+
     public static ByteArrayCursor wrap(byte[] array, int offset, int length) {
         ByteArrayCursor res = RECYCLER.get();
         res.array = array;
@@ -311,7 +313,7 @@ public class ByteArrayCursor implements Closeable {
         readArray(len, res);
         return res;
     }
-    
+
     public Bytes readBytesNoCopy() throws IOException {
         int len = readVInt();
         if (len == 0) {
@@ -324,11 +326,11 @@ public class ByteArrayCursor implements Closeable {
         position += len;
         return res;
     }
-    
+
     public Bytes readBytes() throws IOException {
         return Bytes.from_nullable_array(readArray());
     }
-    
+
     public RawString readRawStringNoCopy() throws IOException {
         int len = readVInt();
         if (len == 0) {
@@ -337,10 +339,10 @@ public class ByteArrayCursor implements Closeable {
             /* NULL array */
             return null;
         }
-        
+
         RawString string = RawString.newPooledRawString(array, position, len);
         position += len;
-        return string;        
+        return string;
     }
 
     @SuppressFBWarnings(value = "SR_NOT_CHECKED")

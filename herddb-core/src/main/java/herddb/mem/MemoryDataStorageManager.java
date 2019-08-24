@@ -17,25 +17,8 @@
  under the License.
 
  */
-package herddb.mem;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+package herddb.mem;
 
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -59,6 +42,23 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * In memory StorageManager, for tests
@@ -87,6 +87,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         }
 
     }
+
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Bytes> indexpages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, byte[]> tableStatuses = new ConcurrentHashMap<>();
@@ -122,7 +123,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
         Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         if (page == null) {
@@ -170,7 +171,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         String prefix = tableSpace + "." + tableName + "_";
         for (String status : tableStatuses.keySet()) {
             if (status.startsWith(prefix)) {
-                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix);
                 if (log != null) {
                     if (max == null || log.after(max)) {
                         max = log;
@@ -182,16 +183,16 @@ public class MemoryDataStorageManager extends DataStorageManager {
         TableStatus latestStatus;
         if (max == null) {
             latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
         } else {
             byte[] data = tableStatuses.get(checkpointName(tableSpace, tableName, max));
             if (data == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
             } else {
                 try {
                     try (InputStream input = new SimpleByteArrayInputStream(data);
-                        ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                         ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
                         latestStatus = TableStatus.deserialize(dataIn);
                     }
                 } catch (IOException err) {
@@ -205,7 +206,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
 
         final String checkPoint = checkpointName(tableSpace, tableName, sequenceNumber);
         byte[] data = tableStatuses.get(checkPoint);
@@ -216,7 +217,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         try {
             try (InputStream input = new SimpleByteArrayInputStream(data);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
                 return TableStatus.deserialize(dataIn);
             }
         } catch (IOException err) {
@@ -226,7 +227,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
 
         final String checkPoint = checkpointName(tableSpace, indexName, sequenceNumber);
         byte[] data = indexStatuses.get(checkPoint);
@@ -237,7 +238,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         try {
             try (InputStream input = new SimpleByteArrayInputStream(data);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
                 return IndexStatus.deserialize(dataIn);
             }
         } catch (IOException err) {
@@ -285,12 +286,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeIndexPage(String tableSpace, String indexName,
-        long pageId, DataWriter writer) throws DataStorageManagerException {
+    public void writeIndexPage(
+            String tableSpace, String indexName,
+            long pageId, DataWriter writer
+    ) throws DataStorageManagerException {
 
         Bytes page_wrapper;
         try (ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
-            ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)) {
+             ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)) {
 
             writer.write(eout);
 
@@ -340,7 +343,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
             if (oldStatus.startsWith(prefix)) {
 
                 /* Check for checkpoint skip only if match expected structure */
-                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix);
                 if (log != null) {
                     /* If is pinned skip this status*/
                     if (checkpoints.contains(log)) {
@@ -408,7 +411,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
             if (oldStatus.startsWith(prefix)) {
 
                 /* Check for checkpoint skip only if match expected structure */
-                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix);
                 if (log != null) {
                     /* If is pinned skip this status*/
                     if (checkpoints.contains(log)) {
@@ -477,37 +480,39 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber,
-            List<Table> tables, List<Index> indexlist, boolean prepareActions) throws DataStorageManagerException {
+    public Collection<PostCheckpointAction> writeTables(
+            String tableSpace, LogSequenceNumber sequenceNumber,
+            List<Table> tables, List<Index> indexlist, boolean prepareActions
+    ) throws DataStorageManagerException {
 
         tablesByTablespace.merge(tableSpace, tables, new BiFunction<List<Table>, List<Table>, List<Table>>() {
-            @Override
-            public List<Table> apply(List<Table> before, List<Table> after) {
-                if (before == null) {
-                    return after;
-                } else {
-                    List<Table> result = new ArrayList<>();
-                    result.addAll(before);
-                    result.addAll(after);
-                    return result;
+                    @Override
+                    public List<Table> apply(List<Table> before, List<Table> after) {
+                        if (before == null) {
+                            return after;
+                        } else {
+                            List<Table> result = new ArrayList<>();
+                            result.addAll(before);
+                            result.addAll(after);
+                            return result;
+                        }
+                    }
                 }
-            }
-        }
         );
 
         indexesByTablespace.merge(tableSpace, indexlist, new BiFunction<List<Index>, List<Index>, List<Index>>() {
-            @Override
-            public List<Index> apply(List<Index> before, List<Index> after) {
-                if (before == null) {
-                    return after;
-                } else {
-                    List<Index> result = new ArrayList<>();
-                    result.addAll(before);
-                    result.addAll(after);
-                    return result;
+                    @Override
+                    public List<Index> apply(List<Index> before, List<Index> after) {
+                        if (before == null) {
+                            return after;
+                        } else {
+                            List<Index> result = new ArrayList<>();
+                            result.addAll(before);
+                            result.addAll(after);
+                            return result;
+                        }
+                    }
                 }
-            }
-        }
         );
 
         return Collections.emptyList();
@@ -527,7 +532,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public void dropTable(String tablespace, String name) throws DataStorageManagerException {
         List<Table> tables = tablesByTablespace.get(tablespace);
         if (tables != null) {
-            for (Iterator<Table> it = tables.iterator(); it.hasNext();) {
+            for (Iterator<Table> it = tables.iterator(); it.hasNext(); ) {
                 Table table = it.next();
                 if (table.name.equals(name)) {
                     it.remove();
@@ -540,7 +545,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
         List<Index> indexes = indexesByTablespace.get(tablespace);
         if (indexes != null) {
-            for (Iterator<Index> it = indexes.iterator(); it.hasNext();) {
+            for (Iterator<Index> it = indexes.iterator(); it.hasNext(); ) {
                 Index index = it.next();
                 if (index.name.equals(name)) {
                     it.remove();
@@ -568,7 +573,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot
+    public void cleanupAfterBoot(
+            String tablespace, String name, Set<Long> activePagesAtBoot
     ) {
     }
 

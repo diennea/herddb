@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
  */
 public class SystablesTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("systables")
             .column("tablespace", ColumnTypes.STRING)
@@ -55,12 +56,12 @@ public class SystablesTableManager extends AbstractSystemTableManager {
         return tables
                 .stream()
                 .map(r -> RecordSerializer.makeRecord(table,
-                "tablespace", r.tablespace,
-                "table_name", r.name,
-                "table_uuid", r.uuid,
-                "systemtable",
-                r.name.startsWith("sys") ? "true" : "false"
-        ))
+                        "tablespace", r.tablespace,
+                        "table_name", r.name,
+                        "table_uuid", r.uuid,
+                        "systemtable",
+                        r.name.startsWith("sys") ? "true" : "false"
+                ))
                 .collect(Collectors.toList());
     }
 

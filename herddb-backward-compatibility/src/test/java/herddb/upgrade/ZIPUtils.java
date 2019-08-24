@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.upgrade;
 
 import herddb.utils.SimpleBufferedOutputStream;
@@ -41,7 +42,7 @@ import org.apache.commons.io.IOUtils;
 public class ZIPUtils {
 
     public static void createZipWithOneEntry(String entryfilename, InputStream filedata, OutputStream out, Charset fileNamesCharset) throws IOException {
-        try (ZipOutputStream zipper = new ZipOutputStream(out, fileNamesCharset);) {
+        try (ZipOutputStream zipper = new ZipOutputStream(out, fileNamesCharset)) {
             int posslash = entryfilename.indexOf('/');
             if (posslash >= 0) { // gestione caso semplice di directory singola es. META-INF/magnews-app.xml per i test di MN
                 String dire = entryfilename.substring(0, posslash);
@@ -66,7 +67,7 @@ public class ZIPUtils {
         return createZipFromDirectory(directory, fileNamesCharset, null);
     }
 
-    public static abstract class ZipEnhancer {
+    public abstract static class ZipEnhancer {
 
         public static void addEntry(String name, byte[] content, ZipOutputStream zip) throws IOException {
             ZipEntry entry = new ZipEntry(name);
@@ -78,12 +79,14 @@ public class ZIPUtils {
         public abstract void accept(ZipOutputStream out) throws IOException;
     }
 
-    public static byte[] createZipFromDirectory(File directory, Charset fileNamesCharset,
-            ZipEnhancer additionalData) throws IOException {
+    public static byte[] createZipFromDirectory(
+            File directory, Charset fileNamesCharset,
+            ZipEnhancer additionalData
+    ) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         String source = directory.getAbsolutePath().replace("\\", "/");
         int skipprefix = source.length();
-        try (ZipOutputStream zos = new ZipOutputStream(out);) {
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
             addFileToZip(skipprefix, directory, zos);
             if (additionalData != null) {
                 additionalData.accept(zos);
@@ -156,7 +159,7 @@ public class ZIPUtils {
     public static List<File> unZip(InputStream fs, File outDir) throws IOException {
 
         try (
-                ZipInputStream zipStream = new ZipInputStream(fs, StandardCharsets.UTF_8);) {
+                ZipInputStream zipStream = new ZipInputStream(fs, StandardCharsets.UTF_8)) {
             ZipEntry entry = zipStream.getNextEntry();
             List<File> listFiles = new ArrayList<>();
             while (entry != null) {
@@ -174,7 +177,7 @@ public class ZIPUtils {
 
                 listFiles.add(outFile);
                 try (FileOutputStream out = new FileOutputStream(outFile);
-                        SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(out)) {
+                     SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(out)) {
                     IOUtils.copyLarge(zipStream, oo);
                 }
                 entry = zipStream.getNextEntry();

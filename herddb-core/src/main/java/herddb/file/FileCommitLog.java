@@ -17,8 +17,21 @@
  under the License.
 
  */
+
 package herddb.file;
 
+import herddb.log.CommitLog;
+import herddb.log.CommitLogResult;
+import herddb.log.LogEntry;
+import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import herddb.utils.ODirectFileOutputStream;
+import herddb.utils.OpenFileUtils;
+import herddb.utils.SimpleBufferedOutputStream;
+import herddb.utils.SystemProperties;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -42,24 +55,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.Gauge;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-
-import herddb.log.CommitLog;
-import herddb.log.CommitLogResult;
-import herddb.log.LogEntry;
-import herddb.log.LogNotAvailableException;
-import herddb.log.LogSequenceNumber;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.FileUtils;
-import herddb.utils.ODirectFileOutputStream;
-import herddb.utils.OpenFileUtils;
-import herddb.utils.SimpleBufferedOutputStream;
-import herddb.utils.SystemProperties;
 
 /**
  * Commit log on file
@@ -94,7 +93,7 @@ public class FileCommitLog extends CommitLog {
     private final ExecutorService fsyncThreadPool;
     private final Consumer<FileCommitLog> onClose;
 
-    private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
+    private static final int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
             "herddb.file.writequeuesize", 10_000_000);
 
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
@@ -103,7 +102,9 @@ public class FileCommitLog extends CommitLog {
     private final int maxUnsyncedBatchBytes;
     private final long maxSyncTime;
     private final boolean requireSync;
+    // CHECKSTYLE.OFF: MemberName
     private final boolean enableO_DIRECT;
+    // CHECKSTYLE.ON: MemberName
 
     public static final String LOGFILEEXTENSION = ".txlog";
 
@@ -111,9 +112,9 @@ public class FileCommitLog extends CommitLog {
     private volatile boolean failed = false;
     private volatile boolean needsSync = false;
 
-    final static byte ZERO_PADDING = 0;
-    final static byte ENTRY_START = 13;
-    final static byte ENTRY_END = 25;
+    static final byte ZERO_PADDING = 0;
+    static final byte ENTRY_START = 13;
+    static final byte ENTRY_END = 25;
 
     void backgroundSync() {
         if (needsSync) {
@@ -304,7 +305,7 @@ public class FileCommitLog extends CommitLog {
                 LogEntry edit = LogEntry.deserialize(this.in);
                 int entryEnd = this.in.readByte();
                 if (entryEnd != ENTRY_END) {
-                    throw new IOException("corrupted txlog file, found a "+entryEnd+" instead of magic '"+ENTRY_END+"'");
+                    throw new IOException("corrupted txlog file, found a " + entryEnd + " instead of magic '" + ENTRY_END + "'");
                 }
                 return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
             } catch (EOFException truncatedLog) {
@@ -337,7 +338,8 @@ public class FileCommitLog extends CommitLog {
         }
     }
 
-    public FileCommitLog(Path logDirectory, String tableSpaceName,
+    public FileCommitLog(
+            Path logDirectory, String tableSpaceName,
             long maxLogFileSize, ExecutorService fsyncThreadPool, StatsLogger statslogger,
             Consumer<FileCommitLog> onClose,
             int maxUnsynchedBatchSize,
@@ -431,7 +433,7 @@ public class FileCommitLog extends CommitLog {
             }
         }
 
-    };
+    }
 
     private class SpoolTask implements Runnable {
 

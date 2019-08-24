@@ -17,13 +17,13 @@
  under the License.
 
  */
+
 package herddb.core;
 
+import herddb.utils.SystemProperties;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import herddb.utils.SystemProperties;
 
 /**
  * Responsible to handle global memory usage.
@@ -35,7 +35,7 @@ public class MemoryManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
-        MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
+            MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
 
     private final long maxDataUsedMemory;
     private final long maxPKUsedMemory;
@@ -52,12 +52,12 @@ public class MemoryManager {
 
         if (maxDataUsedMemory < maxLogicalPageSize) {
             throw new IllegalArgumentException("Max memory for data pages (" + maxDataUsedMemory
-                + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
+                    + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
         }
 
         if (maxPKUsedMemory < maxLogicalPageSize) {
             throw new IllegalArgumentException("Max memory for primary key index pages (" + maxPKUsedMemory
-                + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
+                    + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
         }
 
         final int dataPages = (int) (maxDataUsedMemory / maxLogicalPageSize);
@@ -67,7 +67,7 @@ public class MemoryManager {
         LOGGER.log(Level.INFO, "Maximum amount of memory for primary key indexes {0}", (maxPKUsedMemory / (1024 * 1024)) + " MB");
 
         LOGGER.log(Level.INFO, "Maximum number of loaded pages for data {0}"
-            + ", maximum number of loadedd pages for primary key indexes {1}", new Object[]{dataPages, pkPages});
+                + ", maximum number of loadedd pages for primary key indexes {1}", new Object[]{dataPages, pkPages});
         switch (PAGE_REPLACEMENT_POLICY) {
             case "random":
                 dataPageReplacementPolicy = new RandomPageReplacementPolicy(dataPages);

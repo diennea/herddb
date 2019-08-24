@@ -17,13 +17,14 @@
  under the License.
 
  */
+
 package herddb.collections;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.codec.DataAccessorForFullRecord;
 import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
-import herddb.codec.DataAccessorForFullRecord;
 import herddb.index.PrimaryIndexSeek;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
@@ -49,7 +50,6 @@ import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.util.function.Function;
 
 /**
@@ -72,7 +72,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     private final ScanStatement scan;
     private final ScanStatement scanKeys;
 
-    private static final class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
+    private static class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
 
         private final K key;
         private final V value;
@@ -92,9 +92,11 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     }
 
-    public TmpMapImpl(Table table, int expectedValueSize,
-                      Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
-                      final TableSpaceManager tableSpaceManager) {
+    public TmpMapImpl(
+            Table table, int expectedValueSize,
+            Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
+            final TableSpaceManager tableSpaceManager
+    ) {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.tmpTableName = table.name;
@@ -202,14 +204,14 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     public void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException {
 
         try (DataScanner dataScanner =
-                tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
-                        false,
-                        false)) {
+                     tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                             false,
+                             false)) {
             while (dataScanner.hasNext()) {
                 DataAccessorForFullRecord next = (DataAccessorForFullRecord) dataScanner.next();
                 Object key = next.get(0);
                 if (key instanceof RawString) {
-                    key = ((RawString) key).toString();
+                    key = key.toString();
                 }
                 Object value = valuesSerializer
                         .deserialize(next.getRecord().value);
@@ -233,14 +235,14 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void forEachKey(Sink<K> sink) throws CollectionsException, SinkException {
         try (DataScanner dataScanner =
-                tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
-                        false,
-                        false)) {
+                     tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                             false,
+                             false)) {
             while (dataScanner.hasNext()) {
                 DataAccessor next = dataScanner.next();
                 Object key = next.get(0);
                 if (key instanceof RawString) {
-                    key = ((RawString) key).toString();
+                    key = key.toString();
                 }
                 try {
                     if (!sink.accept((K) key)) {
@@ -311,7 +313,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         @Override
         public boolean evaluate(Record record, StatementEvaluationContext context) throws
                 StatementExecutionException {
-            // we are already covered 
+            // we are already covered
             return true;
         }
     }

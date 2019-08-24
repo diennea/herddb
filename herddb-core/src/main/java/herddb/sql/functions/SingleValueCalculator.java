@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql.functions;
 
 import herddb.model.StatementEvaluationContext;
@@ -27,9 +28,8 @@ import org.apache.calcite.sql.fun.SqlSingleValueAggFunction;
 /**
  * Returns at most the first value
  *
- * @see SqlSingleValueAggFunction
- *
  * @author enrico.olivelli
+ * @see SqlSingleValueAggFunction
  */
 public class SingleValueCalculator extends AbstractSingleExpressionArgumentColumnCalculator {
 

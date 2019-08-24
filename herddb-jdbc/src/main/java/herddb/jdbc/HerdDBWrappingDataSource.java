@@ -17,14 +17,14 @@
  under the License.
 
  */
-package herddb.jdbc;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+package herddb.jdbc;
 
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import java.sql.SQLException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * A simple DataSource wrapping around {@link HDBClient} and an optional {@link Server}.
@@ -54,7 +54,7 @@ public class HerdDBWrappingDataSource extends BasicHerdDBDataSource {
     @Override
     protected synchronized void ensureClient() throws SQLException {
         super.ensureClient();
-        
+
         doWaitForTableSpace();
     }
 

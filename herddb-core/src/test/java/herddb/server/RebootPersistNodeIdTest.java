@@ -17,15 +17,15 @@
  under the License.
 
  */
+
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import java.nio.file.Path;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.nio.file.Path;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement atomic-counters
@@ -56,7 +56,7 @@ public class RebootPersistNodeIdTest {
             assertTrue(serverConfiguration.getString(ServerConfiguration.PROPERTY_NODEID, "").isEmpty());
             try (Server server = new Server(serverConfiguration)) {
                 server.start();
-                assertEquals(nodeId,server.getNodeId());
+                assertEquals(nodeId, server.getNodeId());
             }
         }
     }

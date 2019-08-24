@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 /**
@@ -26,5 +27,5 @@ package herddb.model;
  */
 public interface TuplePredicate {
 
-    public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException;
+    boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException;
 }

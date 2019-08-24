@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.security.sasl;
 
 import herddb.server.Server;
@@ -53,7 +54,7 @@ import org.apache.zookeeper.server.auth.KerberosName;
 public class SaslNettyServer {
 
     private static final Logger LOG = Logger
-        .getLogger(SaslNettyServer.class.getName());
+            .getLogger(SaslNettyServer.class.getName());
 
     private static final String JASS_SERVER_SECTION = "HerdDBServer";
 
@@ -76,11 +77,11 @@ public class SaslNettyServer {
 
     }
 
-    private SaslServer createSaslServer(final String mech, final Subject subject) throws SaslException, IOException {
+    private SaslServer createSaslServer(final String mech, final Subject subject) throws IOException {
         if (subject == null) {
             SaslDigestCallbackHandler ch = new SaslNettyServer.SaslDigestCallbackHandler();
             return Sasl.createSaslServer(mech, null,
-                SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(), ch);
+                    SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(), ch);
         } else {
             SaslServerCallbackHandler callbackHandler = new SaslServerCallbackHandler(Configuration.getConfiguration());
             // server is using a JAAS-authenticated subject: determine service principal name and hostname from zk server's subject.
@@ -91,7 +92,7 @@ public class SaslNettyServer {
 
                     final String servicePrincipalNameAndHostname = servicePrincipal.getName();
                     int indexOf = servicePrincipalNameAndHostname.indexOf("/");
-                    final String serviceHostnameAndKerbDomain = servicePrincipalNameAndHostname.substring(indexOf + 1, servicePrincipalNameAndHostname.length());
+                    final String serviceHostnameAndKerbDomain = servicePrincipalNameAndHostname.substring(indexOf + 1);
                     int indexOfAt = serviceHostnameAndKerbDomain.indexOf("@");
 
                     final String servicePrincipalName, serviceHostname;
@@ -111,19 +112,19 @@ public class SaslNettyServer {
 
                     try {
                         return Subject.doAs(subject, new PrivilegedExceptionAction<SaslServer>() {
-                            public SaslServer run() {
-                                try {
-                                    SaslServer saslServer;
-                                    saslServer = Sasl.createSaslServer(_mech, servicePrincipalName, serviceHostname, null, callbackHandler);
-                                    return saslServer;
-                                } catch (SaslException e) {
-                                    throw new RuntimeException(e);
+                                    public SaslServer run() {
+                                        try {
+                                            SaslServer saslServer;
+                                            saslServer = Sasl.createSaslServer(_mech, servicePrincipalName, serviceHostname, null, callbackHandler);
+                                            return saslServer;
+                                        } catch (SaslException e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    }
                                 }
-                            }
-                        }
                         );
                     } catch (PrivilegedActionException e) {
-                        // TODO: exit server at this point(?)                        
+                        // TODO: exit server at this point(?)
                         e.printStackTrace();
                     }
                 } catch (IndexOutOfBoundsException e) {
@@ -165,7 +166,7 @@ public class SaslNettyServer {
 
         @Override
         public void handle(Callback[] callbacks) throws
-            UnsupportedCallbackException {
+                UnsupportedCallbackException {
             for (Callback callback : callbacks) {
                 if (callback instanceof NameCallback) {
                     NameCallback nc = (NameCallback) callback;
@@ -221,7 +222,7 @@ public class SaslNettyServer {
 
         @Override
         public void handle(Callback[] callbacks) throws IOException,
-            UnsupportedCallbackException {
+                UnsupportedCallbackException {
             NameCallback nc = null;
             PasswordCallback pc = null;
             AuthorizeCallback ac = null;
@@ -237,7 +238,7 @@ public class SaslNettyServer {
                     continue; // realm is ignored
                 } else {
                     throw new UnsupportedCallbackException(callback,
-                        "handle: Unrecognized SASL DIGEST-MD5 Callback");
+                            "handle: Unrecognized SASL DIGEST-MD5 Callback");
                 }
             }
 
@@ -281,7 +282,7 @@ public class SaslNettyServer {
             return retval;
         } catch (SaslException e) {
             LOG.severe("response: Failed to evaluate client token of length: "
-                + token.length + " : " + e);
+                    + token.length + " : " + e);
             throw e;
         }
     }
@@ -295,7 +296,7 @@ public class SaslNettyServer {
 
         public SaslServerCallbackHandler(Configuration configuration) throws IOException {
 
-            AppConfigurationEntry configurationEntries[] = configuration.getAppConfigurationEntry(JASS_SERVER_SECTION);
+            AppConfigurationEntry[] configurationEntries = configuration.getAppConfigurationEntry(JASS_SERVER_SECTION);
 
             if (configurationEntries == null) {
                 String errorMessage = "Could not find a '" + JASS_SERVER_SECTION + "' entry in this configuration: Server cannot start.";
@@ -359,7 +360,7 @@ public class SaslNettyServer {
             String authorizationID = ac.getAuthorizationID();
 
             LOG.info("Successfully authenticated client: authenticationID=" + authenticationID
-                + ";  authorizationID=" + authorizationID + ".");
+                    + ";  authorizationID=" + authorizationID + ".");
             ac.setAuthorized(true);
 
             KerberosName kerberosName = new KerberosName(authenticationID);

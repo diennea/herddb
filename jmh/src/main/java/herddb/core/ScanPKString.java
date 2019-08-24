@@ -28,6 +28,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
@@ -43,9 +44,7 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -65,9 +64,9 @@ public class ScanPKString {
 
     @Setup
     public void setup() throws Exception {
-        
-        key = String.format("%1$"+keySize+ "s", "a");
-        
+
+        key = String.format("%1$" + keySize + "s", "a");
+
         String nodeId = "localhost";
         manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);
         manager.start();
@@ -76,14 +75,14 @@ public class ScanPKString {
         manager.waitForTablespace("tblspace1", 10000);
 
         execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,n2 long, s1 string)", Collections.emptyList());
-        
+
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList(key, Integer.valueOf(1), "a", Long.valueOf(3)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList("mykey2", Integer.valueOf(2), "a", Long.valueOf(2)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList("mykey3", Integer.valueOf(5), "b", Long.valueOf(1)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4"));
-        System.out.println("key:"+key);
-        System.out.println("keylen:"+key.length());
-        System.out.println("keyszue:"+keySize);
+        System.out.println("key:" + key);
+        System.out.println("keylen:" + key.length());
+        System.out.println("keyszue:" + keySize);
     }
 
     @TearDown
@@ -93,7 +92,7 @@ public class ScanPKString {
 
     @Param({"1", "1000", "100000"})
     public int keySize;
-    
+
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)

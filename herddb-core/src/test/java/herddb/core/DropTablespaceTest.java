@@ -17,21 +17,14 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
-import herddb.core.stats.TableManagerStats;
-import herddb.file.FileCommitLogManager;
-import herddb.file.FileDataStorageManager;
-import herddb.file.FileMetadataStorageManager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
+import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -42,8 +35,11 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.server.ServerConfiguration;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
@@ -59,28 +55,28 @@ public class DropTablespaceTest {
     @Test
     public void test() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList())) {
                 Number count = (Number) scan.consume().get(0).get(0);
                 assertEquals(0, count.intValue());
             }
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
                 Number count = (Number) scan.consume().get(0).get(0);
                 assertEquals(1, count.intValue());
             }
             manager.executeStatement(new DropTableSpaceStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
                 Number count = (Number) scan.consume().get(0).get(0);
                 assertEquals(0, count.intValue());
             }
             boolean ok = false;
             for (int i = 0; i < 100; i++) {
-                try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList())) {
                     Thread.sleep(200);
                 } catch (herddb.model.StatementExecutionException expected) {
                     ok = true;
@@ -93,7 +89,7 @@ public class DropTablespaceTest {
             manager.executeStatement(st1_2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList())) {
                 Number count = (Number) scan.consume().get(0).get(0);
                 assertEquals(0, count.intValue());
             }
@@ -127,11 +123,11 @@ public class DropTablespaceTest {
             for (int i = 0; i < 10000; i++) {
                 execute(manager, "INSERT INTO tblspace1.tsql (k1 ,n1 ,s1 ) values(?,?,?)",
                         Arrays.asList(i, i, "jkhdskfhjdskfhskdjfhksdhfkshfkjhsdlkhflksjhfklshdkljhsdlkf"
-                        + "ksdjhfkdsflksdjhfklsdhjflksdhjflksdhjfklsdhjfklsdjhfsd"
-                        + "skjhsdlkfjhdslkfjhsdlkfjhsdlkfhjsklhdfkldshjflksjhdflkhsdf"
-                        + "jsdklfjhdslkfjhsdlkfhjslkjhfdlksjhdfklshjdflkhslkfdhslkfhslkfhslkdjfhklsdhjflkhsfd"
-                        + "jklsdhfksdjhflksdjhflksjhfdlkjhsdlfkhjslkfjhslkdfjhklsdhjfklhsdff"
-                        + "lksdjhflkshdjflkhjsdlkfjhsldkfjhslkfdfoo" + i));
+                                + "ksdjhfkdsflksdjhfklsdhjflksdhjflksdhjfklsdhjfklsdjhfsd"
+                                + "skjhsdlkfjhdslkfjhsdlkfjhsdlkfhjsklhdfkldshjflksjhdflkhsdf"
+                                + "jsdklfjhdslkfjhsdlkfhjslkjhfdlksjhdfklshjdflkhslkfdhslkfhslkfhslkdjfhklsdhjflkhsfd"
+                                + "jklsdhfksdjhflksdjhflksjhfdlkjhsdlfkhjslkfjhslkdfjhklsdhjfklhsdff"
+                                + "lksdjhflkshdjflkhjsdlkfjhsldkfjhslkfdfoo" + i));
             }
             // drop the table, any reference to the pages should be discarded
             execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList());
@@ -140,14 +136,14 @@ public class DropTablespaceTest {
             // any page is still reference we should see the error of
             // https://github.com/diennea/herddb/issues/434
             for (int i = 0; i < 3000; i++) {
-                System.out.println("after "+i);
+                System.out.println("after " + i);
                 execute(manager, "INSERT INTO tblspace1.tsql2 (k1 ,n1 ,s1 ) values(?,?,?)",
                         Arrays.asList(i, i, "jkhdskfhjdskfhskdjfhksdhfkshfkjhsdlkhflksjhfklshdkljhsdlkf"
-                        + "ksdjhfkdsflksdjhfklsdhjflksdhjflksdhjfklsdhjfklsdjhfsd"
-                        + "skjhsdlkfjhdslkfjhsdlkfjhsdlkfhjsklhdfkldshjflksjhdflkhsdf"
-                        + "jsdklfjhdslkfjhsdlkfhjslkjhfdlksjhdfklshjdflkhslkfdhslkfhslkfhslkdjfhklsdhjflkhsfd"
-                        + "jklsdhfksdjhflksdjhflksjhfdlkjhsdlfkhjslkfjhslkdfjhklsdhjfklhsdff"
-                        + "lksdjhflkshdjflkhjsdlkfjhsldkfjhslkfdfoo" + i));
+                                + "ksdjhfkdsflksdjhfklsdhjflksdhjflksdhjfklsdhjfklsdjhfsd"
+                                + "skjhsdlkfjhdslkfjhsdlkfjhsdlkfhjsklhdfkldshjflksjhdflkhsdf"
+                                + "jsdklfjhdslkfjhsdlkfhjslkjhfdlksjhdfklshjdflkhslkfdhslkfhslkfhslkdjfhklsdhjflkhsfd"
+                                + "jklsdhfksdjhflksdjhflksjhfdlkjhsdlfkhjslkfjhslkdfjhklsdhjfklhsdff"
+                                + "lksdjhflkshdjflkhjsdlkfjhsldkfjhslkfdfoo" + i));
             }
         }
     }

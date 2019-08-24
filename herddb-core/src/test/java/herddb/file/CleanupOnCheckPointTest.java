@@ -17,25 +17,17 @@
  under the License.
 
  */
+
 package herddb.file;
 
-import herddb.core.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Path;
-import java.util.Collections;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import herddb.core.DBManager;
 import herddb.log.LogSequenceNumber;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
@@ -46,6 +38,11 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Recovery from file
@@ -70,10 +67,10 @@ public class CleanupOnCheckPointTest {
         FileDataStorageManager storageManager = new FileDataStorageManager(dataPath);
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            storageManager,
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                storageManager,
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -81,13 +78,13 @@ public class CleanupOnCheckPointTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
@@ -139,10 +136,10 @@ public class CleanupOnCheckPointTest {
         FileDataStorageManager storageManager = new FileDataStorageManager(dataPath);
 
         try (DBManager manager = new DBManager("localhost",
-            new FileMetadataStorageManager(metadataPath),
-            storageManager,
-            new FileCommitLogManager(logsPath),
-            tmoDir, null)) {
+                new FileMetadataStorageManager(metadataPath),
+                storageManager,
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -150,13 +147,13 @@ public class CleanupOnCheckPointTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
 

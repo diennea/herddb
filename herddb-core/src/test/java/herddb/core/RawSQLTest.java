@@ -17,26 +17,22 @@
  under the License.
 
  */
+
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
-import org.junit.Assert;
-import org.junit.Test;
-
+import static org.junit.Assume.assumeTrue;
+import herddb.codec.RecordSerializer;
 import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -69,17 +65,19 @@ import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
 import java.sql.Timestamp;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class RawSQLTest {
 
     @Test
     public void cacheStatement() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -107,7 +105,7 @@ public class RawSQLTest {
     @Test
     public void jdbcWrongParameterCountTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -213,7 +211,7 @@ public class RawSQLTest {
     @Test
     public void createNumericTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -229,7 +227,7 @@ public class RawSQLTest {
     @Test
     public void escapedStringTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -241,7 +239,7 @@ public class RawSQLTest {
             execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
                     + "s1) values('test','test ''escaped')", Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql where s1='test ''escaped'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql where s1='test ''escaped'", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             }
 
@@ -251,7 +249,7 @@ public class RawSQLTest {
     @Test
     public void currentTimestampTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -278,7 +276,7 @@ public class RawSQLTest {
     @Test
     public void updateMultiColumns() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -312,7 +310,7 @@ public class RawSQLTest {
     @Test
     public void caseWhenTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -339,16 +337,16 @@ public class RawSQLTest {
                 assertEquals(3, res.size());
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey", "mycase", "a"
-                ))));
+                                "k1", "mykey", "mycase", "a"
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey2", "mycase", "b"
-                ))));
+                                "k1", "mykey2", "mycase", "b"
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey3", "mycase", "c"
-                ))));
+                                "k1", "mykey3", "mycase", "c"
+                        ))));
             }
             try (DataScanner scan = scan(manager, "SELECT k1, "
                     + "CASE "
@@ -364,25 +362,25 @@ public class RawSQLTest {
                 assertEquals(3, res.size());
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey", "mycase", "a"
-                ))));
+                                "k1", "mykey", "mycase", "a"
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey2", "mycase", "b"
-                ))));
+                                "k1", "mykey2", "mycase", "b"
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey3", "mycase", null
-                ))));
+                                "k1", "mykey3", "mycase", null
+                        ))));
             }
             try (DataScanner scan = scan(manager, "SELECT k1, "
-                    + "SUM(CASE "
-                    + "WHEN k1='mykey'  THEN 1 "
-                    + "WHEN k1='mykey2' THEN 2 "
-                    + "ELSE 3  "
-                    + "END) as mysum "
-                    + "FROM tblspace1.tsql "
-                    + "GROUP BY k1",
+                            + "SUM(CASE "
+                            + "WHEN k1='mykey'  THEN 1 "
+                            + "WHEN k1='mykey2' THEN 2 "
+                            + "ELSE 3  "
+                            + "END) as mysum "
+                            + "FROM tblspace1.tsql "
+                            + "GROUP BY k1",
                     Collections.emptyList())) {
                 List<DataAccessor> res = scan.consume();
                 for (DataAccessor t : res) {
@@ -391,25 +389,25 @@ public class RawSQLTest {
                 assertEquals(3, res.size());
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey", "mysum", 1L
-                ))));
+                                "k1", "mykey", "mysum", 1L
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey2", "mysum", 2L
-                ))));
+                                "k1", "mykey2", "mysum", 2L
+                        ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k1", "mykey3", "mysum", 3L
-                ))));
+                                "k1", "mykey3", "mysum", 3L
+                        ))));
             }
             try (DataScanner scan = scan(manager, "SELECT "
-                    + "SUM(CASE "
-                    + "WHEN k1='mykey'  THEN 1 "
-                    + "WHEN k1='mykey2' THEN 2 "
-                    + "ELSE 3  "
-                    + "END) as mysum "
-                    + "FROM tblspace1.tsql "
-                    + "",
+                            + "SUM(CASE "
+                            + "WHEN k1='mykey'  THEN 1 "
+                            + "WHEN k1='mykey2' THEN 2 "
+                            + "ELSE 3  "
+                            + "END) as mysum "
+                            + "FROM tblspace1.tsql "
+                            + "",
                     Collections.emptyList())) {
                 List<DataAccessor> res = scan.consume();
                 for (DataAccessor t : res) {
@@ -418,8 +416,8 @@ public class RawSQLTest {
                 assertEquals(1, res.size());
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "mysum", 6L
-                ))));
+                                "mysum", 6L
+                        ))));
 
             }
         }
@@ -428,7 +426,7 @@ public class RawSQLTest {
     @Test
     public void insertFromSelect() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -446,7 +444,7 @@ public class RawSQLTest {
             assertEquals(2, executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
                     + "(select k1,t1,n1 from tblspace1.tsql)", Collections.emptyList()).getUpdateCount());
 
-            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList())) {
                 List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k2"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k2"));
@@ -461,11 +459,11 @@ public class RawSQLTest {
                     + "(select k1,t1,n1 from tblspace1.tsql where n1=?)", Arrays.asList(1236), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             assertEquals(1, executeUpdateInTransaction.getUpdateCount());
             assertTrue(executeUpdateInTransaction.transactionId > 0);
-            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList(), new TransactionContext(executeUpdateInTransaction.transactionId));) {
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList(), new TransactionContext(executeUpdateInTransaction.transactionId))) {
                 assertEquals(3, scan.consume().size());
             }
             manager.executeStatement(new RollbackTransactionStatement("tblspace1", executeUpdateInTransaction.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList())) {
                 assertEquals(2, scan.consume().size());
             }
 
@@ -474,7 +472,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdateInTransaction2.getUpdateCount());
             assertTrue(executeUpdateInTransaction2.transactionId > 0);
             manager.executeStatement(new CommitTransactionStatement("tblspace1", executeUpdateInTransaction2.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList())) {
                 assertEquals(3, scan.consume().size());
             }
             if (manager.getPlanner() instanceof DDLSQLPlanner) {
@@ -485,7 +483,7 @@ public class RawSQLTest {
 
                 try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 "
                         + "FROM tblspace1.tsql2 "
-                        + "WHERE t2 = ?", Arrays.asList(tt3));) {
+                        + "WHERE t2 = ?", Arrays.asList(tt3))) {
                     List<DataAccessor> all = scan.consume();
                     assertEquals(1, all.size());
                     assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
@@ -499,7 +497,7 @@ public class RawSQLTest {
     @Test
     public void multiInsert() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -514,7 +512,7 @@ public class RawSQLTest {
                     executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?),(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), tt1,
                             "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
 
-            try (DataScanner scan = scan(manager, "SELECT k1,n1,t1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,t1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList())) {
                 List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
@@ -530,7 +528,7 @@ public class RawSQLTest {
                             Arrays.asList("mykey", Integer.valueOf(1234), tt1,
                                     "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
 
-            try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql2 ORDER BY n1 desc", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql2 ORDER BY n1 desc", Collections.emptyList())) {
                 List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
@@ -552,7 +550,7 @@ public class RawSQLTest {
                     resInsert.getUpdateCount());
             assertTrue(resInsert.transactionId > 0);
             try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql3 ORDER BY n1 desc", Collections.emptyList(), 0,
-                    new TransactionContext(resInsert.transactionId));) {
+                    new TransactionContext(resInsert.transactionId))) {
                 List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
@@ -570,7 +568,7 @@ public class RawSQLTest {
     @Test
     public void atomicCounterTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -591,7 +589,7 @@ public class RawSQLTest {
     @Test
     public void selectWithParameters() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assumeTrue(manager.getPlanner() instanceof DDLSQLPlanner);
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -602,7 +600,7 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
-            try (DataScanner scan = scan(manager, "SELECT ? as foo, k1, n1 FROM tblspace1.tsql", Arrays.asList("test"));) {
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, k1, n1 FROM tblspace1.tsql", Arrays.asList("test"))) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(RawString.of("test"), all.get(0).get("foo"));
@@ -611,14 +609,14 @@ public class RawSQLTest {
             }
 
             Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
-            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(Long.valueOf(1), all.get(0).get("foo"));
                 assertEquals(timestamp, all.get(0).get("bar"));
             }
 
-            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(Long.valueOf(1), all.get(0).get("foo"));
@@ -627,12 +625,12 @@ public class RawSQLTest {
 
             executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList());
 
-            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 
-            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertNull(all.get(0).get("foo"));
@@ -644,7 +642,7 @@ public class RawSQLTest {
     @Test
     public void insertTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -663,7 +661,7 @@ public class RawSQLTest {
     @Test
     public void updateTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -681,7 +679,7 @@ public class RawSQLTest {
     @Test
     public void insertJdbcParametersTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -704,7 +702,7 @@ public class RawSQLTest {
     @Test
     public void limitsTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -718,30 +716,30 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
             // scan performed at "scan time"
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
             if (manager.getPlanner() instanceof DDLSQLPlanner) {
-                try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 }
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,2", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
                 assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
@@ -749,77 +747,77 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
                 assertEquals(RawString.of("mykey4"), result.get(3).get("k1"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 4,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 4,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 3,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 3,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 3", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 3", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(3), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(3), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1,2", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1,2", Collections.emptyList(), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
             if (manager.getPlanner() instanceof CalcitePlanner) {
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?,?", Arrays.asList(1, 2), TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?,?", Arrays.asList(1, 2), TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                 }
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "WHERE k1 <> ? LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                    + "WHERE k1 <> ? LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "WHERE k1 <> ? LIMIT 2,?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                    + "WHERE k1 <> ? LIMIT 2,?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "WHERE k1 <> ? ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                    + "WHERE k1 <> ? ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT k1, count(*) FROM tblspace1.tsql "
-                    + "WHERE k1 <> ? GROUP BY k1 ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                    + "WHERE k1 <> ? GROUP BY k1 ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(0), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(0), TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Collections.emptyList(), TransactionContext.NO_TRANSACTION)) {
                 fail();
             } catch (MissingJDBCParameterException err) {
                 assertEquals(1, err.getIndex());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "ORDER BY k1 LIMIT 3", Collections.emptyList(), 5, TransactionContext.NO_TRANSACTION);) {
+                    + "ORDER BY k1 LIMIT 3", Collections.emptyList(), 5, TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
-                    + "ORDER BY k1 ", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
+                    + "ORDER BY k1 ", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION)) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
@@ -829,7 +827,7 @@ public class RawSQLTest {
     @Test
     public void sortTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -848,14 +846,14 @@ public class RawSQLTest {
 //                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
 //                assertEquals(RawString.of("mykey"), result.get(0).get(0));
 //            }
-            try (DataScanner scan1 = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"k1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList())) {
 
                 List<DataAccessor> result = scan1.consume();
                 System.out.println("result:" + result.get(0));
@@ -864,14 +862,14 @@ public class RawSQLTest {
                 assertEquals(1, result.get(0).get("n1"));
                 assertEquals(1, result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY n1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY n1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"n1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
                 assertEquals(1, result.get(0).get("n1"));
                 assertEquals(1, result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"n1", "k1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
@@ -880,7 +878,7 @@ public class RawSQLTest {
                 assertEquals(1, result.get(0).get("n1"));
                 assertEquals(1, result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY k1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY k1 desc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"n1", "k1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
@@ -889,7 +887,7 @@ public class RawSQLTest {
                 assertEquals(3, result.get(0).get("n1"));
                 assertEquals(3, result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"n1", "k1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
@@ -898,7 +896,7 @@ public class RawSQLTest {
                 assertEquals(3, result.get(0).get("n1"));
                 assertEquals(3, result.get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"k1", "n1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
@@ -913,7 +911,7 @@ public class RawSQLTest {
     @Test
     public void simpleExitLoopTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -928,15 +926,15 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                 }
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 2", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 2", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                 }
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 10", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 10", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                 }
@@ -947,7 +945,7 @@ public class RawSQLTest {
     @Test
     public void orderByAliasTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -959,7 +957,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
@@ -967,7 +965,7 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1 desc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
@@ -981,7 +979,7 @@ public class RawSQLTest {
     @Test
     public void orderByAlias2Test() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -993,7 +991,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
@@ -1001,7 +999,7 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1 desc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
@@ -1015,7 +1013,7 @@ public class RawSQLTest {
     @Test
     public void limitsAggregatesTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1032,7 +1030,7 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 "
                     + "FROM tblspace1.tsql "
                     + "GROUP BY k1 "
-                    + "ORDER BY k1 DESC", Collections.emptyList());) {
+                    + "ORDER BY k1 DESC", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
@@ -1045,14 +1043,14 @@ public class RawSQLTest {
                 assertEquals(Long.valueOf(1), result.get(3).get("cc"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
@@ -1060,7 +1058,7 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(1).get("alias"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
@@ -1073,22 +1071,22 @@ public class RawSQLTest {
                 assertEquals(Long.valueOf(1), result.get(3).get("cc"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 4,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 4,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertNull(result.get(0).get("n1"));
@@ -1105,7 +1103,7 @@ public class RawSQLTest {
                     + " FROM tblspace1.tsql"
                     + " WHERE n1 is not null"
                     + " GROUP BY n1"
-                    + " ORDER BY cc", Collections.emptyList());) {
+                    + " ORDER BY cc", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 for (DataAccessor ac : result) {
                     System.out.println("ac:" + ac.toMap());
@@ -1125,7 +1123,7 @@ public class RawSQLTest {
     @Test
     public void simpleCountTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1140,7 +1138,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
@@ -1148,7 +1146,7 @@ public class RawSQLTest {
                 }
             }
             if (manager.getPlanner() instanceof DDLSQLPlanner) {
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
@@ -1157,7 +1155,7 @@ public class RawSQLTest {
             }
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(1), result.get(0).get(0));
@@ -1166,7 +1164,7 @@ public class RawSQLTest {
             }
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     Assert.fail();
                 } catch (StatementExecutionException error) {
@@ -1175,7 +1173,7 @@ public class RawSQLTest {
                 }
             }
             {
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     for (DataAccessor t : result) {
@@ -1200,7 +1198,7 @@ public class RawSQLTest {
     @Test
     public void simpleEqualsTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1215,7 +1213,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Arrays.asList("mykey"));) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Arrays.asList("mykey"))) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                 }
@@ -1226,7 +1224,7 @@ public class RawSQLTest {
     @Test
     public void simpleSumTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1241,7 +1239,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(8), result.get(0).get(0));
@@ -1251,7 +1249,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
@@ -1273,7 +1271,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
@@ -1295,7 +1293,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
 
@@ -1318,7 +1316,7 @@ public class RawSQLTest {
             }
 
             {
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
@@ -1332,7 +1330,7 @@ public class RawSQLTest {
     @Test
     public void simpleMinMaxTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1347,7 +1345,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Integer.valueOf(1), result.get(0).get(0));
@@ -1360,7 +1358,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='mykey4'", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='mykey4'", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertNull(result.get(0).get(0));
@@ -1373,7 +1371,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results'", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results'", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertNull(result.get(0).get(0));
@@ -1386,7 +1384,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results' GROUP BY k1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results' GROUP BY k1", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(0, result.size());
                 }
@@ -1398,7 +1396,7 @@ public class RawSQLTest {
     @Test
     public void simpleMinMaxTimestampTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1416,7 +1414,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT MIN(t1) as mi, MAX(t1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(t1) as mi, MAX(t1) as ma FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(time1, result.get(0).get(0));
@@ -1433,7 +1431,7 @@ public class RawSQLTest {
     @Test
     public void simpleComparatorTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1446,25 +1444,25 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(3), "a")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey4", Integer.valueOf(-1), "a")).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>1", Collections.emptyList())) {
                 assertEquals(2, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>=1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>=1", Collections.emptyList())) {
                 assertEquals(3, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<-7", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<-7", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<=-1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<=-1", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<>1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<>1", Collections.emptyList())) {
                 assertEquals(3, scan1.consume().size());
             }
 
@@ -1474,7 +1472,7 @@ public class RawSQLTest {
     @Test
     public void scalarFunctionTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1486,7 +1484,7 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT lower(k1) as low, upper(k1) as up, k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT lower(k1) as low, upper(k1) as up, k1 FROM tblspace1.tsql", Collections.emptyList())) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1501,7 +1499,7 @@ public class RawSQLTest {
     @Test
     public void orderByTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1517,7 +1515,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1529,7 +1527,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals(RawString.of("mykey"), result.get(3).get(0));
@@ -1542,7 +1540,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1555,7 +1553,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1569,7 +1567,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1580,7 +1578,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 asc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1591,7 +1589,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc limit 3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(RawString.of("mykey4"), result.get(0).get(0));
@@ -1607,7 +1605,7 @@ public class RawSQLTest {
     @Test
     public void indexSeek() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1620,13 +1618,13 @@ public class RawSQLTest {
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT,
                         " SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant"
-                        + " FROM tblspace1.tsql"
-                        + " where k1 ='mykey'", Collections.emptyList(), true, true, false, -1);
+                                + " FROM tblspace1.tsql"
+                                + " where k1 ='mykey'", Collections.emptyList(), true, true, false, -1);
 
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
-                try (DataScanner scan1
-                        = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
+                try (DataScanner scan1 =
+                             ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).getFieldNames().length);
@@ -1643,7 +1641,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey_no'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     assertTrue(scan1.consume().isEmpty());
                 }
             }
@@ -1651,7 +1649,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey' and n1<>1234", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     assertTrue(scan1.consume().isEmpty());
                 }
             }
@@ -1661,7 +1659,7 @@ public class RawSQLTest {
     @Test
     public void aliasTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1674,7 +1672,7 @@ public class RawSQLTest {
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
                 PlannerOp plannerOp = translate1.plan.mainStatement.unwrap(PlannerOp.class);
                 System.out.println("plannerOp:" + plannerOp);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(0, records.size());
                     assertEquals(1, scan1.getFieldNames().length);
@@ -1687,7 +1685,7 @@ public class RawSQLTest {
     @Test
     public void basicTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1807,7 +1805,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(1, scan1.consume().size());
                 }
 
@@ -1815,7 +1813,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     System.out.println("records:" + records);
@@ -1830,7 +1828,7 @@ public class RawSQLTest {
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
                 PlannerOp plannerOp = translate1.plan.mainStatement.unwrap(PlannerOp.class);
                 System.out.println("plannerOp:" + plannerOp);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(1, records.get(0).getFieldNames().length);
@@ -1843,7 +1841,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 try (DataScanner scan1 = ((ScanResult) manager.executePlan(translate1.plan,
-                        translate1.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
+                        translate1.context, TransactionContext.NO_TRANSACTION)).dataScanner) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).getFieldNames().length);
@@ -1860,7 +1858,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(1, scan1.consume().size());
                 }
 
@@ -1890,7 +1888,7 @@ public class RawSQLTest {
             {
                 TransactionResult result = (TransactionResult) execute(manager, "EXECUTE BEGINTRANSACTION 'tblspace1'", Collections.emptyList());
                 long tx = result.getTransactionId();
-                execute(manager, "EXECUTE COMMITTRANSACTION 'tblspace1'," + tx, Collections.emptyList());;
+                execute(manager, "EXECUTE COMMITTRANSACTION 'tblspace1'," + tx, Collections.emptyList());
             }
             {
                 TransactionResult result = (TransactionResult) execute(manager, "EXECUTE BEGINTRANSACTION 'tblspace1'", Collections.emptyList());
@@ -1904,7 +1902,7 @@ public class RawSQLTest {
     @Test
     public void multipleColumnPrimaryKeyTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1918,12 +1916,12 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
-            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList())) {
                 assertEquals(2, scan1.consume().size());
             }
             try {
@@ -1931,19 +1929,19 @@ public class RawSQLTest {
                 fail();
             } catch (DuplicatePrimaryKeyException err) {
             }
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1", Collections.emptyList())) {
                 List<DataAccessor> rows = scan1.consume();
                 assertEquals(2, rows.size());
                 assertEquals(1234, rows.get(0).get("n1"));
                 assertEquals(1235, rows.get(1).get("n1"));
 
             }
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(n1,k1) values(?,?)", Arrays.asList(Integer.valueOf(1236), "mykey")).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1 desc", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1 desc", Collections.emptyList())) {
                 List<DataAccessor> rows = scan1.consume();
                 assertEquals(3, rows.size());
                 assertEquals(1236, rows.get(0).get("n1"));
@@ -1952,16 +1950,16 @@ public class RawSQLTest {
 
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList())) {
                 assertEquals(3, scan1.consume().size());
             }
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1 =? and n1=?", Arrays.asList("newvalue", "mykey", Integer.valueOf(1236))).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList())) {
                 List<DataAccessor> rows = scan1.consume();
                 assertEquals(1, rows.size());
                 assertEquals(RawString.of("newvalue"), rows.get(0).get("s1"));
@@ -1970,7 +1968,7 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql where k1 =? and n1=?", Arrays.asList("mykey", Integer.valueOf(1236))).getUpdateCount());
 
-            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
         }
@@ -1979,7 +1977,7 @@ public class RawSQLTest {
     @Test
     public void updateSingleRowWithPredicate() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1990,7 +1988,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.q1_MESSAGE(msg_id,status, lastbouncecategory) values(?,?,?)", Arrays.asList(2, 1, null)).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.q1_MESSAGE(msg_id,status, lastbouncecategory) values(?,?,?)", Arrays.asList(3, 1, null)).getUpdateCount());
 
-            try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList());) {
+            try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList())) {
                 List<DataAccessor> consume = resultSet.consume();
                 for (DataAccessor tuple : consume) {
                     System.out.println("tuple1:" + tuple.toMap());
@@ -1999,7 +1997,7 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.q1_MESSAGE set status=?, lastbouncecategory=null where MSG_ID=? and (status = 1 or status=5)", Arrays.asList(4, 2)).getUpdateCount());
 
-            try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList());) {
+            try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList())) {
                 List<DataAccessor> consume = resultSet.consume();
                 for (DataAccessor tuple : consume) {
                     System.out.println("tuple2:" + tuple.toMap());
@@ -2011,7 +2009,7 @@ public class RawSQLTest {
     @Test
     public void betweenTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -2070,7 +2068,7 @@ public class RawSQLTest {
     @Test
     public void andOrTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -2096,7 +2094,7 @@ public class RawSQLTest {
     @Test
     public void createNullNotIndexable() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -2135,7 +2133,7 @@ public class RawSQLTest {
             }
             commitTransaction(manager, "tblspace1", tx);
 
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
                 assertEquals(2, scan.consume().size());
             }
         }
@@ -2144,7 +2142,7 @@ public class RawSQLTest {
     @Test
     public void createDropIndexTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -2199,7 +2197,7 @@ public class RawSQLTest {
     @Test
     public void createIndexOnTableTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

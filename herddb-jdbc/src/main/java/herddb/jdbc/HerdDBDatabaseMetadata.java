@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -657,30 +658,30 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     }
 
     private static final String[] GET_TABLES_SCHEMA = new String[]{
-        "TABLE_CAT",
-        "TABLE_SCHEM",
-        "TABLE_NAME",
-        "TABLE_TYPE",
-        "REMARKS",
-        "TYPE_CAT",
-        "TYPE_SCHEM",
-        "TYPE_NAME",
-        "SELF_REFERENCING_COL_NAME",
-        "REF_GENERATION"
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "TABLE_TYPE",
+            "REMARKS",
+            "TYPE_CAT",
+            "TYPE_SCHEM",
+            "TYPE_NAME",
+            "SELF_REFERENCING_COL_NAME",
+            "REF_GENERATION"
     };
     private static final String[] GET_INDEXES_SCHEMA = new String[]{
-        "TABLE_CAT",
-        "TABLE_SCHEM",
-        "TABLE_NAME",
-        "NON_UNIQUE",
-        "INDEX_QUALIFIER",
-        "INDEX_NAME",
-        "TYPE",
-        "ORDINAL_POSITION",
-        "COLUMN_NAME",
-        "ASC_OR_DESC",
-        "CARDINALITY",
-        "FILTER_CONDITION"
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "NON_UNIQUE",
+            "INDEX_QUALIFIER",
+            "INDEX_NAME",
+            "TYPE",
+            "ORDINAL_POSITION",
+            "COLUMN_NAME",
+            "ASC_OR_DESC",
+            "CARDINALITY",
+            "FILTER_CONDITION"
     };
 
     @Override
@@ -743,7 +744,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
         }
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+             ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {
@@ -768,7 +769,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         }
     }
 
-    private final static String[] GET_SCHEMAS_SCHEMA = new String[]{"TABLE_SCHEM", "TABLE_CATALOG"};
+    private static final String[] GET_SCHEMAS_SCHEMA = new String[]{"TABLE_SCHEM", "TABLE_CATALOG"};
 
     @Override
     @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
@@ -779,7 +780,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         }
 
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+             ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {
@@ -814,43 +815,43 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     }
 
     private static final String[] GET_COLUMNS_SCHEMA = new String[]{
-        "TABLE_CAT",
-        "TABLE_SCHEM",
-        "TABLE_NAME",
-        "COLUMN_NAME",
-        "DATA_TYPE",
-        "TYPE_NAME",
-        "COLUMN_SIZE",
-        "BUFFER_LENGTH",
-        "DECIMAL_DIGITS",
-        "NUM_PREC_RADIX",
-        "NULLABLE",
-        "REMARKS",
-        "COLUMN_DEF",
-        "SQL_DATA_TYPE",
-        "SQL_DATETIME_SUB",
-        "CHAR_OCTET_LENGTH",
-        "ORDINAL_POSITION",
-        "IS_NULLABLE",
-        "SCOPE_CATALOG",
-        "SCOPE_SCHEMA",
-        "SCOPE_TABLE",
-        "SOURCE_DATA_TYPE",
-        "IS_AUTOINCREMENT",
-        "IS_GENERATEDCOLUMN"
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "COLUMN_NAME",
+            "DATA_TYPE",
+            "TYPE_NAME",
+            "COLUMN_SIZE",
+            "BUFFER_LENGTH",
+            "DECIMAL_DIGITS",
+            "NUM_PREC_RADIX",
+            "NULLABLE",
+            "REMARKS",
+            "COLUMN_DEF",
+            "SQL_DATA_TYPE",
+            "SQL_DATETIME_SUB",
+            "CHAR_OCTET_LENGTH",
+            "ORDINAL_POSITION",
+            "IS_NULLABLE",
+            "SCOPE_CATALOG",
+            "SCOPE_SCHEMA",
+            "SCOPE_TABLE",
+            "SOURCE_DATA_TYPE",
+            "IS_AUTOINCREMENT",
+            "IS_GENERATEDCOLUMN"
     };
 
     /**
      * Retrieves a description of table columns available in the specified
      * catalog.
      *
-     * <P>
+     * <p>
      * Only column descriptions matching the catalog, schema, table and column
      * name criteria are returned. They are ordered by
      * <code>TABLE_CAT</code>,<code>TABLE_SCHEM</code>, <code>TABLE_NAME</code>,
      * and <code>ORDINAL_POSITION</code>.
      *
-     * <P>
+     * <p>
      * Each column description has the following columns:
      * <OL>
      * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be
@@ -928,20 +929,20 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * the length in bytes. For the ROWID datatype, this is the length in bytes.
      * Null is returned for data types where the column size is not applicable.
      *
-     * @param catalog a catalog name; must match the catalog name as it is
-     * stored in the database; "" retrieves those without a catalog;
-     * <code>null</code> means that the catalog name should not be used to
-     * narrow the search
-     * @param schemaPattern a schema name pattern; must match the schema name as
-     * it is stored in the database; "" retrieves those without a schema;
-     * <code>null</code> means that the schema name should not be used to narrow
-     * the search
-     * @param tableNamePattern a table name pattern; must match the table name
-     * as it is stored in the database
+     * @param catalog           a catalog name; must match the catalog name as it is
+     *                          stored in the database; "" retrieves those without a catalog;
+     *                          <code>null</code> means that the catalog name should not be used to
+     *                          narrow the search
+     * @param schemaPattern     a schema name pattern; must match the schema name as
+     *                          it is stored in the database; "" retrieves those without a schema;
+     *                          <code>null</code> means that the schema name should not be used to narrow
+     *                          the search
+     * @param tableNamePattern  a table name pattern; must match the table name
+     *                          as it is stored in the database
      * @param columnNamePattern a column name pattern; must match the column
-     * name as it is stored in the database
+     *                          name as it is stored in the database
      * @return <code>ResultSet</code> - each row is a column description
-     * @exception SQLException if a database access error occurs
+     * @throws SQLException if a database access error occurs
      * @see #getSearchStringEscape
      */
     @Override
@@ -956,7 +957,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             query = query + " AND column_name LIKE '" + SQLUtils.escape(columnNamePattern) + "'";
         }
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+             ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {
@@ -1051,7 +1052,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * Retrieves a description of the given table's indices and statistics. They
      * are ordered by NON_UNIQUE, TYPE, INDEX_NAME, and ORDINAL_POSITION.
      *
-     * <P>
+     * <p>
      * Each index column description has the following columns:
      * <OL>
      * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be
@@ -1091,21 +1092,21 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * (may be <code>null</code>)
      * </OL>
      *
-     * @param catalog a catalog name; must match the catalog name as it is
-     * stored in this database; "" retrieves those without a catalog;
-     * <code>null</code> means that the catalog name should not be used to
-     * narrow the search
-     * @param schema a schema name; must match the schema name as it is stored
-     * in this database; "" retrieves those without a schema; <code>null</code>
-     * means that the schema name should not be used to narrow the search
+     * @param catalog          a catalog name; must match the catalog name as it is
+     *                         stored in this database; "" retrieves those without a catalog;
+     *                         <code>null</code> means that the catalog name should not be used to
+     *                         narrow the search
+     * @param schema           a schema name; must match the schema name as it is stored
+     *                         in this database; "" retrieves those without a schema; <code>null</code>
+     *                         means that the schema name should not be used to narrow the search
      * @param tableNamePattern a table name; must match the table name as it is
-     * stored in this database
-     * @param onlyUnique when true, return only indices for unique values; when
-     * false, return indices regardless of whether unique or not
-     * @param approximate when true, result is allowed to reflect approximate or
-     * out of data values; when false, results are requested to be accurate
+     *                         stored in this database
+     * @param onlyUnique       when true, return only indices for unique values; when
+     *                         false, return indices regardless of whether unique or not
+     * @param approximate      when true, result is allowed to reflect approximate or
+     *                         out of data values; when false, results are requested to be accurate
      * @return <code>ResultSet</code> - each row is an index column description
-     * @exception SQLException if a database access error occurs
+     * @throws SQLException if a database access error occurs
      */
     @Override
     @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
@@ -1115,7 +1116,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
         }
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+             ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {

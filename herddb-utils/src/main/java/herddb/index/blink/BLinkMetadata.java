@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.index.blink;
 
 import java.util.List;
@@ -35,30 +36,44 @@ public final class BLinkMetadata<K> {
 
     final long nextID;
 
-    /** Anchor <i>fast node</i> pointer */
+    /**
+     * Anchor <i>fast node</i> pointer
+     */
     final long fast;
 
-    /** Anchor <i>fast node</i> height */
+    /**
+     * Anchor <i>fast node</i> height
+     */
     final int fastheight;
 
-    /** Anchor real <i>root</i> pointer */
+    /**
+     * Anchor real <i>root</i> pointer
+     */
     final long top;
 
-    /** Anchor real <i>root</i> height */
+    /**
+     * Anchor real <i>root</i> height
+     */
     final int topheight;
 
-    /** Leftmost leaf */
+    /**
+     * Leftmost leaf
+     */
     final long first;
 
-    /** Stored values count */
+    /**
+     * Stored values count
+     */
     final long values;
 
     final List<BLinkNodeMetadata<K>> nodes;
 
-    public BLinkMetadata(long nextID,
+    public BLinkMetadata(
+            long nextID,
             long fast, int fastheight, long top, int topheight,
             long first, long values,
-            List<BLinkNodeMetadata<K>> nodes) {
+            List<BLinkNodeMetadata<K>> nodes
+    ) {
         super();
         this.nextID = nextID;
         this.fast = fast;
@@ -72,19 +87,19 @@ public final class BLinkMetadata<K> {
 
     @Override
     public String toString() {
-        return "BLinkMetadata [nextID=" + nextID +
-                ", fast=" + fast +
-                ", fastheight=" + fastheight +
-                ", top=" + top +
-                ", topheight=" + topheight +
-                ", first=" + first +
-                ", size=" + values +
-                ", nodes=" + nodes.size() +
-                "]";
+        return "BLinkMetadata [nextID=" + nextID
+                + ", fast=" + fast
+                + ", fastheight=" + fastheight
+                + ", top=" + top
+                + ", topheight=" + topheight
+                + ", first=" + first
+                + ", size=" + values
+                + ", nodes=" + nodes.size()
+                + "]";
     }
 
     public String nodesToStrings() {
-        return nodes+"";
+        return nodes + "";
     }
 
     public static final class BLinkNodeMetadata<K> {
@@ -118,15 +133,15 @@ public final class BLinkMetadata<K> {
 
         @Override
         public String toString() {
-            return "BLinkNodeMetadata [leaf=" + leaf +
-                    ", id=" + id +
-                    ", storeId=" + storeId +
-                    ", keys=" + keys +
-                    ", size=" + bytes +
-                    ", outlink=" + outlink +
-                    ", rightlink=" + rightlink +
-                    ", rightsep=" + rightsep +
-                    "]";
+            return "BLinkNodeMetadata [leaf=" + leaf
+                    + ", id=" + id
+                    + ", storeId=" + storeId
+                    + ", keys=" + keys
+                    + ", size=" + bytes
+                    + ", outlink=" + outlink
+                    + ", rightlink=" + rightlink
+                    + ", rightsep=" + rightsep
+                    + "]";
         }
 
     }

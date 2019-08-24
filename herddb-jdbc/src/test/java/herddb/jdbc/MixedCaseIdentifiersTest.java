@@ -17,13 +17,16 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
-import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,16 +34,13 @@ import java.sql.Statement;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class MixedCaseIdentifiersTest {
 
-    final static String CREATE_TABLE = "CREATE TABLE q1_MESSAGE (\n"
+    static final String CREATE_TABLE = "CREATE TABLE q1_MESSAGE (\n"
             + "  MSG_ID bigint NOT NULL PRIMARY KEY,\n"
             + "  STATUS tinyint,  \n"
             + "  RECIPIENT string,  \n"
@@ -58,13 +58,13 @@ public class MixedCaseIdentifiersTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement create = con.createStatement();
-                        PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
-                        PreparedStatement statement_update = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS = 2,lastbouncecategory=null WHERE MSG_ID = ? and (status=1 or status=5)");) {
+                     Connection con = dataSource.getConnection();
+                     Statement create = con.createStatement();
+                     PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
+                     PreparedStatement statement_update = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS = 2,lastbouncecategory=null WHERE MSG_ID = ? and (status=1 or status=5)")) {
                     create.execute(CREATE_TABLE);
 
                     long msg_id = 213;
@@ -96,9 +96,8 @@ public class MixedCaseIdentifiersTest {
                         assertEquals(1, ps.executeUpdate());
 
                     }
-                    
-                    
-                    
+
+
                     try (ResultSet rs = create.executeQuery("SELECT M.MSG_ID FROM q1_MESSAGE M WHERE 1=1 AND status=6 and (M.RECIPIENT LIKE '%@localhost%')")) {
                         long _msg_id = -1;
                         int record_count = 0;

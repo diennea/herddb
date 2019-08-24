@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -40,9 +41,11 @@ public class StatementEvaluationContext {
     private String defaultTablespace = TableSpace.DEFAULT;
     private volatile long tableSpaceLock;
 
+    // CHECKSTYLE.OFF: MethodName
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
         return new StatementEvaluationContext();
     }
+    // CHECKSTYLE.ON: MethodName
 
     public String getDefaultTablespace() {
         return defaultTablespace;

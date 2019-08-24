@@ -17,10 +17,15 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
-
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -40,12 +44,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
-import herddb.server.StaticClientSideMetadataProvider;
-
 @RunWith(Parameterized.class)
 public class SelectColumnTest {
 
@@ -53,31 +51,31 @@ public class SelectColumnTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
 
-    @Parameters( name = "{index}: {0}" )
+    @Parameters(name = "{index}: {0}")
     public static Collection<TestData> data() {
         final List<TestData> data = new ArrayList<>();
 
-        data.add(new TestData("int", SelectColumnTest::checkInteger, new Object[][] { { 1, 1 }, { 0, null },
-                { Integer.MAX_VALUE, Integer.MAX_VALUE }, { Integer.MIN_VALUE, Integer.MIN_VALUE } }));
+        data.add(new TestData("int", SelectColumnTest::checkInteger, new Object[][]{{1, 1}, {0, null},
+                {Integer.MAX_VALUE, Integer.MAX_VALUE}, {Integer.MIN_VALUE, Integer.MIN_VALUE}}));
 
-        data.add(new TestData("long", SelectColumnTest::checkLong, new Object[][] { { 1L, 1L }, { 0L, null },
-                { Long.MAX_VALUE, Long.MAX_VALUE }, { Long.MIN_VALUE, Long.MIN_VALUE } }));
+        data.add(new TestData("long", SelectColumnTest::checkLong, new Object[][]{{1L, 1L}, {0L, null},
+                {Long.MAX_VALUE, Long.MAX_VALUE}, {Long.MIN_VALUE, Long.MIN_VALUE}}));
 
         data.add(new TestData("string", SelectColumnTest::checkString,
-                new Object[][] { { "1", "1" }, { "null", null }, { "tre", "tre" }, { "", "" } }));
+                new Object[][]{{"1", "1"}, {"null", null}, {"tre", "tre"}, {"", ""}}));
 
         data.add(new TestData("timestamp", SelectColumnTest::checkTimestamp,
-                new Object[][] { { new Timestamp(1), null }, { new Timestamp(0), new Timestamp(0) },
-                        { new Timestamp(Long.MAX_VALUE), new Timestamp(Long.MAX_VALUE) } }));
+                new Object[][]{{new Timestamp(1), null}, {new Timestamp(0), new Timestamp(0)},
+                        {new Timestamp(Long.MAX_VALUE), new Timestamp(Long.MAX_VALUE)}}));
 
         /* I tipi seguenti non supportano gli id */
 
         data.add(new TestData("int", "double", null, SelectColumnTest::checkDouble,
-                new Object[][] { { 1, 1d }, { 0, null }, { 2, 2.2d }, { Integer.MAX_VALUE, Double.POSITIVE_INFINITY },
-                        { Integer.MIN_VALUE, Double.NEGATIVE_INFINITY }, { -1, Double.NaN } }));
+                new Object[][]{{1, 1d}, {0, null}, {2, 2.2d}, {Integer.MAX_VALUE, Double.POSITIVE_INFINITY},
+                        {Integer.MIN_VALUE, Double.NEGATIVE_INFINITY}, {-1, Double.NaN}}));
 
         data.add(new TestData("int", "boolean", null, SelectColumnTest::checkBoolean,
-                new Object[][] { { 0, true }, { 1, false }, { 2, null } }));
+                new Object[][]{{0, true}, {1, false}, {2, null}}));
 
         return data;
 
@@ -95,11 +93,11 @@ public class SelectColumnTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                     Connection con = dataSource.getConnection();
+                     Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (key " + data.keyType + " primary key, val " + data.valueType + ")");
 
                     try (PreparedStatement insert = con.prepareStatement("INSERT INTO mytable (key,val) values(?,?)")) {
@@ -178,7 +176,7 @@ public class SelectColumnTest {
 
         @Override
         public String toString() {
-            return (checkKey() ? keyType : "-" ) + "/" + valueType;
+            return (checkKey() ? keyType : "-") + "/" + valueType;
         }
 
     }

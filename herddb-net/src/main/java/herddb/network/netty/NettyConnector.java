@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
 import herddb.network.ChannelEventListener;
@@ -41,9 +42,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Worker-side connector
@@ -54,9 +55,11 @@ public class NettyConnector {
 
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
-    public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
+    public static NettyChannel connect(
+            String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
             ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup,
-            final DefaultEventLoopGroup localEventsGroup) throws IOException {
+            final DefaultEventLoopGroup localEventsGroup
+    ) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
@@ -83,34 +86,34 @@ public class NettyConnector {
                     .channel(channelType)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
                     .handler(new ChannelInitializer<Channel>() {
-                        @Override
-                        public void initChannel(Channel ch) throws Exception {
-                            try {
-                                NettyChannel channel = new NettyChannel(host + ":" + port,
-                                        ch, callbackExecutor);
-                                result.set(channel);
-                                channel.setMessagesReceiver(receiver);
-                                if (ssl) {
-                                    ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
-                                }
-                                if (socketTimeout > 0) {
-                                    ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
-                                }
-                                ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
-                                ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
+                                 @Override
+                                 public void initChannel(Channel ch) throws Exception {
+                                     try {
+                                         NettyChannel channel = new NettyChannel(host + ":" + port,
+                                                 ch, callbackExecutor);
+                                         result.set(channel);
+                                         channel.setMessagesReceiver(receiver);
+                                         if (ssl) {
+                                             ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                                         }
+                                         if (socketTimeout > 0) {
+                                             ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
+                                         }
+                                         ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
+                                         ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
 //
-                                ch.pipeline().addLast("messagedecoder", new ProtocolMessageDecoder());
-                                ch.pipeline().addLast(new ClientInboundMessageHandler(channel));
-                            } catch (Throwable t) {
-                                LOGGER.log(Level.SEVERE, "error connecting", t);
-                                ch.close();
-                            }
-                        }
-                    }
+                                         ch.pipeline().addLast("messagedecoder", new ProtocolMessageDecoder());
+                                         ch.pipeline().addLast(new ClientInboundMessageHandler(channel));
+                                     } catch (Throwable t) {
+                                         LOGGER.log(Level.SEVERE, "error connecting", t);
+                                         ch.close();
+                                     }
+                                 }
+                             }
                     );
 
             LOGGER.log(Level.FINE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
-            }
+                    }
             );
             b.connect(address).sync();
             NettyChannel nettyChannel = result.get();

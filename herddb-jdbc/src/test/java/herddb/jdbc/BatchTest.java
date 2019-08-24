@@ -17,8 +17,11 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -27,8 +30,6 @@ import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,12 +49,12 @@ public class BatchTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        PreparedStatement statementCreatePage = con.prepareStatement("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
-                        PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)");) {
+                     Connection con = dataSource.getConnection();
+                     PreparedStatement statementCreatePage = con.prepareStatement("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
+                     PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)")) {
                     statementCreatePage.addBatch();
 
                     // use executeBatch for DDL, like in MySQL import scripts
@@ -129,14 +130,14 @@ public class BatchTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        PreparedStatementAsync statementCreatePage = con.prepareStatement("CREATE TABLE mytable (n1 int primary key auto_increment, name string)")
-                                .unwrap(PreparedStatementAsync.class);
-                        PreparedStatementAsync statement = con.prepareStatement("INSERT INTO mytable (name) values(?)")
-                                .unwrap(PreparedStatementAsync.class);) {
+                     Connection con = dataSource.getConnection();
+                     PreparedStatementAsync statementCreatePage = con.prepareStatement("CREATE TABLE mytable (n1 int primary key auto_increment, name string)")
+                             .unwrap(PreparedStatementAsync.class);
+                     PreparedStatementAsync statement = con.prepareStatement("INSERT INTO mytable (name) values(?)")
+                             .unwrap(PreparedStatementAsync.class)) {
                     statementCreatePage.addBatch();
 
                     // use executeBatch for DDL, like in MySQL import scripts

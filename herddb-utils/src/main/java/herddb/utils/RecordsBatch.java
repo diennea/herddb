@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import io.netty.buffer.ByteBuf;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 

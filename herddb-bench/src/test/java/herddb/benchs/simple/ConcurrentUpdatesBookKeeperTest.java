@@ -17,18 +17,17 @@
  under the License.
 
  */
+
 package herddb.benchs.simple;
-
-import java.io.IOException;
-
-import org.apache.curator.test.TestingServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import herddb.benchs.BaseBench;
 import herddb.benchs.UpdateByPKOperation;
 import herddb.server.ServerConfiguration;
+import java.io.IOException;
+import org.apache.curator.test.TestingServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  * Simple concurrent reads and writes on a single table
@@ -39,9 +38,9 @@ public class ConcurrentUpdatesBookKeeperTest extends BaseBench {
 
     public ConcurrentUpdatesBookKeeperTest() {
         super(20,
-            1000000,
-            100000,
-            2);
+                1000000,
+                100000,
+                2);
         addOperation(new UpdateByPKOperation());
     }
 

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import java.io.StringReader;
@@ -25,7 +26,6 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- *
  * @author enrico.olivelli
  */
 public class SQLFileParserTest {
@@ -33,50 +33,50 @@ public class SQLFileParserTest {
     @Test
     public void testParseSQLFile() throws Exception {
         String sql = "-- MySQL dump 10.13  Distrib 5.6.35, for Linux (x86_64)\n"
-            + "--\n"
-            + "-- Host: localhost    Database: seleniummonitor\n"
-            + "-- ------------------------------------------------------\n"
-            + "-- Server version	5.6.35\n"
-            + "\n"
-            + "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n"
-            + "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n"
-            + "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n"
-            + "/*!40101 SET NAMES utf8 */;\n"
-            + "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n"
-            + "/*!40103 SET TIME_ZONE='+00:00' */;\n"
-            + "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n"
-            + "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n"
-            + "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n"
-            + "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n"
-            + "\n"
-            + "--\n"
-            + "-- Table structure for table `sm_general_log`\n"
-            + "--\n"
-            + "\n"
-            + "DROP TABLE IF EXISTS `sm_general_log`;\n"
-            + "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n"
-            + "/*!40101 SET character_set_client = utf8 */;\n"
-            + "CREATE TABLE `sm_general_log` (\n"
-            + "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
-            + "  `log` varchar(2000) DEFAULT NULL,\n"
-            + "  PRIMARY KEY (`id`)\n"
-            + ") ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;\n"
-            + "/*!40101 SET character_set_client = @saved_cs_client */;\n"
-            + "\n"
-            + "--\n"
-            + "-- Dumping data for table `sm_general_log`\n"
-            + "--\n"
-            + "\n"
-            + "LOCK TABLES `sm_general_log` WRITE;\n"
-            + "/*!40000 ALTER TABLE `sm_general_log` DISABLE KEYS */;\n"
-            + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent '' and a semicolon;');\n"
-            + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent '' and a semicolon;');\n"
-            + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent \\' and a semicolon;');\n"
-            + "/*!40000 ALTER TABLE `sm_general_log` ENABLE KEYS */;\n"
-            + "UNLOCK TABLES;\n"
-            + "\n"
-            + "--\n"
-            + "INSERT INTO jiraaction VALUES (24880,19803,'aaaa','comment',NULL,NULL,'backslash nella json var deve essere escaped così:\\r\\n{noformat}\\r\\n \\\\\\\\\\\\\\\\\\r\\n{noformat}\\r\\n\\r\\nperchè si trova *dentro una stringa*.\\r\\nInfatti una volta parsata la stringa il doppio \\\\\\\\ diventa \\\\','2014-07-02 12:13:38','xxxx','2014-07-02 12:13:38',NULL);\n";
+                + "--\n"
+                + "-- Host: localhost    Database: seleniummonitor\n"
+                + "-- ------------------------------------------------------\n"
+                + "-- Server version     5.6.35\n"
+                + "\n"
+                + "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n"
+                + "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n"
+                + "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n"
+                + "/*!40101 SET NAMES utf8 */;\n"
+                + "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n"
+                + "/*!40103 SET TIME_ZONE='+00:00' */;\n"
+                + "/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n"
+                + "/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n"
+                + "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n"
+                + "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n"
+                + "\n"
+                + "--\n"
+                + "-- Table structure for table `sm_general_log`\n"
+                + "--\n"
+                + "\n"
+                + "DROP TABLE IF EXISTS `sm_general_log`;\n"
+                + "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n"
+                + "/*!40101 SET character_set_client = utf8 */;\n"
+                + "CREATE TABLE `sm_general_log` (\n"
+                + "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
+                + "  `log` varchar(2000) DEFAULT NULL,\n"
+                + "  PRIMARY KEY (`id`)\n"
+                + ") ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;\n"
+                + "/*!40101 SET character_set_client = @saved_cs_client */;\n"
+                + "\n"
+                + "--\n"
+                + "-- Dumping data for table `sm_general_log`\n"
+                + "--\n"
+                + "\n"
+                + "LOCK TABLES `sm_general_log` WRITE;\n"
+                + "/*!40000 ALTER TABLE `sm_general_log` DISABLE KEYS */;\n"
+                + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent '' and a semicolon;');\n"
+                + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent '' and a semicolon;');\n"
+                + "INSERT INTO `sm_general_log` VALUES (2,'my string with accent \\' and a semicolon;');\n"
+                + "/*!40000 ALTER TABLE `sm_general_log` ENABLE KEYS */;\n"
+                + "UNLOCK TABLES;\n"
+                + "\n"
+                + "--\n"
+                + "INSERT INTO jiraaction VALUES (24880,19803,'aaaa','comment',NULL,NULL,'backslash nella json var deve essere escaped così:\\r\\n{noformat}\\r\\n \\\\\\\\\\\\\\\\\\r\\n{noformat}\\r\\n\\r\\nperchè si trova *dentro una stringa*.\\r\\nInfatti una volta parsata la stringa il doppio \\\\\\\\ diventa \\\\','2014-07-02 12:13:38','xxxx','2014-07-02 12:13:38',NULL);\n";
         List<SQLFileParser.Statement> res = new ArrayList<>();
         SQLFileParser.parseSQLFile(new StringReader(sql), (s -> {
             if (s.comment) {

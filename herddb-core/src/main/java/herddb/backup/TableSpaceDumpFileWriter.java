@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.backup;
 
 import herddb.client.TableSpaceDumpReceiver;
@@ -27,12 +28,12 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.Holder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import herddb.utils.Holder;
 
 /**
  * Writes a full tabledump to file
@@ -54,6 +55,7 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
         this.schema = schema;
         this.out = out;
     }
+
     long tableRecordsCount;
     String currentTable;
 

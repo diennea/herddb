@@ -17,23 +17,21 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
-
-import java.util.Collections;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
 import javax.management.ObjectName;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement atomic-counters
@@ -51,20 +49,20 @@ public class JmxTest {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                HDBConnection connection = client.openConnection()) {
+                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 {
-                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name="+TableSpace.DEFAULT+".mytable");
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name=" + TableSpace.DEFAULT + ".mytable");
                     Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
                     assertEquals(0L, attribute);
                 }
                 {
-                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=TableSpace,Name="+TableSpace.DEFAULT);
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=TableSpace,Name=" + TableSpace.DEFAULT);
                     Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
                     assertEquals(0L, attribute);
                 }

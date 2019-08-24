@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.cli;
 
 import java.util.ArrayList;
@@ -24,13 +25,12 @@ import java.util.List;
 import org.apache.commons.lang.StringUtils;
 
 /**
- *
  * @author francesco.caliumi
  */
 public class TextTableBuilder {
     private List<String[]> rows = new ArrayList<String[]>();
     private boolean hasResults = false;
- 
+
     private void addRowInternal(List<String> values) {
         String[] vals = new String[values.size()];
         rows.add(values.toArray(vals));
@@ -40,60 +40,61 @@ public class TextTableBuilder {
         hasResults = true;
         addRowInternal(values);
     }
-    
+
     public void addIntestation(List<String> columns) {
         addRowInternal(columns);
         List<String> dashes = new ArrayList<>();
-        for (String c: columns) {
+        for (String c : columns) {
             dashes.add(StringUtils.repeat("-", c.length()));
         }
         addRowInternal(dashes);
     }
-    
+
     private int[] colWidths() {
         int cols = -1;
- 
-        for(String[] row : rows)
+
+        for (String[] row : rows) {
             cols = Math.max(cols, row.length);
- 
+        }
+
         int[] widths = new int[cols];
- 
-        for(String[] row : rows) {
-            for(int colNum = 0; colNum < row.length; colNum++) {
+
+        for (String[] row : rows) {
+            for (int colNum = 0; colNum < row.length; colNum++) {
                 widths[colNum] =
-                    Math.max(
-                        widths[colNum],
-                        StringUtils.length(row[colNum]));
+                        Math.max(
+                                widths[colNum],
+                                StringUtils.length(row[colNum]));
             }
         }
- 
+
         return widths;
     }
- 
+
     @Override
     public String toString() {
         if (!hasResults) {
             return "Empty results set\n";
         }
-        
+
         StringBuilder buf = new StringBuilder();
- 
+
         int[] colWidths = colWidths();
- 
-        for(String[] row : rows) {
+
+        for (String[] row : rows) {
             buf.append("| ");
-            for(int colNum = 0; colNum < row.length; colNum++) {
+            for (int colNum = 0; colNum < row.length; colNum++) {
                 buf.append(
-                    StringUtils.rightPad(
-                        StringUtils.defaultString(
-                            row[colNum]), colWidths[colNum]));
+                        StringUtils.rightPad(
+                                StringUtils.defaultString(
+                                        row[colNum]), colWidths[colNum]));
                 buf.append(" | ");
             }
- 
+
             buf.append('\n');
         }
- 
+
         return buf.toString();
     }
- 
+
 }

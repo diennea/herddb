@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.model;
 
 import herddb.utils.DataAccessor;
@@ -30,7 +31,7 @@ import java.util.Comparator;
  */
 public interface TupleComparator extends Comparator<DataAccessor>, Serializable {
 
-    public default boolean isOnlyPrimaryKeyAndAscending() {
+    default boolean isOnlyPrimaryKeyAndAscending() {
         return false;
     }
 

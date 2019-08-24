@@ -17,17 +17,8 @@
  under the License.
 
  */
+
 package herddb.core.system;
-
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import java.util.stream.StreamSupport;
-
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 import herddb.core.AbstractTableManager;
 import herddb.core.MaterializedRecordSet;
@@ -54,6 +45,14 @@ import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.SQLRecordPredicateFunctions;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.stream.StreamSupport;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * System tables
@@ -217,7 +216,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     protected abstract Iterable<Record> buildVirtualRecordList() throws StatementExecutionException;
 
-    private final Comparator<Record> SORT_BY_PK = new Comparator<Record>() {
+    private final Comparator<Record> sortByPk = new Comparator<Record>() {
         @Override
         public int compare(Record o1, Record o2) {
             Map<String, Object> ac1 = o1.toBean(table);
@@ -237,8 +236,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     @Override
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
-            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+    public DataScanner scan(
+            ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite
+    ) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
         MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
                 .createRecordSet(table.columnNames, table.columns);
@@ -248,7 +249,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
                 .filter(record -> {
                     return (predicate == null || predicate.evaluate(record, context));
                 })
-                .sorted(SORT_BY_PK) // enforce sort by PK
+                .sorted(sortByPk) // enforce sort by PK
                 .map(r -> r.getDataAccessor(table))
                 .forEach(recordSet::add);
 

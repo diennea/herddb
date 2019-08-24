@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -28,9 +29,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
-import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +40,7 @@ import java.util.Map;
  */
 public class SysindexcolumnsTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("sysindexcolumns")
             .column("tablespace", ColumnTypes.STRING)

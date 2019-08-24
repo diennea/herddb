@@ -17,15 +17,15 @@
  under the License.
 
  */
+
 package herddb.jdbc;
 
+import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import org.apache.commons.dbcp.BasicDataSource;
-import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -40,10 +40,10 @@ public class GenericClientDataSourceTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             HerdDBDataSource dataSource = new HerdDBDataSource();
-            
+
             try (Connection connection = dataSource.getConnection();
-                Statement statement = connection.createStatement();
-                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));

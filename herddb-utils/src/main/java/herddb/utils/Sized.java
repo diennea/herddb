@@ -17,37 +17,35 @@
  under the License.
 
  */
+
 package herddb.utils;
 
-import herddb.utils.SizeAwareObject;
-import herddb.utils.SizeAwareObject;
 import java.nio.charset.StandardCharsets;
 
 /**
  * An utility class for wrap objects into {@link SizeAwareObject} instances. It should used only for testing
  * purposes.
  *
- * @author diego.salvi
- *
  * @param <O>
+ * @author diego.salvi
  */
 public final class Sized<O extends Comparable<O>> implements SizeAwareObject, Comparable<Sized<O>> {
 
     private static final long DEFAULT_SIZE = 100L;
 
-    public static final <X extends Comparable<X>> Sized<X> valueOf(X x) {
+    public static <X extends Comparable<X>> Sized<X> valueOf(X x) {
         return new Sized<>(x, DEFAULT_SIZE);
     }
 
-    public static final Sized<Integer> valueOf(Integer x) {
+    public static Sized<Integer> valueOf(Integer x) {
         return new Sized<>(x, Integer.BYTES);
     }
 
-    public static final Sized<Long> valueOf(Long x) {
+    public static Sized<Long> valueOf(Long x) {
         return new Sized<>(x, Long.BYTES);
     }
 
-    public static final Sized<String> valueOf(String x) {
+    public static Sized<String> valueOf(String x) {
         return new Sized<>(x, x.getBytes(StandardCharsets.UTF_16BE).length);
     }
 
@@ -83,7 +81,7 @@ public final class Sized<O extends Comparable<O>> implements SizeAwareObject, Co
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Sized) {
-            return dummy.equals(((Sized<?>)obj).dummy);
+            return dummy.equals(((Sized<?>) obj).dummy);
         }
 
         return false;

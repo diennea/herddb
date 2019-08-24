@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.storage;
 
 /**
@@ -26,7 +27,9 @@ package herddb.storage;
  */
 public class DataPageDoesNotExistException extends DataStorageManagerException {
 
-    /** Defaul Serial Version UID */
+    /**
+     * Defaul Serial Version UID
+     */
     private static final long serialVersionUID = 1L;
 
     public DataPageDoesNotExistException(String message, Throwable cause) {

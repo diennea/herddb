@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.daemons;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class PidFileLocker implements AutoCloseable {
     private final Path file;
     private final byte[] pid;
     private volatile boolean closed;
-    private final static String PIDFILE = System.getProperty("pidfile", "");
+    private static final String PIDFILE = System.getProperty("pidfile", "");
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {

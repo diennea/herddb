@@ -17,20 +17,19 @@
  under the License.
 
  */
+
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Extended version of DataInputStream
  *
  * @author enrico.olivelli
  * @author diego.salvi
- *
  * @see ExtendedDataOutputStream
  */
 public class ExtendedDataInputStream extends DataInputStream {
@@ -49,7 +48,7 @@ public class ExtendedDataInputStream extends DataInputStream {
     public int readVInt() throws IOException {
         return readVInt(readByte());
     }
-        
+
     protected int readVInt(byte first) throws IOException {
         byte b = first;
         int i = b & 0x7F;
@@ -80,8 +79,8 @@ public class ExtendedDataInputStream extends DataInputStream {
     private boolean eof;
 
     /**
-     * @see #readVIntNoEOFException()
      * @return
+     * @see #readVIntNoEOFException()
      */
     public boolean isEof() {
         return eof;
@@ -200,7 +199,7 @@ public class ExtendedDataInputStream extends DataInputStream {
     public Bytes readBytes() throws IOException {
         return Bytes.from_nullable_array(readArray());
     }
-    
+
     public byte[] readArray() throws IOException {
         int len = ExtendedDataInputStream.this.readVInt();
         if (len == 0) {

@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -64,7 +65,7 @@ public class AllNullsDataAccessor extends AbstractDataAccessor {
     public boolean fieldEqualsTo(int index, Object value) {
         return value == null;
     }
-    
+
     @Override
     public int fieldCompareTo(int index, Object value) {
         return SQLRecordPredicateFunctions.compareNullTo(value);

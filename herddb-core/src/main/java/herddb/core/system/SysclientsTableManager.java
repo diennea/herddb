@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
@@ -35,7 +36,7 @@ import java.util.stream.Collectors;
  */
 public class SysclientsTableManager extends AbstractSystemTableManager {
 
-    private final static Table TABLE = Table
+    private static final Table TABLE = Table
             .builder()
             .name("sysclients")
             .column("id", ColumnTypes.STRING)
@@ -59,10 +60,10 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
                 .getActualConnections().connections
                 .stream()
                 .map(r -> RecordSerializer.makeRecord(table,
-                "id", r.id,
-                "username", r.username,
-                "address", r.address,
-                "connectionts", new java.sql.Timestamp(r.connectionTs)))
+                        "id", r.id,
+                        "username", r.username,
+                        "address", r.address,
+                        "connectionts", new java.sql.Timestamp(r.connectionTs)))
                 .collect(Collectors.toList());
     }
 

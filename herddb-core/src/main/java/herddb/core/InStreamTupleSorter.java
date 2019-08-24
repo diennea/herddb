@@ -17,13 +17,13 @@
  under the License.
 
  */
-package herddb.core;
 
-import java.util.Arrays;
-import java.util.Comparator;
+package herddb.core;
 
 import herddb.model.Tuple;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * Collect and sort a maximum number of {@link Tuple Tuples}.
@@ -73,7 +73,7 @@ public final class InStreamTupleSorter {
 
         try {
             tuples[idx] = tuple;
-        } catch (ArrayStoreException err) {            
+        } catch (ArrayStoreException err) {
             throw err;
         }
 

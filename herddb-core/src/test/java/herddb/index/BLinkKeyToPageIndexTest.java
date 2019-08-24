@@ -1,9 +1,5 @@
 package herddb.index;
 
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.stream.Stream;
-
 import herddb.core.AbstractIndexManager;
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -15,6 +11,9 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.stream.Stream;
 
 /**
  * Base test suite for {@link  BLinkKeyToPageIndex}
@@ -30,7 +29,7 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
         MemoryDataStorageManager ds = new MemoryDataStorageManager();
         BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds);
 
-        return new ResourceCloseKeyToPageIndex(idx,ds);
+        return new ResourceCloseKeyToPageIndex(idx, ds);
 
     }
 
@@ -49,7 +48,7 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
             delegate.close();
 
             IllegalStateException exception = null;
-            for(AutoCloseable closeable : closeables) {
+            for (AutoCloseable closeable : closeables) {
                 try {
                     closeable.close();
                 } catch (Exception e) {
@@ -113,8 +112,10 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
         }
 
         @Override
-        public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-                                                  TableContext tableContext, AbstractIndexManager index)
+        public Stream<Entry<Bytes, Long>> scanner(
+                IndexOperation operation, StatementEvaluationContext context,
+                TableContext tableContext, AbstractIndexManager index
+        )
                 throws DataStorageManagerException, StatementExecutionException {
             return delegate.scanner(operation, context, tableContext, index);
         }

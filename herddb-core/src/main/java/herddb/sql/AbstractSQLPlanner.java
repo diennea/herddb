@@ -17,15 +17,13 @@
  under the License.
 
  */
+
 package herddb.sql;
 
-import herddb.model.ExecutionPlan;
 import herddb.model.StatementExecutionException;
 import java.util.List;
-import net.sf.jsqlparser.statement.Statement;
 
 /**
- *
  * @author eolivelli
  */
 public interface AbstractSQLPlanner {

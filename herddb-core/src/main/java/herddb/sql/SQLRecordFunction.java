@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
@@ -28,7 +29,6 @@ import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

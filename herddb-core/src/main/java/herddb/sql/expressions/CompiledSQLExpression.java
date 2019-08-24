@@ -17,12 +17,12 @@
  under the License.
 
  */
+
 package herddb.sql.expressions;
 
 import herddb.model.Predicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Collections;
 import java.util.List;
@@ -34,9 +34,9 @@ import java.util.List;
  */
 public interface CompiledSQLExpression {
 
-    public interface BinaryExpressionBuilder {
+    interface BinaryExpressionBuilder {
 
-        public CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
+        CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
     }
 
     /**
@@ -47,42 +47,42 @@ public interface CompiledSQLExpression {
      * @return
      * @throws StatementExecutionException
      */
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException;
+    Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException;
 
-    public default boolean opEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+    default boolean opEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
         return SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
     }
-    
-    public default int opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+
+    default int opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
         return SQLRecordPredicateFunctions.compare(leftValue, rightValue);
     }
-    
+
     /**
      * Validates the expression without actually doing complex operation
      *
      * @param context
      * @throws StatementExecutionException
      */
-    public default void validate(StatementEvaluationContext context) throws StatementExecutionException {
+    default void validate(StatementEvaluationContext context) throws StatementExecutionException {
     }
 
-    public default List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(
+    default List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(
             String column, String operator, BindableTableScanColumnNameResolver columnNameResolver
     ) {
         return Collections.emptyList();
     }
 
-    public default List<CompiledSQLExpression> scanForConstraintsOnColumn(
+    default List<CompiledSQLExpression> scanForConstraintsOnColumn(
             String column, BindableTableScanColumnNameResolver columnNameResolver
     ) {
         return Collections.emptyList();
     }
 
-    public default CompiledSQLExpression cast(int type) {
+    default CompiledSQLExpression cast(int type) {
         return new CastExpression(this, type);
     }
 
@@ -97,7 +97,7 @@ public interface CompiledSQLExpression {
      *
      * @param projection a map from index on table to the index on pk
      */
-    public default CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+    default CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         throw new IllegalStateException("not implemented for " + this.getClass());
     }
 }

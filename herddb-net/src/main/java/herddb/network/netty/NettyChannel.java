@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.network.netty;
 
 import herddb.network.Channel;
@@ -63,8 +64,10 @@ public class NettyChannel extends Channel {
         return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + callbacks.size() + " msgs}";
     }
 
-    public NettyChannel(String name, io.netty.channel.Channel socket,
-            ExecutorService callbackexecutor) {
+    public NettyChannel(
+            String name, io.netty.channel.Channel socket,
+            ExecutorService callbackexecutor
+    ) {
         this.name = name;
         this.socket = socket;
         this.callbackexecutor = callbackexecutor;
