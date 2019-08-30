@@ -900,7 +900,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             try {
                 long requestId = channel.generateRequestId();
                 ByteBuf message = PduCodec.FetchScannerData.write(requestId, scannerId, fetchSize);
-                result = channel.sendMessageWithPduReply(requestId, message, 10000);
+                result = channel.sendMessageWithPduReply(requestId, message, timeout);
 
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
                 if (result.type == Pdu.TYPE_ERROR) {
