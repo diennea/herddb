@@ -49,22 +49,33 @@ import java.sql.Types;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * ResultSet implementation
  *
  * @author enrico.olivelli
  */
-public class HerdDBResultSet implements ResultSet {
+public final class HerdDBResultSet implements ResultSet {
 
+    private static final AtomicLong IDGENERATOR = new AtomicLong();
+    private final Long id = IDGENERATOR.incrementAndGet();
     private final ScanResultSet scanResult;
     private DataAccessor actualValue;
     private Object lastValue;
+    private final HerdDBStatement parent;
     private final ScanResultSetMetadata metadata;
 
     HerdDBResultSet(ScanResultSet scanResult) {
+         this(scanResult, null);
+     }
+    HerdDBResultSet(ScanResultSet scanResult, HerdDBStatement parent) {
         this.scanResult = scanResult;
         this.metadata = scanResult.getMetadata();
+        this.parent = parent;
+        if (parent != null) {
+            this.parent.registerResultSet(this);
+        }
     }
 
     @Override
@@ -86,6 +97,9 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public void close() throws SQLException {
         scanResult.close();
+        if (parent != null) {
+            parent.releaseResultSet(this);
+        }
     }
 
     @Override
@@ -1286,4 +1300,7 @@ public class HerdDBResultSet implements ResultSet {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
+    Long getId() {
+        return id;
+    }
 }
