@@ -41,7 +41,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     private final Column[] schema;
     private final String[] fieldNames;
-    public Transaction transaction; // no final    
+    public Transaction transaction; // no final
 
     public DataScanner(Transaction transaction, String[] fieldNames, Column[] schema) {
         this.schema = schema;
@@ -82,7 +82,7 @@ public abstract class DataScanner implements AutoCloseable {
     }
 
     @Override
-    public void close() throws DataScannerException {       
+    public void close() throws DataScannerException {
     }
 
     /**

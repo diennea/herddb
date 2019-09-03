@@ -48,7 +48,6 @@ import java.sql.Struct;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -66,7 +65,6 @@ public class HerdDBConnection implements java.sql.Connection {
     private String tableSpace;
     private final BasicHerdDBDataSource datasource;
     private boolean closed;
-    private ConcurrentHashMap<Long, HerdDBPreparedStatement> openStatements = new ConcurrentHashMap<>();
 
     HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         if (connection == null) {
