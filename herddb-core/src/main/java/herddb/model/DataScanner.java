@@ -25,6 +25,7 @@ import herddb.core.HerdDBInternalException;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.apache.calcite.linq4j.AbstractEnumerable;
 import org.apache.calcite.linq4j.Enumerable;
@@ -40,7 +41,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     private final Column[] schema;
     private final String[] fieldNames;
-    public Transaction transaction; // no final
+    public Transaction transaction; // no final    
 
     public DataScanner(Transaction transaction, String[] fieldNames, Column[] schema) {
         this.schema = schema;
@@ -81,10 +82,7 @@ public abstract class DataScanner implements AutoCloseable {
     }
 
     @Override
-    public void close() throws DataScannerException {
-        if (transaction != null) {
-            transaction.decreaseRefCount();
-        }
+    public void close() throws DataScannerException {       
     }
 
     /**

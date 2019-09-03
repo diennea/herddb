@@ -120,7 +120,7 @@ public class AggregateOp implements PlannerOp {
                 StatementEvaluationContext context,
                 RecordSetFactory recordSetFactory
         ) throws StatementExecutionException {
-            super(wrapped.getTransaction(), fieldnames, columns);
+            super(wrapped.getTransaction(), fieldnames, columns);           
             this.wrapped = wrapped;
             this.context = context;
             this.recordSetFactory = recordSetFactory;
@@ -202,7 +202,7 @@ public class AggregateOp implements PlannerOp {
                         Tuple tuple = new Tuple(fieldnames, values);
                         results.add(tuple);
                     }
-                    results.writeFinished();
+                    results.writeFinished();                    
                     aggregatedScanner = new SimpleDataScanner(wrapped.getTransaction(), results);
                 } else {
                     Group group = createGroup();
@@ -222,7 +222,7 @@ public class AggregateOp implements PlannerOp {
                     MaterializedRecordSet results = recordSetFactory
                             .createFixedSizeRecordSet(1, getFieldNames(), getSchema());
                     results.add(tuple);
-                    results.writeFinished();
+                    results.writeFinished();                   
                     aggregatedScanner = new SimpleDataScanner(wrapped.getTransaction(), results);
                 }
             } catch (StatementExecutionException err) {
@@ -268,7 +268,7 @@ public class AggregateOp implements PlannerOp {
             wrapped.close();
             if (aggregatedScanner != null) {
                 aggregatedScanner.close();
-            }
+            }            
         }
     }
 

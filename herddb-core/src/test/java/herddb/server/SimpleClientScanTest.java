@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
@@ -55,31 +54,41 @@ public class SimpleClientScanTest {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                 HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_" + i, 1, 2)).updateCount);
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.
+                                    asList("test_" + i, 1, 2)).updateCount);
                 }
 
-                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
+                        emptyList(), 0, 0, 10).consume().size());
 
                 // maxRows
-                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), 0, 17, 10).consume().size());
+                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
+                        emptyList(), 0, 17, 10).consume().size());
 
                 // empty result set
-                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", true, Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(0, connection.
+                        executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", true, Collections.
+                                emptyList(), 0, 0, 10).consume().size());
 
                 // single fetch result test
-                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", true, Collections.emptyList(), 0, 0, 10).consume().size());
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'",
+                        true, Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // agregation in transaction, this is trickier than what you can think
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
-                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT count(*) FROM mytable WHERE id='test_1'", true, Collections.emptyList(), tx, 0, 10).consume().size());
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT count(*) FROM mytable WHERE id='test_1'", true, Collections.emptyList(), tx, 0, 10).
+                        consume().size());
                 connection.rollbackTransaction(TableSpace.DEFAULT, tx);
 
             }
@@ -95,15 +104,18 @@ public class SimpleClientScanTest {
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 10); // more than one socket
             try (HDBClient client = new HDBClient(clientConfiguration);
-                 HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.asList("test_" + i, 1, 2)).updateCount);
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, true, Arrays.
+                                    asList("test_" + i, 1, 2)).updateCount);
                 }
 
                 checkUseOnlyOneSocket(connection, server);
@@ -122,6 +134,14 @@ public class SimpleClientScanTest {
                 checkNoScannersOnTheServer(server);
 
                 checkCloseResultSetNotFullyScanned(connection, server, false);
+
+                checkNoScannersOnTheServer(server);
+
+                checkCloseResultSetNotFullyScannedWithTransactionAndAggregation(connection, server, true);
+
+                checkNoScannersOnTheServer(server);
+
+                checkCloseResultSetNotFullyScannedWithTransactionAndAggregation(connection, server, false);
 
                 checkNoScannersOnTheServer(server);
 
@@ -152,7 +172,8 @@ public class SimpleClientScanTest {
                 // scan with fetchSize = 1, we will have 100 chunks
                 ServerSideConnectionPeer peerWithScanner = null;
                 long tx = withTransaction ? primary.beginTransaction(TableSpace.DEFAULT) : 0;
-                try (ScanResultSet scan = connection2.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), tx, 0, 1)) {
+                try (ScanResultSet scan = connection2.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true,
+                        Collections.emptyList(), tx, 0, 1)) {
                     assertTrue(scan.hasNext());
                     System.out.println("next:" + scan.next());
 
@@ -189,7 +210,8 @@ public class SimpleClientScanTest {
     private void checkUseOnlyOneSocket(final HDBConnection connection, final Server server) throws HDBException, ClientSideMetadataProviderException, InterruptedException {
         // scan with fetchSize = 1, we will have 100 chunks
         ServerSideConnectionPeer peerWithScanner = null;
-        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), 0, 0, 1)) {
+        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
+                emptyList(), 0, 0, 1)) {
             while (scan.hasNext()) {
                 System.out.println("next:" + scan.next());
 
@@ -217,7 +239,8 @@ public class SimpleClientScanTest {
         // scan with fetchSize = 1, we will have 100 chunks
         ServerSideConnectionPeer peerWithScanner = null;
         int chunks = 0;
-        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.emptyList(), tx, 0, 1)) {
+        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
+                emptyList(), tx, 0, 1)) {
 
             while (scan.hasNext()) {
                 System.out.println("next:" + scan.next());
@@ -247,36 +270,37 @@ public class SimpleClientScanTest {
         }
     }
 
-    private void checkCloseResultSetNotFullyScannedWithTransactionAndAggregation(final HDBConnection connection, final Server server, boolean withTransaction) throws HDBException, ClientSideMetadataProviderException, InterruptedException {
+    private void checkCloseResultSetNotFullyScannedWithTransactionAndAggregation(final HDBConnection connection,
+                                                                                 final Server server,
+                                                                                 boolean withTransaction) throws HDBException, ClientSideMetadataProviderException, InterruptedException {
         long tx = withTransaction ? connection.beginTransaction(TableSpace.DEFAULT) : 0;
-// scan with fetchSize = 1, we will have 100 chunks
+
         ServerSideConnectionPeer peerWithScanner = null;
-        int chunks = 0;
-        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT count(*) FROM mytable", true, Collections.emptyList(), tx, 0, 1)) {
 
-            while (scan.hasNext()) {
-                System.out.println("next:" + scan.next());
+        try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                "SELECT count(*) FROM mytable "
+                + "UNION ALL "
+                + "SELECT count(*) FROM mytable", true, Collections.emptyList(), tx,
+                0, 1)) {
 
-                for (ServerSideConnectionPeer peer : server.getConnections().values()) {
-                    System.out.println("peer " + peer + " scanners: " + peer.getScanners());
-                    if (!peer.getScanners().isEmpty()) {
-                        if (peerWithScanner != null && peerWithScanner != peer) {
-                            fail("Found more then one peer with an open scanner");
-                        }
-                        peerWithScanner = peer;
-                        assertEquals(1, peer.getScanners().size());
+            assertTrue(scan.hasNext());
+            System.out.println("next:" + scan.next());
+
+            for (ServerSideConnectionPeer peer : server.getConnections().values()) {
+                System.out.println("peer " + peer + " scanners: " + peer.getScanners());
+                if (!peer.getScanners().isEmpty()) {
+                    if (peerWithScanner != null && peerWithScanner != peer) {
+                        fail("Found more then one peer with an open scanner");
                     }
+                    peerWithScanner = peer;
+                    assertEquals(1, peer.getScanners().size());
                 }
-                assertNotNull(peerWithScanner);
-
-                if (chunks++ >= 5) {
-                    break;
-                }
-
             }
+            assertNotNull(peerWithScanner);
+
         }
         assertNotNull(peerWithScanner);
-        assertEquals(6, chunks);
+
         if (withTransaction) {
             connection.rollbackTransaction(TableSpace.DEFAULT, tx);
         }

@@ -26,6 +26,7 @@ import herddb.model.DataScannerException;
 import herddb.model.Transaction;
 import herddb.utils.DataAccessor;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -37,6 +38,7 @@ class StreamDataScanner extends DataScanner {
 
     private final Iterator<DataAccessor> wrapped;
     private DataAccessor next;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public StreamDataScanner(
             Transaction transaction, String[] fieldNames, Column[] schema,
@@ -72,7 +74,11 @@ class StreamDataScanner extends DataScanner {
 
     @Override
     public void close() throws DataScannerException {
+        if (closed.compareAndSet(false, true)) {
+            if (transaction != null) {
+                transaction.decreaseRefCount();
+            }
+        }    
         super.close();
     }
-
 }

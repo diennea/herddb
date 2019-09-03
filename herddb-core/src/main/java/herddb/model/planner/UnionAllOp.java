@@ -97,6 +97,9 @@ public class UnionAllOp implements PlannerOp {
             } else if (index == inputs.size() - 1) {
                 next = null;
             } else {
+                if (current != null) {
+                    current.close();
+                }
                 index++;
                 ScanResult execute = (ScanResult) inputs
                         .get(index).execute(tableSpaceManager,
@@ -120,6 +123,11 @@ public class UnionAllOp implements PlannerOp {
             final DataAccessor current = next;
             fetchNext();
             return current;
+        }
+
+        @Override
+        public void close() throws DataScannerException {
+            current.close();
         }
 
     }
