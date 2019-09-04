@@ -94,7 +94,8 @@ public interface SQLRecordPredicateFunctions {
         if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
             return ((Comparable) a).compareTo(b);
         }
-        throw new IllegalArgumentException("uncompable objects " + a.getClass() + " vs " + b.getClass());
+        throw new IllegalArgumentException(
+                "uncomparable objects " + a.getClass() + " ('" + a + "') vs " + b.getClass() + " ('" + b + ")");
     }
 
     static Object add(Object a, Object b) throws IllegalArgumentException {

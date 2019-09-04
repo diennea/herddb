@@ -88,16 +88,21 @@ public class Transaction {
      */
     public void increaseRefcount() {
         refCount.incrementAndGet();
-//        new Exception("START tx "+transactionId+" now "+refCount).printStackTrace();
+        // new Exception("START tx "+transactionId+" now "+refCount).printStackTrace();
     }
 
     public void decreaseRefCount() {
+        // new Exception("END tx "+transactionId+" now "+refCount).printStackTrace();
         int res = refCount.decrementAndGet();
         if (res < 0) {
             LOG.log(Level.SEVERE, "transaction {0} "
                             + "on tablespace {1} "
                             + "has {2} pending activities",
                     new Object[]{transactionId, tableSpace, res});
+            throw new IllegalStateException(String.format("transaction {0} "
+                            + "on tablespace {1} "
+                            + "has {2} pending activities", transactionId, tableSpace, res));
+
         }
 //         new Exception("END tsx "+transactionId+" now "+res).printStackTrace();
     }

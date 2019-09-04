@@ -25,6 +25,7 @@ import herddb.model.DataScannerException;
 import herddb.model.Transaction;
 import herddb.utils.DataAccessor;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Simple data scanner on a in memory MaterializedRecordSet
@@ -37,6 +38,7 @@ public class SimpleDataScanner extends DataScanner {
     private Iterator<DataAccessor> iterator;
     private DataAccessor next;
     private boolean finished;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public SimpleDataScanner(Transaction transaction, MaterializedRecordSet recordSet) {
         super(transaction, recordSet.fieldNames, recordSet.columns);
@@ -49,11 +51,16 @@ public class SimpleDataScanner extends DataScanner {
 
     @Override
     public void close() throws DataScannerException {
-        finished = true;
-        try {
-            recordSet.close();
-        } finally {
-            super.close();
+        if (closed.compareAndSet(false, true)) {
+            if (transaction != null) {
+                transaction.decreaseRefCount();
+            }
+            finished = true;
+            try {
+                recordSet.close();
+            } finally {
+                super.close();
+            }
         }
     }
 

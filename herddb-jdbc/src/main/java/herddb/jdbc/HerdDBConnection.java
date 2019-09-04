@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.jdbc;
 
 import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
@@ -47,6 +46,7 @@ import java.sql.Struct;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -64,6 +64,7 @@ public class HerdDBConnection implements java.sql.Connection {
     private String tableSpace;
     private final BasicHerdDBDataSource datasource;
     private boolean closed;
+    private final ConcurrentHashMap<Long, HerdDBStatement> openStatements = new ConcurrentHashMap<>();
 
     HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         if (connection == null) {
@@ -75,6 +76,9 @@ public class HerdDBConnection implements java.sql.Connection {
     }
 
     final void reset(String defaultTablespace) {
+        if (!openStatements.isEmpty()) {
+            throw new IllegalStateException("Found open statements " + openStatements);
+        }
         this.autocommit = true;
         this.tableSpace = defaultTablespace;
         this.transactionId = 0;
@@ -150,6 +154,7 @@ public class HerdDBConnection implements java.sql.Connection {
             // no transaction actually started, nothing to commit
             return;
         }
+        ensureAllStatementClosed();
         try {
             connection.commitTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -168,6 +173,7 @@ public class HerdDBConnection implements java.sql.Connection {
             // no transaction actually started, nothing to commit
             return;
         }
+        ensureAllStatementClosed();
         try {
             connection.rollbackTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -177,17 +183,29 @@ public class HerdDBConnection implements java.sql.Connection {
         }
     }
 
+    private void ensureAllStatementClosed() throws SQLException {
+        for (HerdDBStatement ps : openStatements.values()) {
+            LOGGER.log(Level.FINE, "closing abandoned statement {0}", ps);
+            try {
+                ps.close();
+            } catch (SQLException err) {
+                LOGGER.log(Level.SEVERE, "Cannot close an open statement", err);
+            }
+        }
+        openStatements.clear();
+    }
+
     @Override
     public void close() throws SQLException {
         if (closed) {
             return;
         }
+        ensureAllStatementClosed();
         if (transactionId != NOTRANSACTION_ID
                 && transactionId != AUTOTRANSACTION_ID) {
             rollback();
         }
         closed = true;
-
         datasource.releaseConnection(this);
     }
 
@@ -203,7 +221,6 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-
     }
 
     @Override
@@ -224,7 +241,8 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
         if (level != Connection.TRANSACTION_READ_COMMITTED) {
-            LOGGER.log(Level.SEVERE, "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED is supported", level);
+            LOGGER.log(Level.SEVERE,
+                    "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED is supported", level);
         }
     }
 
@@ -305,12 +323,14 @@ public class HerdDBConnection implements java.sql.Connection {
     }
 
     @Override
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
+                                              int resultSetHoldability) throws SQLException {
         return prepareStatement(sql);
     }
 
     @Override
-    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
+                                         int resultSetHoldability) throws SQLException {
         throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -389,7 +409,8 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public void setSchema(String schema) throws SQLException {
         if (transactionId > 0 && !Objects.equals(schema, tableSpace)) {
-            throw new SQLException("cannot switch to schema " + schema + ", transaction (ID " + transactionId + ") is already started on tableSpace " + tableSpace);
+            throw new SQLException(
+                    "cannot switch to schema " + schema + ", transaction (ID " + transactionId + ") is already started on tableSpace " + tableSpace);
         }
         this.tableSpace = schema;
     }
@@ -433,8 +454,16 @@ public class HerdDBConnection implements java.sql.Connection {
         setSchema(QueryUtils.discoverTablespace(tableSpace, sql));
     }
 
-    void statementFinished(long transactionId) {
+    void releaseStatement(HerdDBStatement statement) {
+        this.openStatements.remove(statement.getId());
+    }
+
+    void bindToTransaction(long transactionId) {
         this.transactionId = transactionId;
+    }
+
+    void registerOpenStatement(HerdDBStatement statement) {
+       openStatements.put(statement.getId(), statement);
     }
 
 }

@@ -82,9 +82,6 @@ public abstract class DataScanner implements AutoCloseable {
 
     @Override
     public void close() throws DataScannerException {
-        if (transaction != null) {
-            transaction.decreaseRefCount();
-        }
     }
 
     /**
