@@ -55,12 +55,12 @@ public class SimpleDataScanner extends DataScanner {
             if (transaction != null) {
                 transaction.decreaseRefCount();
             }
-        }
-        finished = true;
-        try {
-            recordSet.close();
-        } finally {
-            super.close();
+            finished = true;
+            try {
+                recordSet.close();
+            } finally {
+                super.close();
+            }
         }
     }
 

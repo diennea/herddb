@@ -78,7 +78,7 @@ class StreamDataScanner extends DataScanner {
             if (transaction != null) {
                 transaction.decreaseRefCount();
             }
+            super.close();
         }
-        super.close();
     }
 }
