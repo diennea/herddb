@@ -60,6 +60,7 @@ public class HerdDBStatement implements java.sql.Statement {
     protected Object lastKey;
     private final Long id = IDGENERATOR.incrementAndGet();
     private final ConcurrentHashMap<Long, HerdDBResultSet> openResultSets = new ConcurrentHashMap<>();
+    private boolean closed;
 
     public HerdDBStatement(HerdDBConnection parent) {
         this.parent = parent;
@@ -97,6 +98,7 @@ public class HerdDBStatement implements java.sql.Statement {
         }
         openResultSets.clear();
         parent.releaseStatement(this);
+        closed = true;
     }
 
     @Override
@@ -329,7 +331,7 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public boolean isClosed() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return closed;
     }
 
     @Override
