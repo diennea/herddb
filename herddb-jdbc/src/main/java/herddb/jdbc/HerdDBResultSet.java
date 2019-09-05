@@ -65,6 +65,7 @@ public final class HerdDBResultSet implements ResultSet {
     private Object lastValue;
     private final HerdDBStatement parent;
     private final ScanResultSetMetadata metadata;
+    private boolean closed;
 
     HerdDBResultSet(ScanResultSet scanResult) {
          this(scanResult, null);
@@ -100,6 +101,7 @@ public final class HerdDBResultSet implements ResultSet {
         if (parent != null) {
             parent.releaseResultSet(this);
         }
+        closed = true;
     }
 
     @Override
@@ -642,7 +644,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public int getFetchDirection() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.FETCH_FORWARD;
     }
 
     @Override
@@ -652,17 +654,17 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public int getFetchSize() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return parent.getFetchSize();
     }
 
     @Override
     public int getType() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     @Override
     public int getConcurrency() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.CONCUR_READ_ONLY;
     }
 
     @Override
@@ -1062,12 +1064,12 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public int getHoldability() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+       return ResultSet.CLOSE_CURSORS_AT_COMMIT;
     }
 
     @Override
     public boolean isClosed() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return closed;
     }
 
     @Override
