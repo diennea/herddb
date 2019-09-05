@@ -571,9 +571,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan, rowType);
-        } else if (plan instanceof EnumerableSemiJoin) {
-            EnumerableSemiJoin scan = (EnumerableSemiJoin) plan;
-            return planEnumerableSemiJoin(scan, rowType);
+        } else if (plan instanceof EnumerableHashJoin) {
+            EnumerableHashJoin scan = (EnumerableHashJoin) plan;
+            return planEnumerableHashJoin(scan, rowType);
         } else if (plan instanceof EnumerableNestedLoopJoin) {
             EnumerableNestedLoopJoin scan = (EnumerableNestedLoopJoin) plan;
             return planEnumerableNestedLoopJoin(scan, rowType);
@@ -868,12 +868,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new ProjectOp(projection, input);
     }
 
-    private PlannerOp planEnumerableSemiJoin(EnumerableSemiJoin op, RelDataType rowType) {
+    private PlannerOp planEnumerableHashJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableSemiJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
+        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
+        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -893,8 +893,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         // please note that EnumerableJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
+        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
+        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
@@ -935,8 +935,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         // please note that EnumerableMergeJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
+        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
+        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
