@@ -101,7 +101,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
     private final Map<String, ServerHostData> servers = new ConcurrentHashMap<>();
 
     @Override
-    public void requestMetadataRefresh() {
+    public void requestMetadataRefresh(Exception error) {
         tableSpaceLeaders.clear();
         servers.clear();
     }

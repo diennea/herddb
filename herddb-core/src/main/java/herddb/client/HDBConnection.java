@@ -366,7 +366,7 @@ public class HDBConnection implements AutoCloseable {
             }
             RetryRequestException retryError = (RetryRequestException) retry;
             if (retryError.isRequireMetadataRefresh()) {
-                requestMetadataRefresh();
+                requestMetadataRefresh(retryError);
             }
         }
         try {
@@ -433,8 +433,8 @@ public class HDBConnection implements AutoCloseable {
         return closed;
     }
 
-    void requestMetadataRefresh() throws ClientSideMetadataProviderException {
-        client.getClientSideMetadataProvider().requestMetadataRefresh();
+    void requestMetadataRefresh(Exception err) throws ClientSideMetadataProviderException {
+        client.getClientSideMetadataProvider().requestMetadataRefresh(err);
     }
 
     public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws ClientSideMetadataProviderException, HDBException {
