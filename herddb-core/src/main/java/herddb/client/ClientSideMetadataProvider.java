@@ -52,7 +52,7 @@ public interface ClientSideMetadataProvider extends AutoCloseable {
     }
 
     default void requestMetadataRefresh(Exception err) throws ClientSideMetadataProviderException {
-        throw new ClientSideMetadataProviderException("metadata refresh not supported with "+this.getClass(), err);
+        throw new ClientSideMetadataProviderException("metadata refresh not supported with " + this.getClass(), err);
     }
 
 }
