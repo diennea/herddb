@@ -55,4 +55,9 @@ public class StaticClientSideMetadataProvider implements ClientSideMetadataProvi
         return nodeId;
     }
 
+    @Override
+    public void requestMetadataRefresh(Exception error) throws ClientSideMetadataProviderException {
+        throw new ClientSideMetadataProviderException("not working in cluser mode. metadata refresh is not possible", error);
+    }
+
 }

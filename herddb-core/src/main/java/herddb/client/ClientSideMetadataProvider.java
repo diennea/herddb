@@ -51,8 +51,8 @@ public interface ClientSideMetadataProvider extends AutoCloseable {
     default void close() {
     }
 
-    default void requestMetadataRefresh() throws ClientSideMetadataProviderException {
-        throw new ClientSideMetadataProviderException("not working in cluser mode. metadata refresh is not possible");
+    default void requestMetadataRefresh(Exception err) throws ClientSideMetadataProviderException {
+        throw new ClientSideMetadataProviderException("metadata refresh not supported with "+this.getClass(), err);
     }
 
 }
