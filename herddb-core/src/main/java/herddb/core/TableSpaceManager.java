@@ -268,6 +268,7 @@ public class TableSpaceManager {
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
             LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
+            LOGGER.log(Level.SEVERE, "{0} {1} tx {2} at boot seq {3}", new Object[]{nodeId, tableSpaceName, t.transactionId, t.lastSequenceNumber});
             try {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
@@ -1611,7 +1612,6 @@ public class TableSpaceManager {
                 if (actualLogSequenceNumber == null) {
                     throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
                 }
-
                 // TODO: transactions checkpoint is not atomic
                 actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
                 actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true), true));
