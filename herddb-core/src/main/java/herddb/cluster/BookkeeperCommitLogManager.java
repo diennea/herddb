@@ -22,7 +22,9 @@ package herddb.cluster;
 
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
+import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
 import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,10 +33,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.api.LedgerEntries;
+import org.apache.bookkeeper.client.api.LedgerEntry;
+import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -201,4 +207,56 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         activeLogs.remove(tableSpaceUUID);
     }
 
+    public static void scanRawLedger(long ledgerId, herddb.client.ClientConfiguration clientConfiguration,
+            ZookeeperMetadataStorageManager metadataStorageManager, Consumer<LogEntryWithSequenceNumber> consumer) throws Exception {
+        ClientConfiguration config = new ClientConfiguration();
+        config.setZkServers(metadataStorageManager.getZkAddress());
+        config.setZkTimeout(metadataStorageManager.getZkSessionTimeout());
+        config.setZkLedgersRootPath(clientConfiguration.getString(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH,
+                ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT));
+        config.setEnableParallelRecoveryRead(true);
+        config.setEnableDigestTypeAutodetection(true);
+
+        try (org.apache.bookkeeper.client.api.BookKeeper bookKeeper = org.apache.bookkeeper.client.api.BookKeeper.newBuilder(config).build();) {            
+            try (ReadHandle lh = bookKeeper
+                    .newOpenLedgerOp()
+                    .withRecovery(false)
+                    .withLedgerId(ledgerId)
+                    .execute()
+                    .get()) {
+                long lastAddConfirmed = lh.readLastAddConfirmed();
+                for (long id = 0; id < lastAddConfirmed; id++) {
+                    try (LedgerEntries entries = lh.read(id, id);) {
+                        LedgerEntry entry = entries.getEntry(id);
+                        LogEntry lEntry = LogEntry.deserialize(entry.getEntryBytes());
+                        LogEntryWithSequenceNumber e = new LogEntryWithSequenceNumber(
+                                new LogSequenceNumber(ledgerId, id),
+                                lEntry);
+                        consumer.accept(e);
+                    }
+                }
+            }
+        }
+        
+    }
+        
+    public static final class LogEntryWithSequenceNumber {
+
+        public final LogSequenceNumber logSequenceNumber;
+        public final LogEntry entry;
+
+        public LogEntryWithSequenceNumber(LogSequenceNumber logSequenceNumber, LogEntry entry) {
+            this.logSequenceNumber = logSequenceNumber;
+            this.entry = entry;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("LogEntryWithSequenceNumber [logSequenceNumber=").append(logSequenceNumber)
+                    .append(", entry=").append(entry).append("]");
+            return builder.toString();
+        }
+
+    }
 }

@@ -34,6 +34,8 @@ import herddb.backup.BackupUtils;
 import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
+import herddb.cluster.BookkeeperCommitLog;
+import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileCommitLog;
 import herddb.file.FileCommitLog.CommitFileReader;
@@ -177,10 +179,11 @@ public class HerdDBCLI {
             options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
 
             options.addOption("d", "describe", false, "Checks and describes a raw file");
-            options.addOption("ft", "filetype", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
+            options.addOption("ft", "filetype", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata, bkledger");
             options.addOption("mdf", "metadatafile", true, "Tables metadata file, required for 'datapage' filetype");
             options.addOption("tsui", "tablespaceuuid", true, "Tablespace UUID, used for describing raw files");
-
+            options.addOption("lid", "ledgerid", true, "Ledger ID on BookKeeper");
+            
             org.apache.commons.cli.CommandLine commandLine;
             try {
                 commandLine = parser.parse(options, args);
@@ -207,12 +210,17 @@ public class HerdDBCLI {
             String table = commandLine.getOptionValue("table", "");
             boolean describe = commandLine.hasOption("describe");
             String filetype = commandLine.getOptionValue("filetype", "");
+            long ledgerId = Long.parseLong(commandLine.getOptionValue("ledgerid", "0"));
             if (describe) {
                 try {
-                    if (file.isEmpty()) {
-                        throw new IllegalArgumentException("file option is required");
+                    if (filetype.equals("bkledger")) {
+                        describeRawLedger(ledgerId);
+                    } else {
+                        if (file.isEmpty()) {
+                            throw new IllegalArgumentException("file option is required");
+                        }
+                        describeRawFile(tablespaceuuid, table, tablesmetadatafile, file, filetype);
                     }
-                    describeRawFile(tablespaceuuid, table, tablesmetadatafile, file, filetype);
                 } catch (Exception error) {
                     if (verbose) {
                         error.printStackTrace();
@@ -499,6 +507,21 @@ public class HerdDBCLI {
         }
     }
 
+    private static void describeRawLedger(long ledgerId, HerdDBDataSource datasource) throws Exception {
+        ClientConfiguration configuration = datasource.getClient().getConfiguration();
+        if (!datasource.getUrl().contains(":zookeeper:")) {
+            //not cluster
+            return;
+        }
+        String zkAddress = configuration.getString(PROPERTY_ZOOKEEPER_ADDRESS, PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT);
+        String zkPath = configuration.getString(PROPERTY_ZOOKEEPER_PATH, PROPERTY_ZOOKEEPER_PATH_DEFAULT);
+        int sessionTimeout = configuration.getInt(PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, 60000);
+        BookkeeperCommitLogManager.scanRawLedger(configuration, (LogEntryWithSequenceNumber entry) -> {
+            println(nextEntry.logSequenceNumber.ledgerId + "," + nextEntry.logSequenceNumber.offset + ","
+                    + nextEntry.entry.toString());
+        });
+    }
+        
     private static void describeRawFile(String tablespaceuuid, String tableName, String tablesmetadatafile, String rawfile, String mode) throws Exception {
         Path path = Paths.get(rawfile);
         switch (mode) {
