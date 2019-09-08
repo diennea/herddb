@@ -39,7 +39,6 @@ import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.nio.file.Path;
 import java.util.Collections;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -61,7 +60,7 @@ public abstract class RestartPendingTransactionBase {
             Path logsPath,
             Path tmoDir) throws Exception;
 
-    @Test @Ignore
+    @Test
     public void recoverUpdateInTransaction() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -130,7 +129,7 @@ public abstract class RestartPendingTransactionBase {
 
     }
 
-    @Test @Ignore
+    @Test
     public void recoverDeleteInTransaction() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -198,7 +197,7 @@ public abstract class RestartPendingTransactionBase {
 
     }
 
-    @Test @Ignore
+    @Test
     public void recoverUpdate() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -271,7 +270,7 @@ public abstract class RestartPendingTransactionBase {
 
     }
 
-    @Test @Ignore
+    @Test
     public void recoverDelete() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -334,7 +333,7 @@ public abstract class RestartPendingTransactionBase {
 
     }
 
-    @Test @Ignore
+    @Test
     public void recoverUpdateInTransaction2() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
