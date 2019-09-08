@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.model.commands;
 
 import herddb.model.DDLStatement;
@@ -35,17 +34,21 @@ public class CreateTableStatement extends DDLStatement {
 
     private final Table tableDefinition;
     private final List<Index> additionalIndexes;
+    private final boolean ifExistsClause;
 
     public CreateTableStatement(Table tableDefinition) {
-        super(tableDefinition.tablespace);
-        this.tableDefinition = tableDefinition;
-        this.additionalIndexes = Collections.emptyList();
+        this(tableDefinition, Collections.emptyList());
     }
 
     public CreateTableStatement(Table tableDefinition, List<Index> additionalIndexes) {
+        this(tableDefinition, additionalIndexes, false);
+    }
+
+    public CreateTableStatement(Table tableDefinition, List<Index> additionalIndexes, boolean ifExistsClause) {
         super(tableDefinition.tablespace);
         this.tableDefinition = tableDefinition;
         this.additionalIndexes = additionalIndexes;
+        this.ifExistsClause = ifExistsClause;
     }
 
     @Override
@@ -60,6 +63,10 @@ public class CreateTableStatement extends DDLStatement {
 
     public List<Index> getAdditionalIndexes() {
         return additionalIndexes;
+    }
+
+    public boolean isIfExistsClause() {
+        return ifExistsClause;
     }
 
 }

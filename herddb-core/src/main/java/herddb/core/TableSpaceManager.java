@@ -1302,6 +1302,10 @@ public class TableSpaceManager {
         }
         try {
             if (tables.containsKey(statement.getTableDefinition().name)) {
+                if (statement.isIfExistsClause()) {
+                    return new DDLStatementExecutionResult(
+                            transaction != null ? transaction.transactionId : 0);
+                }
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
             }
             for (Index additionalIndex : statement.getAdditionalIndexes()) {
