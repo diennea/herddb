@@ -28,6 +28,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
+import herddb.client.impl.LeaderChangedException;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
@@ -164,10 +165,18 @@ public class ClientMultiServerTest {
                 // assert  that server_1 is not accepting request any more
                 try (HDBClient client_to_1 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                      HDBConnection connection = client_to_1.openConnection()) {
-                    client_to_1.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_1));
+                    client_to_1.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_1) {
+                        @Override
+                        public void requestMetadataRefresh(Exception error) throws ClientSideMetadataProviderException {
+                            assertTrue(error instanceof LeaderChangedException);
+                            throw new ClientSideMetadataProviderException(error);
+                        }
+
+                    });
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
                         fail("server_1 MUST not accept queries");
                     } catch (ClientSideMetadataProviderException ok) {
+                         assertTrue(ok.getCause() instanceof LeaderChangedException);
                     }
                 }
 
