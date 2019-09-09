@@ -562,10 +562,10 @@ public class Transaction {
 
     public void sync(LogSequenceNumber sequenceNumber) throws LogNotAvailableException {
         sync();
-
         /* Check that given transaction position isn't smaller than last seen sequence number */
         if (lastSequenceNumber != null && !sequenceNumber.after(lastSequenceNumber)) {
-            throw new IllegalStateException("Corrupted transaction, syncing on a position smaller than transaction last sequence number");
+            throw new IllegalStateException("Corrupted transaction, syncing on a position smaller ("
+                    + sequenceNumber + ") than transaction last sequence number (" + lastSequenceNumber + ")");
         }
         lastSequenceNumber = sequenceNumber;
     }
