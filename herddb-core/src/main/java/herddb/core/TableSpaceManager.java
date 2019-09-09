@@ -268,7 +268,6 @@ public class TableSpaceManager {
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
             LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
-            LOGGER.log(Level.SEVERE, "{0} {1} tx {2} at boot seq {3}", new Object[]{nodeId, tableSpaceName, t.transactionId, t.lastSequenceNumber});
             try {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
