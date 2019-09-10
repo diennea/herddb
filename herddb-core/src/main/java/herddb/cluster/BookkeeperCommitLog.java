@@ -64,7 +64,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private static final int MAX_ENTRY_TO_TAIL = 5000;
     // Max time to wait for an entry to arrive
     private static final int LONG_POLL_TIMEOUT = 1000;
-    private final String sharedSecret = "herddb";
+    static final String SHARED_SECRET = "herddb";
     private final BookKeeper bookKeeper;
     private final BookkeeperCommitLogManager parent;
     private final ZookeeperMetadataStorageManager metadataManager;
@@ -126,7 +126,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 metadata.put("tablespacename", tableSpaceName.getBytes(StandardCharsets.UTF_8));
                 metadata.put("leader", localNodeId.getBytes(StandardCharsets.UTF_8));
                 this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize,
-                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8), metadata);
+                        BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8), metadata);
                 this.ledgerId = this.out.getId();
                 lastLedgerId = ledgerId;
                 lastSequenceNumber.set(-1);
@@ -395,10 +395,10 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 LedgerHandle handle;
                 if (fencing) {
-                    handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(
+                    handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(
                             StandardCharsets.UTF_8));
                 } else {
-                    handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, sharedSecret.
+                    handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.
                             getBytes(StandardCharsets.UTF_8));
                 }
                 try {
@@ -651,7 +651,7 @@ public class BookkeeperCommitLog extends CommitLog {
             // no ledger opened, we are booting
             if (currentLedger == null) {
                 currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
-                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                        BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
                 if (LOGGER.isLoggable(Level.FINE)) {
                     LOGGER.fine(tableSpaceDescription() + " opened direct ledger " + ledgerToTail);
                 }
@@ -684,7 +684,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 currentLedger.close();
             }
             currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
-                    BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                    BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
             nextEntryToRead = 0;
         }
 

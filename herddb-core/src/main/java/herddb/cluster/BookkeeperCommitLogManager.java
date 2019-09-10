@@ -27,6 +27,7 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.server.ServerConfiguration;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -207,7 +208,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         activeLogs.remove(tableSpaceUUID);
     }
 
-    public static void scanRawLedger(long ledgerId, herddb.client.ClientConfiguration clientConfiguration,
+    public static void scanRawLedger(long ledgerId, long fromId, long toId, herddb.client.ClientConfiguration clientConfiguration,
             ZookeeperMetadataStorageManager metadataStorageManager, Consumer<LogEntryWithSequenceNumber> consumer) throws Exception {
         ClientConfiguration config = new ClientConfiguration();
         config.setZkServers(metadataStorageManager.getZkAddress());
@@ -217,16 +218,21 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         config.setEnableParallelRecoveryRead(true);
         config.setEnableDigestTypeAutodetection(true);
 
-        try (org.apache.bookkeeper.client.api.BookKeeper bookKeeper = org.apache.bookkeeper.client.api.BookKeeper.newBuilder(config).build();) {            
+        try (org.apache.bookkeeper.client.api.BookKeeper bookKeeper = org.apache.bookkeeper.client.api.BookKeeper.newBuilder(config).build();) {
             try (ReadHandle lh = bookKeeper
                     .newOpenLedgerOp()
                     .withRecovery(false)
                     .withLedgerId(ledgerId)
+                    .withPassword(BookkeeperCommitLog.SHARED_SECRET.getBytes(StandardCharsets.UTF_8))
                     .execute()
                     .get()) {
                 long lastAddConfirmed = lh.readLastAddConfirmed();
-                for (long id = 0; id < lastAddConfirmed; id++) {
-                    try (LedgerEntries entries = lh.read(id, id);) {
+                if (toId < 0) {
+                    toId = lastAddConfirmed;
+                }
+                LOG.log(Level.INFO, "Scanning Ledger {0} from {1} to {2} LAC {3}", new Object[]{ledgerId, fromId, toId, lastAddConfirmed});
+                for (long id = fromId; id <= toId; id++) {
+                    try (LedgerEntries entries = lh.readUnconfirmed(id, id);) {
                         LedgerEntry entry = entries.getEntry(id);
                         LogEntry lEntry = LogEntry.deserialize(entry.getEntryBytes());
                         LogEntryWithSequenceNumber e = new LogEntryWithSequenceNumber(
@@ -237,9 +243,9 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
                 }
             }
         }
-        
+
     }
-        
+
     public static final class LogEntryWithSequenceNumber {
 
         public final LogSequenceNumber logSequenceNumber;

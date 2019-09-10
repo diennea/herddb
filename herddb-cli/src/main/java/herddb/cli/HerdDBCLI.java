@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.cli;
 
 import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS;
@@ -34,7 +33,6 @@ import herddb.backup.BackupUtils;
 import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
-import herddb.cluster.BookkeeperCommitLog;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileCommitLog;
@@ -149,7 +147,8 @@ public class HerdDBCLI {
             options.addOption("s", "schema", true, "Default tablespace (SQL schema)");
             options.addOption("fi", "filter", true, "SQL filter mode: all|ddl|dml");
             options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
-            options.addOption("at", "autotransaction", false, "Execute scripts in autocommit=false mode and commit automatically");
+            options.addOption("at", "autotransaction", false,
+                    "Execute scripts in autocommit=false mode and commit automatically");
             options.addOption("atbs", "autotransactionbatchsize", true, "Batch size for 'autotransaction' mode");
             options.addOption("g", "script", true, "Groovy Script to execute");
             options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
@@ -160,30 +159,40 @@ public class HerdDBCLI {
             options.addOption("r", "restore", false, "Restore tablespace");
             options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
             options.addOption("ns", "newschema", true, "Name for new restored tablespace");
-            options.addOption("tsm", "tablespacemapper", true, "Path to groovy script with a custom functin to map table names to tablespaces");
-            options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations. Defaults to chunks of 100000 records");
+            options.addOption("tsm", "tablespacemapper", true,
+                    "Path to groovy script with a custom functin to map table names to tablespaces");
+            options.addOption("dfs", "dumpfetchsize", true,
+                    "Fetch size for dump operations. Defaults to chunks of 100000 records");
             options.addOption("n", "nodeid", true, "Node id");
             options.addOption("t", "table", true, "Table name");
             options.addOption("p", "param", true, "Parameter name");
             options.addOption("val", "values", true, "Parameter values");
             options.addOption("lts", "list-tablespaces", false, "List available tablespaces");
             options.addOption("ln", "list-nodes", false, "List available nodes");
-            options.addOption("sts", "show-tablespace", false, "Show full informations about a tablespace (needs -s option)");
+            options.addOption("sts", "show-tablespace", false,
+                    "Show full informations about a tablespace (needs -s option)");
             options.addOption("lt", "list-tables", false, "List tablespace tables (needs -s option)");
-            options.addOption("st", "show-table", false, "Show full informations about a table (needs -s and -t options)");
+            options.addOption("st", "show-table", false,
+                    "Show full informations about a table (needs -s and -t options)");
 
             options.addOption("sl", "set-leader", false, "Set the leader for a tablespace (needs -s and -nl options)");
             options.addOption("ar", "add-replica", false, "Add a replica to the tablespace (needs -s and -r options)");
-            options.addOption("rr", "remove-replica", false, "Remove a replica from the tablespace (needs -s and -r options)");
+            options.addOption("rr", "remove-replica", false,
+                    "Remove a replica from the tablespace (needs -s and -r options)");
             options.addOption("adt", "create-tablespace", false, "Create a tablespace (needs -ns and -nl options)");
-            options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
+            options.addOption("at", "alter-tablespace", false,
+                    "Alter a tablespace (needs -s, -param and --values options)");
 
             options.addOption("d", "describe", false, "Checks and describes a raw file");
-            options.addOption("ft", "filetype", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata, bkledger");
+            options.addOption("ft", "filetype", true,
+                    "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata, bkledger");
             options.addOption("mdf", "metadatafile", true, "Tables metadata file, required for 'datapage' filetype");
             options.addOption("tsui", "tablespaceuuid", true, "Tablespace UUID, used for describing raw files");
             options.addOption("lid", "ledgerid", true, "Ledger ID on BookKeeper");
-            
+            options.addOption("fromid", "fromid", true, "Starting entry Id for filetype=bkledger, default to 0");
+            options.addOption("toid", "toid", true,
+                    "Starting entry Id for filetype=bkledger, default to LastAddConfirmed");
+
             org.apache.commons.cli.CommandLine commandLine;
             try {
                 commandLine = parser.parse(options, args);
@@ -211,10 +220,20 @@ public class HerdDBCLI {
             boolean describe = commandLine.hasOption("describe");
             String filetype = commandLine.getOptionValue("filetype", "");
             long ledgerId = Long.parseLong(commandLine.getOptionValue("ledgerid", "0"));
+            long fromId = Long.parseLong(commandLine.getOptionValue("fromid", "0"));
+            long toId = Long.parseLong(commandLine.getOptionValue("toid", "-1")); // -1 = LAC
+            String url = commandLine.getOptionValue("url", "jdbc:herddb:server:localhost:7000");
+            String username = commandLine.getOptionValue("username",
+                    ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
+            String password = commandLine.getOptionValue("password",
+                    ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
             if (describe) {
                 try {
                     if (filetype.equals("bkledger")) {
-                        describeRawLedger(ledgerId);
+                        try (HerdDBDataSource datasource = new HerdDBDataSource()) {
+                            datasource.setUrl(url);
+                            describeRawLedger(ledgerId, fromId, toId, datasource);
+                        }
                     } else {
                         if (file.isEmpty()) {
                             throw new IllegalArgumentException("file option is required");
@@ -231,9 +250,7 @@ public class HerdDBCLI {
                 }
                 return;
             }
-            String url = commandLine.getOptionValue("url", "jdbc:herddb:server:localhost:7000");
-            String username = commandLine.getOptionValue("username", ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
-            String password = commandLine.getOptionValue("password", ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
+
             String query = commandLine.getOptionValue("query", "");
 
             boolean backup = commandLine.hasOption("backup");
@@ -246,9 +263,11 @@ public class HerdDBCLI {
             final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
             boolean sqlconsole = commandLine.hasOption("sqlconsole");
             final boolean frommysqldump = commandLine.hasOption("mysql");
-            final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty() || frommysqldump;
+            final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.
+                    isEmpty() || frommysqldump;
             boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
-            int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
+            int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize",
+                    100000 + ""));
             if (!autotransaction) {
                 autotransactionbatchsize = 0;
             }
@@ -350,7 +369,7 @@ public class HerdDBCLI {
                 datasource.setPassword(password);
 
                 try (Connection connection = datasource.getConnection();
-                     Statement statement = connection.createStatement()) {
+                        Statement statement = connection.createStatement()) {
 
                     metadataStorageManager = buildMetadataStorageManager(datasource);
 
@@ -362,7 +381,8 @@ public class HerdDBCLI {
                     } else if (restore) {
                         performRestore(file, leader, newschema, options, statement, connection);
                     } else if (!query.isEmpty()) {
-                        executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper, false, PRETTY_PRINT);
+                        executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper, false,
+                                PRETTY_PRINT);
                     } else if (!file.isEmpty()) {
                         executeSqlFile(autotransactionbatchsize, connection, file, verbose, async,
                                 ignoreerrors, frommysqldump, rewritestatements,
@@ -375,7 +395,8 @@ public class HerdDBCLI {
                     } else if (listNodes) {
                         printNodes(verbose, ignoreerrors, statement, tableSpaceMapper, metadataStorageManager);
                     } else if (showTablespace) {
-                        printTableSpaceInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema, metadataStorageManager);
+                        printTableSpaceInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema,
+                                metadataStorageManager);
                     } else if (listTables) {
                         listTables(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
                     } else if (showTable) {
@@ -429,7 +450,8 @@ public class HerdDBCLI {
             String nodeId
     ) throws SQLException, ScriptException {
 
-        ExecuteStatementResult check = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes where nodeid='" + nodeId + "'", statement, tableSpaceMapper, true, false);
+        ExecuteStatementResult check = executeStatement(verbose, ignoreerrors, false, false,
+                "select * from sysnodes where nodeid='" + nodeId + "'", statement, tableSpaceMapper, true, false);
         return !check.results.isEmpty();
     }
 
@@ -445,7 +467,8 @@ public class HerdDBCLI {
         }
 
         ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-                "CREATE TABLESPACE '" + newschema + "','leader:" + leader + "'", statement, tableSpaceMapper, true, false);
+                "CREATE TABLESPACE '" + newschema + "','leader:" + leader + "'", statement, tableSpaceMapper, true,
+                false);
 
         if (res != null && res.updateCount > 0) {
             println("Successfully created " + newschema + " tablespace");
@@ -507,29 +530,34 @@ public class HerdDBCLI {
         }
     }
 
-    private static void describeRawLedger(long ledgerId, HerdDBDataSource datasource) throws Exception {
-        ClientConfiguration configuration = datasource.getClient().getConfiguration();
+    private static void describeRawLedger(long ledgerId, long fromId, long toId, HerdDBDataSource datasource) throws Exception {
+
         if (!datasource.getUrl().contains(":zookeeper:")) {
             //not cluster
+            System.out.println("Not a cluster URL: " + datasource.getUrl());
             return;
         }
-        String zkAddress = configuration.getString(PROPERTY_ZOOKEEPER_ADDRESS, PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT);
-        String zkPath = configuration.getString(PROPERTY_ZOOKEEPER_PATH, PROPERTY_ZOOKEEPER_PATH_DEFAULT);
-        int sessionTimeout = configuration.getInt(PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, 60000);
-        BookkeeperCommitLogManager.scanRawLedger(configuration, (LogEntryWithSequenceNumber entry) -> {
-            println(nextEntry.logSequenceNumber.ledgerId + "," + nextEntry.logSequenceNumber.offset + ","
-                    + nextEntry.entry.toString());
-        });
+        datasource.getConnection().close(); // start embedded client
+         ClientConfiguration configuration = datasource.getClient().getConfiguration();
+        try (ZookeeperMetadataStorageManager zk = buildMetadataStorageManager(datasource);) {
+            BookkeeperCommitLogManager.scanRawLedger(ledgerId, fromId, toId, configuration, zk,
+                    (BookkeeperCommitLogManager.LogEntryWithSequenceNumber nextEntry) -> {
+                        println(nextEntry.logSequenceNumber.ledgerId + "," + nextEntry.logSequenceNumber.offset + ","
+                                + nextEntry.entry.toString());
+                    });
+        }
     }
-        
-    private static void describeRawFile(String tablespaceuuid, String tableName, String tablesmetadatafile, String rawfile, String mode) throws Exception {
+
+    private static void describeRawFile(String tablespaceuuid, String tableName, String tablesmetadatafile,
+                                        String rawfile, String mode) throws Exception {
         Path path = Paths.get(rawfile);
         switch (mode) {
             case "txlog": {
                 try (FileCommitLog.CommitFileReader reader = CommitFileReader.openForDescribeRawfile(path)) {
                     LogEntryWithSequenceNumber nextEntry = reader.nextEntry();
                     while (nextEntry != null) {
-                        println(nextEntry.logSequenceNumber.ledgerId + "," + nextEntry.logSequenceNumber.offset + "," + nextEntry.entry.toString());
+                        println(nextEntry.logSequenceNumber.ledgerId + "," + nextEntry.logSequenceNumber.offset + "," + nextEntry.entry.
+                                toString());
                         nextEntry = reader.nextEntry();
                     }
                 }
@@ -543,10 +571,12 @@ public class HerdDBCLI {
                     throw new IllegalArgumentException("table option is required in order to analize a database");
                 }
                 if (tablespaceuuid.isEmpty()) {
-                    throw new IllegalArgumentException("tablespaceuuid option is required in order to analize a database");
+                    throw new IllegalArgumentException(
+                            "tablespaceuuid option is required in order to analize a database");
                 }
                 Path pathtablesmetadata = Paths.get(tablesmetadatafile);
-                List<Table> tables = FileDataStorageManager.readTablespaceStructure(pathtablesmetadata, tablespaceuuid, null);
+                List<Table> tables = FileDataStorageManager.readTablespaceStructure(pathtablesmetadata, tablespaceuuid,
+                        null);
                 println("File " + pathtablesmetadata.getFileName() + " contains the following table schematas:");
                 for (Table t : tables) {
                     println("Table: " + t.uuid + " - " + t.tablespace + "." + t.name);
@@ -576,7 +606,8 @@ public class HerdDBCLI {
                 println("TableName:" + tableStatus.tableName);
                 println("Sequence Number:" + tableStatus.sequenceNumber.ledgerId + ", " + tableStatus.sequenceNumber.offset);
                 println("Next Page Id:" + tableStatus.nextPageId);
-                println("Next Primary key value:" + (tableStatus.nextPrimaryKeyValue != null ? Bytes.from_array(tableStatus.nextPrimaryKeyValue) : "null"));
+                println("Next Primary key value:" + (tableStatus.nextPrimaryKeyValue != null ? Bytes.from_array(
+                        tableStatus.nextPrimaryKeyValue) : "null"));
                 println("Active pages:" + tableStatus.activePages);
                 break;
             }
@@ -602,7 +633,8 @@ public class HerdDBCLI {
             }
             case "tablesmetadata": {
                 if (tablespaceuuid.isEmpty()) {
-                    throw new IllegalArgumentException("tablespaceuuid option is required in order to analize a database");
+                    throw new IllegalArgumentException(
+                            "tablespaceuuid option is required in order to analize a database");
                 }
                 List<Table> tables = FileDataStorageManager.readTablespaceStructure(path, tablespaceuuid, null);
                 for (Table table : tables) {
@@ -611,13 +643,15 @@ public class HerdDBCLI {
                     println("Tablespace: " + table.tablespace);
                     println("Table UUID: " + table.uuid);
                     for (Column c : table.columns) {
-                        println("Column : " + c.name + ", serialPosition: " + c.serialPosition + ", type " + ColumnTypes.typeToString(c.type) + " (" + c.type + ")");
+                        println("Column : " + c.name + ", serialPosition: " + c.serialPosition + ", type " + ColumnTypes.
+                                typeToString(c.type) + " (" + c.type + ")");
                     }
                 }
                 break;
             }
             default:
-                System.out.println("Unknown file type " + mode + " valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
+                System.out.println(
+                        "Unknown file type " + mode + " valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
         }
     }
 
@@ -638,7 +672,9 @@ public class HerdDBCLI {
         String zkPath = configuration.getString(PROPERTY_ZOOKEEPER_PATH, PROPERTY_ZOOKEEPER_PATH_DEFAULT);
         int sessionTimeout = configuration.getInt(PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, 60000);
         ZookeeperMetadataStorageManager zk = new ZookeeperMetadataStorageManager(zkAddress, sessionTimeout, zkPath);
-        zk.start(false /* formatIfNeeded */);
+        zk.start(false /*
+         * formatIfNeeded
+         */);
         return zk;
     }
 
@@ -896,23 +932,29 @@ public class HerdDBCLI {
         }
     }
 
-    private static void listTables(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
+    private static void listTables(boolean verbose, boolean ignoreerrors, Statement statement,
+                                   TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
 
         println("");
         println(" Tables in tablespace " + schema + ":");
-        ExecuteStatementResult tables = executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats", statement, tableSpaceMapper, true, false);
+        ExecuteStatementResult tables = executeStatement(verbose, ignoreerrors, false, false,
+                "select * from systablestats", statement, tableSpaceMapper, true, false);
         if (tables.results.isEmpty()) {
             println("");
             println("   No tables found");
         } else {
-            executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats", statement, tableSpaceMapper, false, true);
+            executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats", statement,
+                    tableSpaceMapper, false, true);
         }
         println("");
 
     }
 
-    private static void printTableInfos(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema, String table) throws SQLException, ScriptException {
-        ExecuteStatementResult stats = executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats where table_name = '" + table + "'", statement, tableSpaceMapper, true, false);
+    private static void printTableInfos(boolean verbose, boolean ignoreerrors, Statement statement,
+                                        TableSpaceMapper tableSpaceMapper, String schema, String table) throws SQLException, ScriptException {
+        ExecuteStatementResult stats = executeStatement(verbose, ignoreerrors, false, false,
+                "select * from systablestats where table_name = '" + table + "'", statement, tableSpaceMapper, true,
+                false);
 
         if (stats.results.isEmpty()) {
             println("\n No table " + table + " in tablespace " + schema + "\n");
@@ -927,11 +969,13 @@ public class HerdDBCLI {
         }
         println("");
         println(" Columns: ");
-        executeStatement(verbose, ignoreerrors, false, false, "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
+        executeStatement(verbose, ignoreerrors, false, false,
+                "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
 
     }
 
-    private static void executeScript(final Connection connection, final HerdDBDataSource datasource, final Statement statement, String script) throws IOException, CompilationFailedException {
+    private static void executeScript(final Connection connection, final HerdDBDataSource datasource,
+                                      final Statement statement, String script) throws IOException, CompilationFailedException {
         Map<String, Object> variables = new HashMap<>();
         variables.put("connection", connection);
         variables.put("datasource", datasource);
@@ -941,7 +985,9 @@ public class HerdDBCLI {
     }
 
     private static void executeSqlFile(
-            int autotransactionbatchsize, final Connection connection, String file, final boolean verbose, final boolean async, final boolean ignoreerrors, final boolean frommysqldump, final boolean rewritestatements,
+            int autotransactionbatchsize, final Connection connection, String file, final boolean verbose,
+            final boolean async, final boolean ignoreerrors, final boolean frommysqldump,
+            final boolean rewritestatements,
             final Statement statement, TableSpaceMapper tableSpaceMapper, boolean pretty, String filter,
             final HerdDBDataSource datasource
     ) throws Exception {
@@ -958,11 +1004,11 @@ public class HerdDBCLI {
         SqlFileStatus fileStatus = new SqlFileStatus(verbose, async, ignoreerrors,
                 frommysqldump, rewritestatements, pretty, tableSpaceMapper, datasource);
         try (FileInputStream rawStream = new FileInputStream(file);
-             BufferedInputStream buffer = new BufferedInputStream(rawStream);
-             CounterInputStream counter = new CounterInputStream(buffer);
-             InputStream fIn = wrapStream(f.getName(), counter);
-             CounterInputStream counterUnzipped = new CounterInputStream(fIn);
-             InputStreamReader ii = new InputStreamReader(counterUnzipped, StandardCharsets.UTF_8)) {
+                BufferedInputStream buffer = new BufferedInputStream(rawStream);
+                CounterInputStream counter = new CounterInputStream(buffer);
+                InputStream fIn = wrapStream(f.getName(), counter);
+                CounterInputStream counterUnzipped = new CounterInputStream(fIn);
+                InputStreamReader ii = new InputStreamReader(counterUnzipped, StandardCharsets.UTF_8)) {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
@@ -987,10 +1033,15 @@ public class HerdDBCLI {
 
                         if (countUnzipped != counter.count) {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(speed) + "/min)");
+                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(
+                                            counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(
+                                    fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(
+                                    speed) + "/min)");
                         } else {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
+                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(
+                                            counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(
+                                    speed) + " /min");
                         }
                     }
                 }
@@ -1000,11 +1051,13 @@ public class HerdDBCLI {
             totalDoneCount.value += fileStatus.pendingOperations;
             fileStatus.flushAndCommit(connection);
         }
-        System.out.println("Import completed, " + totalDoneCount.value + " ops, in " + ((System.currentTimeMillis() - _start) / 60000) + " minutes");
+        System.out.println(
+                "Import completed, " + totalDoneCount.value + " ops, in " + ((System.currentTimeMillis() - _start) / 60000) + " minutes");
 
     }
 
-    private static void performRestore(String file, String leader, String newschema, Options options, final Statement statement, final Connection connection) throws Exception {
+    private static void performRestore(String file, String leader, String newschema, Options options,
+                                       final Statement statement, final Connection connection) throws Exception {
         if (file.isEmpty()) {
             println("Please provide --file option");
             failAndPrintHelp(options);
@@ -1033,7 +1086,7 @@ public class HerdDBCLI {
             return;
         }
         try (InputStream fin = wrapStream(file, Files.newInputStream(inputfile));
-             InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
+                InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
             HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
             HDBConnection hdbconnection = hcon.getConnection();
             BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
@@ -1053,7 +1106,8 @@ public class HerdDBCLI {
         exitCode = 1;
     }
 
-    private static void performBackup(final Statement statement, String schema, String file, Options options, final Connection connection, int dumpfetchsize) throws Exception {
+    private static void performBackup(final Statement statement, String schema, String file, Options options,
+                                      final Connection connection, int dumpfetchsize) throws Exception {
         if (file.isEmpty()) {
             println("Please provide --file option");
             failAndPrintHelp(options);
@@ -1076,7 +1130,8 @@ public class HerdDBCLI {
         }
     }
 
-    private static void backupTableSpace(final Statement statement, String schema, String file, String suffix, final Connection connection, int dumpfetchsize) throws Exception {
+    private static void backupTableSpace(final Statement statement, String schema, String file, String suffix,
+                                         final Connection connection, int dumpfetchsize) throws Exception {
         List<String> tablesToDump = new ArrayList<>();
         try (ResultSet rs = statement.executeQuery("SELECT table_name"
                 + " FROM " + schema + ".systables"
@@ -1097,7 +1152,7 @@ public class HerdDBCLI {
         println("Backup tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
         try (OutputStream fout = wrapOutputStream(Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW), ext);
-             SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024)) {
+                SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024)) {
             HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
             HDBConnection hdbconnection = hcon.getConnection();
             BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
@@ -1112,7 +1167,8 @@ public class HerdDBCLI {
     }
 
     private static ExecuteStatementResult executeStatement(
-            boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
+            boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query,
+            final Statement statement,
             final TableSpaceMapper tableSpaceMapper, boolean getResults, boolean prettyPrint
     ) throws SQLException, ScriptException {
         query = query.trim();
@@ -1259,7 +1315,8 @@ public class HerdDBCLI {
 
         private void flush() throws SQLException {
             if (verbose) {
-                System.out.println("flushing " + currentStatements.size() + " statements, with " + pendingOperations + " pending ops");
+                System.out.println(
+                        "flushing " + currentStatements.size() + " statements, with " + pendingOperations + " pending ops");
             }
             List<CompletableFuture<?>> futures = new ArrayList<>();
             for (Map.Entry<String, PreparedStatement> entry : currentStatements.entrySet()) {
@@ -1358,7 +1415,8 @@ public class HerdDBCLI {
         if (formattedQuery.equals("exit") || formattedQuery.equals("quit")) {
             throw new SQLException("explicit END of script with '" + formattedQuery + "'");
         }
-        if (sqlFileStatus.frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
+        if (sqlFileStatus.frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith(
+                "unlock tables"))) {
             // mysqldump
             return;
         }
@@ -1454,7 +1512,9 @@ public class HerdDBCLI {
         }
     }
 
-    private static ExecuteStatementResult reallyExecuteStatement(final Statement statement, boolean resultSet, boolean verbose, boolean getResults, boolean prettyPrint) throws SQLException {
+    private static ExecuteStatementResult reallyExecuteStatement(final Statement statement, boolean resultSet,
+                                                                 boolean verbose, boolean getResults,
+                                                                 boolean prettyPrint) throws SQLException {
 
         if (resultSet) {
             try (ResultSet rs = statement.getResultSet()) {
@@ -1581,7 +1641,8 @@ public class HerdDBCLI {
 
             if (frommysqldump && query.startsWith("INSERT INTO")) {
                 // this is faster than CCJSqlParserUtil and will allow the cache to work at "client-side" too
-                QueryWithParameters rewriteSimpleInsertStatement = MySqlDumpInsertStatementRewriter.rewriteSimpleInsertStatement(query);
+                QueryWithParameters rewriteSimpleInsertStatement = MySqlDumpInsertStatementRewriter.
+                        rewriteSimpleInsertStatement(query);
                 if (rewriteSimpleInsertStatement != null) {
                     query = rewriteSimpleInsertStatement.query;
                     parameters.addAll(rewriteSimpleInsertStatement.jdbcParameters);
@@ -1632,7 +1693,8 @@ public class HerdDBCLI {
                     }
                     if (somethingdone) {
                         StringBuilder queryResult = new StringBuilder();
-                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
+                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null,
+                                queryResult);
                         deparser.deParse(insert);
                         query = queryResult.toString();
                     }
@@ -1673,7 +1735,8 @@ public class HerdDBCLI {
                     }
                     if (somethingdone) {
                         StringBuilder queryResult = new StringBuilder();
-                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
+                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null,
+                                queryResult);
                         deparser.deParse(insert);
                         query = queryResult.toString();
                     }
