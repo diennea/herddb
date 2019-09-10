@@ -1611,7 +1611,6 @@ public class TableSpaceManager {
                 if (actualLogSequenceNumber == null) {
                     throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
                 }
-
                 // TODO: transactions checkpoint is not atomic
                 actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
                 actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true), true));

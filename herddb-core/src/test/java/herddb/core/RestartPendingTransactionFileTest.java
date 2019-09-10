@@ -17,25 +17,27 @@
  * under the License.
  *
  */
-package herddb.client;
+package herddb.core;
 
-/**
- * Error while retrieving metadata
- *
- * @author enrico.olivelli
- */
-public class ClientSideMetadataProviderException extends Exception {
+import herddb.file.FileCommitLogManager;
+import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
+import java.nio.file.Path;
 
-    public ClientSideMetadataProviderException(Throwable cause) {
-        super(cause);
+public class RestartPendingTransactionFileTest extends RestartPendingTransactionBase {
+
+    @Override
+    protected DBManager buildDBManager(
+            String nodeId,
+            Path metadataPath,
+            Path dataPath,
+            Path logsPath,
+            Path tmoDir) {
+        DBManager manager = new DBManager(nodeId,
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null);
+        return manager;
     }
-
-    public ClientSideMetadataProviderException(String message) {
-        super(message);
-    }
-
-    public ClientSideMetadataProviderException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
 }
