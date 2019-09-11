@@ -137,7 +137,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public boolean isSortedAscending() {
+    public boolean isSortedAscending(int[] pkTypes) {
         return false;
     }
 

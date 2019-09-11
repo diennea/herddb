@@ -260,7 +260,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final TableManagerStats stats;
 
     private final Counter checkpointProcessedDirtyRecords;
-    
+
     private final boolean keyToPageSortedAscending;
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
@@ -3567,9 +3567,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return builder.toString();
     }
 
-    @Ovveride
+    @Override
     public boolean isKeyToPageSortedAscending() {
         return keyToPageSortedAscending;
     }
-        
+
 }
