@@ -281,6 +281,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
+        final boolean isNotExsists = s.isIfNotExists();
         try {
             boolean foundPk = false;
             Table.Builder tablebuilder = Table.builder()
@@ -366,7 +367,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 }
             }
 
-            CreateTableStatement statement = new CreateTableStatement(table, otherIndexes);
+            CreateTableStatement statement = new CreateTableStatement(table, otherIndexes, isNotExsists);
             return statement;
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);

@@ -63,6 +63,10 @@ public class CreateTableTest {
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            CreateTableStatement st2IfNotExists = new CreateTableStatement(table, Collections.emptyList(), true);
+            manager.executeStatement(st2IfNotExists, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
         }
 
     }
