@@ -32,6 +32,7 @@ import herddb.index.PrimaryIndexSeek;
 import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.log.LogSequenceNumber;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
@@ -143,8 +144,19 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public boolean isSortedAscending() {
-        return true;
+    public boolean isSortedAscending(int[] pkTypes) {
+        if (pkTypes.length != 1) {
+            return false;
+        }
+        switch (pkTypes[0]) {
+            case ColumnTypes.NOTNULL_STRING:
+            case ColumnTypes.STRING:
+            case ColumnTypes.BYTEARRAY:
+                return true;
+            default:
+                // numbers are not really sorted as we are using arraywise comparation
+                return false;
+        }
     }
 
     @Override

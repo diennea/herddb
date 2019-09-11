@@ -261,6 +261,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private final Counter checkpointProcessedDirtyRecords;
 
+    private final boolean keyToPageSortedAscending;
+
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
                 + "done at external logPosition " + dumpLogSequenceNumber);
@@ -390,6 +392,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         StatsLogger tableMetrics = tableSpaceManager.tablespaceStasLogger.scope("table_" + table.name);
         this.checkpointProcessedDirtyRecords = tableMetrics.getCounter("checkpoint_processed_dirty_records");
+        int[] pkTypes = new int[table.primaryKey.length];
+        for (int i = 0; i < table.primaryKey.length; i++) {
+            Column col = table.getColumn(table.primaryKey[i]);
+            pkTypes[i] = col.type;
+        }
+        this.keyToPageSortedAscending = keyToPage.isSortedAscending(pkTypes);
     }
 
     private TableContext buildTableContext() {
@@ -2827,7 +2835,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {
             boolean sortedByClusteredIndex = comparator != null
                     && comparator.isOnlyPrimaryKeyAndAscending()
-                    && keyToPage.isSortedAscending();
+                    && keyToPageSortedAscending;
             if (!sortedByClusteredIndex) {
                 return scanNoStream(statement, context, transaction, lockRequired, forWrite);
             }
@@ -2846,7 +2854,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean sorted = statement.getComparator() != null;
             boolean sortedByClusteredIndex = statement.getComparator() != null
                     && statement.getComparator().isOnlyPrimaryKeyAndAscending()
-                    && keyToPage.isSortedAscending();
+                    && keyToPageSortedAscending;
             final Projection projection = statement.getProjection();
             boolean applyProjectionDuringScan = !sorted && projection != null;
             MaterializedRecordSet recordSet;
@@ -2995,7 +3003,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean sorted = comparator != null;
             boolean sortedByClusteredIndex = comparator != null
                     && comparator.isOnlyPrimaryKeyAndAscending()
-                    && keyToPage.isSortedAscending();
+                    && keyToPageSortedAscending;
             final Projection projection = statement.getProjection();
             final boolean applyProjectionDuringScan = projection != null && !sorted;
             ScanLimits limits = statement.getLimits();
@@ -3558,4 +3566,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         builder.append("TableManager [table=").append(table).append("]");
         return builder.toString();
     }
+
+    @Override
+    public boolean isKeyToPageSortedAscending() {
+        return keyToPageSortedAscending;
+    }
+
 }

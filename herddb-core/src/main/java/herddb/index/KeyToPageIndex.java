@@ -99,6 +99,6 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     Long remove(Bytes key);
 
-    boolean isSortedAscending();
+    boolean isSortedAscending(int[] pkTypes);
 
 }
