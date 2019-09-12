@@ -456,7 +456,7 @@ public class BookkeeperCommitLog extends CommitLog {
                                             new Object[]{number, statusEdit});
                                     consumer.accept(number, statusEdit);
                                 } else {
-                                    LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}",
+                                    LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0} <= {1}, {2}",
                                             new Object[]{number, snapshotSequenceNumber, statusEdit});
                                 }
                                 localEntryCount++;
