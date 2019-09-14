@@ -874,6 +874,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         PlannerOp right = convertRelNode(op.getRight(), null, false);
         int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
         int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
+        boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
+        boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -885,8 +888,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new SemiJoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right);
+        return new JoinOp(fieldNames, columns,
+                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
 
     private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
