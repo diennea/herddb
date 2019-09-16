@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -385,6 +386,21 @@ public class BookkeeperCommitLog extends CommitLog {
             throw new FullRecoveryNeededException(new Exception("Tablespace " + tableSpaceDescription
                     + ": Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers()
                     + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
+        }
+        for (long ledgerId : actualLedgersList.getActiveLedgers()) {
+            try {
+                bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId).get();
+            } catch (ExecutionException e) {
+                final Throwable cause = e.getCause();
+                if (cause instanceof BKException.BKNoSuchLedgerExistsException) {
+                    throw new FullRecoveryNeededException(
+                            new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
+                                    + " tablespace " + tableSpaceDescription));
+                }
+                throw new LogNotAvailableException(e);
+            } catch (InterruptedException e) {
+                throw new LogNotAvailableException(e);
+            }
         }
         try {
             for (long ledgerId : actualLedgersList.getActiveLedgers()) {
