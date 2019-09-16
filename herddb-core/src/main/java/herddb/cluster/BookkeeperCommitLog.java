@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -52,6 +51,7 @@ import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -389,16 +389,12 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
-                bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId).get();
-            } catch (ExecutionException e) {
-                final Throwable cause = e.getCause();
-                if (cause instanceof BKException.BKNoSuchLedgerExistsException) {
-                    throw new FullRecoveryNeededException(
-                            new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
-                                    + " tablespace " + tableSpaceDescription));
-                }
-                throw new LogNotAvailableException(e);
-            } catch (InterruptedException e) {
+                FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
+            } catch (BKException.BKNoSuchLedgerExistsException e) {
+                throw new FullRecoveryNeededException(
+                        new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
+                                + " tablespace " + tableSpaceDescription));
+            } catch (Exception e) {
                 throw new LogNotAvailableException(e);
             }
         }
