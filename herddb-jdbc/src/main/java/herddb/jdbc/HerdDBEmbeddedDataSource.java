@@ -78,6 +78,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
         if (!serverInitialized) {
             ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
             serverConfiguration.readJdbcUrl(url);
+            startServer = serverConfiguration.getBoolean("server.start", startServer);
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
             if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
                     || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)
