@@ -118,7 +118,8 @@ public class JdbcDriverTest {
     public void testStartServer() throws Exception {
 
         File dataDir = folder.newFolder();
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir="+dataDir.getAbsolutePath());
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
@@ -129,7 +130,8 @@ public class JdbcDriverTest {
             assertTrue(count > 0);
         }
 
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir="+dataDir.getAbsolutePath());
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
