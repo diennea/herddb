@@ -1,28 +1,28 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.jdbc;
 
 import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -50,8 +50,8 @@ public class JdbcDriverTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
-                 Statement statement = connection.createStatement();
-                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -61,8 +61,8 @@ public class JdbcDriverTest {
             }
 
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost");
-                 Statement statement = connection.createStatement();
-                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -82,11 +82,11 @@ public class JdbcDriverTest {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                 Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                 Statement statement = connection.createStatement();
-                 Statement statement2 = connection2.createStatement();
-                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
-                 ResultSet rs2 = statement2.executeQuery("SELECT * FROM SYSTABLES")) {
+                    Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+                    Statement statement = connection.createStatement();
+                    Statement statement2 = connection2.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
+                    ResultSet rs2 = statement2.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -99,8 +99,8 @@ public class JdbcDriverTest {
             }
 
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                 Statement statement = connection.createStatement();
-                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
                 while (rs.next()) {
                     System.out.println("table: " + rs.getString(1));
@@ -114,9 +114,39 @@ public class JdbcDriverTest {
         }
     }
 
+    @Test
+    public void testStartServer() throws Exception {
+
+        File dataDir = folder.newFolder();
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
+                Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+            int count = 0;
+            while (rs.next()) {
+                System.out.println("table: " + rs.getString(1));
+                count++;
+            }
+            assertTrue(count > 0);
+        }
+
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
+                Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+            int count = 0;
+            while (rs.next()) {
+                System.out.println("table: " + rs.getString(1));
+                count++;
+            }
+            assertTrue(count > 0);
+        }
+
+    }
+
     @AfterClass
     public static void destroy() throws Exception {
-        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
     }
