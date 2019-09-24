@@ -23,7 +23,6 @@ package herddb.server;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
-
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
