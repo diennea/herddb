@@ -261,7 +261,7 @@ public class TableSpaceManager {
             TableManager tableManager = bootTable(table, 0, null);
             for (Index index : indexesAtBoot) {
                 if (index.table.equals(table.name)) {
-                    bootIndex(index, tableManager, 0, false);
+                    bootIndex(index, tableManager, 0, false, false);
                 }
             }
         }
@@ -280,7 +280,7 @@ public class TableSpaceManager {
                     for (Index index : t.newIndexes.values()) {
                         if (!indexes.containsKey(index.name)) {
                             AbstractTableManager tableManager = tables.get(index.table);
-                            bootIndex(index, tableManager, t.transactionId, false);
+                            bootIndex(index, tableManager, t.transactionId, false, false);
                         }
                     }
                 }
@@ -430,7 +430,7 @@ public class TableSpaceManager {
                 if (tableManager == null) {
                     throw new RuntimeException("table " + index.table + " does not exists");
                 }
-                bootIndex(index, tableManager, entry.transactionId, true);
+                bootIndex(index, tableManager, entry.transactionId, true, false);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position, false);
                 }
@@ -779,7 +779,7 @@ public class TableSpaceManager {
         tableManager.restoreFinished();
 
         for (Index index : indexes) {
-            bootIndex(index, tableManager, 0, true);
+            bootIndex(index, tableManager, 0, true, true);
         }
     }
 
@@ -1458,7 +1458,6 @@ public class TableSpaceManager {
         LOGGER.log(Level.INFO, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         AbstractTableManager prevTableManager = tables.remove(table.name);
         if (prevTableManager != null) {
-
             if (dumpLogSequenceNumber != null) {
                 // restoring a table already booted in a previous life
                 LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} already exists on this tablespace. It will be truncated", new Object[]{nodeId, tableSpaceName, table.name});
@@ -1485,11 +1484,27 @@ public class TableSpaceManager {
         return tableManager;
     }
 
-    private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
+    AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild, boolean restore) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
-        if (indexes.containsKey(index.name)) {
-            throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
+        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
+                new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+
+        AbstractIndexManager prevIndexManager = indexes.remove(index.name);
+        if (prevIndexManager != null) {
+            if (restore) {
+                // restoring an index already booted in a previous life
+                LOGGER.log(Level.INFO,
+                        "bootIndex {0} {1}.{2}.{3} uuid {4} - {5} already exists on this tablespace. It will be truncated",
+                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+                prevIndexManager.dropIndexData();
+            } else {
+                LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
+                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+                if (indexes.containsKey(index.name)) {
+                    throw new DataStorageManagerException(
+                            "Index" + index.name + " already present in tableSpace " + tableSpaceName);
+                }
+            }
         }
 
         AbstractIndexManager indexManager;

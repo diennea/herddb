@@ -23,6 +23,7 @@ package herddb.core;
 import herddb.backup.DumpedTableMetadata;
 import herddb.client.TableSpaceDumpReceiver;
 import herddb.log.LogSequenceNumber;
+import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManagerException;
@@ -109,6 +110,9 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
         Table table = dumpedTable.table;
         LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
         currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber);
+        for (Index index : dumpedTable.indexes) {
+            tableSpaceManager.bootIndex(index, currentTable, 0, false, true);
+        }
     }
 
 }
