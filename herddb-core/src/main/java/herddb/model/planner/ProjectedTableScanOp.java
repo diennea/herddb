@@ -40,12 +40,20 @@ public class ProjectedTableScanOp implements PlannerOp {
 
     final ScanStatement statement;
 
-    ProjectedTableScanOp(ProjectOp op, TableScanOp tableScan) {
+    ProjectedTableScanOp(ProjectOp op, SimpleScanOp tableScan) {
         this.statement = tableScan.unwrap(ScanStatement.class);
         Projection proj = op.getProjection();
         // we can alter the statement, the TableScan will be dropped from the plan
         this.statement.setProjection(proj);
     }
+    
+    ProjectedTableScanOp(ProjectOp op, FilteredTableScanOp tableScan) {
+        this.statement = tableScan.unwrap(ScanStatement.class);
+        Projection proj = op.getProjection();
+        // we can alter the statement, the FilteredTableScanOp will be dropped from the plan
+        this.statement.setProjection(proj);
+    }
+    
 
     @Override
     public String getTablespace() {
@@ -79,6 +87,16 @@ public class ProjectedTableScanOp implements PlannerOp {
     @Override
     public String toString() {
         return "ProjectedTableScanOp{" + "statement=" + statement + '}';
+    }
+
+    public ScanStatement getStatement() {
+        return statement;
+    }
+
+    @Override
+    public PlannerOp optimize() {
+        System.out.println("OPTIMIZE ME !! "+this);
+        return new TableScanOp(statement);        
     }
 
 }

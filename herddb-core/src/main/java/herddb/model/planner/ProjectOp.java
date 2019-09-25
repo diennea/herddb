@@ -50,7 +50,9 @@ public class ProjectOp implements PlannerOp {
 
     public ProjectOp(Projection projection1, PlannerOp input) {
         this.projection = projection1;
+        System.out.println("INPUT BEFORE: "+input);
         this.input = input.optimize();
+        System.out.println("INPUT AFTER: "+this.input);
     }
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
@@ -166,9 +168,12 @@ public class ProjectOp implements PlannerOp {
     }
 
     @Override
-    public PlannerOp optimize() {
-        if (input instanceof TableScanOp) {
-            return new ProjectedTableScanOp(this, (TableScanOp) input);
+    public PlannerOp optimize() {     
+        System.out.println("OPTIMIZE PROJ "+input);
+        if (input instanceof SimpleScanOp) {
+            return new ProjectedTableScanOp(this, (SimpleScanOp) input).optimize();
+        } else if (input instanceof FilteredTableScanOp) {
+            return new ProjectedTableScanOp(this, (FilteredTableScanOp) input).optimize();
         }
         return this;
     }

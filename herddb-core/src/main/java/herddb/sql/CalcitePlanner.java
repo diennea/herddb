@@ -22,6 +22,7 @@ package herddb.sql;
 
 import static herddb.model.Column.column;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
@@ -104,6 +105,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableMergeJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
+import org.apache.calcite.adapter.enumerable.EnumerableRules;
 import org.apache.calcite.adapter.enumerable.EnumerableSemiJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
@@ -112,6 +114,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableThetaJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
+import org.apache.calcite.config.CalciteSystemProperty;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -120,6 +123,7 @@ import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
@@ -133,6 +137,21 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.rel.rules.AggregateExpandDistinctAggregatesRule;
+import org.apache.calcite.rel.rules.AggregateReduceFunctionsRule;
+import org.apache.calcite.rel.rules.AggregateStarTableRule;
+import org.apache.calcite.rel.rules.FilterAggregateTransposeRule;
+import org.apache.calcite.rel.rules.FilterJoinRule;
+import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
+import org.apache.calcite.rel.rules.FilterTableScanRule;
+import org.apache.calcite.rel.rules.JoinAssociateRule;
+import org.apache.calcite.rel.rules.JoinCommuteRule;
+import org.apache.calcite.rel.rules.JoinPushThroughJoinRule;
+import org.apache.calcite.rel.rules.ProjectMergeRule;
+import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.rel.rules.SemiJoinRule;
+import org.apache.calcite.rel.rules.SortProjectTransposeRule;
+import org.apache.calcite.rel.rules.TableScanRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -158,8 +177,8 @@ import org.apache.calcite.sql.validate.SqlConformanceEnum;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
-import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelConversionException;
+import org.apache.calcite.tools.RuleSets;
 import org.apache.calcite.tools.ValidationException;
 import org.apache.calcite.util.ImmutableBitSet;
 
@@ -287,9 +306,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             PlannerResult plan = runPlanner(defaultTableSpace, query);
+            PlannerOp convertRelNode = convertRelNode(plan.topNode, plan.originalRowType, returnValues);
+            System.out.println("QUIIII "+convertRelNode);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
-                    convertRelNode(plan.topNode, plan.originalRowType, returnValues)
-                            .optimize());
+                    convertRelNode.optimize());
             if (LOG.isLoggable(Level.FINE)) {
                 LOG.log(Level.FINE, "Query: {0} --HerdDB Plan {1}",
                         new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
@@ -474,6 +494,43 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             .unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE,
                     RelCollationTraitDef.INSTANCE));
 
+    public static final ImmutableSet<RelOptRule> RULE_SET =
+      ImmutableSet.of(
+          EnumerableRules.ENUMERABLE_JOIN_RULE,
+          EnumerableRules.ENUMERABLE_MERGE_JOIN_RULE,
+          EnumerableRules.ENUMERABLE_SEMI_JOIN_RULE,
+          EnumerableRules.ENUMERABLE_CORRELATE_RULE,
+          EnumerableRules.ENUMERABLE_PROJECT_RULE,
+          EnumerableRules.ENUMERABLE_FILTER_RULE,
+          EnumerableRules.ENUMERABLE_AGGREGATE_RULE,
+          EnumerableRules.ENUMERABLE_SORT_RULE,
+          EnumerableRules.ENUMERABLE_LIMIT_RULE,
+          EnumerableRules.ENUMERABLE_UNION_RULE,
+          EnumerableRules.ENUMERABLE_INTERSECT_RULE,
+          EnumerableRules.ENUMERABLE_MINUS_RULE,
+          EnumerableRules.ENUMERABLE_TABLE_MODIFICATION_RULE,
+          EnumerableRules.ENUMERABLE_VALUES_RULE,
+          EnumerableRules.ENUMERABLE_WINDOW_RULE,
+          SemiJoinRule.PROJECT,
+          SemiJoinRule.JOIN,
+          TableScanRule.INSTANCE,
+          CalciteSystemProperty.COMMUTE.value()
+              ? JoinAssociateRule.INSTANCE
+              : ProjectMergeRule.INSTANCE,
+          AggregateStarTableRule.INSTANCE,
+          AggregateStarTableRule.INSTANCE2,
+          FilterTableScanRule.INSTANCE,
+          FilterProjectTransposeRule.INSTANCE,
+          FilterJoinRule.FILTER_ON_JOIN,
+          AggregateExpandDistinctAggregatesRule.INSTANCE,
+          AggregateReduceFunctionsRule.INSTANCE,
+          FilterAggregateTransposeRule.INSTANCE,
+          JoinCommuteRule.INSTANCE,
+          JoinPushThroughJoinRule.RIGHT,
+          JoinPushThroughJoinRule.LEFT,
+          SortProjectTransposeRule.INSTANCE,
+          ReduceExpressionsRule.FILTER_INSTANCE);
+    
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException {
         SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
@@ -481,14 +538,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             clearCache();
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
-
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
                 .traitDefs(TRAITS)
-                // define the rules you want to apply
-
-                .programs(Programs.ofRules(Programs.RULE_SET))
+                .ruleSets(RuleSets.ofList(RULE_SET))
                 .build();
         Planner planner = Frameworks.getPlanner(config);
         if (LOG.isLoggable(Level.FINER)) {
@@ -497,8 +551,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode logicalPlan = planner.rel(n).project();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.SEVERE)) {
+            LOG.log(Level.SEVERE, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -515,11 +569,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (collation != null) {
             desiredTraits = desiredTraits.replace(collation);
         }
-        final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
+        final RelNode newRoot = planner.transform(0, desiredTraits, logicalPlan);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.SEVERE)) {
+            LOG.log(Level.SEVERE, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -549,6 +603,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelNode plan,
             RelDataType rowType, boolean returnValues
     ) throws StatementExecutionException {
+        System.out.println("convertRelNode "+plan+" ("+rowType+")");
         if (plan instanceof EnumerableTableModify) {
             EnumerableTableModify dml = (EnumerableTableModify) plan;
             switch (dml.getOperation()) {
@@ -676,7 +731,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return new SimpleInsertOp(statement);
         }
         PlannerOp input = convertRelNode(dml.getInput(),
-                null, false);
+                null, false).optimize();
 
         try {
             return new InsertOp(tableSpace, tableName, input, returnValues);
@@ -686,7 +741,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planDelete(EnumerableTableModify dml) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false).optimize();
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
@@ -719,7 +774,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false).optimize();
         List<String> updateColumnList = dml.getUpdateColumnList();
         List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -869,8 +924,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableSemiJoin(EnumerableSemiJoin op, RelDataType rowType) {
         // please note that EnumerableSemiJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false).optimize();
+        PlannerOp right = convertRelNode(op.getRight(), null, false).optimize();
         int[] leftKeys = op.getLeftKeys().toIntArray();
         int[] rightKeys = op.getRightKeys().toIntArray();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
@@ -890,8 +945,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableJoin(EnumerableJoin op, RelDataType rowType) {
         // please note that EnumerableJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false).optimize();
+        PlannerOp right = convertRelNode(op.getRight(), null, false).optimize();
         int[] leftKeys = op.getLeftKeys().toIntArray();
         int[] rightKeys = op.getRightKeys().toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
@@ -912,8 +967,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false).optimize();
+        PlannerOp right = convertRelNode(op.getRight(), null, false).optimize();
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
@@ -934,8 +989,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
         // please note that EnumerableMergeJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false).optimize();
+        PlannerOp right = convertRelNode(op.getRight(), null, false).optimize();
         int[] leftKeys = op.getLeftKeys().toIntArray();
         int[] rightKeys = op.getRightKeys().toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
@@ -961,10 +1016,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             final boolean allowIdentity,
             final Column[] tableSchema
     ) {
+        System.out.println("BUILD PROJECTS: "+tableSchema);
         boolean allowZeroCopyProjection = true;
         List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
         Column[] columns = new Column[projects.size()];
-        String[] fieldNames = new String[columns.length];
+        String[] fieldNames = new String[columns.length];        
         int i = 0;
         int[] zeroCopyProjections = new int[fieldNames.length];
         boolean identity = allowIdentity
@@ -975,16 +1031,23 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (exp instanceof AccessCurrentRowExpression) {
                 AccessCurrentRowExpression accessCurrentRowExpression = (AccessCurrentRowExpression) exp;
                 int mappedIndex = accessCurrentRowExpression.getIndex();
+                System.out.println("EXP "+exp+" MAPPEDINDEX "+mappedIndex+" FOR "+i);
                 zeroCopyProjections[i] = mappedIndex;
                 if (i != mappedIndex) {
                     identity = false;
+                    System.out.println("NO IDENTITY "+i+" != "+mappedIndex);
                 }
             } else {
                 allowZeroCopyProjection = false;
+                System.out.println("NO allowZeroCopyProjection exp is a "+exp.getClass()+" - "+exp);
             }
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i).toLowerCase(),
                     convertToHerdType(node.getType()));
+            System.out.println("COL: "+col+" IDENDITY "+identity);
+            if (identity) {
+                System.out.println("TABLESCHEMA "+tableSchema[i]);
+            }
             identity = identity && col.name.equals(tableSchema[i].name);
             fieldNames[i] = col.name;
             columns[i++] = col;

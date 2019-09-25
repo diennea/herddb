@@ -88,4 +88,12 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
         throw new IllegalStateException("no implemented");
     }
 
+    public final CompiledSQLExpression getLeft() {
+        return left;
+    }
+
+    public final CompiledSQLExpression getRight() {
+        return right;
+    }        
+
 }

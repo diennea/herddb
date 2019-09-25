@@ -145,10 +145,16 @@ public class FilterOp implements PlannerOp {
 
     @Override
     public PlannerOp optimize() {
+        System.out.println("OPTIMIZE "+input.getClass()+" "+input);
         if (input instanceof TableScanOp) {
-            return new FilteredTableScanOp(this, (TableScanOp) input);
+            return new FilteredTableScanOp(this, (TableScanOp) input).optimize();
         }
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "FilterOp{" + "input=" + input + ", condition=" + condition + '}';
     }
 
 }

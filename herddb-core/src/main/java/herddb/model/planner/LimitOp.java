@@ -103,18 +103,12 @@ public class LimitOp implements PlannerOp, ScanLimits {
 
     @Override
     public PlannerOp optimize() {
-        if (input instanceof SortedBindableTableScanOp) {
-            SortedBindableTableScanOp op = (SortedBindableTableScanOp) input;
+        if (input instanceof SimpleScanOp) {
+            SimpleScanOp op = (SimpleScanOp) input;
             // we can change the statement, this node will be lost and the tablescan too
             ScanStatement statement = op.getStatement();
             statement.setLimits(this);
-            return new LimitedSortedBindableTableScanOp(statement);
-        } else if (input instanceof BindableTableScanOp) {
-            BindableTableScanOp op = (BindableTableScanOp) input;
-            // we can change the statement, this node will be lost and the tablescan too
-            ScanStatement statement = op.getStatement();
-            statement.setLimits(this);
-            return new LimitedBindableTableScanOp(statement);
+            return new TableScanOp(statement);
         }
         return this;
     }

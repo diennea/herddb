@@ -53,12 +53,15 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
+import herddb.model.planner.FilteredTableScanOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitedSortedBindableTableScanOp;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp;
 import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
+import herddb.model.planner.ProjectedTableScanOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
@@ -68,6 +71,9 @@ import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.server.ServerSideScannerPeer;
+import herddb.sql.expressions.AccessCurrentRowExpression;
+import herddb.sql.expressions.CompiledEqualsExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
@@ -97,10 +103,23 @@ public class CalcitePlannerTest {
             try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql where k1='mykey'", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             }
-
+   
+            { // test ReduceExpressionsRule.FILTER_INSTANCE
+                // "n1 = 1 and n1 is not null" -> this must be simplified to "n1 = 1"
+                TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1 = 1 and n1 is not null"), TableScanOp.class);
+                ScanStatement statement = (ScanStatement) plan.getStatement();
+                Projection projection = statement.getProjection();
+                assertThat(projection, instanceOf(ZeroCopyProjection.class));                                
+                SQLRecordPredicate predicate = (SQLRecordPredicate) statement.getPredicate();
+                assertThat(predicate.getWhere(), instanceOf(CompiledEqualsExpression.class));
+                CompiledEqualsExpression equals = (CompiledEqualsExpression) predicate.getWhere();
+                assertThat(equals.getLeft(), instanceOf(AccessCurrentRowExpression.class));
+                assertThat(equals.getRight(), instanceOf(ConstantExpression.class));
+                
+            }
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
-            assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), TableScanOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
@@ -111,19 +130,19 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
 
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
-            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
-            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), TableScanOp.class);
             {
-                BindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+                TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), TableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
                 assertNull(plan.getStatement().getComparator());
             }
-
+                   
             {
-                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by n1"), SortedBindableTableScanOp.class);
+                TableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by n1"), TableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(ZeroCopyProjection.class));
@@ -139,7 +158,7 @@ public class CalcitePlannerTest {
             }
 
             {
-                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+                TableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by k1"), TableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(ZeroCopyProjection.class));
@@ -154,7 +173,7 @@ public class CalcitePlannerTest {
                 assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), SortedTableScanOp.class);
+                TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), TableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
@@ -170,7 +189,7 @@ public class CalcitePlannerTest {
                 assertFalse(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
+                TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), TableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
@@ -184,8 +203,7 @@ public class CalcitePlannerTest {
                 assertThat(comparator, instanceOf(SortOp.class));
                 SortOp sortOp = (SortOp) comparator;
                 assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
-            }
-
+            }                        
         }
     }
 
@@ -207,8 +225,8 @@ public class CalcitePlannerTest {
             }
 
             assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), TableScanOp.class);
-            assertInstanceOf(plan(manager, "/* multiline\ncomment */\nselect * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
-            assertInstanceOf(plan(manager, "\n\nselect n1 from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "/* multiline\ncomment */\nselect * from tblspace1.tsql where n1=1"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "\n\nselect n1 from tblspace1.tsql"), TableScanOp.class);
             assertInstanceOf(plan(manager, "-- comment\nupdate tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "/* multiline\ncomment */\nupdate tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
@@ -218,9 +236,9 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "\n\ndelete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
-            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
-            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
-            BindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), TableScanOp.class);
+            TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), TableScanOp.class);
             Projection projection = plan.getStatement().getProjection();
             System.out.println("projection:" + projection);
             assertThat(projection, instanceOf(IdentityProjection.class));
@@ -768,7 +786,7 @@ public class CalcitePlannerTest {
 
     @SuppressWarnings("unchecked")
     private static <T> T assertInstanceOf(PlannerOp plan, Class<T> aClass) {
-        Assert.assertTrue("expecting " + aClass + " but found " + plan.getClass(),
+        Assert.assertTrue("expecting " + aClass + " but found " + plan.getClass()+" ("+plan+")",
                 plan.getClass().equals(aClass));
         return (T) plan;
     }
