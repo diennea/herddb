@@ -944,6 +944,25 @@ public class FileDataStorageManager extends DataStorageManager {
             }
 
         } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Failed to write on path: {0}", pageFile);
+            Path path = pageFile;
+            boolean exists;
+            do {
+                exists = Files.exists(path);
+
+                if (exists) {
+                    LOGGER.log(Level.SEVERE,
+                            "Path {0}: directory {1}, file {2}, link {3}, writable {4}, readable {5}, executable {6}",
+                            new Object[] { path, Files.isDirectory(path), Files.isRegularFile(path),
+                                    Files.isSymbolicLink(path), Files.isWritable(path), Files.isReadable(path),
+                                    Files.isExecutable(path) });
+                } else {
+                    LOGGER.log(Level.SEVERE, "Path {0} doesn't exists", path);
+                }
+
+                path = path.getParent();
+            } while (path != null && !exists);
+
             throw new DataStorageManagerException(err);
         }
 
