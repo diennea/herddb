@@ -109,7 +109,7 @@ public class CalcitePlannerTest {
                 TableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1 = 1 and n1 is not null"), TableScanOp.class);
                 ScanStatement statement = (ScanStatement) plan.getStatement();
                 Projection projection = statement.getProjection();
-                assertThat(projection, instanceOf(ZeroCopyProjection.class));                                
+                assertThat(projection, instanceOf(IdentityProjection.class));                                
                 SQLRecordPredicate predicate = (SQLRecordPredicate) statement.getPredicate();
                 assertThat(predicate.getWhere(), instanceOf(CompiledEqualsExpression.class));
                 CompiledEqualsExpression equals = (CompiledEqualsExpression) predicate.getWhere();

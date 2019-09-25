@@ -98,6 +98,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
+import org.apache.calcite.adapter.enumerable.EnumerableBindable;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableFilter;
 import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
@@ -115,6 +116,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
 import org.apache.calcite.config.CalciteSystemProperty;
+import org.apache.calcite.interpreter.Bindables;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -529,7 +531,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
           JoinPushThroughJoinRule.RIGHT,
           JoinPushThroughJoinRule.LEFT,
           SortProjectTransposeRule.INSTANCE,
-          ReduceExpressionsRule.FILTER_INSTANCE);
+          ReduceExpressionsRule.FILTER_INSTANCE,
+          EnumerableBindable.EnumerableToBindableConverterRule.INSTANCE);
     
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException {
@@ -538,11 +541,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             clearCache();
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
+        List<RelOptRule> copy = new ArrayList<>();
+        copy.addAll(Bindables.RULES);
+        copy.addAll(RULE_SET);
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
-                .traitDefs(TRAITS)
-                .ruleSets(RuleSets.ofList(RULE_SET))
+                .traitDefs(TRAITS)                
                 .build();
         Planner planner = Frameworks.getPlanner(config);
         if (LOG.isLoggable(Level.FINER)) {
@@ -569,7 +574,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (collation != null) {
             desiredTraits = desiredTraits.replace(collation);
         }
-        final RelNode newRoot = planner.transform(0, desiredTraits, logicalPlan);
+        optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
+//        final RelNode newRoot = planner.transform(0, desiredTraits, logicalPlan);
+        final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
         if (LOG.isLoggable(Level.SEVERE)) {

@@ -38,4 +38,9 @@ public class BindableTableScanOp extends SimpleScanOp {
         return "BindableTableScanOp{" + "statement=" + statement + '}';
     }
 
+    @Override
+    public PlannerOp optimize() {
+        return new TableScanOp(statement);
+    }
+
 }
