@@ -6,6 +6,7 @@ ENV HERD_HOME_DIR=/opt/herddb
 ENV HERD_CONF_DIR=${HERD_HOME_DIR}/conf \
     HERD_DATA_DIR=${HERD_HOME_DIR}/data \
     HERD_LOG_DIR=${HERD_HOME_DIR}/logs
+    ENV PATH=${PATH}:/${HERD_HOME_DIR}/bin
 
 # Add a user with an explicit UID/GID and create necessary directories
 RUN set -eux; \
@@ -47,13 +48,11 @@ RUN chown -R herddb:herddb "${HERD_HOME_DIR}"
 USER herddb
 
 WORKDIR ${HERD_HOME_DIR}
-VOLUME ["$HERD_DATA_DIR", "$HERD_LOG_DIR"]
+VOLUME ["${HERD_DATA_DIR}", "${HERD_LOG_DIR}", "${HERD_CONF_DIR}"]
 
 EXPOSE 7000
-
-ENV PATH=$PATH:/$HERD_HOME_DIR/bin
 
 COPY docker-entrypoint.sh /
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["bin/service","server","console"]
+CMD ["service","server","console","--use-env"]
