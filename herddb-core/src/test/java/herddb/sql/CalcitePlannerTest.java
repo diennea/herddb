@@ -68,6 +68,9 @@ import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.server.ServerSideScannerPeer;
+import herddb.sql.expressions.AccessCurrentRowExpression;
+import herddb.sql.expressions.CompiledEqualsExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
@@ -96,6 +99,19 @@ public class CalcitePlannerTest {
 
             try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql where k1='mykey'", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
+            }
+
+            { // test ReduceExpressionsRule.FILTER_INSTANCE
+                // "n1 = 1 and n1 is not null" -> this must be simplified to "n1 = 1"
+                BindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1 = 1 and n1 is not null"), BindableTableScanOp.class);
+                ScanStatement statement = (ScanStatement) plan.getStatement();
+                Projection projection = statement.getProjection();
+                assertThat(projection, instanceOf(IdentityProjection.class));
+                SQLRecordPredicate predicate = (SQLRecordPredicate) statement.getPredicate();
+                assertThat(predicate.getWhere(), instanceOf(CompiledEqualsExpression.class));
+                CompiledEqualsExpression equals = (CompiledEqualsExpression) predicate.getWhere();
+                assertThat(equals.getLeft(), instanceOf(AccessCurrentRowExpression.class));
+                assertThat(equals.getRight(), instanceOf(ConstantExpression.class));
             }
 
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
