@@ -1054,36 +1054,45 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    private void executeActivator(ActivatorRunRequest type) {
-        if (type.enableTableSpacesManagement()) {
-            if (manageTableSpaces()) {
-                return;
-            }
-        }
+    public final boolean isStopped() {
+        return stopped.get();
+    }
 
-        boolean checkpointDone = false;
-        if (type.enableGlobalCheckPoint()) {
-            long now = System.currentTimeMillis();
-            if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
-                lastCheckPointTs.set(now);
-                try {
-                    checkpoint();
-                    checkpointDone = true;
-                } catch (DataStorageManagerException | LogNotAvailableException error) {
-                    LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
+    private void executeActivator(ActivatorRunRequest type) {
+        try {
+            if (type.enableTableSpacesManagement()) {
+                if (manageTableSpaces()) {
+                    return;
                 }
             }
-        }
-        if (!checkpointDone && type.enableTableCheckPoints()) {
-            for (TableSpaceManager man : tablesSpaces.values()) {
-                man.runLocalTableCheckPoints();
+
+            boolean checkpointDone = false;
+            if (type.enableGlobalCheckPoint()) {
+                long now = System.currentTimeMillis();
+                if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
+                    lastCheckPointTs.set(now);
+                    try {
+                        checkpoint();
+                        checkpointDone = true;
+                    } catch (DataStorageManagerException | LogNotAvailableException error) {
+                        LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
+                    }
+                }
             }
-        }
-        if (!checkpointDone && type.enableAbandonedTransactionsMaintenaince()) {
-            for (TableSpaceManager man : tablesSpaces.values()) {
-                man.processAbandonedTransactions();
+            if (!checkpointDone && type.enableTableCheckPoints()) {
+                for (TableSpaceManager man : tablesSpaces.values()) {
+                    man.runLocalTableCheckPoints();
+                }
             }
+            if (!checkpointDone && type.enableAbandonedTransactionsMaintenaince()) {
+                for (TableSpaceManager man : tablesSpaces.values()) {
+                    man.processAbandonedTransactions();
+                }
+            }
+        } catch (RuntimeException err) {
+            LOGGER.log(Level.SEVERE, "Fatal error during a system management task", err);
         }
+
     }
 
     private boolean manageTableSpaces() {
