@@ -294,28 +294,14 @@ public class SimpleOperatorsTest {
             }
 
             // In expressions
-            // Warning: jsqlParser doesn't handle this kind of expressions in select clause
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in (1,2,3)", Collections.emptyList())) {
-                if (manager.getPlanner() instanceof CalcitePlanner) {
-                    assertEquals(0, scan1.consume().size());
-                } else {
-                    assertEquals(1, scan1.consume().size());
-                }
-            }
-            if ((manager.getPlanner() instanceof DDLSQLPlanner)) {
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in ('1',2,3)", Collections.emptyList())) {
-                    assertEquals(1, scan1.consume().size());
-                }
-                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in ('1',2,3)", Collections.emptyList())) {
-                    assertEquals(0, scan1.consume().size());
-                }
+                assertEquals(1, scan1.consume().size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in (1)", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
 
             // Between expressions
-            // Warning: Parser doesn't handle this kind of expressions in select clause
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 3 BETWEEN 1 AND 5", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
