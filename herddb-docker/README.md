@@ -34,7 +34,7 @@ docker run -p 2181:2181 --name zookeeper --restart always -d zookeeper
 ```
 
 ## start as many
-** HerdDB inside the container will by default bind to port 7000, you have to pass server.port=0 in order to let the server choose a random port **
+*HerdDB inside the container will by default bind to port 7000, you have to pass server.port=0 in order to let the server choose a random port*
 ```
 docker run -d  --restart always --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
 docker run -d  --restart always --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
