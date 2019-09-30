@@ -1837,7 +1837,7 @@ public class TableSpaceManager {
         @Override
         public void accept(LogSequenceNumber t, LogEntry u) {
             if (dbmanager.isStopped()) {
-                throw new RuntimeException("System was requested to stop, aborting recovery at "+t);
+                throw new RuntimeException("System was requested to stop, aborting recovery at " + t);
             }
             try {
                 apply(new CommitLogResult(t, false, true), u, true);
