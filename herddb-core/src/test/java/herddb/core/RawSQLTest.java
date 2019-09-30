@@ -177,14 +177,6 @@ public class RawSQLTest {
             }
 
             try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where n1=? and k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)",
-                        Arrays.asList(1));
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(2, ok.getIndex());
-            }
-
-            try {
                 scan(manager, "SELECT * FROM tblspace1.tsql where k1=1 and n1=? and n1=?", Arrays.asList(1));
                 fail();
             } catch (MissingJDBCParameterException ok) {
