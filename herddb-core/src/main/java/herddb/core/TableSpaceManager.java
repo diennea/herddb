@@ -723,6 +723,7 @@ public class TableSpaceManager {
                         new Object[]{t.transactionId,
                                 new java.sql.Timestamp(t.localCreationTimestamp),
                                 new java.sql.Timestamp(t.lastActivityTs)});
+                validateTransactionBeforeTxCommand(t.transactionId);
                 long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
                 try {
                     forceTransactionRollback(t.transactionId);
@@ -1755,7 +1756,6 @@ public class TableSpaceManager {
         if (tc == null) {
             throw new StatementExecutionException("no such transaction " + txId + " in tablespace " + tableSpaceName);
         }
-        int count = 0;
         while (tc.hasPendingActivities() && !closed) {
             LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
                     new Object[]{txId, tableSpaceName, tc.getRefCount()});
@@ -1821,6 +1821,9 @@ public class TableSpaceManager {
 
         @Override
         public void accept(LogSequenceNumber t, LogEntry u) {
+            if (dbmanager.isStopped()) {
+                throw new RuntimeException("System was requested to stop, aborting recovery at " + t);
+            }
             try {
                 apply(new CommitLogResult(t, false, true), u, true);
             } catch (DDLException | DataStorageManagerException err) {
