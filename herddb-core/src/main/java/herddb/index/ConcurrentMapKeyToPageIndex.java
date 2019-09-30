@@ -179,7 +179,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 prefix = scan.value.computeNewValue(null, context, tableContext);
             } catch (InvalidNullValueForKeyException err) {
                 return Stream.empty();
-            }catch (StatementExecutionException err) {
+            } catch (StatementExecutionException err) {
                 throw new RuntimeException(err);
             }
             Predicate<Map.Entry<Bytes, Long>> predicate = (Map.Entry<Bytes, Long> t) -> {
