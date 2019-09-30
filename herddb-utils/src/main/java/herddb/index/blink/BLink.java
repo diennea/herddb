@@ -3009,7 +3009,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             try {
                 unload.owner.unload(unload.pageId);
             } catch (RuntimeException e) {
-                throw new IOException("failed to unload " + unload.pageId);
+                throw new IOException("failed to unload " + unload.pageId, e);
             }
         }
 
