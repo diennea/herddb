@@ -64,4 +64,12 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
 
+    public CompiledSQLExpression getLeft() {
+        return left;
+    }
+
+    public CompiledSQLExpression getRight() {
+        return right;
+    }
+
 }

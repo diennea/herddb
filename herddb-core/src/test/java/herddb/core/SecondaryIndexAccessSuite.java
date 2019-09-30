@@ -225,12 +225,12 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<= 1 and n1>=2", Collections.emptyList(), true, true, false, -1);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    assertEquals(0, scan1.consume().size());
+                    assertEquals(4, scan1.consume().size());
                 }
             }
 
