@@ -27,8 +27,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLRecordPredicate;
-import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import org.apache.calcite.linq4j.Enumerable;
@@ -108,7 +106,7 @@ public class JoinOp implements PlannerOp {
                         generateNullsOnLeft,
                         generateNullsOnRight
                 );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resTransactionId, fieldNames, columns, result);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }
