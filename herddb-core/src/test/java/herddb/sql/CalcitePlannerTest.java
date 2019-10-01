@@ -19,9 +19,9 @@
  */
 package herddb.sql;
 
+import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.beginTransaction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -47,19 +47,9 @@ import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
-import herddb.model.commands.ScanStatement;
-import herddb.server.ServerSideScannerPeer;
-import herddb.utils.TuplesList;
-import org.junit.Assert;
-import org.junit.Test;
-
-import herddb.codec.DataAccessorForFullRecord;
-import herddb.core.DBManager;
-import herddb.mem.MemoryCommitLogManager;
-import herddb.mem.MemoryDataStorageManager;
-import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.InsertOp;
@@ -73,8 +63,6 @@ import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.SortedBindableTableScanOp;
-import herddb.model.planner.SortedTableScanOp;
-import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.server.ServerSideScannerPeer;
 import herddb.sql.expressions.AccessCurrentRowExpression;
@@ -89,6 +77,7 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
+
 
 public class CalcitePlannerTest {
 

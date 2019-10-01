@@ -33,7 +33,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.DDLSQLPlanner;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
