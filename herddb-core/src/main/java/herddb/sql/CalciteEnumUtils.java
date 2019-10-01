@@ -19,8 +19,9 @@ public class CalciteEnumUtils {
                 return JoinType.SEMI;
             case ANTI:
                 return JoinType.ANTI;
+            default:
+                throw new IllegalStateException(
+                        "Unable to convert " + joinRelType + " to Linq4j JoinType");
         }
-        throw new IllegalStateException(
-                "Unable to convert " + joinRelType + " to Linq4j JoinType");
     }
 }

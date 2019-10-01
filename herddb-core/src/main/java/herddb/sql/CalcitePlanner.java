@@ -63,7 +63,6 @@ import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
-import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
@@ -99,15 +98,15 @@ import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableFilter;
-import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
 import org.apache.calcite.adapter.enumerable.EnumerableHashJoin;
+import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableMergeJoin;
+import org.apache.calcite.adapter.enumerable.EnumerableNestedLoopJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
-import org.apache.calcite.adapter.enumerable.EnumerableNestedLoopJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
@@ -906,6 +905,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         PlannerOp right = convertRelNode(op.getRight(), null, false);
         int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
         int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
+        boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
+        boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -917,8 +919,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new SemiJoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right);
+        return new JoinOp(fieldNames, columns,
+                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
 
     private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
