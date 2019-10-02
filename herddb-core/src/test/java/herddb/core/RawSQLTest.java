@@ -1233,6 +1233,15 @@ public class RawSQLTest {
                     assertEquals(1, result.size());
                 }
             }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Arrays.asList((Object) null));) {
+                    List<DataAccessor> result = scan1.consume();
+                    assertEquals(0, result.size());
+                }
+            }
+
         }
     }
 
