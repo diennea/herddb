@@ -66,7 +66,6 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
-import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
@@ -233,7 +232,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         net.sf.jsqlparser.statement.Statement stmt;
         try {
             stmt = CCJSqlParserUtil.parse(query);
-        } catch (JSQLParserException | net.sf.jsqlparser.parser.TokenMgrError err) {
+        } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
         return stmt;
@@ -243,7 +242,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
             boolean scan, boolean returnValues, int maxRows
     ) {
-        verifyJdbcParametersIndexes(stmt);
         ExecutionPlan result;
         if (stmt instanceof CreateTable) {
             result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
@@ -567,74 +565,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
-    private ColumnReferencesDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
-        ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(expression);
-        expression.accept(discovery);
-        return discovery;
-    }
-
-    private Expression collectConditionsForAlias(
-            String alias, Expression expression,
-            List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName
-    ) throws StatementExecutionException {
-        if (expression == null) {
-            // no constraint on table
-            return null;
-        }
-        ColumnReferencesDiscovery discoveredMainAlias = discoverMainTableAlias(expression);
-        String mainAlias = discoveredMainAlias.getMainTableAlias();
-        if (!discoveredMainAlias.isContainsMixedAliases() && alias.equals(mainAlias)) {
-            return expression;
-        } else if (expression instanceof AndExpression) {
-            AndExpression be = (AndExpression) expression;
-            ColumnReferencesDiscovery discoveredMainAliasLeft = discoverMainTableAlias(be.getLeftExpression());
-            String mainAliasLeft = discoveredMainAliasLeft.isContainsMixedAliases()
-                    ? null : discoveredMainAliasLeft.getMainTableAlias();
-
-            ColumnReferencesDiscovery discoveredMainAliasright = discoverMainTableAlias(be.getRightExpression());
-            String mainAliasRight = discoveredMainAliasright.isContainsMixedAliases()
-                    ? null : discoveredMainAliasright.getMainTableAlias();
-            if (alias.equals(mainAliasLeft)) {
-                if (alias.equals(mainAliasRight)) {
-                    return expression;
-                } else {
-                    return be.getLeftExpression();
-                }
-            } else if (alias.equals(mainAliasRight)) {
-                return be.getRightExpression();
-            } else {
-                // no constraint on table
-                return null;
-            }
-        } else {
-            conditionsOnJoinedResult.add(discoveredMainAlias);
-            return null;
-        }
-    }
-
-    private Expression composeAndExpression(List<ColumnReferencesDiscovery> conditionsOnJoinedResult) {
-        if (conditionsOnJoinedResult.size() == 1) {
-            return conditionsOnJoinedResult.get(0).getExpression();
-        }
-        AndExpression result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
-                conditionsOnJoinedResult.get(1).getExpression());
-        for (int i = 2; i < conditionsOnJoinedResult.size(); i++) {
-            result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());
-        }
-        return result;
-    }
-
-    private Expression composeSimpleAndExpressions(List<Expression> expressions) {
-        if (expressions.size() == 1) {
-            return expressions.get(0);
-        }
-        AndExpression result = new AndExpression(expressions.get(0),
-                expressions.get(1));
-        for (int i = 2; i < expressions.size(); i++) {
-            result = new AndExpression(result, expressions.get(i));
-        }
-        return result;
-    }
 
     private static final Logger LOG = Logger.getLogger(DDLSQLPlanner.class.getName());
 
@@ -998,10 +928,5 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         throw new StatementExecutionException("unsupported function " + name);
     }
 
-    private void verifyJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
-        JdbcQueryRewriter assigner = new JdbcQueryRewriter();
-        stmt.accept(assigner);
-
-    }
 
 }

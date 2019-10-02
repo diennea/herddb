@@ -20,17 +20,11 @@
 
 package herddb.sql.expressions;
 
-import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
-import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
-import net.sf.jsqlparser.expression.CaseExpression;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.WhenClause;
 
 public class CompiledCaseExpression implements CompiledSQLExpression {
 
@@ -40,36 +34,6 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
     public CompiledCaseExpression(List<Entry<CompiledSQLExpression, CompiledSQLExpression>> whenExpressions, CompiledSQLExpression elseExpression) {
         this.whenExpressions = whenExpressions;
         this.elseExpression = elseExpression;
-    }
-
-    public static CompiledCaseExpression create(String validatedTableAlias, CaseExpression caseExpression) {
-        Expression switchExpression = caseExpression.getSwitchExpression();
-        if (switchExpression != null) {
-            throw new StatementExecutionException("unhandled expression CASE SWITCH, type " + caseExpression.getClass() + ": " + caseExpression);
-        }
-        List<Entry<CompiledSQLExpression, CompiledSQLExpression>> whens = null;
-        if (caseExpression.getWhenClauses() != null) {
-            whens = new ArrayList<>();
-            for (Expression when : caseExpression.getWhenClauses()) {
-                WhenClause whenClause = (WhenClause) when;
-                CompiledSQLExpression whenCondition = compileExpression(validatedTableAlias, whenClause.getWhenExpression());
-                if (whenCondition == null) {
-                    return null;
-                }
-                CompiledSQLExpression thenExpr = compileExpression(validatedTableAlias, whenClause.getThenExpression());
-                whens.add(new AbstractMap.SimpleImmutableEntry<>(whenCondition, thenExpr));
-            }
-        }
-        Expression elseExp = caseExpression.getElseExpression();
-        if (elseExp != null) {
-            CompiledSQLExpression elseExpression = compileExpression(validatedTableAlias, elseExp);
-            if (elseExpression == null) {
-                return null;
-            }
-            return new CompiledCaseExpression(whens, elseExpression);
-        } else {
-            return new CompiledCaseExpression(whens, null);
-        }
     }
 
     @Override
