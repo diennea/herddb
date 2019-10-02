@@ -20,12 +20,9 @@
 
 package herddb.sql.expressions;
 
-import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import herddb.model.StatementExecutionException;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
-import herddb.utils.RawString;
 import java.math.BigDecimal;
 import java.util.AbstractMap;
 import java.util.ArrayList;
