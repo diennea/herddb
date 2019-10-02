@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.model.Column;
 import herddb.model.ColumnsList;
+import herddb.model.InvalidNullValueForKeyException;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -132,6 +133,9 @@ public class SQLRecordKeyFunction extends RecordFunction {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
             Object value = expression.evaluate(DataAccessor.NULL, context);
+            if (value == null) {
+                throw new InvalidNullValueForKeyException("error while converting primary key " + pk + ", keys cannot be null");
+            }
             value = RecordSerializer.convert(c.type, value);
             pk.put(c.name, value);
         }

@@ -91,6 +91,9 @@ public class SimpleClientScanTest {
                         consume().size());
                 connection.rollbackTransaction(TableSpace.DEFAULT, tx);
 
+                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id=?", true,
+                        Arrays.<Object>asList((Object) null), 0, 0, 10).consume().size());
+
             }
         }
     }
