@@ -1,3 +1,14 @@
+# How to build  this image
+
+
+```
+git clone git@github.com:diennea/herddb.git
+cd herddb-docker
+docker build .
+```
+
+
+
 # How to use this image
 
 ## Running single instance HerdDB
