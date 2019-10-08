@@ -28,7 +28,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.CalciteEnumUtils;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
@@ -36,7 +35,6 @@ import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
 import org.apache.calcite.linq4j.function.Function2;
 import org.apache.calcite.linq4j.function.Predicate2;
-import org.apache.calcite.rel.core.JoinRelType;
 
 /**
  * theta oin operation
@@ -50,7 +48,8 @@ public class ThetaJoinOp implements PlannerOp {
     private final PlannerOp right;
     private final String[] fieldNames;
     private final Column[] columns;
-    private final JoinRelType joinRelType;
+    private final boolean generateNullsOnLeft;
+    private final boolean generateNullsOnRight;
     private final CompiledSQLExpression condition;
 
     public ThetaJoinOp(
@@ -58,13 +57,16 @@ public class ThetaJoinOp implements PlannerOp {
             Column[] columns, PlannerOp left,
             PlannerOp right,
             CompiledSQLExpression condition,
-            JoinRelType joinRelType,
-            boolean mergeJoin) {
+            boolean generateNullsOnLeft,
+            boolean generateNullsOnRight,
+            boolean mergeJoin
+    ) {
         this.fieldNames = fieldNames;
         this.columns = columns;
         this.left = left.optimize();
         this.right = right.optimize();
-        this.joinRelType = joinRelType;
+        this.generateNullsOnLeft = generateNullsOnLeft;
+        this.generateNullsOnRight = generateNullsOnRight;
         this.condition = condition;
     }
 
@@ -89,11 +91,11 @@ public class ThetaJoinOp implements PlannerOp {
         final String[] fieldNamesFromRight = resRight.dataScanner.getFieldNames();
         final Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
 
-
-        Enumerable<DataAccessor> result = EnumerableDefaults.nestedLoopJoin(resLeft.dataScanner.createEnumerable(),
+        Enumerable<DataAccessor> result = EnumerableDefaults.thetaJoin(resLeft.dataScanner.createEnumerable(),
                 resRight.dataScanner.createEnumerable(),
                 predicate(resultProjection, context), resultProjection,
-                CalciteEnumUtils.toLinq4jJoinType(joinRelType)
+                generateNullsOnLeft,
+                generateNullsOnRight
         );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
@@ -123,4 +125,6 @@ public class ThetaJoinOp implements PlannerOp {
                 b != null ? b : nullsOnRight);
 
     }
+
+
 }

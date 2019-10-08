@@ -4,11 +4,6 @@
 # Surefire
 **/.surefire-*
 
-#intellij
-.idea
-*/*.iml
-*.iml
-
 # Eclipse
 **/.classpath
 **/.project
