@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
+import static junit.framework.TestCase.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -393,6 +394,26 @@ public class TmpMapTest {
                     assertTrue(thrown.getCause() instanceof IOException);
                 }
 
+            }
+        }
+    }
+
+    @Test
+    public void testClassCastException() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap tmpMap = manager
+                    .newMap()
+                    .withIntKeys()
+                    .build()) {
+                    tmpMap.put("this-is-not-an-int", "foo");
+                    fail();
+            } catch (Exception err) {
+                assertTrue(TestUtils.isExceptionPresentInChain(err, ClassCastException.class));
             }
         }
     }

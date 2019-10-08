@@ -38,7 +38,7 @@
                 <exclusion>
                     <groupId>org.apache.calcite</groupId>
                     <artifactId>calcite-core</artifactId>
-                </exclusion>                
+                </exclusion>
                 <exclusion>
                     <groupId>com.github.jsqlparser</groupId>
                     <artifactId>*</artifactId>
@@ -86,8 +86,12 @@
             </exclusions>
         </dependency>
         <dependency>
+            <groupId>org.apache.bookkeeper</groupId>
+            <artifactId>bookkeeper-common</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.calcite</groupId>
-            <artifactId>calcite-linq4j</artifactId>            
+            <artifactId>calcite-linq4j</artifactId>
         </dependency>
     </dependencies>
 </project>
