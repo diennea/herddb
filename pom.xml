@@ -273,6 +273,11 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.bookkeeper</groupId>
+                <artifactId>bookkeeper-common</artifactId>
+                <version>${libs.bookkeeper}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.bookkeeper</groupId>
                 <artifactId>bookkeeper-server</artifactId>
                 <version>${libs.bookkeeper}</version>
                 <exclusions>

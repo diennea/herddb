@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
@@ -393,6 +394,26 @@ public class TmpMapTest {
                     assertTrue(thrown.getCause() instanceof IOException);
                 }
 
+            }
+        }
+    }
+
+    @Test
+    public void testClassCastException() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap tmpMap = manager
+                    .newMap()
+                    .withIntKeys()
+                    .build()) {
+                    tmpMap.put("this-is-not-an-int", "foo");
+                    fail();
+            } catch (Exception err) {
+                assertTrue(TestUtils.isExceptionPresentInChain(err, ClassCastException.class));
             }
         }
     }

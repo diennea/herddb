@@ -108,8 +108,14 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
             @SuppressFBWarnings("BC_UNCONFIRMED_CAST")
             public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext)
                     throws StatementExecutionException {
-                K key = ((PutStatementEvaluationContext<K, V>) context).getKey();
-                return keySerializer.apply(key);
+                try {
+                    K key = ((PutStatementEvaluationContext<K, V>) context).getKey();
+                    return keySerializer.apply(key);
+                } catch (StatementExecutionException err) {
+                    throw err;
+                } catch (Exception err) {
+                    throw new StatementExecutionException(err);
+                }
             }
         };
         RecordFunction valuesFunction = new RecordFunction() {
@@ -122,8 +128,10 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                     VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream(expectedValueSize);
                     valuesSerializer.serialize(value, buffer);
                     return buffer.toByteArray();
-                } catch (Exception ex) {
-                    throw new StatementExecutionException(ex);
+                } catch (StatementExecutionException err) {
+                    throw err;
+                } catch (Exception err) {
+                    throw new StatementExecutionException(err);
                 }
             }
         };
