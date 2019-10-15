@@ -147,9 +147,9 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void start() throws DataStorageManagerException {
         try {
-            LOGGER.log(Level.SEVERE, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
+            LOGGER.log(Level.INFO, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
             Files.createDirectories(baseDirectory);
-            LOGGER.log(Level.SEVERE, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+            LOGGER.log(Level.INFO, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
             FileUtils.cleanDirectory(tmpDirectory);
             Files.createDirectories(tmpDirectory);
         } catch (IOException err) {
@@ -159,7 +159,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void close() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+        LOGGER.log(Level.INFO, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
         try {
             FileUtils.cleanDirectory(tmpDirectory);
         } catch (IOException err) {
@@ -657,7 +657,7 @@ public class FileDataStorageManager extends DataStorageManager {
         if (Files.isRegularFile(checkpointFile)) {
             IndexStatus actualStatus = readIndexStatusFromFile(checkpointFile);
             if (actualStatus != null && actualStatus.equals(indexStatus)) {
-                LOGGER.log(Level.SEVERE,
+                LOGGER.log(Level.INFO,
                         "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
                 return Collections.emptyList();
             }
@@ -817,7 +817,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINER, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
-                LOGGER.log(Level.SEVERE, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
+                LOGGER.log(Level.INFO, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException err) {
@@ -951,13 +951,13 @@ public class FileDataStorageManager extends DataStorageManager {
                 exists = Files.exists(path);
 
                 if (exists) {
-                    LOGGER.log(Level.SEVERE,
+                    LOGGER.log(Level.INFO,
                             "Path {0}: directory {1}, file {2}, link {3}, writable {4}, readable {5}, executable {6}",
                             new Object[] { path, Files.isDirectory(path), Files.isRegularFile(path),
                                     Files.isSymbolicLink(path), Files.isWritable(path), Files.isReadable(path),
                                     Files.isExecutable(path) });
                 } else {
-                    LOGGER.log(Level.SEVERE, "Path {0} doesn't exists", path);
+                    LOGGER.log(Level.INFO, "Path {0} doesn't exists", path);
                 }
 
                 path = path.getParent();
@@ -1020,10 +1020,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
-            LOGGER.log(Level.SEVERE, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
+            LOGGER.log(Level.INFO, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
             if (!Files.isRegularFile(file)) {
                 if (sequenceNumber.isStartOfTime()) {
-                    LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
+                    LOGGER.log(Level.INFO, "file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
                     throw new DataStorageManagerException("local table data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
@@ -1071,10 +1071,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
-            LOGGER.log(Level.SEVERE, "loadIndexes for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
+            LOGGER.log(Level.INFO, "loadIndexes for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
             if (!Files.isRegularFile(file)) {
                 if (sequenceNumber.isStartOfTime()) {
-                    LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
+                    LOGGER.log(Level.INFO, "file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
                     throw new DataStorageManagerException("local index data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);

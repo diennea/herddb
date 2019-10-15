@@ -202,9 +202,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
     public void start() throws Exception {
         if (ssl) {
             if (sslCertFile == null) {
-                LOGGER.log(Level.SEVERE, "start SSL with self-signed auto-generated certificate");
+                LOGGER.log(Level.INFO, "start SSL with self-signed auto-generated certificate");
                 if (sslCiphers != null) {
-                    LOGGER.log(Level.SEVERE, "required sslCiphers " + sslCiphers);
+                    LOGGER.log(Level.INFO, "required sslCiphers " + sslCiphers);
                 }
                 SelfSignedCertificate ssc = new SelfSignedCertificate();
                 try {
@@ -213,9 +213,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
                     ssc.delete();
                 }
             } else {
-                LOGGER.log(Level.SEVERE, "start SSL with certificate " + sslCertFile.getAbsolutePath() + " chain file " + sslCertChainFile.getAbsolutePath());
+                LOGGER.log(Level.INFO, "start SSL with certificate " + sslCertFile.getAbsolutePath() + " chain file " + sslCertChainFile.getAbsolutePath());
                 if (sslCiphers != null) {
-                    LOGGER.log(Level.SEVERE, "required sslCiphers " + sslCiphers);
+                    LOGGER.log(Level.INFO, "required sslCiphers " + sslCiphers);
                 }
                 sslCtx = SslContextBuilder.forServer(sslCertChainFile, sslCertFile, sslCertPassword).ciphers(sslCiphers).build();
             }
@@ -248,7 +248,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
         });
         InetSocketAddress address = new InetSocketAddress(host, port);
-        LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
+        LOGGER.log(Level.INFO, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         if (address.isUnresolved()) {
             throw new IOException("Bind address " + host + ":" + port + " cannot be resolved");
         }

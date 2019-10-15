@@ -64,10 +64,12 @@ public class TableSpace {
     public final long maxLeaderInactivityTime;
 
     public final Object metadataStorageVersion;
+    
+    public final long metadataStorageCreationTime;
 
     private TableSpace(
             String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount,
-            long maxLeaderInactivityTime, Object metadataStorageVersion
+            long maxLeaderInactivityTime, Object metadataStorageVersion, long metadataStorageCreationTime
     ) {
         this.name = name;
         this.uuid = uuid;
@@ -76,17 +78,18 @@ public class TableSpace {
         this.expectedReplicaCount = expectedReplicaCount;
         this.metadataStorageVersion = metadataStorageVersion;
         this.maxLeaderInactivityTime = maxLeaderInactivityTime;
+        this.metadataStorageCreationTime = metadataStorageCreationTime;
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public static TableSpace deserialize(byte[] data, Object metadataStorageVersion) throws IOException {
-        return deserialize(new ExtendedDataInputStream(new SimpleByteArrayInputStream(data)), metadataStorageVersion);
+    public static TableSpace deserialize(byte[] data, Object metadataStorageVersion, long metadataStorageCreationTime) throws IOException {
+        return deserialize(new ExtendedDataInputStream(new SimpleByteArrayInputStream(data)), metadataStorageVersion, metadataStorageCreationTime);
     }
 
-    public static TableSpace deserialize(ExtendedDataInputStream in, Object metadataStorageVersion) throws IOException {
+    public static TableSpace deserialize(ExtendedDataInputStream in, Object metadataStorageVersion, long metadataStorageCreationTime) throws IOException {
         long version = in.readVLong(); // version
         long flags = in.readVLong(); // flags for future implementations
         if (version != 1 || flags != 0) {
@@ -102,7 +105,7 @@ public class TableSpace {
             replicas.add(in.readUTF());
         }
         long maxLeaderInactivityTime = in.readVLong();
-        return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, maxLeaderInactivityTime, metadataStorageVersion);
+        return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, maxLeaderInactivityTime, metadataStorageVersion, metadataStorageCreationTime);
     }
 
     public byte[] serialize() throws IOException {
@@ -211,7 +214,7 @@ public class TableSpace {
             if (maxLeaderInactivityTime > 0 && maxLeaderInactivityTime < 5000) {
                 throw new IllegalArgumentException("maxLeaderInactivityTime must be >= 5000");
             }
-            return new TableSpace(uuid, name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, maxLeaderInactivityTime, null);
+            return new TableSpace(uuid, name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, maxLeaderInactivityTime, null, 0);
         }
 
     }

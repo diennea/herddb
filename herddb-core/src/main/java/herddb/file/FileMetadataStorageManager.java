@@ -214,7 +214,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             if (version != 1 || flags != 0) {
                 throw new IOException("corrupted data file " + p.toAbsolutePath());
             }
-            ts = TableSpace.deserialize(iin, 0);
+            ts = TableSpace.deserialize(iin, 0, 0);
         }
         return ts;
     }
