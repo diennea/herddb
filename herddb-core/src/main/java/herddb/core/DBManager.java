@@ -1203,9 +1203,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         if (leaderState == null) {
                             leaderState = new TableSpaceReplicaState(tableSpaceUuid, tableSpaceInfo.leaderId, tableSpaceInfo.metadataStorageCreationTime, TableSpaceReplicaState.MODE_STOPPED);
                             LOGGER.log(Level.INFO, "Leader for " + tableSpaceUuid + " should be " + tableSpaceInfo.leaderId + ", but it never sent pings or it disappeared,"
-                                    + " considering last activity as tablespace creation time: "+new java.sql.Timestamp(tableSpaceInfo.metadataStorageCreationTime)+" to leave a minimal grace period");
+                                    + " considering last activity as tablespace creation time: " + new java.sql.Timestamp(tableSpaceInfo.metadataStorageCreationTime) + " to leave a minimal grace period");
                         }
-                        
+
                         long delta = now - leaderState.timestamp;
                         if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
                             LOGGER.log(Level.FINER, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId
@@ -1217,7 +1217,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             // only one change at a time
                             break;
                         }
-                        
+
                     }
                 }
             } catch (MetadataStorageManagerException | DDLException error) {
