@@ -517,13 +517,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return;
         }
         if (actual_manager != null && actual_manager.isLeader() && !tableSpace.leaderId.equals(nodeId)) {
-            LOGGER.log(Level.SEVERE, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
+            LOGGER.log(Level.INFO, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
             return;
         }
 
         if (actual_manager != null && !actual_manager.isLeader() && tableSpace.leaderId.equals(nodeId)) {
-            LOGGER.log(Level.SEVERE, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
+            LOGGER.log(Level.INFO, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
             return;
         }
@@ -554,21 +554,21 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
-            LOGGER.log(Level.SEVERE, "Tablespace {0} on {1} is not more in replica list {3}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, tableSpace.replicas + ""});
+            LOGGER.log(Level.INFO, "Tablespace {0} on {1} is not more in replica list {3}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, tableSpace.replicas + ""});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
             return;
         }
 
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
             List<NodeMetadata> nodes = metadataStorageManager.listNodes();
-            LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
+            LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
             List<String> availableOtherNodes = nodes.stream().map(n -> {
                 return n.nodeId;
             }).filter(n -> {
                 return !tableSpace.replicas.contains(n);
             }).collect(Collectors.toList());
             Collections.shuffle(availableOtherNodes);
-            LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
+            LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
             if (!availableOtherNodes.isEmpty()) {
                 int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
                 TableSpace.Builder newTableSpaceBuilder =
@@ -1229,7 +1229,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private void stopTableSpace(String tableSpace, String uuid) throws MetadataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId);
+        LOGGER.log(Level.INFO, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId);
         try {
             tablesSpaces.get(tableSpace).close();
         } catch (LogNotAvailableException err) {
