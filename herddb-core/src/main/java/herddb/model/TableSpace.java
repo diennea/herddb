@@ -64,7 +64,7 @@ public class TableSpace {
     public final long maxLeaderInactivityTime;
 
     public final Object metadataStorageVersion;
-    
+
     public final long metadataStorageCreationTime;
 
     private TableSpace(
