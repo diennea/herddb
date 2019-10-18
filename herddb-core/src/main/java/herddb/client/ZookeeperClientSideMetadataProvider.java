@@ -156,7 +156,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         tableSpace = tableSpace.toLowerCase();
         Stat stat = new Stat();
         byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
-        String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
+        String leader = TableSpace.deserialize(result, stat.getVersion(), stat.getCtime()).leaderId;
         tableSpaceLeaders.put(tableSpace, leader);
         return leader;
     }

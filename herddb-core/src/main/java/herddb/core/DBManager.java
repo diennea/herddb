@@ -419,7 +419,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 .ssl(hostData.isSsl())
                 .nodeId(nodeId)
                 .build();
-        LOGGER.log(Level.SEVERE, "Registering on metadata storage manager my data: {0}", nodeMetadata);
+        LOGGER.log(Level.INFO, "Registering on metadata storage manager my data: {0}", nodeMetadata);
         metadataStorageManager.registerNode(nodeMetadata);
 
         try {
@@ -529,13 +529,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
-            LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
+            LOGGER.log(Level.INFO, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
             long _start = System.currentTimeMillis();
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
-                LOGGER.log(Level.SEVERE, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + ""});
+                LOGGER.log(Level.INFO, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + ""});
                 tablesSpaces.put(tableSpaceName, manager);
                 if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
                     JMXUtils.registerTableSpaceManagerStatsMXBean(tableSpaceName, manager.getStats());
@@ -771,12 +771,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         || metadataStorageManager instanceof FileMetadataStorageManager) {
                     poolTime = 5;
                 }
-                LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up withint " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
+                LOGGER.log(Level.INFO, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up withint " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
                 final int timeout = createTableSpaceStatement.getWaitForTableSpaceTimeout();
                 for (int i = 0; i < timeout; i += poolTime) {
                     List<TableSpaceReplicaState> replicateStates = metadataStorageManager.getTableSpaceReplicaState(tableSpace.uuid);
                     for (TableSpaceReplicaState ts : replicateStates) {
-                        LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + TableSpaceReplicaState.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
+                        LOGGER.log(Level.INFO, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + TableSpaceReplicaState.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
                         if (ts.mode == TableSpaceReplicaState.MODE_LEADER) {
                             okWait = true;
                             break;
@@ -909,7 +909,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private void tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
+        LOGGER.log(Level.INFO, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
         TableSpace.Builder newTableSpaceBuilder =
                 TableSpace
                         .builder()
@@ -989,9 +989,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         try {
 
                             if (activatorPaused) {
-                                LOGGER.log(Level.SEVERE, "{0} activator paused", nodeId);
+                                LOGGER.log(Level.INFO, "{0} activator paused", nodeId);
                                 resume.awaitUninterruptibly();
-                                LOGGER.log(Level.SEVERE, "{0} activator resumed", nodeId);
+                                LOGGER.log(Level.INFO, "{0} activator resumed", nodeId);
                                 continue;
                             }
                         } finally {
@@ -1038,7 +1038,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "error during shutdown", err);
                 }
-                LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
+                LOGGER.log(Level.INFO, "{0} activator stopped", nodeId);
             } catch (RuntimeException err) {
                 LOGGER.log(Level.SEVERE, "fatal activator erro", err);
             }
@@ -1201,19 +1201,23 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                                 .findAny()
                                 .orElse(null);
                         if (leaderState == null) {
-                            LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " should be " + tableSpaceInfo.leaderId + ", but it never sent pings or it disappeared");
-                            tryBecomeLeaderFor(tableSpaceInfo);
-                        } else {
-                            long delta = now - leaderState.timestamp;
-                            if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
-                                LOGGER.log(Level.FINER, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
-                            } else {
-                                LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. trying to take leadership");
-                                tryBecomeLeaderFor(tableSpaceInfo);
-                                // only one change at a time
-                                break;
-                            }
+                            leaderState = new TableSpaceReplicaState(tableSpaceUuid, tableSpaceInfo.leaderId, tableSpaceInfo.metadataStorageCreationTime, TableSpaceReplicaState.MODE_STOPPED);
+                            LOGGER.log(Level.INFO, "Leader for " + tableSpaceUuid + " should be " + tableSpaceInfo.leaderId + ", but it never sent pings or it disappeared,"
+                                    + " considering last activity as tablespace creation time: " + new java.sql.Timestamp(tableSpaceInfo.metadataStorageCreationTime) + " to leave a minimal grace period");
                         }
+
+                        long delta = now - leaderState.timestamp;
+                        if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
+                            LOGGER.log(Level.FINER, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId
+                                    + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
+                        } else {
+                            LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId
+                                    + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. trying to take leadership");
+                            tryBecomeLeaderFor(tableSpaceInfo);
+                            // only one change at a time
+                            break;
+                        }
+
                     }
                 }
             } catch (MetadataStorageManagerException | DDLException error) {
@@ -1283,7 +1287,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     @Override
     public void metadataChanged() {
-        LOGGER.log(Level.SEVERE, "metadata changed");
+        LOGGER.log(Level.INFO, "metadata changed");
         triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
     }
 
