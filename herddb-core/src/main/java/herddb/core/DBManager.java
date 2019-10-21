@@ -1213,7 +1213,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                                     + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
                         } else {
                             LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + tableSpaceInfo.leaderId
-                                    + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. "+nodeId+" now trying to take leadership");
+                                    + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. " + nodeId + " now trying to take leadership");
                             tryBecomeLeaderFor(tableSpaceInfo);
                             // only one change at a time
                             break;
