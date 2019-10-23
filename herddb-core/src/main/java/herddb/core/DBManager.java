@@ -1209,7 +1209,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
                         long delta = now - leaderState.timestamp;
                         if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
-                            LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + tableSpaceInfo.leaderId
+                            LOGGER.log(Level.FINE, "Leader for " + tableSpaceUuid + " is " + tableSpaceInfo.leaderId
                                     + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
                         } else {
                             LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + tableSpaceInfo.leaderId
