@@ -170,4 +170,8 @@ public class LocalLockManager implements ILocalLockManager {
         return locks.size();
     }
 
+    public LockInstance getLockForKey(Bytes key) {
+        return locks.get(key);
+    }
+
 }

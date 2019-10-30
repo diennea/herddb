@@ -75,7 +75,6 @@ import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.Holder;
 import herddb.utils.ILocalLockManager;
-import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
@@ -141,9 +140,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
             getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
 
-    private static final boolean USE_LEGACY_LOCK_MANAGER = SystemProperties
-            .getBooleanSystemProperty("herddb.tablemanager.legacylocks", false);
-
     /**
      * Ignores insert/update/delete failures due to missing transactions during recovery. The operation in
      * recovery will be ignored.
@@ -182,8 +178,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Local locks
      */
-    private final ILocalLockManager locksManager =
-            USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
+    private final ILocalLockManager locksManager = new LocalLockManager();
 
     /**
      * Set to {@code true} when this {@link TableManager} is fully started
@@ -1233,6 +1228,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                             System.out.println("QUI UPDATE "+pending.entry.key+" lock "+pending.lockHandle);
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
@@ -1317,6 +1313,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                            System.out.println("QUI DELETE "+pending.entry.key+" lock "+pending.lockHandle);
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
@@ -3461,7 +3458,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
             if (relocatedPageId == null) {
                 // deleted
-                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
+                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access",
+                        new Exception("table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access").fillInStackTrace());
+                LOGGER.log(Level.SEVERE, "locks:"+((LocalLockManager) locksManager).getLockForKey(key));
                 return null;
             }
             pageId = relocatedPageId;

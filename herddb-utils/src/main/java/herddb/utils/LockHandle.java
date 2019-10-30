@@ -46,4 +46,9 @@ public class LockHandle {
         this.handle = handle;
     }
 
+    @Override
+    public String toString() {
+        return "LockHandle{" + "stamp=" + stamp + ", write=" + write + ", key=" + key + ", handle=" + handle + '}';
+    }
+
 }
