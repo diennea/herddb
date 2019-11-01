@@ -226,5 +226,19 @@ public class ShowCreateTableCalculatorTest {
 
         tm = new MockTableManager(t, new ArrayList<>());
         assertTrue(ShowCreateTableCalculator.calculate(false, "test3", "ts1", tm).equals("CREATE TABLE ts1.test3(k1 integer auto_increment,s1 string not null,l1 long not null,i1 integer not null,PRIMARY KEY(k1))"));
+
+        t = Table.builder()
+                .uuid("1234")
+                .column("ID", ColumnTypes.INTEGER, 0)
+                .column("s1", ColumnTypes.NOTNULL_STRING, 1)
+                .column("l1", ColumnTypes.NOTNULL_LONG, 2)
+                .column("i1", ColumnTypes.NOTNULL_INTEGER, 3)
+                .primaryKey("ID", true)
+                .tablespace("ts1")
+                .name("test4")
+                .build();
+
+        tm = new MockTableManager(t, new ArrayList<>());
+        assertTrue(ShowCreateTableCalculator.calculate(false, "test4", "ts1", tm).equals("CREATE TABLE ts1.test4(id integer auto_increment,s1 string not null,l1 long not null,i1 integer not null,PRIMARY KEY(id))"));
     }
 }
