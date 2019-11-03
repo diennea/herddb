@@ -96,12 +96,12 @@ public class MultiDMLOnSameRecordTest {
                                 boolean insert = ThreadLocalRandom.current().nextBoolean();
                                 boolean delete = ThreadLocalRandom.current().nextBoolean();
                                 if (update) {
-                                    System.out.println("do "+Thread.currentThread()+" update on "+Bytes.from_string(key));
+                                    System.err.println("do "+Thread.currentThread()+" update on "+Bytes.from_string(key));
                                     updates.incrementAndGet();
 
                                     execute(manager, "UPDATE mytable set n1=? WHERE id=?", Arrays.asList(value, key));
                                 } else if (insert) {
-                                    System.out.println("do "+Thread.currentThread()+" insert on "+Bytes.from_string(key));
+                                    System.err.println("do "+Thread.currentThread()+" insert on "+Bytes.from_string(key));
                                     inserts.incrementAndGet();
                                     try {
                                         execute(manager, "INSERT INTO mytable(n1, id) values(?,?)",
@@ -110,7 +110,7 @@ public class MultiDMLOnSameRecordTest {
                                         duplicatePkErrors.incrementAndGet();
                                     }
                                 } else if (delete) {
-                                    System.out.println("do "+Thread.currentThread()+" delete on "+Bytes.from_string(key));
+                                    System.err.println("do "+Thread.currentThread()+" delete on "+Bytes.from_string(key));
                                     deletes.incrementAndGet();
                                     execute(manager, "DELETE FROM mytable WHERE id=?",
                                             Arrays.asList(key));
@@ -182,6 +182,12 @@ public class MultiDMLOnSameRecordTest {
                     futures.add(threadPool.submit(new Runnable() {
                         @Override
                         public void run() {
+                            Thread.currentThread().setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+                                @Override
+                                public void uncaughtException(Thread t, Throwable e) {
+                                    e.printStackTrace();
+                                }
+                            });
                             try {
 
                                 int k = ThreadLocalRandom.current().nextInt(10);
@@ -193,8 +199,10 @@ public class MultiDMLOnSameRecordTest {
                                 if (update) {
                                     updates.incrementAndGet();
 
+                                    System.out.println("do "+Thread.currentThread()+" update on "+Bytes.from_string(key));
                                     execute(manager, "UPDATE mytable set n1=? WHERE k2=?", Arrays.asList(value, key));
                                 } else if (insert) {
+                                    System.out.println("do "+Thread.currentThread()+" insert on "+Bytes.from_string(key));
                                     inserts.incrementAndGet();
                                     try {
                                         execute(manager, "INSERT INTO mytable(n1, id, k2) values(?,?,?)",
@@ -203,11 +211,13 @@ public class MultiDMLOnSameRecordTest {
                                         duplicatePkErrors.incrementAndGet();
                                     }
                                 } else if (delete) {
+                                    System.out.println("do "+Thread.currentThread()+" delete on "+Bytes.from_string(key));
                                     deletes.incrementAndGet();
                                     execute(manager, "DELETE FROM mytable WHERE k2=?",
                                             Arrays.asList(key));
                                 }
-                            } catch (Exception err) {
+                            } catch (Throwable err) {
+                                err.printStackTrace();
                                 throw new RuntimeException(err);
                             }
                         }

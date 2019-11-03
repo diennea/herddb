@@ -1186,6 +1186,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                System.out.println("qui "+Thread.currentThread().getName()+" key "+actual.key);
                 byte[] newValue = null;
                 try {
                     newValue = function.computeNewValue(actual, context, tableContext);
@@ -1195,14 +1196,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                         }
                     }
-                } catch (IllegalArgumentException | StatementExecutionException err) {
+                } catch (IllegalArgumentException | StatementExecutionException err) {                    
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
                     return;
                 }
 
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
-                if (size > maxLogicalPageSize) {
+                System.out.println("qui2 "+Thread.currentThread().getName()+" key "+actual.key);
+                if (size > maxLogicalPageSize) {                    
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
                             + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
@@ -1216,6 +1218,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
                 updateCount.incrementAndGet();
+                System.out.println("qui3 "+Thread.currentThread().getName()+" key "+actual.key);
             }
         }, transaction, true, true);
 
@@ -1228,6 +1231,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (writes.size() == 1) {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
+                        System.out.println("completed update "+pending.entry.key+" "+Thread.currentThread().getName());
                         try {
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
@@ -3189,10 +3193,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                             Record record = fetchRecord(key, pageId, lastPageRead);
+                            if (record == null) {
+                                System.out.println("record disapp "+Thread.currentThread()+" key "+key);
+                            }
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 // now the consumer is the owner of the lock on the record
                                 record_discarded = false;
-                                consumer.accept(record, transaction == null ? lock : null);
+                                System.out.println("perform "+key+" "+consumer+" "+lock+" "+Thread.currentThread().getName());
+                                consumer.accept(record, transaction == null ? lock : null);                               
                             }
                         }
                     } finally {
