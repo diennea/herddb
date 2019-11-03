@@ -55,7 +55,7 @@ public class MultiDMLOnSameRecordTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void test() throws Exception {
+    public void testWithPrimaryKeyIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
@@ -107,6 +107,189 @@ public class MultiDMLOnSameRecordTest {
                                 } else if (delete) {
                                     deletes.incrementAndGet();
                                     execute(manager, "DELETE FROM mytable WHERE id=?",
+                                            Arrays.asList(key));
+                                }
+                            } catch (Exception err) {
+                                throw new RuntimeException(err);
+                            }
+                        }
+                    }
+                    ));
+                }
+                for (Future f : futures) {
+                    f.get();
+                }
+
+                System.out.println("stats::updates:" + updates);
+                System.out.println("stats::deletes:" + deletes);
+                System.out.println("stats::inserts:" + inserts);
+                System.out.println("stats::duplicatePkErrors:" + duplicatePkErrors);
+
+                TableManagerStats stats = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("mytable").getStats();
+                System.out.println("stats::tablesize:" + stats.getTablesize());
+                System.out.println("stats::dirty records:" + stats.getDirtyrecords());
+                System.out.println("stats::unload count:" + stats.getUnloadedPagesCount());
+                System.out.println("stats::load count:" + stats.getLoadedPagesCount());
+                System.out.println("stats::buffers used mem:" + stats.getBuffersUsedMemory());
+            } finally {
+                threadPool.shutdown();
+                threadPool.awaitTermination(1, TimeUnit.MINUTES);
+            }
+
+        }
+
+        // restart and recovery
+        try (Server server = new Server(serverConfiguration)) {
+            server.start();
+            server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
+        }
+    }
+    
+    @Test
+    public void testWithFullTableScan() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
+
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024 / 4);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 1024 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
+        serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
+
+        try (Server server = new Server(serverConfiguration)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            DBManager manager = server.getManager();
+            execute(manager, "CREATE TABLE mytable (id string primary key, n1 long, k2 string)", Collections.emptyList());
+
+            ExecutorService threadPool = Executors.newFixedThreadPool(THREADPOLSIZE);
+            try {
+                List<Future> futures = new ArrayList<>();
+                AtomicLong updates = new AtomicLong();
+                AtomicLong deletes = new AtomicLong();
+                AtomicLong inserts = new AtomicLong();
+                AtomicLong duplicatePkErrors = new AtomicLong();
+
+                for (int i = 0; i < TESTSIZE; i++) {
+                    futures.add(threadPool.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+
+                                int k = ThreadLocalRandom.current().nextInt(10);
+                                long value = ThreadLocalRandom.current().nextInt(100) + 1000;
+                                String key = "test_" + k;
+                                boolean update = ThreadLocalRandom.current().nextBoolean();
+                                boolean insert = ThreadLocalRandom.current().nextBoolean();
+                                boolean delete = ThreadLocalRandom.current().nextBoolean();
+                                if (update) {
+                                    updates.incrementAndGet();
+
+                                    execute(manager, "UPDATE mytable set n1=? WHERE k2=?", Arrays.asList(value, key));
+                                } else if (insert) {
+                                    inserts.incrementAndGet();
+                                    try {
+                                        execute(manager, "INSERT INTO mytable(n1, id, k2) values(?,?,?)",
+                                                Arrays.asList(value, key, key));
+                                    } catch (DuplicatePrimaryKeyException ok) {
+                                        duplicatePkErrors.incrementAndGet();
+                                    }
+                                } else if (delete) {
+                                    deletes.incrementAndGet();
+                                    execute(manager, "DELETE FROM mytable WHERE k2=?",
+                                            Arrays.asList(key));
+                                }
+                            } catch (Exception err) {
+                                throw new RuntimeException(err);
+                            }
+                        }
+                    }
+                    ));
+                }
+                for (Future f : futures) {
+                    f.get();
+                }
+
+                System.out.println("stats::updates:" + updates);
+                System.out.println("stats::deletes:" + deletes);
+                System.out.println("stats::inserts:" + inserts);
+                System.out.println("stats::duplicatePkErrors:" + duplicatePkErrors);
+
+                TableManagerStats stats = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("mytable").getStats();
+                System.out.println("stats::tablesize:" + stats.getTablesize());
+                System.out.println("stats::dirty records:" + stats.getDirtyrecords());
+                System.out.println("stats::unload count:" + stats.getUnloadedPagesCount());
+                System.out.println("stats::load count:" + stats.getLoadedPagesCount());
+                System.out.println("stats::buffers used mem:" + stats.getBuffersUsedMemory());
+            } finally {
+                threadPool.shutdown();
+                threadPool.awaitTermination(1, TimeUnit.MINUTES);
+            }
+
+        }
+
+        // restart and recovery
+        try (Server server = new Server(serverConfiguration)) {
+            server.start();
+            server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
+        }
+    }
+    
+    @Test
+    public void testWithIndexSeek() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
+
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024 / 4);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 1024 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
+        serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
+
+        try (Server server = new Server(serverConfiguration)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            DBManager manager = server.getManager();
+            execute(manager, "CREATE TABLE mytable (id string primary key, n1 long, k2 string)", Collections.emptyList());
+            execute(manager, "CREATE INDEX ON mytable (k2)", Collections.emptyList());
+
+            ExecutorService threadPool = Executors.newFixedThreadPool(THREADPOLSIZE);
+            try {
+                List<Future> futures = new ArrayList<>();
+                AtomicLong updates = new AtomicLong();
+                AtomicLong deletes = new AtomicLong();
+                AtomicLong inserts = new AtomicLong();
+                AtomicLong duplicatePkErrors = new AtomicLong();
+
+                for (int i = 0; i < TESTSIZE; i++) {
+                    futures.add(threadPool.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+
+                                int k = ThreadLocalRandom.current().nextInt(10);
+                                long value = ThreadLocalRandom.current().nextInt(100) + 1000;
+                                String key = "test_" + k;
+                                boolean update = ThreadLocalRandom.current().nextBoolean();
+                                boolean insert = ThreadLocalRandom.current().nextBoolean();
+                                boolean delete = ThreadLocalRandom.current().nextBoolean();
+                                if (update) {
+                                    updates.incrementAndGet();
+
+                                    execute(manager, "UPDATE mytable set n1=? WHERE k2=?", Arrays.asList(value, key));
+                                } else if (insert) {
+                                    inserts.incrementAndGet();
+                                    try {
+                                        execute(manager, "INSERT INTO mytable(n1, id, k2) values(?,?,?)",
+                                                Arrays.asList(value, key, key));
+                                    } catch (DuplicatePrimaryKeyException ok) {
+                                        duplicatePkErrors.incrementAndGet();
+                                    }
+                                } else if (delete) {
+                                    deletes.incrementAndGet();
+                                    execute(manager, "DELETE FROM mytable WHERE k2=?",
                                             Arrays.asList(key));
                                 }
                             } catch (Exception err) {
