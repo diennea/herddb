@@ -144,7 +144,7 @@ public class MultiDMLOnSameRecordTest {
             server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
         }
     }
-    
+
     @Test
     public void testWithFullTableScan() throws Exception {
         Path baseDir = folder.newFolder().toPath();
@@ -235,7 +235,7 @@ public class MultiDMLOnSameRecordTest {
             server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
         }
     }
-    
+
     @Test
     public void testWithIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
