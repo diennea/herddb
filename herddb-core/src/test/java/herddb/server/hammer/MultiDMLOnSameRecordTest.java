@@ -37,6 +37,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,12 +50,13 @@ import org.junit.rules.TemporaryFolder;
 public class MultiDMLOnSameRecordTest {
 
     private static final int THREADPOLSIZE = 10;
-    private static final int TESTSIZE = 10000;
+    private static final int TESTSIZE = 1000;
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
+    @Ignore
     public void testWithPrimaryKeyIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
@@ -146,6 +148,7 @@ public class MultiDMLOnSameRecordTest {
     }
 
     @Test
+//    @Ignore
     public void testWithFullTableScan() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
@@ -237,6 +240,7 @@ public class MultiDMLOnSameRecordTest {
     }
 
     @Test
+    @Ignore
     public void testWithIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
@@ -253,7 +257,7 @@ public class MultiDMLOnSameRecordTest {
             server.waitForStandaloneBoot();
             DBManager manager = server.getManager();
             execute(manager, "CREATE TABLE mytable (id string primary key, n1 long, k2 string)", Collections.emptyList());
-            execute(manager, "CREATE INDEX ON mytable (k2)", Collections.emptyList());
+            execute(manager, "CREATE INDEX tt ON mytable (k2)", Collections.emptyList());
 
             ExecutorService threadPool = Executors.newFixedThreadPool(THREADPOLSIZE);
             try {

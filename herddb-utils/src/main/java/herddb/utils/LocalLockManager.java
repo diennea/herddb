@@ -46,7 +46,8 @@ public class LocalLockManager implements ILocalLockManager {
     private static class LockInstance {
 
         private final StampedLock lock;
-        private int count;
+        private volatile int count;
+        private volatile Thread locker;
 
         public LockInstance(StampedLock lock, int count) {
             super();
@@ -108,9 +109,16 @@ public class LocalLockManager implements ILocalLockManager {
         LockInstance lock = makeLockForKey(key);
         try {
             long tryWriteLock = lock.lock.tryWriteLock(writeLockTimeout, TimeUnit.SECONDS);
-            if (tryWriteLock == 0) {
-                throw new RuntimeException("timed out acquiring lock for write");
+            if (tryWriteLock == 0) {                
+                StackTraceElement[] stackTrace = lock.locker.getStackTrace();
+                StringBuilder st = new StringBuilder();
+                for (StackTraceElement s : stackTrace) {
+                    st.append(lock.locker.getName()+" "+s+"\n");
+                }
+                throw new RuntimeException(Thread.currentThread().getName()+" timed out acquiring lock for write on key "+key+", lock state "+lock.lock+" locker "+lock.locker+": \n"+st);
             }
+            System.out.println("lock "+key+" "+lock.lock+" "+Thread.currentThread().getName());
+            lock.locker = Thread.currentThread();
             return new LockHandle(tryWriteLock, key, true, lock);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
@@ -122,6 +130,8 @@ public class LocalLockManager implements ILocalLockManager {
     public void releaseWriteLock(LockHandle handle) {
         /* Retrieve the instance... other threads could have this pointer too */
         LockInstance instance = (LockInstance) handle.handle;
+        System.out.println("rel "+handle.key+" "+instance.lock+" "+Thread.currentThread().getName()+" locked "+instance.locker.getName());
+        instance.locker = null;
         instance.lock.unlockWrite(handle.stamp);
         returnLockForKey(instance, handle.key);
     }

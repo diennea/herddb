@@ -178,7 +178,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Local locks
      */
-    private final ILocalLockManager locksManager = new LocalLockManager();
+    private final LocalLockManager locksManager = new LocalLockManager();
 
     /**
      * Set to {@code true} when this {@link TableManager} is fully started
@@ -341,7 +341,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long createdInTransaction
     ) throws DataStorageManagerException {
         this.stats = new TableManagerStatsImpl();
-
+        this.locksManager.setWriteLockTimeout(10);
+        this.locksManager.setReadLockTimeout(10);
         this.log = log;
 
         this.table = table;
