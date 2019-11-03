@@ -1221,7 +1221,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 System.out.println("qui3 "+Thread.currentThread().getName()+" key "+actual.key);
             }
         }, transaction, true, true);
-
+        String myName = Thread.currentThread().getName();
 
         if (writes.isEmpty()) {
             return CompletableFuture
@@ -1237,6 +1237,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
+                            System.out.println("qui4 "+myName+" "+pending.lockHandle);
                             if (pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
@@ -1299,11 +1300,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                System.out.println("quo "+Thread.currentThread().getName()+" key "+actual.key);
                 LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
                 lastKey.value = actual.key;
                 lastValue.value = actual.value;
+                System.out.println("quo2 "+Thread.currentThread().getName()+" key "+actual.key);
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
