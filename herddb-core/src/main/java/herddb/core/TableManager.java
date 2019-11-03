@@ -341,8 +341,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long createdInTransaction
     ) throws DataStorageManagerException {
         this.stats = new TableManagerStatsImpl();
-        this.locksManager.setWriteLockTimeout(10);
-        this.locksManager.setReadLockTimeout(10);
+//        this.locksManager.setWriteLockTimeout(10);
+//        this.locksManager.setReadLockTimeout(10);
         this.log = log;
 
         this.table = table;

@@ -26,6 +26,7 @@ import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.TableSpace;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import herddb.utils.Bytes;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,7 +50,7 @@ import org.junit.rules.TemporaryFolder;
  */
 public class MultiDMLOnSameRecordTest {
 
-    private static final int THREADPOLSIZE = 10;
+    private static final int THREADPOLSIZE = 4;
     private static final int TESTSIZE = 1000;
 
     @Rule
@@ -95,10 +96,12 @@ public class MultiDMLOnSameRecordTest {
                                 boolean insert = ThreadLocalRandom.current().nextBoolean();
                                 boolean delete = ThreadLocalRandom.current().nextBoolean();
                                 if (update) {
+                                    System.out.println("do "+Thread.currentThread()+" update on "+Bytes.from_string(key));
                                     updates.incrementAndGet();
 
                                     execute(manager, "UPDATE mytable set n1=? WHERE id=?", Arrays.asList(value, key));
                                 } else if (insert) {
+                                    System.out.println("do "+Thread.currentThread()+" insert on "+Bytes.from_string(key));
                                     inserts.incrementAndGet();
                                     try {
                                         execute(manager, "INSERT INTO mytable(n1, id) values(?,?)",
@@ -107,6 +110,7 @@ public class MultiDMLOnSameRecordTest {
                                         duplicatePkErrors.incrementAndGet();
                                     }
                                 } else if (delete) {
+                                    System.out.println("do "+Thread.currentThread()+" delete on "+Bytes.from_string(key));
                                     deletes.incrementAndGet();
                                     execute(manager, "DELETE FROM mytable WHERE id=?",
                                             Arrays.asList(key));

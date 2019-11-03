@@ -23,6 +23,7 @@ package herddb.utils;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.StampedLock;
 
 /**
@@ -47,7 +48,7 @@ public class LocalLockManager implements ILocalLockManager {
 
         private final StampedLock lock;
         private volatile int count;
-        private volatile Thread locker;
+        private final AtomicReference<Thread> locker = new AtomicReference<>();
 
         public LockInstance(StampedLock lock, int count) {
             super();
@@ -108,17 +109,21 @@ public class LocalLockManager implements ILocalLockManager {
     public LockHandle acquireWriteLockForKey(Bytes key) {
         LockInstance lock = makeLockForKey(key);
         try {
+            System.out.println("locking "+key+" "+lock.lock+" "+Thread.currentThread().getName());
             long tryWriteLock = lock.lock.tryWriteLock(writeLockTimeout, TimeUnit.SECONDS);
             if (tryWriteLock == 0) {                
-                StackTraceElement[] stackTrace = lock.locker.getStackTrace();
+                Thread locker = lock.locker.get();
                 StringBuilder st = new StringBuilder();
+                if (locker != null) {
+                StackTraceElement[] stackTrace = locker.getStackTrace();
                 for (StackTraceElement s : stackTrace) {
-                    st.append(lock.locker.getName()+" "+s+"\n");
+                    st.append(locker.getName()+" "+s+"\n");
+                }
                 }
                 throw new RuntimeException(Thread.currentThread().getName()+" timed out acquiring lock for write on key "+key+", lock state "+lock.lock+" locker "+lock.locker+": \n"+st);
             }
             System.out.println("lock "+key+" "+lock.lock+" "+Thread.currentThread().getName());
-            lock.locker = Thread.currentThread();
+            lock.locker.set(Thread.currentThread());
             return new LockHandle(tryWriteLock, key, true, lock);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
@@ -130,8 +135,8 @@ public class LocalLockManager implements ILocalLockManager {
     public void releaseWriteLock(LockHandle handle) {
         /* Retrieve the instance... other threads could have this pointer too */
         LockInstance instance = (LockInstance) handle.handle;
-        System.out.println("rel "+handle.key+" "+instance.lock+" "+Thread.currentThread().getName()+" locked "+instance.locker.getName());
-        instance.locker = null;
+        System.out.println("rel "+handle.key+" "+instance.lock+" "+Thread.currentThread().getName()+" locked "+instance.locker.get().getName());
+        instance.locker.set(null);
         instance.lock.unlockWrite(handle.stamp);
         returnLockForKey(instance, handle.key);
     }
