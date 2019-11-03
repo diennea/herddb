@@ -20,21 +20,12 @@
 package herddb.server.hammer;
 
 import static herddb.core.TestUtils.execute;
-import static org.junit.Assert.assertTrue;
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.client.HDBConnection;
 import herddb.core.DBManager;
-import herddb.core.TestUtils;
 import herddb.core.stats.TableManagerStats;
-import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.TableSpace;
-import herddb.model.TransactionContext;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
-import herddb.server.StaticClientSideMetadataProvider;
-import herddb.utils.RawString;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,19 +37,18 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- *
+ * Concurrent access to the same record, in particular DELETE vs UPDATE.
+ * We are using a set of N keys
  * @author enrico.olivelli
  */
 public class MultiDMLOnSameRecordTest {
 
-    private static final RawString N1 = RawString.of("n1");
-    private static final int THREADPOLSIZE = 100;
+    private static final int THREADPOLSIZE = 10;
     private static final int TESTSIZE = 10000;
 
     @Rule
@@ -141,8 +131,6 @@ public class MultiDMLOnSameRecordTest {
                 System.out.println("stats::unload count:" + stats.getUnloadedPagesCount());
                 System.out.println("stats::load count:" + stats.getLoadedPagesCount());
                 System.out.println("stats::buffers used mem:" + stats.getBuffersUsedMemory());
-
-                assertTrue(stats.getUnloadedPagesCount() > 0);
             } finally {
                 threadPool.shutdown();
                 threadPool.awaitTermination(1, TimeUnit.MINUTES);

@@ -1228,7 +1228,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
-                             System.out.println("QUI UPDATE "+pending.entry.key+" lock "+pending.lockHandle);
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
@@ -1313,7 +1312,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
-                            System.out.println("QUI DELETE "+pending.entry.key+" lock "+pending.lockHandle);
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
@@ -3454,13 +3452,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             Long relocatedPageId = keyToPage.get(key);
-            LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed,"
+            LOGGER.log(Level.FINE, table.name + " fetchRecord " + key + " failed,"
                     + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
             if (relocatedPageId == null) {
                 // deleted
-                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access",
-                        new Exception("table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access").fillInStackTrace());
-                LOGGER.log(Level.SEVERE, "locks:"+((LocalLockManager) locksManager).getLockForKey(key));
+                LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
                 return null;
             }
             pageId = relocatedPageId;
