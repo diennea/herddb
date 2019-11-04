@@ -655,7 +655,7 @@ public class BLinkTest {
                 new RandomPageReplacementPolicy(10), new DummyBLinkIndexDataStorage<>())) {
 
             long l = 0;
-            while(blink.nodes() < 2) {
+            while (blink.nodes() < 2) {
                 blink.insert(Sized.valueOf(l), l);
                 l++;
             }
@@ -668,7 +668,7 @@ public class BLinkTest {
                 new RandomPageReplacementPolicy(10), new DummyBLinkIndexDataStorage<>())) {
 
             long l = 0;
-            while(l < splitAt) {
+            while (l < splitAt) {
                 System.out.println("insert " + l);
                 blink.insert(Sized.valueOf(l), l);
                 l++;
@@ -687,7 +687,7 @@ public class BLinkTest {
             System.out.println("insert " + splitAt);
             blink.insert(Sized.valueOf(splitAt), splitAt);
 
-            while(i.hasNext()) {
+            while (i.hasNext()) {
 
                 long nowStream = i.next().getValue();
                 if (nowStream < keyStream) {
