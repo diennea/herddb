@@ -2182,6 +2182,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                      * array of elements taken from the map entry set, such array is build iterating
                      * all entry set elements to build an array list and then copying his internal
                      * array! Iterating directly we avoid such multiple copy overhead.
+                     *
+                     * Create a copy of each entry because TreeMap reuse entry nodes and on tree modifications
+                     * "copied" list is affected too.
                      */
                     list.add(new SimpleImmutableEntry<>(entry));
                 }
