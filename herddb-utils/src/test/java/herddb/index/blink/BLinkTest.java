@@ -34,12 +34,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -643,4 +645,60 @@ public class BLinkTest {
         }
 
     }
+
+    @Test
+    public void testScanAndSplit() throws Exception {
+
+        long splitAt;
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(),
+                new RandomPageReplacementPolicy(10), new DummyBLinkIndexDataStorage<>())) {
+
+            long l = 0;
+            while(blink.nodes() < 2) {
+                blink.insert(Sized.valueOf(l), l);
+                l++;
+            }
+
+            splitAt = l - 1;
+
+        }
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(),
+                new RandomPageReplacementPolicy(10), new DummyBLinkIndexDataStorage<>())) {
+
+            long l = 0;
+            while(l < splitAt) {
+                System.out.println("insert " + l);
+                blink.insert(Sized.valueOf(l), l);
+                l++;
+            }
+
+            Stream<Entry<Sized<Long>, Long>> s = blink.scan(Sized.valueOf(0L), null);
+
+            long keyStream;
+            Iterator<Entry<Sized<Long>, Long>> i = s.iterator();
+            do {
+                keyStream = i.next().getValue();
+                System.out.println("read " + keyStream);
+            } while (keyStream < splitAt - 4);
+
+
+            System.out.println("insert " + splitAt);
+            blink.insert(Sized.valueOf(splitAt), splitAt);
+
+            while(i.hasNext()) {
+
+                long nowStream = i.next().getValue();
+                if (nowStream < keyStream) {
+                    Assert.fail("Unordered!");
+                }
+                keyStream = nowStream;
+                System.out.println("read " + keyStream);
+            }
+
+        }
+
+    }
+
 }

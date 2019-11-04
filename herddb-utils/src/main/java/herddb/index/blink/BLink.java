@@ -28,6 +28,7 @@ import herddb.utils.BooleanHolder;
 import herddb.utils.Holder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2182,7 +2183,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                      * all entry set elements to build an array list and then copying his internal
                      * array! Iterating directly we avoid such multiple copy overhead.
                      */
-                    list.add(entry);
+                    list.add(new SimpleImmutableEntry<>(entry));
                 }
 
                 return list;
@@ -3245,7 +3246,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.node = node;
 
             try {
-                /* Copy values to quicly release read lock */
+                /* Copy values to quickly release read lock */
                 final List<Entry<K, V>> list = node.copyRange(start, sinclusive, end, einclusive);
 
                 current = list.iterator();
