@@ -1186,7 +1186,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                System.out.println("qui "+Thread.currentThread().getName()+" key "+actual.key);
                 byte[] newValue = null;
                 try {
                     newValue = function.computeNewValue(actual, context, tableContext);
@@ -1196,15 +1195,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                         }
                     }
-                } catch (IllegalArgumentException | StatementExecutionException err) {                    
+                } catch (IllegalArgumentException | StatementExecutionException err) {
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
                     return;
                 }
 
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
-                System.out.println("qui2 "+Thread.currentThread().getName()+" key "+actual.key);
-                if (size > maxLogicalPageSize) {                    
+                if (size > maxLogicalPageSize) {
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
                             + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
@@ -1218,10 +1216,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
                 updateCount.incrementAndGet();
-                System.out.println("qui3 "+Thread.currentThread().getName()+" key "+actual.key);
             }
         }, transaction, true, true);
-        String myName = Thread.currentThread().getName();
 
         if (writes.isEmpty()) {
             return CompletableFuture
@@ -1231,13 +1227,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (writes.size() == 1) {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
-                        System.out.println("completed update "+pending.entry.key+" "+Thread.currentThread().getName());
                         try {
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            System.out.println("qui4 "+myName+" "+pending.lockHandle);
                             if (pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
@@ -1300,13 +1294,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                System.out.println("quo "+Thread.currentThread().getName()+" key "+actual.key);
                 LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
                 lastKey.value = actual.key;
                 lastValue.value = actual.value;
-                System.out.println("quo2 "+Thread.currentThread().getName()+" key "+actual.key);
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
@@ -3139,6 +3131,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean acquireLock = transaction != null || forWrite || lockRequired;
         LocalScanPageCache lastPageRead = acquireLock ? null : new LocalScanPageCache();
         AtomicInteger count = new AtomicInteger();
+        Set<Bytes> consumedKeys = new HashSet<>();
         try {
 
             IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
@@ -3161,6 +3154,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         transaction.touch();
                     }
                     Bytes key = entry.getKey();
+                    if (consumedKeys.contains(key)) {
+                        return;
+                    }
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
@@ -3178,7 +3174,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     // now the consumer is the owner of the lock on the record
                                     record_discarded = false;
                                     consumer.accept(record, null /* transaction holds the lock */);
-
+                                    consumedKeys.add(key);
                                 }
                                 return;
                             }
@@ -3196,14 +3192,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                             Record record = fetchRecord(key, pageId, lastPageRead);
-                            if (record == null) {
-                                System.out.println("record disapp "+Thread.currentThread()+" key "+key);
-                            }
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 // now the consumer is the owner of the lock on the record
                                 record_discarded = false;
-                                System.out.println("perform "+key+" "+consumer+" "+lock+" "+Thread.currentThread().getName());
-                                consumer.accept(record, transaction == null ? lock : null);                               
+                                consumer.accept(record, transaction == null ? lock : null);
+                                consumedKeys.add(key);
                             }
                         }
                     } finally {

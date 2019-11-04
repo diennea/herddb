@@ -57,7 +57,6 @@ public class MultiDMLOnSameRecordTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    @Ignore
     public void testWithPrimaryKeyIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
@@ -152,7 +151,6 @@ public class MultiDMLOnSameRecordTest {
     }
 
     @Test
-//    @Ignore
     public void testWithFullTableScan() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
@@ -254,7 +252,6 @@ public class MultiDMLOnSameRecordTest {
     }
 
     @Test
-    @Ignore
     public void testWithIndexSeek() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
