@@ -317,7 +317,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         foundPk = true;
                         tablebuilder.primaryKey(columnName, auto_increment);
                     }
-                    if (auto_increment && primaryKey.contains(cf.getColumnName())) {
+                    if (auto_increment && primaryKey.contains(columnName)) {
                         tablebuilder.primaryKey(columnName, auto_increment);
                     }
 
