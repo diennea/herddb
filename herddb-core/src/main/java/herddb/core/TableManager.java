@@ -1485,7 +1485,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
-            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
+            LOGGER.log(Level.INFO, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(false);
         }
     }
@@ -1890,7 +1890,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void rebuildNextPrimaryKeyValue() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue");
+        LOGGER.log(Level.INFO, "rebuildNextPrimaryKeyValue");
         try {
             Stream<Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
@@ -1906,7 +1906,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
                 nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
             });
-            LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
+            LOGGER.log(Level.INFO, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
         } catch (StatementExecutionException impossible) {
             throw new DataStorageManagerException(impossible);
         }
@@ -2510,7 +2510,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     ) throws DataStorageManagerException {
         LOGGER.log(Level.INFO, "tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
         if (createdInTransaction > 0) {
-            LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
+            LOGGER.log(Level.INFO, "checkpoint for table " + table.name + " skipped,"
                     + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return null;
         }
@@ -3457,11 +3457,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             Long relocatedPageId = keyToPage.get(key);
-            LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed,"
+            LOGGER.log(Level.FINE, table.name + " fetchRecord " + key + " failed,"
                     + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
             if (relocatedPageId == null) {
                 // deleted
-                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
+                LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
                 return null;
             }
             pageId = relocatedPageId;
