@@ -38,7 +38,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+<<<<<<< HEAD
 import org.junit.Ignore;
+=======
+>>>>>>> master
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -95,12 +98,10 @@ public class MultiDMLOnSameRecordTest {
                                 boolean insert = ThreadLocalRandom.current().nextBoolean();
                                 boolean delete = ThreadLocalRandom.current().nextBoolean();
                                 if (update) {
-                                    System.err.println("do " + Thread.currentThread() + " update on " + Bytes.from_string(key));
                                     updates.incrementAndGet();
 
                                     execute(manager, "UPDATE mytable set n1=? WHERE id=?", Arrays.asList(value, key));
                                 } else if (insert) {
-                                    System.err.println("do " + Thread.currentThread() + " insert on " + Bytes.from_string(key));
                                     inserts.incrementAndGet();
                                     try {
                                         execute(manager, "INSERT INTO mytable(n1, id) values(?,?)",
@@ -109,7 +110,6 @@ public class MultiDMLOnSameRecordTest {
                                         duplicatePkErrors.incrementAndGet();
                                     }
                                 } else if (delete) {
-                                    System.err.println("do " + Thread.currentThread() + " delete on " + Bytes.from_string(key));
                                     deletes.incrementAndGet();
                                     execute(manager, "DELETE FROM mytable WHERE id=?",
                                             Arrays.asList(key));
@@ -342,4 +342,8 @@ public class MultiDMLOnSameRecordTest {
             server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
         }
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> master
