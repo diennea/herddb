@@ -90,7 +90,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     ) throws BKNotEnoughBookiesException {
         excludeBookies.addAll(currentEnsemble);
         PlacementResult<List<BookieSocketAddress>> list = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
-        return PlacementResult.of(list.getResult().get(0), list.isStrictlyAdheringToPolicy());
+        return PlacementResult.of(list.getResult().get(0), PlacementPolicyAdherence.MEETS_SOFT);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
 
         ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);
         if (ensembleSize <= 0) {
-            return PlacementResult.of(newBookies, false);
+            return PlacementResult.of(newBookies, PlacementPolicyAdherence.MEETS_SOFT);
         }
         List<BookieSocketAddress> allBookies;
         synchronized (this) {
@@ -144,7 +144,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
             newBookies.add(localBookie);
             --ensembleSize;
             if (ensembleSize == 0) {
-                return PlacementResult.of(newBookies, false);
+                return PlacementResult.of(newBookies, PlacementPolicyAdherence.MEETS_SOFT);
             }
         }
 
@@ -156,7 +156,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
             newBookies.add(bookie);
             --ensembleSize;
             if (ensembleSize == 0) {
-                return PlacementResult.of(newBookies, false);
+                return PlacementResult.of(newBookies, PlacementPolicyAdherence.MEETS_SOFT);
             }
         }
 
