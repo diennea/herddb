@@ -41,6 +41,7 @@ public class ZKTestEnv implements AutoCloseable {
 
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
+        // waiting for ZK to be reachable
         CountDownLatch latch = new CountDownLatch(1);
         ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(), 100, (WatchedEvent event) -> {
             System.out.println("ZK EVENT " + event);
