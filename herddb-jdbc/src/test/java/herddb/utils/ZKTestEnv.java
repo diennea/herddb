@@ -22,6 +22,8 @@ package herddb.utils;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -35,6 +37,8 @@ import org.apache.zookeeper.ZooKeeper;
 
 public class ZKTestEnv implements AutoCloseable {
 
+    private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
+
     TestingServer zkServer;
     BookieServer bookie;
     Path path;
@@ -43,14 +47,21 @@ public class ZKTestEnv implements AutoCloseable {
         zkServer = new TestingServer(1282, path.toFile(), true);
         // waiting for ZK to be reachable
         CountDownLatch latch = new CountDownLatch(1);
-        ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(), 100, (WatchedEvent event) -> {
-            System.out.println("ZK EVENT " + event);
-            if (event.getState() == KeeperState.SyncConnected) {
-                latch.countDown();
+        ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(),
+                herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, (WatchedEvent event) -> {
+                    LOG.log(Level.INFO, "ZK EVENT {0}", event);
+                    if (event.getState() == KeeperState.SyncConnected) {
+                        latch.countDown();
+                    }
+                });
+        try {
+            if (!latch.await(herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, TimeUnit.MILLISECONDS)) {
+                LOG.log(Level.INFO, "ZK client did not connect withing {0} seconds, maybe the server did not start up",
+                        herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT);
             }
-        });
-        latch.await(1000, TimeUnit.SECONDS);
-        zk.close(1000);
+        } finally {
+            zk.close(1000);
+        }
         this.path = path;
     }
 
