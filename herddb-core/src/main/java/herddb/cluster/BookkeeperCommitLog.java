@@ -390,7 +390,8 @@ public class BookkeeperCommitLog extends CommitLog {
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
                 FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
-            } catch (BKException.BKNoSuchLedgerExistsException e) {
+            } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
                 throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
@@ -541,7 +542,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 actualLedgersList.removeLedger(ledgerId);
                 try {
                     bookKeeper.deleteLedger(ledgerId);
-                } catch (BKException.BKNoSuchLedgerExistsException error) {
+                } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException error) {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }
