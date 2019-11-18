@@ -494,6 +494,6 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             this.auto_increment = tableSchema.auto_increment;
             this.maxSerialPosition = tableSchema.maxSerialPosition;
             return this;
-        }
+        }    
     }
 }

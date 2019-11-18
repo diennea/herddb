@@ -92,7 +92,8 @@ public class BigTableScanTest {
                 assertEquals(testSize, count.get());
             }
             assertEquals(testSize, stats.getTablesize());
-
+            
         }
     }
 }
+

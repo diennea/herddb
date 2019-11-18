@@ -44,6 +44,7 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
+import herddb.data.integrity.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.jmx.JMXUtils;
@@ -162,7 +163,9 @@ public class TableSpaceManager {
     private volatile boolean closed;
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
-
+    private TableDataChecksum dataCheck;
+    private long checksum=0;
+    
     // only for tests
     private Runnable afterTableCheckPointAction;
 
@@ -1686,6 +1689,13 @@ public class TableSpaceManager {
         }
     }
 
+    private void checkDataIntegrity(Table table){        
+        dataCheck= new TableDataChecksum(this, tableSpaceName, table);       
+    }
+    public void setChecksum(){
+        checksum= dataCheck.getChecksum();
+    }
+  
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
@@ -1797,7 +1807,7 @@ public class TableSpaceManager {
             releaseReadLock(lockStamp, description);
         });
     }
-
+  
     private void releaseReadLock(long lockStamp, Object description) {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);
@@ -1965,3 +1975,19 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
