@@ -823,6 +823,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             man.checkpoint(false, false, false);
         }
     }
+    public void checkDataIntegrity(){
+        tablesSpaces.values().forEach((man) -> {
+            man.checkDataIntegrity();
+        });
+    }
 
     public void triggerActivator(ActivatorRunRequest type) {
         activatorJ.offer(type);
@@ -1317,3 +1322,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
+
+
+
+
+

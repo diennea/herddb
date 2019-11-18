@@ -1689,13 +1689,23 @@ public class TableSpaceManager {
         }
     }
 
-    private void checkDataIntegrity(Table table){        
-        dataCheck= new TableDataChecksum(this, tableSpaceName, table);       
+    public void checkDataIntegrity(){  
+        //get list of table
+        List <Table> tablesList = getAllCommittedTables();
+        for(int i=0; i<tablesList.size(); i++){
+            //create checksum for each table
+            dataCheck.createChecksum(this, tableSpaceName, tablesList.get(i));
+        }
     }
+    
     public void setChecksum(){
         checksum= dataCheck.getChecksum();
     }
   
+    public long getChecksum(){
+        return this.checksum;
+    }
+    
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
@@ -1975,6 +1985,16 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
