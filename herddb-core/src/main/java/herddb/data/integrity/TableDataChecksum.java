@@ -31,8 +31,10 @@ import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
-import java.util.zip.CRC32;
+import herddb.model.ColumnTypes;
 import java.util.zip.Checksum;
+import net.jpountz.xxhash.StreamingXXHash64;
+import net.jpountz.xxhash.XXHashFactory;
 /**
  *
  * @author Hamado.Dene
@@ -47,32 +49,40 @@ public class TableDataChecksum{
     Table table;
     private long digest=0;
     Checksum checksum;
+    XXHashFactory factory;
+    private final int SEED = 0x9747b28c;
+    StreamingXXHash64 hash64;
     
     public TableDataChecksum (TableSpaceManager manager,String tableSpace,Table table){
         this.tableSpace=tableSpace;
         this.manager= manager;
         this.table=table;
-        checksum = new CRC32();
+        this.factory = XXHashFactory.fastestInstance();
     }
     
         
     public void createChecksum(TableSpaceManager manager,String tableSpace,Table table){
+        
         try ( DataScanner scan = manager.scan(new ScanStatement(tableSpace, table, new FullTableScanPredicate()),
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     TransactionContext.NO_TRANSACTION, false,false);){
+            
+            hash64 = factory.newStreamingHash64(SEED);
+            
             while(scan.hasNext()){
                 // if next exist, get the next value
                 DataAccessor data = scan.next();
                 //create an object array
-                Object[] obj = data.getValues();            
-                //Serialize object for CRC
+                Object[] obj = data.getValues();    
+                
+                //Serialize object for CRC           
                 //not sure for type
-                byte[] serialize = RecordSerializer.serialize(obj, 0);               
+                byte[] serialize = RecordSerializer.serialize(obj, ColumnTypes.ANYTYPE);               
                 //update record in digest
-                checksum.update(serialize, 0 , serialize.length);
+                hash64.update(serialize, 0, SEED);
             }
             //get final checksum value
-            digest=checksum.getValue();
+            digest=hash64.getValue();
             
         } catch (DataScannerException ex) {
            LOGGER.log(Level.SEVERE,null, ex);
@@ -83,7 +93,7 @@ public class TableDataChecksum{
     public long getChecksum(){
         return this.digest;
     }
-      
+   
 }
 
 

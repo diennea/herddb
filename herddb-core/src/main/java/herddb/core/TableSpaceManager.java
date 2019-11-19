@@ -1707,6 +1707,10 @@ public class TableSpaceManager {
         return this.checksum;
     }
     
+    public boolean compareChecksum(long a,long b){
+        return a == b;
+    }
+    
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
