@@ -1296,12 +1296,16 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             keys = ImmutableList.of(builder.build());
         }
 
+        private static boolean isColumnNullable(Column c, Table t) {
+            return  (!t.isPrimaryKeyColumn(c.name) || t.auto_increment) && !ColumnTypes.isNotNullDataType(c.type);
+        }
+
         @Override
         public RelDataType getRowType(RelDataTypeFactory typeFactory) {
             RelDataTypeFactory.Builder builder = new RelDataTypeFactory.Builder(typeFactory);
             Table table = tableManager.getTable();
             for (Column c : table.getColumns()) {
-                boolean nullable = !table.isPrimaryKeyColumn(c.name) || table.auto_increment;
+                boolean nullable = isColumnNullable(c, table);
                 builder.add(c.name, convertType(c.type, typeFactory, nullable));
             }
             return builder.build();
