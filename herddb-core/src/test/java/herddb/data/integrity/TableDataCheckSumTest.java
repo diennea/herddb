@@ -19,6 +19,16 @@
  */
 package herddb.data.integrity;
 
+import herddb.core.DBManager;
+import static herddb.core.TestUtils.execute;
+import herddb.mem.MemoryCommitLogManager;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.TransactionContext;
+import herddb.model.commands.CreateTableSpaceStatement;
+import java.util.Arrays;
+import java.util.Collections;
 import org.junit.Test;
 
 /**
@@ -29,14 +39,22 @@ public class TableDataCheckSumTest{
     
     @Test
     public void test() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            for(int i=0; i<10; i++){
+                System.out.println("insert number " + i);
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+            }
+            
+            manager.checkpoint();
 
-        
+        }
     }
+
 }
-
-
-
-
-
-
 

@@ -164,8 +164,6 @@ public class TableSpaceManager {
     private volatile boolean closed;
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
-    private TableDataChecksum dataCheck;
-    private long checksum=0;
     
     // only for tests
     private Runnable afterTableCheckPointAction;
@@ -1646,7 +1644,12 @@ public class TableSpaceManager {
 
                     if (!tableManager.isSystemTable()) {
                         TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
-
+                        
+                        //Create table data Checksum
+                        TableDataChecksum integrity = new TableDataChecksum();
+                        long checksum = integrity.createChecksum(this, tableSpaceName, tableManager.getTable().name);
+                        LOGGER.log(Level.INFO, "checksum {0} created for table {1}",new Object[]{ checksum,tableManager.getTable().name});
+                                             
                         if (checkpoint != null) {
                             LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
                             actions.addAll(checkpoint.actions);
@@ -1690,20 +1693,6 @@ public class TableSpaceManager {
         }
     }
 
-    public void createTablesChecksum(){  
-        //get list of table
-        List <Table> tablesList = getAllCommittedTables();
-        for(int i=0; i<tablesList.size(); i++){
-            //create checksum for each table
-            dataCheck.createChecksum(this, tableSpaceName, tablesList.get(i));
-        }
-        checksum=dataCheck.getChecksum();
-    }
-
-    public long getChecksum(){
-        return this.checksum;
-    }
-    
     public boolean compareChecksum(long a,long b){
         return a == b;
     }
@@ -1987,29 +1976,4 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

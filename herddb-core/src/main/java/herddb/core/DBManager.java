@@ -823,11 +823,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             man.checkpoint(false, false, false);
         }
     }
-    public void createTablesChecksum(){
-        tablesSpaces.values().forEach((man) -> {
-            man.createTablesChecksum();
-        });
-    }
 
     public void triggerActivator(ActivatorRunRequest type) {
         activatorJ.offer(type);
@@ -1322,8 +1317,4 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
-
-
-
-
 

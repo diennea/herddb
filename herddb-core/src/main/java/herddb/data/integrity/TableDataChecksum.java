@@ -23,7 +23,6 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import java.util.logging.Logger;
 import java.util.logging.Level;
-import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.FullTableScanPredicate;
 import herddb.model.StatementEvaluationContext;
@@ -31,8 +30,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
-import herddb.model.ColumnTypes;
-import java.util.zip.Checksum;
+import herddb.model.Column;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 /**
@@ -44,59 +42,46 @@ public class TableDataChecksum{
           
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
 
-    TableSpaceManager manager;
-    String tableSpace;
-    Table table;
-    private long digest=0;
-    Checksum checksum;
-    XXHashFactory factory;
+    private final XXHashFactory factory;
     private final int SEED = 0x9747b28c;
-    StreamingXXHash64 hash64;
+    private StreamingXXHash64 hash64;
     
-    public TableDataChecksum (TableSpaceManager manager,String tableSpace,Table table){
-        this.tableSpace=tableSpace;
-        this.manager= manager;
-        this.table=table;
+    public TableDataChecksum (){
         this.factory = XXHashFactory.fastestInstance();
     }
     
         
-    public void createChecksum(TableSpaceManager manager,String tableSpace,Table table){
+    public long createChecksum(TableSpaceManager manager,String tableSpace,String table){
         
-        try ( DataScanner scan = manager.scan(new ScanStatement(tableSpace, table, new FullTableScanPredicate()),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                    TransactionContext.NO_TRANSACTION, false,false);){
+        //da passargli anche il comparator per l'ordinamento
+        ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
+        
+        try ( DataScanner scan = manager.scan(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
             
             hash64 = factory.newStreamingHash64(SEED);
-            
+            byte[] serialize=null;
             while(scan.hasNext()){
                 // if next exist, get the next value
                 DataAccessor data = scan.next();
                 //create an object array
-                Object[] obj = data.getValues();    
+                Object[] obj = data.getValues();
                 
-                //Serialize object for CRC           
-                //not sure for type
-                byte[] serialize = RecordSerializer.serialize(obj, ColumnTypes.ANYTYPE);               
+                Column[] schema = scan.getSchema();
+                
+                for(int i=0; i< schema.length;i++){
+                    int type=schema[i].type;
+                    serialize = RecordSerializer.serialize(obj[i],type);
+                }
                 //update record in digest
                 hash64.update(serialize, 0, SEED);
             }
-            //get final checksum value
-            digest=hash64.getValue();
             
         } catch (DataScannerException ex) {
            LOGGER.log(Level.SEVERE,null, ex);
-        }      
+           //Se lo Scan fallisce, non deve essere bloccante, deve continuare con quello che stava facendo e skippare la creazione del checksum per questa tabella
+           
+        } 
+        return hash64.getValue();
     }
- 
     
-    public long getChecksum(){
-        return this.digest;
-    }
-   
 }
-
-
-
-
-
