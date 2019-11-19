@@ -1697,12 +1697,9 @@ public class TableSpaceManager {
             //create checksum for each table
             dataCheck.createChecksum(this, tableSpaceName, tablesList.get(i));
         }
+        checksum=dataCheck.getChecksum();
     }
-    
-    public void setChecksum(){
-        checksum= dataCheck.getChecksum();
-    }
-  
+
     public long getChecksum(){
         return this.checksum;
     }
