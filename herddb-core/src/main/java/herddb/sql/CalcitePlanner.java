@@ -1297,7 +1297,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         private static boolean isColumnNullable(Column c, Table t) {
-            return  (!t.isPrimaryKeyColumn(c.name) || t.auto_increment ) && !ColumnTypes.isNotNullDataType(c.type);
+            return  (!t.isPrimaryKeyColumn(c.name) || t.auto_increment) && !ColumnTypes.isNotNullDataType(c.type);
         }
 
         @Override
