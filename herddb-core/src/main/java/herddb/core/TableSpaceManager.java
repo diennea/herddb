@@ -126,6 +126,7 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.zip.Checksum;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
@@ -1689,7 +1690,7 @@ public class TableSpaceManager {
         }
     }
 
-    public void checkDataIntegrity(){  
+    public void createTablesChecksum(){  
         //get list of table
         List <Table> tablesList = getAllCommittedTables();
         for(int i=0; i<tablesList.size(); i++){
