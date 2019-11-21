@@ -53,7 +53,11 @@ public class LogEntryFactory {
     public static LogEntry beginTransaction(long transactionId) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, transactionId, null, null, null);
     }
-
+    
+    public static LogEntry dataIntegrity(Table table,long digest){
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DATA_INTEGRITY, digest, table.name, null, null);
+    }
+    
     public static LogEntry commitTransaction(long transactionId) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, transactionId, null, null, null);
     }
@@ -91,3 +95,6 @@ public class LogEntryFactory {
     }
 
 }
+
+
+

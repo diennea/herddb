@@ -148,6 +148,8 @@ public class LogEntry {
                 break;
             case LogEntryType.NOOP:
                 break;
+            case LogEntryType.DATA_INTEGRITY:
+                break;
             default:
                 throw new IllegalArgumentException("unsupported type " + type);
         }
@@ -227,3 +229,4 @@ public class LogEntry {
     }
 
 }
+

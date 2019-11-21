@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.core.stats.ConnectionsInfoProvider;
+import herddb.data.integrity.TableDataChecksum;
 import herddb.file.FileMetadataStorageManager;
 import herddb.jmx.DBManagerStatsMXBean;
 import herddb.jmx.JMXUtils;
@@ -823,7 +824,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             man.checkpoint(false, false, false);
         }
     }
-
+    
     public void triggerActivator(ActivatorRunRequest type) {
         activatorJ.offer(type);
     }
@@ -1317,4 +1318,3 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
-

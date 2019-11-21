@@ -56,7 +56,7 @@ public class TableDataChecksum{
         //da passargli anche il comparator per l'ordinamento
         ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
         
-        try ( DataScanner scan = manager.scan(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
+        try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
             
             hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize=null;

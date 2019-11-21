@@ -420,6 +420,7 @@ public class TableSpaceManager {
                     writeTablesOnDataStorageManager(position, false);
                 }
             }
+            
             break;
             case LogEntryType.CREATE_INDEX: {
                 Index index = Index.deserialize(entry.value.to_array());
@@ -489,6 +490,20 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
+            case LogEntryType.DATA_INTEGRITY: {
+                String tableNanme= entry.tableName;
+                long digestMaster=entry.transactionId;
+                TableDataChecksum checksum = new TableDataChecksum();
+                long digestFollower= checksum.createChecksum(this, this.tableSpaceName, tableNanme);
+                
+                if(compareChecksum(digestFollower, digestMaster)){
+                    LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
+                }else{
+                  LOGGER.log(Level.INFO, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});  
+                }
+                    
+            }
+            break;
             default:
                 // other entry types are not important for the tablespacemanager
                 break;
@@ -504,7 +519,9 @@ public class TableSpaceManager {
         }
 
     }
-
+    public boolean compareChecksum(long a,long b){
+        return a==b;
+    }
     private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog, boolean prepareActions) throws DataStorageManagerException,
             LogNotAvailableException {
         LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
@@ -1414,7 +1431,7 @@ public class TableSpaceManager {
             }
         }
     }
-
+    
     private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         boolean lockAcquired = false;
         if (context.getTableSpaceLock() == 0) {
@@ -1604,6 +1621,38 @@ public class TableSpaceManager {
             this.tablesCheckpoints = tablesCheckpoints;
         }
     }
+    
+    public void createTableDigest(TableSpaceManager manager,String tableSpace, Table table){
+        
+        boolean lockAcquired = false;   
+        StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
+        //Acquisisco il lock sul tablespace...devo bloccare le scritture
+        if (context.getTableSpaceLock() == 0) {
+            long lockStamp = acquireWriteLock("checkDataIntegrity");
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }      
+        try{  
+            TableDataChecksum data = new TableDataChecksum();
+            long digest = data.createChecksum(manager, tableSpace, table.name);   
+            
+            /**
+            * Mi sono create una logEntry speciale con il nome della Table e la digest come transactionID
+            * Cosi da apply mi prendo l'id della transazione che corrisponderà al gigest della tabella corrispondente
+            */
+            LogEntry entry = LogEntryFactory.dataIntegrity(table,digest);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);          
+            apply(pos, entry, false);
+            
+
+        } finally {
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");
+                context.setTableSpaceLock(0);
+            }
+        }
+
+    }
 
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
@@ -1644,12 +1693,7 @@ public class TableSpaceManager {
 
                     if (!tableManager.isSystemTable()) {
                         TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
-                        
-                        //Create table data Checksum
-                        TableDataChecksum integrity = new TableDataChecksum();
-                        long checksum = integrity.createChecksum(this, tableSpaceName, tableManager.getTable().name);
-                        LOGGER.log(Level.INFO, "checksum {0} created for table {1}",new Object[]{ checksum,tableManager.getTable().name});
-                                             
+                                           
                         if (checkpoint != null) {
                             LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
                             actions.addAll(checkpoint.actions);
@@ -1691,10 +1735,6 @@ public class TableSpaceManager {
                     new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
             checkpointTimeStats.registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
         }
-    }
-
-    public boolean compareChecksum(long a,long b){
-        return a == b;
     }
     
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
@@ -1976,4 +2016,29 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
