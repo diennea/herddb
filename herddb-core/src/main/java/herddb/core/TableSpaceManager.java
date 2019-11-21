@@ -126,7 +126,6 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.zip.Checksum;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
@@ -493,8 +492,8 @@ public class TableSpaceManager {
             case LogEntryType.DATA_INTEGRITY: {
                 String tableNanme= entry.tableName;
                 long digestMaster=entry.transactionId;
-                TableDataChecksum checksum = new TableDataChecksum();
-                long digestFollower= checksum.createChecksum(this, this.tableSpaceName, tableNanme);
+                TableDataChecksum data = new TableDataChecksum();
+                long digestFollower= data.createChecksum(this, this.tableSpaceName, tableNanme);
                 
                 if(compareChecksum(digestFollower, digestMaster)){
                     LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
@@ -2016,4 +2015,6 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
 
