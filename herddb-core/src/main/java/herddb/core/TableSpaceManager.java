@@ -1641,7 +1641,7 @@ public class TableSpaceManager {
             * Cosi da apply mi prendo l'id della transazione che corrisponderà al gigest della tabella corrispondente
             */
             LogEntry entry = LogEntryFactory.dataIntegrity(table,digest);
-            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);          
+            CommitLogResult pos = log.log(entry, true);          
             apply(pos, entry, false);
             
 
@@ -2016,3 +2016,4 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
