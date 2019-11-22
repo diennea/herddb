@@ -70,11 +70,7 @@
         <libs.calcite>1.19.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-<<<<<<< HEAD
         <libs.zookeeper>3.5.6</libs.zookeeper>
-=======
-        <libs.zookeeper>3.5.5</libs.zookeeper>
->>>>>>> Move to 3.1
         <libs.jsqlparser>3.1</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>
