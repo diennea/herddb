@@ -22,8 +22,7 @@ package herddb.sql;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeThat;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
@@ -35,6 +34,7 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Arrays;
 import java.util.Collections;
+import org.junit.Test;
 
 /**
  *
