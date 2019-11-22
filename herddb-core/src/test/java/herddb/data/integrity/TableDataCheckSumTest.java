@@ -51,10 +51,11 @@ public class TableDataCheckSumTest{
                 execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
             
-            manager.checkpoint();
+            manager.createTableDigest("tblspace1", "tsql");
 
         }
     }
 
 }
+
 

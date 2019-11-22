@@ -42,24 +42,23 @@ public class TableDataChecksum{
           
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
 
-    private final XXHashFactory factory;
+    private static final XXHashFactory factory=XXHashFactory.fastestInstance();
     private final int SEED = 0x9747b28c;
     private StreamingXXHash64 hash64;
     
     public TableDataChecksum (){
-        this.factory = XXHashFactory.fastestInstance();
+       
     }
     
-        
     public long createChecksum(TableSpaceManager manager,String tableSpace,String table){
         
         //da passargli anche il comparator per l'ordinamento
         ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
         
         try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
-            
+             
             hash64 = factory.newStreamingHash64(SEED);
-            byte[] serialize=null;
+            byte[] serialize;
             while(scan.hasNext()){
                 // if next exist, get the next value
                 DataAccessor data = scan.next();
@@ -71,17 +70,22 @@ public class TableDataChecksum{
                 for(int i=0; i< schema.length;i++){
                     int type=schema[i].type;
                     serialize = RecordSerializer.serialize(obj[i],type);
+                    //update record in digest
+                    hash64.update(serialize, 0, SEED);
                 }
-                //update record in digest
-                hash64.update(serialize, 0, SEED);
             }
             
         } catch (DataScannerException ex) {
-           LOGGER.log(Level.SEVERE,null, ex);
-           //Se lo Scan fallisce, non deve essere bloccante, deve continuare con quello che stava facendo e skippare la creazione del checksum per questa tabella
-           
+            LOGGER.log(Level.SEVERE,"Scan failled", ex);
+            return 0;
         } 
         return hash64.getValue();
     }
     
 }
+
+
+
+
+
+

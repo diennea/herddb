@@ -490,17 +490,19 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.DATA_INTEGRITY: {
-                String tableNanme= entry.tableName;
-                long digestMaster=entry.transactionId;
-                TableDataChecksum data = new TableDataChecksum();
-                long digestFollower= data.createChecksum(this, this.tableSpaceName, tableNanme);
-                
-                if(compareChecksum(digestFollower, digestMaster)){
-                    LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
+                if(recovery == true){            
+                    String tableNanme= entry.tableName;
+                    TableDataChecksum data = new TableDataChecksum();
+                    long followerDigest=data.createChecksum(this, this.tableSpaceName, tableNanme);
+                    long masterDigest=entry.value.to_long();
+                    if(compareChecksum(followerDigest, masterDigest)){
+                         LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
+                    }else{
+                         LOGGER.log(Level.INFO, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});  
+                    }
                 }else{
-                  LOGGER.log(Level.INFO, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});  
+                    //the master has nothing to do
                 }
-                    
             }
             break;
             default:
@@ -512,7 +514,8 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.CREATE_TABLE
                 && entry.type != LogEntryType.CREATE_INDEX
                 && entry.type != LogEntryType.ALTER_TABLE
-                && entry.type != LogEntryType.DROP_TABLE) {
+                && entry.type != LogEntryType.DROP_TABLE
+                && entry.type != LogEntryType.DATA_INTEGRITY) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
@@ -1621,29 +1624,26 @@ public class TableSpaceManager {
         }
     }
     
-    public void createTableDigest(TableSpaceManager manager,String tableSpace, Table table){
-        
+    public void createAndWriteTableDigest(TableSpaceManager manager, String tableSpace,String table ){
+        CommitLogResult pos;
         boolean lockAcquired = false;   
         StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
+        long id = newTransactionId.incrementAndGet();
         //Acquisisco il lock sul tablespace...devo bloccare le scritture
         if (context.getTableSpaceLock() == 0) {
             long lockStamp = acquireWriteLock("checkDataIntegrity");
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }      
-        try{  
+        try{
             TableDataChecksum data = new TableDataChecksum();
-            long digest = data.createChecksum(manager, tableSpace, table.name);   
-            
-            /**
-            * Mi sono create una logEntry speciale con il nome della Table e la digest come transactionID
-            * Cosi da apply mi prendo l'id della transazione che corrisponderà al gigest della tabella corrispondente
-            */
-            LogEntry entry = LogEntryFactory.dataIntegrity(table,digest);
-            CommitLogResult pos = log.log(entry, true);          
+            long digest = data.createChecksum(manager, tableSpace, table); 
+            //write digest to LogEntry
+            LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
+            pos=log.log(entry, false);
+            //apply with recory=false
             apply(pos, entry, false);
             
-
         } finally {
             if (lockAcquired) {
                 releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");

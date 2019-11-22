@@ -20,6 +20,7 @@
 
 package herddb.log;
 
+import com.google.common.primitives.Longs;
 import herddb.model.Index;
 import herddb.model.Table;
 import herddb.model.Transaction;
@@ -54,8 +55,8 @@ public class LogEntryFactory {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, transactionId, null, null, null);
     }
     
-    public static LogEntry dataIntegrity(Table table,long digest){
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.DATA_INTEGRITY, digest, table.name, null, null);
+    public static LogEntry dataIntegrity(String table,long transactionID,Bytes value){
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DATA_INTEGRITY, transactionID,table, null, value);
     }
     
     public static LogEntry commitTransaction(long transactionId) {
@@ -95,6 +96,11 @@ public class LogEntryFactory {
     }
 
 }
+
+
+
+
+
 
 
 

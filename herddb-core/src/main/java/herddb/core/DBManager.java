@@ -904,7 +904,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "error on dump", error);
         }
     }
-
+    
+    //The check command will call this method
+    public void createTableDigest(String tableSpace,String table){
+        //get TableSpaceManager from TableSpace name
+        TableSpaceManager manager= tablesSpaces.get(tableSpace);
+        //create and write table digest to Transaction log
+        manager.createAndWriteTableDigest(manager,tableSpace,table);      
+    }
+    
     private String makeVirtualTableSpaceManagerId(String nodeId) {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
@@ -1318,3 +1326,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
+
+
+
+
+
+
+
+
+
+
+
