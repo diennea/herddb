@@ -291,7 +291,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     private static String fixMySqlBackTicks(String s) {
-        System.out.println("FIX MYSQL BACK TICKS " + s);
         if (s == null || s.length() < 2) {
             return s;
         }
