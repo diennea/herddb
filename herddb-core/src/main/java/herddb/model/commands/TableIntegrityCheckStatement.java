@@ -33,4 +33,8 @@ public class TableIntegrityCheckStatement extends DDLStatement{
         this.table = table;
     }
     
+    public String getTable(){
+        return table;
+    }
 }
+

@@ -24,7 +24,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.core.stats.ConnectionsInfoProvider;
-import herddb.data.integrity.TableDataChecksum;
 import herddb.file.FileMetadataStorageManager;
 import herddb.jmx.DBManagerStatsMXBean;
 import herddb.jmx.JMXUtils;
@@ -59,6 +58,7 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableIntegrityCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -637,7 +637,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
-
+        if(statement instanceof TableIntegrityCheckStatement){
+            if(transactionContext.transactionId > 0){
+                return FutureUtils.exception(new StatementExecutionException("CHECKTABLEINTEGRITY cannot be issue inside a transaction"));
+            }
+            return CompletableFuture.completedFuture(createTableDigest((TableIntegrityCheckStatement) statement));
+        }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             return FutureUtils.exception(new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
@@ -905,7 +910,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
     
-    //The check command will call this method
+    //for test
     public void createTableDigest(String tableSpace,String table){
         //get TableSpaceManager from TableSpace name
         TableSpaceManager manager= tablesSpaces.get(tableSpace);
@@ -913,6 +918,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         manager.createAndWriteTableDigest(manager,tableSpace,table);      
     }
     
+    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){
+        TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
+        String table = tableIntegrityCheckStatement.getTable();
+        manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
+        return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
+    }
     private String makeVirtualTableSpaceManagerId(String nodeId) {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
@@ -1326,6 +1337,21 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

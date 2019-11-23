@@ -186,6 +186,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     return "TRUNCATE" + query.substring(8);
                 }
                 return query;
+            /* TABLE INTEGRITY CHECK */    
             case 'I':
             case 'i':
                 if(query.regionMatches(true, 0, "CHECK TABLE INTEGRITY", 0,22)){
@@ -1031,14 +1032,3 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
