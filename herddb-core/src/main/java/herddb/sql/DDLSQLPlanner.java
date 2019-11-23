@@ -189,7 +189,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             case 'I':
             case 'i':
                 if(query.regionMatches(true, 0, "CHECK TABLE INTEGRITY", 0,22)){
-                    return "EXECUTE checktableintegrity " + query.substring(20);
+                    return "EXECUTE checktableintegrity " + query.substring(22);
                 }
                 return query;
             default:
@@ -1031,6 +1031,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
+
 
 
 
