@@ -489,13 +489,12 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
-            case LogEntryType.DATA_INTEGRITY: {
+            case LogEntryType.TABLE_INTEGRITY_CHECKSUM: {
                 if(recovery == true){            
                     String tableNanme= entry.tableName;
-                    TableDataChecksum data = new TableDataChecksum();
-                    long followerDigest=data.createChecksum(this, this.tableSpaceName, tableNanme);
+                    long followerDigest=TableDataChecksum.createChecksum(this, this.tableSpaceName, tableNanme);
                     long masterDigest=entry.value.to_long();
-                    if(compareChecksum(followerDigest, masterDigest)){
+                    if(followerDigest == masterDigest){
                          LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
                     }else{
                          LOGGER.log(Level.INFO, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});  
@@ -516,15 +515,13 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.CREATE_INDEX
                 && entry.type != LogEntryType.ALTER_TABLE
                 && entry.type != LogEntryType.DROP_TABLE
-                && entry.type != LogEntryType.DATA_INTEGRITY) {
+                && entry.type != LogEntryType.TABLE_INTEGRITY_CHECKSUM) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
 
     }
-    public boolean compareChecksum(long a,long b){
-        return a==b;
-    }
+
     private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog, boolean prepareActions) throws DataStorageManagerException,
             LogNotAvailableException {
         LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
@@ -1629,7 +1626,7 @@ public class TableSpaceManager {
         CommitLogResult pos;
         boolean lockAcquired = false;   
         StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
-        long id = newTransactionId.incrementAndGet();
+
         //Acquisisco il lock sul tablespace...devo bloccare le scritture
         if (context.getTableSpaceLock() == 0) {
             long lockStamp = acquireWriteLock("checkDataIntegrity");
@@ -1637,13 +1634,17 @@ public class TableSpaceManager {
             lockAcquired = true;
         }      
         try{
-            TableDataChecksum data = new TableDataChecksum();
-            long digest = data.createChecksum(manager, tableSpace, table); 
-            //write digest to LogEntry
-            LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
-            pos=log.log(entry, false);
-            //apply with recory=false
-            apply(pos, entry, false);
+            long id = newTransactionId.incrementAndGet();
+            LOGGER.log(Level.INFO, "TRANSACTION ID IS " , id);
+            long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
+            if(digest != 0){
+                //write digest to LogEntry
+                LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
+                pos=log.log(entry, false);
+                //apply with recory=false
+                apply(pos, entry, false);
+            }
+            LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});
             
         } finally {
             if (lockAcquired) {
@@ -2016,6 +2017,19 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

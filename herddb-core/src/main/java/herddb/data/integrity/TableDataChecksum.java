@@ -37,27 +37,25 @@ import net.jpountz.xxhash.XXHashFactory;
  *
  * @author Hamado.Dene
  */
-public class TableDataChecksum{
+public abstract class TableDataChecksum{
 
           
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
 
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
-    private final int SEED = 0x9747b28c;
-    private StreamingXXHash64 hash64;
+    private static final int SEED = 0x9747b28c;
+    public static final  int DIGEST_NOT_AVAILABLE = 0;
     
-    public TableDataChecksum (){
+    private  TableDataChecksum (){
        
     }
     
-    public long createChecksum(TableSpaceManager manager,String tableSpace,String table){
+    public static long createChecksum(TableSpaceManager manager,String tableSpace,String table){
         
-        //da passargli anche il comparator per l'ordinamento
         ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
-        
         try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
              
-            hash64 = factory.newStreamingHash64(SEED);
+            StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
             while(scan.hasNext()){
                 // if next exist, get the next value
@@ -74,18 +72,12 @@ public class TableDataChecksum{
                     hash64.update(serialize, 0, SEED);
                 }
             }
-            
+           return hash64.getValue();
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
-            return 0;
+            return DIGEST_NOT_AVAILABLE;
         } 
-        return hash64.getValue();
     }
     
 }
-
-
-
-
-
 
