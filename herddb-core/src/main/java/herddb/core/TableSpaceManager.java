@@ -502,6 +502,7 @@ public class TableSpaceManager {
                     }
                 }else{
                     //the master has nothing to do
+                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2}", new Object[]{entry.value.to_long(),entry.tableName,this.tableSpaceName});
                 }
             }
             break;
@@ -2015,6 +2016,11 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
 
 
 
