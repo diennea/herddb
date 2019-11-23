@@ -45,6 +45,7 @@ import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.TableIntegrityCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
@@ -183,6 +184,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             case 't':
                 if (query.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
                     return "TRUNCATE" + query.substring(8);
+                }
+                return query;
+            case 'I':
+            case 'i':
+                if(query.regionMatches(true, 0, "CHECK TABLE INTEGRITY", 0,22)){
+                    return "EXECUTE checktableintegrity " + query.substring(20);
                 }
                 return query;
             default:
@@ -820,6 +827,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     throw new StatementExecutionException(err);
                 }
             }
+            
             case "RENAMETABLE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
                     throw new StatementExecutionException("RENAMETABLE syntax (EXECUTE RENAMETABLE 'tableSpaceName','tablename','nametablename')");
@@ -836,6 +844,24 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             Collections.emptyList(), Collections.emptyList(),
                             null, oldTableName, tableSpaceName, newTableName);
                 } catch (MetadataStorageManagerException err) {
+                    throw new StatementExecutionException(err);
+                }
+            }
+            case "CHECKTABLEINTEGRITY": {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
+                    throw new StatementExecutionException(" CHECKTABLEINTEGRITY syntax (EXECUTE CHECKTABLEINTEGRITY 'tableSpaceName','tablename')");
+                }
+                String tableSpaceName =(String) resolveValue(execute.getExprList().getExpressions().get(0), true);
+                String tableName = (String) resolveValue(execute.getExprList().getExpressions().get(1), true);
+                try{
+                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
+                    if(tableSpace == null){
+                         throw new TableSpaceDoesNotExistException(tableSpaceName);
+                    }
+                    
+                    return new TableIntegrityCheckStatement(tableSpaceName, tableName);
+                    
+                }catch(MetadataStorageManagerException err){
                     throw new StatementExecutionException(err);
                 }
             }
@@ -1005,3 +1031,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
+
+
+
+
+
+
+
+
+
+

@@ -192,6 +192,8 @@ public class HerdDBCLI {
             options.addOption("fromid", "fromid", true, "Starting entry Id for filetype=bkledger, default to 0");
             options.addOption("toid", "toid", true,
                     "Starting entry Id for filetype=bkledger, default to LastAddConfirmed");
+            options.addOption("cti", "check-table-integiry",false,
+                    "Check a table data integrity (need -s , -t)");
 
             org.apache.commons.cli.CommandLine commandLine;
             try {
@@ -321,6 +323,15 @@ public class HerdDBCLI {
                 }
 
             }
+            boolean checkTableDataIntegrity = commandLine.hasOption("check-table-integrity");
+            if(checkTableDataIntegrity){
+                
+                if(param.equals("")){
+                    println("Specify the parameter (--param <par>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
             boolean setLeader = commandLine.hasOption("set-leader");
             if (setLeader) {
                 if (leader.isEmpty()) {
@@ -411,7 +422,9 @@ public class HerdDBCLI {
                         createTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, newschema, leader);
                     } else if (alterTablespace) {
                         alterTablespace(metadataStorageManager, schema, param, values);
-                    } else {
+                    } else if(checkTableDataIntegrity){
+                        checkTableDataIntegrity(verbose, ignoreerrors, statement, tableSpaceMapper, schema, leader, table);
+                    }else {
                         failAndPrintHelp(options);
                         return;
                     }
@@ -972,6 +985,27 @@ public class HerdDBCLI {
         executeStatement(verbose, ignoreerrors, false, false,
                 "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
 
+        
+    }
+    public static void checkTableDataIntegrity(
+            boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
+            String schema, String leader, String table
+    ) throws SQLException ,ScriptException {
+        
+        if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, leader)) {
+            println("Unknown node " + leader);
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        
+        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
+            "CHECK TABLE INTEGRITY'" + schema + " " + table +  "','leader:" + leader + "'", statement, tableSpaceMapper, false,
+        false);
+        
+        if (res != null && res.updateCount > 0) {
+            println("Successfully create Table " + table + " digest");
+        }
+  
     }
 
     private static void executeScript(final Connection connection, final HerdDBDataSource datasource,
