@@ -1634,18 +1634,17 @@ public class TableSpaceManager {
             lockAcquired = true;
         }      
         try{
-            long id = newTransactionId.incrementAndGet();
-            LOGGER.log(Level.INFO, "TRANSACTION ID IS " , id);
+
             long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
             if(digest != 0){
                 //write digest to LogEntry
-                LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
+                LogEntry entry = LogEntryFactory.dataIntegrity(table,0,Bytes.from_long(digest));
                 pos=log.log(entry, false);
                 //apply with recory=false
                 apply(pos, entry, false);
-            }
-            LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});
-            
+            }else{
+                LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});
+            }        
         } finally {
             if (lockAcquired) {
                 releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");
@@ -2017,6 +2016,11 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
 
 
 
