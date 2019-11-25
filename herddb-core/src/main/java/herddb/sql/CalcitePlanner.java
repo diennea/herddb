@@ -180,7 +180,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
-
+    public static final  String TABLE_INTEGRITY_COMMAND="CHECKTABLEINTEGRITY";
+    
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
         this.cache = new PlansCache(maxPlanCacheSize);
@@ -239,7 +240,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
+  
         if (isDDL(query)) {
+            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }
+        if(query.startsWith(TABLE_INTEGRITY_COMMAND)){
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }

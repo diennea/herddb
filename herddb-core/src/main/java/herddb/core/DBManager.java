@@ -923,7 +923,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         String table = tableIntegrityCheckStatement.getTable();
         manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
         return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
-    }
+    }   
     private String makeVirtualTableSpaceManagerId(String nodeId) {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
@@ -1337,6 +1337,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
+
 
 
 

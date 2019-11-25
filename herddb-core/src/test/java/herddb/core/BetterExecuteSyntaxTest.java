@@ -21,6 +21,12 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
+import herddb.log.CommitLog;
+import herddb.log.CommitLogManager;
+import herddb.log.CommitLogResult;
+import herddb.log.LogEntry;
+import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
 import static org.junit.Assert.assertEquals;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -30,6 +36,10 @@ import herddb.model.TransactionResult;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import org.junit.Test;
 
 /**
@@ -38,7 +48,63 @@ import org.junit.Test;
  * @author enrico.olivelli
  */
 public class BetterExecuteSyntaxTest {
+        List<LogEntry> entries = new CopyOnWriteArrayList<>();
 
+        class MyMemoryCommitLogManager extends CommitLogManager {
+                 @Override
+                 public CommitLog createCommitLog(String tableSpace, String tablespaceName, String localNodeId) {
+                     return new CommitLog() {
+                         AtomicLong offset = new AtomicLong(-1);
+                         @Override
+                         public CommitLogResult log(LogEntry entry, boolean synch) throws LogNotAvailableException {
+                             if (isHasListeners()) {
+                                 synch = true;
+                             }
+                             LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
+                             notifyListeners(logPos, entry);
+                             entries.add(entry);
+                             System.out.println("LOG " + entry);
+                             return new CommitLogResult(logPos, !synch, synch);
+                         }
+                         @Override
+                         public LogSequenceNumber getLastSequenceNumber() {
+                             return new LogSequenceNumber(1, offset.get());
+                         }
+                         private volatile boolean closed;
+                         @Override
+                         public void close() throws LogNotAvailableException {
+                             closed = true;
+                         }
+                         @Override
+                         public boolean isFailed() {
+                             return false;
+                         }
+                         @Override
+                         public boolean isClosed() {
+                             return closed;
+                         }        
+                         @Override
+                         public void recovery(
+                                 LogSequenceNumber snapshotSequenceNumber,
+                                 BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing
+                         ) throws LogNotAvailableException {
+                         }
+                         @Override
+                         public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
+                         }
+
+                         @Override
+                         public void startWriting() throws LogNotAvailableException {
+                         }
+                         @Override
+                         public void clear() throws LogNotAvailableException {
+                         }
+
+
+
+                     };
+                 }
+             }
     @Test
     public void betterSyntax() throws Exception {
 
@@ -54,8 +120,11 @@ public class BetterExecuteSyntaxTest {
             long tx2 = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
             execute(manager, "ROLLBACK TRANSACTION 'tblspace1'," + tx2, Collections.emptyList());
 
-            execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
+            //execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int primary key auto_increment, s1 string)", Collections.emptyList());
 
+            execute(manager, "CHECKTABLEINTEGRITY tblspace1.tsql", Collections.emptyList());
+            
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
                 DataAccessor first = scan.consume().get(0);
                 Number count = (Number) first.get(first.getFieldNames()[0]);
@@ -65,3 +134,28 @@ public class BetterExecuteSyntaxTest {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

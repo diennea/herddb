@@ -185,15 +185,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (query.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
                     return "TRUNCATE" + query.substring(8);
                 }
-                return query;
-            /* TABLE INTEGRITY CHECK */    
-            case 'I':
-            case 'i':
-                if(query.regionMatches(true, 0, "CHECKTABLEINTEGRITY", 0,19)){
-                    return "EXECUTE checktableintegrity " + query.substring(19);
-                }
-                return query;
+                return query;    
+                
             default:
+                /*RETURN also CHECKTABLEINTEGRITY command */
                 return query;
         }
     }
@@ -206,7 +201,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
-
+        
         /* Strips out leading comments */
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
@@ -225,6 +220,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
+        if(query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND)){
+            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(defaultTableSpace,query,parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        }
+        
         net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
         if (!isCachable(stmt)) {
             allowCache = false;
@@ -236,7 +236,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
 
     }
-
+    
     private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
         net.sf.jsqlparser.statement.Statement stmt;
         try {
@@ -848,29 +848,43 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     throw new StatementExecutionException(err);
                 }
             }
-            case "CHECKTABLEINTEGRITY": {
-                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
-                    throw new StatementExecutionException(" CHECKTABLEINTEGRITY syntax (EXECUTE CHECKTABLEINTEGRITY 'tableSpaceName','tablename')");
-                }
-                String tableSpaceName =(String) resolveValue(execute.getExprList().getExpressions().get(0), true);
-                String tableName = (String) resolveValue(execute.getExprList().getExpressions().get(1), true);
-                try{
-                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
-                    if(tableSpace == null){
-                         throw new TableSpaceDoesNotExistException(tableSpaceName);
-                    }
-                    
-                    return new TableIntegrityCheckStatement(tableSpaceName, tableName);
-                    
-                }catch(MetadataStorageManagerException err){
-                    throw new StatementExecutionException(err);
-                }
-            }
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
+        
     }
 
+    public Statement QueryCheckIntegrityStatement(String defaultTablespace,String query,List<Object> parameters ){
+        if (query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND)) {
+            query = query.substring(query.substring(0,19).length());
+            System.out.println(query);         
+            String tableSpace = defaultTablespace;
+            String tableName;
+            
+            if (query.contains(".")) {
+                String[] tokens = query.split("\\.");
+                tableSpace = tokens[0].trim();
+                tableName = tokens[1].trim();
+            } else {
+                tableName = query.trim();
+            }
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+            }
+            AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+
+            if (tableManager == null || tableManager.getCreatedInTransaction() > 0) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
+            }
+            
+            return new TableIntegrityCheckStatement(tableSpace, tableName);
+        }else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
+        }
+        
+    }
+                  
     private Statement buildAlterStatement(String defaultTableSpace, Alter alter) throws StatementExecutionException {
         if (alter.getTable() == null) {
             throw new StatementExecutionException("missing table name");
@@ -1032,5 +1046,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
+
 
 

@@ -1639,7 +1639,6 @@ public class TableSpaceManager {
             long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
             if(digest != 0){
                 //write digest to LogEntry
-                LOGGER.log(Level.INFO, "TRANSACTION IS {0}" , id);
                 LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
                 pos=log.log(entry, false);
                 //apply with recory=false
@@ -2018,3 +2017,4 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
