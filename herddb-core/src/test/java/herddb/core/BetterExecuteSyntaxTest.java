@@ -123,6 +123,7 @@ public class BetterExecuteSyntaxTest {
             //execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
             execute(manager, "CREATE TABLE tblspace1.tsql (n1 int primary key auto_increment, s1 string)", Collections.emptyList());
 
+            execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.tsql'", Collections.emptyList());
             execute(manager, "CHECKTABLEINTEGRITY tblspace1.tsql", Collections.emptyList());
             
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
@@ -134,28 +135,3 @@ public class BetterExecuteSyntaxTest {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

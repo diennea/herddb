@@ -863,8 +863,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             
             if (query.contains(".")) {
                 String[] tokens = query.split("\\.");
-                tableSpace = tokens[0].trim();
-                tableName = tokens[1].trim();
+                tableSpace = tokens[0].trim().replaceAll("\'", "");
+                tableName = tokens[1].trim().replaceAll("\'", "");
             } else {
                 tableName = query.trim();
             }
@@ -1046,6 +1046,3 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
-
-
-

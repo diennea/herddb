@@ -999,7 +999,7 @@ public class HerdDBCLI {
         }
         
         ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-            "CHECKTABLEINTEGRITY'" + schema + " " + table +  "','leader:" + leader + "'", statement, tableSpaceMapper, false,
+            "CHECKTABLEINTEGRITY'" + schema + "." + table +  "','leader:" + leader + "'", statement, tableSpaceMapper, false,
         false);
         
         if (res != null && res.updateCount > 0) {
@@ -1841,4 +1841,5 @@ public class HerdDBCLI {
         }
     }
 }
+
 
