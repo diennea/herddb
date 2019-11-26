@@ -202,7 +202,7 @@ public class AlterTableSQLTest {
                 assertTrue(error.getMessage().contains("bad column badcol in table tsql"));
             }
 
-            execute(manager, "ALTER TABLE tblspace1.tsql MODIFY COLUMN k1 int RENAME TO l2", Collections.emptyList());
+            execute(manager, "ALTER TABLE tblspace1.tsql CHANGE k1 l2 int", Collections.emptyList());
 
             assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
 

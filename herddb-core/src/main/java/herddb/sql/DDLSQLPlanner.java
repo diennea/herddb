@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.sql;
 
 import herddb.core.AbstractIndexManager;
@@ -46,7 +45,6 @@ import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.TruncateTableStatement;
-import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,16 +56,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
-import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
-import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.parser.CCJSqlParser;
+import net.sf.jsqlparser.parser.ParseException;
+import net.sf.jsqlparser.parser.StringProvider;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
@@ -117,9 +114,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     public static String rewriteExecuteSyntax(String query) {
         char ch = query.charAt(0);
 
-        /* "empty" data skipped now we must recognize instructions to rewrite */
+        /*
+         * "empty" data skipped now we must recognize instructions to rewrite
+         */
         switch (ch) {
-            /* ALTER */
+            /*
+             * ALTER
+             */
             case 'A':
             case 'a':
                 if (query.regionMatches(true, 0, "ALTER TABLESPACE ", 0, 17)) {
@@ -128,7 +129,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
                 return query;
 
-            /* BEGIN */
+            /*
+             * BEGIN
+             */
             case 'B':
             case 'b':
                 if (query.regionMatches(true, 0, "BEGIN TRANSACTION", 0, 17)) {
@@ -137,7 +140,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
                 return query;
 
-            /* COMMIT / CREATE */
+            /*
+             * COMMIT / CREATE
+             */
             case 'C':
             case 'c':
                 ch = query.charAt(1);
@@ -161,7 +166,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
                 return query;
 
-            /* DROP */
+            /*
+             * DROP
+             */
             case 'D':
             case 'd':
                 if (query.regionMatches(true, 0, "DROP TABLESPACE ", 0, 16)) {
@@ -170,7 +177,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
                 return query;
 
-            /* ROLLBACK */
+            /*
+             * ROLLBACK
+             */
             case 'R':
             case 'r':
                 if (query.regionMatches(true, 0, "ROLLBACK TRANSACTION", 0, 20)) {
@@ -178,7 +187,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 }
                 return query;
 
-            /* TRUNCATE */
+            /*
+             * TRUNCATE
+             */
             case 'T':
             case 't':
                 if (query.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
@@ -199,7 +210,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             parameters = Collections.emptyList();
         }
 
-        /* Strips out leading comments */
+        /*
+         * Strips out leading comments
+         */
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
             query = query.substring(idx);
@@ -231,19 +244,21 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
         net.sf.jsqlparser.statement.Statement stmt;
+
+        CCJSqlParser parser = new CCJSqlParser(new StringProvider(query));
+//        parser.setErrorRecovery(true);
         try {
-            stmt = CCJSqlParserUtil.parse(query);
-        } catch (JSQLParserException | net.sf.jsqlparser.parser.TokenMgrError err) {
+            return parser.Statement();
+        } catch (ParseException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
-        return stmt;
+
     }
 
     private ExecutionPlan plan(
             String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
             boolean scan, boolean returnValues, int maxRows
     ) {
-        verifyJdbcParametersIndexes(stmt);
         ExecutionPlan result;
         if (stmt instanceof CreateTable) {
             result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
@@ -275,9 +290,19 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
+    private static String fixMySqlBackTicks(String s) {
+        if (s == null || s.length() < 2) {
+            return s;
+        }
+        if (s.startsWith("`") && s.endsWith("`")) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
-        String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
+        String tableSpace = fixMySqlBackTicks(s.getTable().getSchemaName());
+        String tableName = fixMySqlBackTicks(s.getTable().getName());
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
@@ -294,7 +319,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 for (Index index : s.getIndexes()) {
                     if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
                         for (String n : index.getColumnsNames()) {
-                            n = n.toLowerCase();
+                            n = fixMySqlBackTicks(n.toLowerCase());
                             tablebuilder.primaryKey(n);
                             primaryKey.add(n);
                             foundPk = true;
@@ -305,7 +330,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
             int position = 0;
             for (ColumnDefinition cf : s.getColumnDefinitions()) {
-                String columnName = cf.getColumnName().toLowerCase();
+                String columnName = fixMySqlBackTicks(cf.getColumnName().toLowerCase());
                 int type;
                 String dataType = cf.getColDataType().getDataType();
                 type = sqlDataTypeToColumnType(dataType, cf.getColDataType().getArgumentsStringList());
@@ -354,10 +379,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                                 .tablespace(tableSpace);
 
                         for (String columnName : index.getColumnsNames()) {
-                            columnName = columnName.toLowerCase();
+                            columnName = fixMySqlBackTicks(columnName.toLowerCase());
                             Column column = table.getColumn(columnName);
                             if (column == null) {
-                                throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                                throw new StatementExecutionException(
+                                        "no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
                             }
                             builder.column(column.name, column.type);
                         }
@@ -377,20 +403,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     private boolean decodeAutoIncrement(List<String> columnSpecs) {
         boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
         return auto_increment;
-    }
-
-    private String decodeRenameTo(List<String> columnSpecs) {
-        if (columnSpecs.size() != 3) {
-            return null;
-        }
-        if (!"RENAME".equals(columnSpecs.get(0))) {
-            return null;
-        }
-        if (!"TO".equals(columnSpecs.get(1))) {
-            return null;
-        }
-        return columnSpecs.get(2).toLowerCase();
-
     }
 
     private List<String> decodeColumnSpecs(List<String> columnSpecs) {
@@ -428,7 +440,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 columnName = columnName.toLowerCase();
                 Column column = tableDefinition.getTable().getColumn(columnName);
                 if (column == null) {
-                    throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                    throw new StatementExecutionException(
+                            "no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
                 }
                 builder.column(column.name, column.type);
             }
@@ -532,7 +545,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
         } else if (allowColumn && expression instanceof net.sf.jsqlparser.schema.Column) {
             // this is only for supporting back ticks in DDL
-            return ((net.sf.jsqlparser.schema.Column) expression).getColumnName();
+            return fixMySqlBackTicks(((net.sf.jsqlparser.schema.Column) expression).getColumnName());
         } else if (expression instanceof StringValue) {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
@@ -555,85 +568,19 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     } else if (value instanceof Long) {
                         return -1L * ((Long) value);
                     } else {
-                        throw new StatementExecutionException("unsupported value type " + expression.getClass() + " with sign " + se.getSign() + " on value " + value + " of type " + value.getClass());
+                        throw new StatementExecutionException(
+                                "unsupported value type " + expression.getClass() + " with sign " + se.getSign() + " on value " + value + " of type " + value.
+                                getClass());
                     }
                 }
                 default:
-                    throw new StatementExecutionException("unsupported value type " + expression.getClass() + " with sign " + se.getSign());
+                    throw new StatementExecutionException(
+                            "unsupported value type " + expression.getClass() + " with sign " + se.getSign());
             }
 
         } else {
             throw new StatementExecutionException("unsupported value type " + expression.getClass());
         }
-    }
-
-    private ColumnReferencesDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
-        ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(expression);
-        expression.accept(discovery);
-        return discovery;
-    }
-
-    private Expression collectConditionsForAlias(
-            String alias, Expression expression,
-            List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName
-    ) throws StatementExecutionException {
-        if (expression == null) {
-            // no constraint on table
-            return null;
-        }
-        ColumnReferencesDiscovery discoveredMainAlias = discoverMainTableAlias(expression);
-        String mainAlias = discoveredMainAlias.getMainTableAlias();
-        if (!discoveredMainAlias.isContainsMixedAliases() && alias.equals(mainAlias)) {
-            return expression;
-        } else if (expression instanceof AndExpression) {
-            AndExpression be = (AndExpression) expression;
-            ColumnReferencesDiscovery discoveredMainAliasLeft = discoverMainTableAlias(be.getLeftExpression());
-            String mainAliasLeft = discoveredMainAliasLeft.isContainsMixedAliases()
-                    ? null : discoveredMainAliasLeft.getMainTableAlias();
-
-            ColumnReferencesDiscovery discoveredMainAliasright = discoverMainTableAlias(be.getRightExpression());
-            String mainAliasRight = discoveredMainAliasright.isContainsMixedAliases()
-                    ? null : discoveredMainAliasright.getMainTableAlias();
-            if (alias.equals(mainAliasLeft)) {
-                if (alias.equals(mainAliasRight)) {
-                    return expression;
-                } else {
-                    return be.getLeftExpression();
-                }
-            } else if (alias.equals(mainAliasRight)) {
-                return be.getRightExpression();
-            } else {
-                // no constraint on table
-                return null;
-            }
-        } else {
-            conditionsOnJoinedResult.add(discoveredMainAlias);
-            return null;
-        }
-    }
-
-    private Expression composeAndExpression(List<ColumnReferencesDiscovery> conditionsOnJoinedResult) {
-        if (conditionsOnJoinedResult.size() == 1) {
-            return conditionsOnJoinedResult.get(0).getExpression();
-        }
-        AndExpression result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
-                conditionsOnJoinedResult.get(1).getExpression());
-        for (int i = 2; i < conditionsOnJoinedResult.size(); i++) {
-            result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());
-        }
-        return result;
-    }
-
-    private Expression composeSimpleAndExpressions(List<Expression> expressions) {
-        if (expressions.size() == 1) {
-            return expressions.get(0);
-        }
-        AndExpression result = new AndExpression(expressions.get(0),
-                expressions.get(1));
-        for (int i = 2; i < expressions.size(); i++) {
-            result = new AndExpression(result, expressions.get(i));
-        }
-        return result;
     }
 
     private static final Logger LOG = Logger.getLogger(DDLSQLPlanner.class.getName());
@@ -642,54 +589,67 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         switch (execute.getName().toUpperCase()) {
             case "BEGINTRANSACTION": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
-                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
+                    throw new StatementExecutionException(
+                            "BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
-                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
+                    throw new StatementExecutionException(
+                            "BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
                 return new BeginTransactionStatement(tableSpaceName.toString());
             }
             case "COMMITTRANSACTION": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
                 Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), true);
                 if (transactionId == null) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
                 try {
-                    return new CommitTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.toString()));
+                    return new CommitTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.
+                            toString()));
                 } catch (NumberFormatException err) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
 
             }
             case "ROLLBACKTRANSACTION": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
                 Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), true);
                 if (transactionId == null) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
                 try {
-                    return new RollbackTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.toString()));
+                    return new RollbackTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.
+                            toString()));
                 } catch (NumberFormatException err) {
-                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                    throw new StatementExecutionException(
+                            "COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
             }
             case "CREATETABLESPACE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 1) {
-                    throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName ['leader:LEADERID'],['wait:TIMEOUT'] )");
+                    throw new StatementExecutionException(
+                            "CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName ['leader:LEADERID'],['wait:TIMEOUT'] )");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 String leader = null;
@@ -701,7 +661,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     String property = (String) resolveValue(execute.getExprList().getExpressions().get(i), true);
                     int colon = property.indexOf(':');
                     if (colon <= 0) {
-                        throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
+                        throw new StatementExecutionException(
+                                "bad property " + property + " in " + execute + " statement");
                     }
                     String pName = property.substring(0, colon);
                     String value = property.substring(colon + 1);
@@ -710,7 +671,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             leader = value;
                             break;
                         case "replica":
-                            replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+                            replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.
+                                    isEmpty()).collect(Collectors.toSet());
                             break;
                         case "wait":
                             wait = Integer.parseInt(value);
@@ -719,20 +681,24 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             try {
                                 expectedreplicacount = Integer.parseInt(value.trim());
                                 if (expectedreplicacount <= 0) {
-                                    throw new StatementExecutionException("invalid expectedreplicacount " + value + " must be positive");
+                                    throw new StatementExecutionException(
+                                            "invalid expectedreplicacount " + value + " must be positive");
                                 }
                             } catch (NumberFormatException err) {
-                                throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
+                                throw new StatementExecutionException(
+                                        "invalid expectedreplicacount " + value + ": " + err);
                             }
                             break;
                         case "maxleaderinactivitytime":
                             try {
                                 maxleaderinactivitytime = Long.parseLong(value.trim());
                                 if (maxleaderinactivitytime < 0) {
-                                    throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                    throw new StatementExecutionException(
+                                            "invalid maxleaderinactivitytime " + value + " must be positive or zero");
                                 }
                             } catch (NumberFormatException err) {
-                                throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + ": " + err);
+                                throw new StatementExecutionException(
+                                        "invalid maxleaderinactivitytime " + value + ": " + err);
                             }
                             break;
                         default:
@@ -745,11 +711,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (replica.isEmpty()) {
                     replica.add(leader);
                 }
-                return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait, maxleaderinactivitytime);
+                return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait,
+                        maxleaderinactivitytime);
             }
             case "ALTERTABLESPACE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 2) {
-                    throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName,'property:value','property2:value2')");
+                    throw new StatementExecutionException(
+                            "ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName,'property:value','property2:value2')");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
                 try {
@@ -765,7 +733,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         String property = (String) resolveValue(execute.getExprList().getExpressions().get(i), true);
                         int colon = property.indexOf(':');
                         if (colon <= 0) {
-                            throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
+                            throw new StatementExecutionException(
+                                    "bad property " + property + " in " + execute + " statement");
                         }
                         String pName = property.substring(0, colon);
                         String value = property.substring(colon + 1);
@@ -774,40 +743,47 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                                 leader = value;
                                 break;
                             case "replica":
-                                replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+                                replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.
+                                        isEmpty()).collect(Collectors.toSet());
                                 break;
                             case "expectedreplicacount":
                                 try {
                                     expectedreplicacount = Integer.parseInt(value.trim());
                                     if (expectedreplicacount <= 0) {
-                                        throw new StatementExecutionException("invalid expectedreplicacount " + value + " must be positive");
+                                        throw new StatementExecutionException(
+                                                "invalid expectedreplicacount " + value + " must be positive");
                                     }
                                 } catch (NumberFormatException err) {
-                                    throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
+                                    throw new StatementExecutionException(
+                                            "invalid expectedreplicacount " + value + ": " + err);
                                 }
                                 break;
                             case "maxleaderinactivitytime":
                                 try {
                                     maxleaderinactivitytime = Long.parseLong(value.trim());
                                     if (maxleaderinactivitytime < 0) {
-                                        throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                        throw new StatementExecutionException(
+                                                "invalid maxleaderinactivitytime " + value + " must be positive or zero");
                                     }
                                 } catch (NumberFormatException err) {
-                                    throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + ": " + err);
+                                    throw new StatementExecutionException(
+                                            "invalid maxleaderinactivitytime " + value + ": " + err);
                                 }
                                 break;
                             default:
                                 throw new StatementExecutionException("bad property " + pName);
                         }
                     }
-                    return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, maxleaderinactivitytime);
+                    return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount,
+                            maxleaderinactivitytime);
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }
             }
             case "DROPTABLESPACE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
-                    throw new StatementExecutionException("DROPTABLESPACE syntax (EXECUTE DROPTABLESPACE tableSpaceName)");
+                    throw new StatementExecutionException(
+                            "DROPTABLESPACE syntax (EXECUTE DROPTABLESPACE tableSpaceName)");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
                 try {
@@ -822,7 +798,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             case "RENAMETABLE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
-                    throw new StatementExecutionException("RENAMETABLE syntax (EXECUTE RENAMETABLE 'tableSpaceName','tablename','nametablename')");
+                    throw new StatementExecutionException(
+                            "RENAMETABLE syntax (EXECUTE RENAMETABLE 'tableSpaceName','tablename','nametablename')");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
                 String oldTableName = (String) resolveValue(execute.getExprList().getExpressions().get(1), true);
@@ -855,7 +832,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         List<Column> addColumns = new ArrayList<>();
         List<Column> modifyColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
-        String tableName = alter.getTable().getName();
+        String tableName = fixMySqlBackTicks(alter.getTable().getName());
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
             throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
         }
@@ -866,7 +843,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             case ADD: {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
-                    Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(
+                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), sqlDataTypeToColumnType(
                             cl.getColDataType().getDataType(),
                             cl.getColDataType().getArgumentsStringList()
                     ));
@@ -875,7 +852,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             break;
             case DROP:
-                dropColumns.add(alterExpression.getColumnName());
+                dropColumns.add(fixMySqlBackTicks(alterExpression.getColumnName()));
                 break;
             case MODIFY: {
                 TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
@@ -884,24 +861,27 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 }
                 AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
                 if (tableManager == null) {
-                    throw new StatementExecutionException("bad table " + tableName + " in tablespace '" + tableSpace + "'");
+                    throw new StatementExecutionException(
+                            "bad table " + tableName + " in tablespace '" + tableSpace + "'");
                 }
                 Table table = tableManager.getTable();
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
-                    String columnName = cl.getColumnName().toLowerCase();
+                    String columnName = fixMySqlBackTicks(cl.getColumnName().toLowerCase());
                     Column oldColumn = table.getColumn(columnName);
                     if (oldColumn == null) {
-                        throw new StatementExecutionException("bad column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                        throw new StatementExecutionException(
+                                "bad column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
                     }
                     Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(tableName);
                     if (indexes != null) {
                         for (AbstractIndexManager am : indexes.values()) {
                             for (String indexedColumn : am.getColumnNames()) {
+                                indexedColumn = fixMySqlBackTicks(indexedColumn);
                                 if (indexedColumn.equalsIgnoreCase(oldColumn.name)) {
                                     throw new StatementExecutionException(
                                             "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
-                                                    + "index name is " + am.getIndexName());
+                                            + "index name is " + am.getIndexName());
                                 }
                             }
                         }
@@ -912,28 +892,93 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     );
 
                     if (oldColumn.type != newType) {
-                        throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().getDataType()
+                        throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().
+                                getDataType()
                                 + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
                     }
                     List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                     if (table.isPrimaryKeyColumn(columnName)) {
                         boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
                         if (new_auto_increment && table.primaryKey.length > 1) {
-                            throw new StatementExecutionException("cannot add auto_increment flag to " + cl.getColDataType().getDataType()
+                            throw new StatementExecutionException("cannot add auto_increment flag to " + cl.
+                                    getColDataType().getDataType()
                                     + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
                         }
                         if (table.auto_increment != new_auto_increment) {
                             changeAutoIncrement = new_auto_increment;
                         }
                     }
-                    String renameTo = decodeRenameTo(columnSpecs);
-                    if (renameTo != null) {
-                        columnName = renameTo;
-                    }
                     Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
                     modifyColumns.add(newColumnDef);
                 }
             }
+            break;
+            case CHANGE: {
+                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+                if (tableSpaceManager == null) {
+                    throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
+                }
+                AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+                if (tableManager == null) {
+                    throw new StatementExecutionException(
+                            "bad table " + tableName + " in tablespace '" + tableSpace + "'");
+                }
+                Table table = tableManager.getTable();
+                String columnName = alterExpression.getColOldName();
+                List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
+                if (cols.size() != 1) {
+                    throw new StatementExecutionException(
+                            "bad CHANGE column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                }
+                AlterExpression.ColumnDataType cl = cols.get(0);
+                Column oldColumn = table.getColumn(columnName);
+                if (oldColumn == null) {
+                    throw new StatementExecutionException(
+                            "bad column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                }
+                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(tableName);
+                if (indexes != null) {
+                    for (AbstractIndexManager am : indexes.values()) {
+                        for (String indexedColumn : am.getColumnNames()) {
+                            indexedColumn = fixMySqlBackTicks(indexedColumn);
+                            if (indexedColumn.equalsIgnoreCase(oldColumn.name)) {
+                                throw new StatementExecutionException(
+                                        "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
+                                        + "index name is " + am.getIndexName());
+                            }
+                        }
+                    }
+                }
+                int newType = sqlDataTypeToColumnType(
+                        cl.getColDataType().getDataType(),
+                        cl.getColDataType().getArgumentsStringList()
+                );
+
+                if (oldColumn.type != newType) {
+                    throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().
+                            getDataType()
+                            + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                }
+                List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
+                if (table.isPrimaryKeyColumn(columnName)) {
+                    boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
+                    if (new_auto_increment && table.primaryKey.length > 1) {
+                        throw new StatementExecutionException(
+                                "cannot add auto_increment flag to " + cl.getColDataType().getDataType()
+                                + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                    }
+                    if (table.auto_increment != new_auto_increment) {
+                        changeAutoIncrement = new_auto_increment;
+                    }
+                }
+                String renameTo = fixMySqlBackTicks(cl.getColumnName().toLowerCase());
+                if (renameTo != null) {
+                    columnName = renameTo;
+                }
+                Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                modifyColumns.add(newColumnDef);
+            }
+
             break;
             default:
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
@@ -948,25 +993,26 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("missing table name");
             }
 
-            String tableSpace = drop.getName().getSchemaName();
+            String tableSpace = fixMySqlBackTicks(drop.getName().getSchemaName());
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String tableName = drop.getName().getName();
+            String tableName = fixMySqlBackTicks(drop.getName().getName());
             return new DropTableStatement(tableSpace, tableName, drop.isIfExists());
         }
         if (drop.getType().equalsIgnoreCase("index")) {
             if (drop.getName() == null) {
                 throw new StatementExecutionException("missing index name");
             }
-            String tableSpace = drop.getName().getSchemaName();
+            String tableSpace = fixMySqlBackTicks(drop.getName().getSchemaName());
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String indexName = drop.getName().getName();
+            String indexName = fixMySqlBackTicks(drop.getName().getName());
             return new DropIndexStatement(tableSpace, indexName, drop.isIfExists());
         }
-        throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");
+        throw new StatementExecutionException(
+                "only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");
     }
 
     private Statement buildTruncateStatement(String defaultTableSpace, Truncate truncate) throws StatementExecutionException {
@@ -979,29 +1025,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
-        String tableName = truncate.getTable().getName();
+        String tableName = fixMySqlBackTicks(truncate.getTable().getName());
         return new TruncateTableStatement(tableSpace, tableName);
-    }
-
-    private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {
-        if (!(expression instanceof Function)) {
-            return false;
-        }
-        Function function = (Function) expression;
-        String name = function.getName().toLowerCase();
-        if (BuiltinFunctions.isAggregateFunction(function.getName())) {
-            return true;
-        }
-        if (BuiltinFunctions.isScalarFunction(function.getName())) {
-            return false;
-        }
-        throw new StatementExecutionException("unsupported function " + name);
-    }
-
-    private void verifyJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
-        JdbcQueryRewriter assigner = new JdbcQueryRewriter();
-        stmt.accept(assigner);
-
     }
 
 }

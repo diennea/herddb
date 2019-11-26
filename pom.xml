@@ -71,7 +71,7 @@
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
         <libs.zookeeper>3.5.6</libs.zookeeper>
-        <libs.jsqlparser>0.9.7</libs.jsqlparser>
+        <libs.jsqlparser>3.1</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>
         <libs.slf4j>1.7.29</libs.slf4j>
