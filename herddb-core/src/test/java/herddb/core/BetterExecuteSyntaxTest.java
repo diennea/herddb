@@ -125,7 +125,7 @@ public class BetterExecuteSyntaxTest {
 
             execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.tsql'", Collections.emptyList());
             execute(manager, "CHECKTABLEINTEGRITY tblspace1.tsql", Collections.emptyList());
-            
+             execute(manager,"checktableintegrity tblspace1.tsql", Collections.emptyList());
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
                 DataAccessor first = scan.consume().get(0);
                 Number count = (Number) first.get(first.getFieldNames()[0]);
@@ -135,5 +135,7 @@ public class BetterExecuteSyntaxTest {
         }
     }
 }
+
+
 
 

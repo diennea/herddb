@@ -39,6 +39,7 @@ import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataIntegrityStatementResult;
 import herddb.model.DataScanner;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
@@ -914,21 +915,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "error on dump", error);
         }
     }
-    
-//    //for test
-//    public void createTableDigest(String tableSpace,String table){
-//        //get TableSpaceManager from TableSpace name
-//        TableSpaceManager manager= tablesSpaces.get(tableSpace);
-//        //create and write table digest to Transaction log
-//        manager.createAndWriteTableDigest(manager,tableSpace,table);      
-//    }
-//    
+      
     public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ) throws IOException{
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
-        return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
-    }   
+        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
+    }
+    
     private String makeVirtualTableSpaceManagerId(String nodeId) {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }

@@ -33,7 +33,7 @@ public  class DigestData {
     private  long digest;
     private  String digestType;
     private  int numRecords;
-    private  int nextAutoIncrementValue;
+    private  long nextAutoIncrementValue;
 
     public void setDigest(long digest){
         this.digest = digest;
@@ -51,7 +51,7 @@ public  class DigestData {
     public void setTableSpaceName(String tableSpaceName){
         this.tableSpaceName = tableSpaceName;
     }
-    public void setNextAutoIncrementValue(int nextAutoIncrementValue){
+    public void setNextAutoIncrementValue(long nextAutoIncrementValue){
         this.nextAutoIncrementValue = nextAutoIncrementValue;
     }
     
@@ -70,7 +70,7 @@ public  class DigestData {
     public String getTableName(){
         return this.tableName;
     }
-    public int getNextAutoIncrementValue(){
+    public long getNextAutoIncrementValue(){
         return this.nextAutoIncrementValue;
     }
     
@@ -87,28 +87,3 @@ public  class DigestData {
     }
     
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

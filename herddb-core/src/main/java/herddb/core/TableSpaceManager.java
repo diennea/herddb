@@ -503,6 +503,7 @@ public class TableSpaceManager {
                     String[] e = pair.split(":");
                     map.put(e[0].trim().replace("\"", ""), e[1].trim().replace("\"", ""));
                 }
+//                System.out.println(map);
                 if(recovery){
                     long _start = System.currentTimeMillis();                    
                     String tableNanme = entry.tableName;
@@ -1651,18 +1652,13 @@ public class TableSpaceManager {
         boolean lockAcquired = false;   
         StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
         Map<String,Object> map = null;
-        //Acquisisco il lock sul tablespace...devo bloccare le scritture
+        
         if (context.getTableSpaceLock() == 0) {
             long lockStamp = acquireWriteLock("checkDataIntegrity_"+table);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }      
         try{
-            //TO DO
-            int nextAutoIncrementValue=0;
-            //TO DO
-            int numRecords = 0;
-            
             AbstractTableManager tablemanager = manager.getTableManager(table);
             if(manager == null){
                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));  
@@ -1671,25 +1667,23 @@ public class TableSpaceManager {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }            
             long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
-            
+            long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
+            int numRecords = TableDataChecksum.NUM_RECORD;
             if(digest != 0){
                 DigestData digestData = new DigestData();
                 digestData.setDigest(digest);
                 digestData.setDigestType(TableDataChecksum.HASH_TYPE);
                 digestData.SetNumRecords(numRecords);
-                digestData.setTableSpaceName(tableSpace);               
+                digestData.setTableSpaceName(tableSpace);
+                digestData.setNextAutoIncrementValue(nextAutoIncrementValue);
+                digestData.setTableName(table);
                 ObjectMapper mapper = new ObjectMapper();
                 byte[] serialize = mapper.writeValueAsBytes(digestData);
-                System.out.println("serialize lenght " + serialize.length);
                 
                 Bytes value = Bytes.from_array(serialize);
-                //write digest to LogEntry
                 LogEntry entry = LogEntryFactory.dataIntegrity(table,0, value);
-//                LogEntry entry = LogEntryFactory.dataIntegrity(table,0, Bytes.from_long(digest));
                 pos=log.log(entry, false);
-                //apply with recory=false
-                apply(pos, entry, false);
-                
+                apply(pos, entry, false);         
                 map=digestData.digestInfo();
                 
                 return map;
@@ -2067,4 +2061,26 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

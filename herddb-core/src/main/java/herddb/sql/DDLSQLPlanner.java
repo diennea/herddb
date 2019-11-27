@@ -220,7 +220,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
-        if(query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND)){
+        if(query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND.toLowerCase())){
             ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(defaultTableSpace,query,parameters));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
@@ -855,7 +855,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     public Statement QueryCheckIntegrityStatement(String defaultTablespace,String query,List<Object> parameters ){
-        if (query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND)) {
+        if (query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND) || query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND.toLowerCase())) {
             query = query.substring(query.substring(0,19).length());
             System.out.println(query);         
             String tableSpace = defaultTablespace;
@@ -1046,3 +1046,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
+
+
+

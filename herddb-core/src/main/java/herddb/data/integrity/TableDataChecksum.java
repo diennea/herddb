@@ -31,48 +31,42 @@ import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
 import herddb.model.Column;
+import herddb.model.TupleComparator;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 /**
- *
+ * digest creation by scanning the table
  * @author Hamado.Dene
  */
 public abstract class TableDataChecksum{
-
-          
+         
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
-
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
     private static final int SEED = 0x9747b28c;
     public static final  int DIGEST_NOT_AVAILABLE = 0;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
-    private  TableDataChecksum (){
-       
-    }
-    
-    // TO DO passe tuplecomparator and fix serialize
+
     public static long createChecksum(TableSpaceManager manager,String tableSpace,String table){
+        // ??? how this work?
+        TupleComparator comparator=null;
+        ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),comparator,null);
         
-        ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
         try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
+
             byte[] serialize;
             while(scan.hasNext()){
-                // if next exist, get the next value
+                NUM_RECORD++;
                 DataAccessor data = scan.next();
-                //create an object array
-                Object[] obj = data.getValues();
-                
-                Column[] schema = scan.getSchema();
-                
+                Object[] obj = data.getValues();               
+                Column[] schema = scan.getSchema();                
                 for(int i=0; i< schema.length;i++){
-                    int type=schema[i].type;
-                    serialize = RecordSerializer.serialize(obj[i],type);
-                    //update record in digest
+                    serialize = RecordSerializer.serialize(obj[i],schema[i].type);
                     hash64.update(serialize, 0, SEED);
                 }
             }
+            LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,table, NUM_RECORD});
            return hash64.getValue();
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
@@ -82,6 +76,9 @@ public abstract class TableDataChecksum{
     
     public String hashType(){
         return HASH_TYPE;
+    }
+    public int numRecords(){
+        return NUM_RECORD;
     }
 }
 
