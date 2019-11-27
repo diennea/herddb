@@ -19,13 +19,13 @@
  */
 package herddb.model.commands;
 
-import herddb.model.DDLStatement;
+import herddb.model.Statement;
 
 /**
- *
+ * Table integrity check statement
  * @author Hamado.Dene
  */
-public class TableIntegrityCheckStatement extends DDLStatement{
+public class TableIntegrityCheckStatement extends Statement{
     
     private final String table;
     public TableIntegrityCheckStatement(String tableSpace, String table) {

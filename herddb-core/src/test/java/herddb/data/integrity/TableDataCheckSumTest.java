@@ -30,7 +30,7 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
-
+import herddb.model.commands.TableIntegrityCheckStatement;
 /**
  *
  * @author Hamado.Dene
@@ -50,12 +50,15 @@ public class TableDataCheckSumTest{
                 System.out.println("insert number " + i);
                 execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            
-            manager.createTableDigest("tblspace1", "tsql");
+            TableIntegrityCheckStatement statement = new TableIntegrityCheckStatement("tblspace1", "tsql");
+            manager.createTableDigest(statement);
 
         }
     }
 
 }
+
+
+
 
 

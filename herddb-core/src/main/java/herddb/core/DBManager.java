@@ -73,6 +73,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -641,7 +642,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if(transactionContext.transactionId > 0){
                 return FutureUtils.exception(new StatementExecutionException("CHECKTABLEINTEGRITY cannot be issue inside a transaction"));
             }
-            return CompletableFuture.completedFuture(createTableDigest((TableIntegrityCheckStatement) statement));
+            try {
+                return CompletableFuture.completedFuture(createTableDigest((TableIntegrityCheckStatement) statement));
+            } catch (IOException ex) {
+                LOGGER.log(Level.SEVERE, null, ex);
+            }
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -910,15 +915,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
     
-    //for test
-    public void createTableDigest(String tableSpace,String table){
-        //get TableSpaceManager from TableSpace name
-        TableSpaceManager manager= tablesSpaces.get(tableSpace);
-        //create and write table digest to Transaction log
-        manager.createAndWriteTableDigest(manager,tableSpace,table);      
-    }
-    
-    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){
+//    //for test
+//    public void createTableDigest(String tableSpace,String table){
+//        //get TableSpaceManager from TableSpace name
+//        TableSpaceManager manager= tablesSpaces.get(tableSpace);
+//        //create and write table digest to Transaction log
+//        manager.createAndWriteTableDigest(manager,tableSpace,table);      
+//    }
+//    
+    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ) throws IOException{
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
@@ -1337,30 +1342,3 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

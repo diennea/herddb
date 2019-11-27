@@ -44,6 +44,7 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
+import herddb.data.integrity.DigestData;
 import herddb.data.integrity.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
@@ -75,6 +76,7 @@ import herddb.model.TableAlreadyExistsException;
 import herddb.model.TableAwareStatement;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
@@ -100,6 +102,7 @@ import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import herddb.utils.SystemProperties;
 import java.io.EOFException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -129,6 +132,7 @@ import java.util.stream.Collectors;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * Manages a TableSet in memory
@@ -489,19 +493,39 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
-            case LogEntryType.TABLE_INTEGRITY_CHECKSUM: {
-                if(recovery == true){            
-                    String tableNanme= entry.tableName;
-                    long followerDigest=TableDataChecksum.createChecksum(this, this.tableSpaceName, tableNanme);
-                    long masterDigest=entry.value.to_long();
+            case LogEntryType.TABLE_INTEGRITY_CHECKSUM: {   
+                byte[] b = entry.value.to_array();
+                String values = new String(b);
+                values = values.substring(1, values.length()-1);
+                String[] keyvaluePairs = values.split(",");
+                Map<String, String> map = new HashMap<>();
+                for(String pair : keyvaluePairs){
+                    String[] e = pair.split(":");
+                    map.put(e[0].trim().replace("\"", ""), e[1].trim().replace("\"", ""));
+                }
+                if(recovery){
+                    long _start = System.currentTimeMillis();                    
+                    String tableNanme = entry.tableName;
+                    
+                    AbstractTableManager tablemanager = this.getTableManager(tableNanme);
+
+                    if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
+                        throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
+                    } 
+                    
+                    long followerDigest = TableDataChecksum.createChecksum(this, this.tableSpaceName, tableNanme);
+                    long masterDigest = Long.parseLong(map.get("digest"));
                     if(followerDigest == masterDigest){
-                         LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});
+                        long _stop = System.currentTimeMillis();
+                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,this.tableSpaceName,(_stop - _start)});
                     }else{
-                         LOGGER.log(Level.INFO, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1}" , new Object[]{tableNanme,this.tableSpaceName});  
+                         long _stop = System.currentTimeMillis();
+                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2}" , new Object[]{tableNanme,this.tableSpaceName,(_stop - _start)});  
                     }
                 }else{
+                     long digest = Long.parseLong(map.get("digest"));
                     //the master has nothing to do
-                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2}", new Object[]{entry.value.to_long(),entry.tableName,this.tableSpaceName});
+                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} ", new Object[]{digest,entry.tableName,this.tableSpaceName});
                 }
             }
             break;
@@ -1622,29 +1646,55 @@ public class TableSpaceManager {
         }
     }
     
-    public void createAndWriteTableDigest(TableSpaceManager manager, String tableSpace,String table ){
+    public Map<String,Object> createAndWriteTableDigest(TableSpaceManager manager, String tableSpace,String table ) throws IOException{
         CommitLogResult pos;
         boolean lockAcquired = false;   
         StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
-
+        Map<String,Object> map = null;
         //Acquisisco il lock sul tablespace...devo bloccare le scritture
         if (context.getTableSpaceLock() == 0) {
-            long lockStamp = acquireWriteLock("checkDataIntegrity");
+            long lockStamp = acquireWriteLock("checkDataIntegrity_"+table);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }      
         try{
-            //long id = newTransactionId.getAndIncrement();
-            long id = 0;
+            //TO DO
+            int nextAutoIncrementValue=0;
+            //TO DO
+            int numRecords = 0;
+            
+            AbstractTableManager tablemanager = manager.getTableManager(table);
+            if(manager == null){
+               throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));  
+            }
+            if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
+            }            
             long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
+            
             if(digest != 0){
+                DigestData digestData = new DigestData();
+                digestData.setDigest(digest);
+                digestData.setDigestType(TableDataChecksum.HASH_TYPE);
+                digestData.SetNumRecords(numRecords);
+                digestData.setTableSpaceName(tableSpace);               
+                ObjectMapper mapper = new ObjectMapper();
+                byte[] serialize = mapper.writeValueAsBytes(digestData);
+                System.out.println("serialize lenght " + serialize.length);
+                
+                Bytes value = Bytes.from_array(serialize);
                 //write digest to LogEntry
-                LogEntry entry = LogEntryFactory.dataIntegrity(table,id,Bytes.from_long(digest));
+                LogEntry entry = LogEntryFactory.dataIntegrity(table,0, value);
+//                LogEntry entry = LogEntryFactory.dataIntegrity(table,0, Bytes.from_long(digest));
                 pos=log.log(entry, false);
                 //apply with recory=false
                 apply(pos, entry, false);
+                
+                map=digestData.digestInfo();
+                
+                return map;
             }else{
-                LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});
+                LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});                
             }        
         } finally {
             if (lockAcquired) {
@@ -1652,7 +1702,7 @@ public class TableSpaceManager {
                 context.setTableSpaceLock(0);
             }
         }
-
+        return map;
     }
 
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {

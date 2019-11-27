@@ -45,16 +45,17 @@ public abstract class TableDataChecksum{
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
     private static final int SEED = 0x9747b28c;
     public static final  int DIGEST_NOT_AVAILABLE = 0;
-    
+    public static final String HASH_TYPE="StreamingXXHash64";
+    public static int NUM_RECORD=0;
     private  TableDataChecksum (){
        
     }
     
+    // TO DO passe tuplecomparator and fix serialize
     public static long createChecksum(TableSpaceManager manager,String tableSpace,String table){
         
         ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),null,null);
         try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
-             
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
             while(scan.hasNext()){
@@ -79,5 +80,10 @@ public abstract class TableDataChecksum{
         } 
     }
     
+    public String hashType(){
+        return HASH_TYPE;
+    }
 }
+
+
 
