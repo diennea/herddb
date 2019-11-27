@@ -787,19 +787,24 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         Column[] columns = table.getColumns();
         int numColumns = columns.length;
         boolean usingAliases = false;
-        for (int i = 0; i < numColumns; i++) {
-            String alias = rowType.getFieldNames().get(i).toLowerCase();
-            String colName = columns[i].name;
-            if (!alias.equals(colName)) {
-                usingAliases = true;
-                break;
+        if (rowType != null) {
+            List<String> fieldNamesFromQuery = rowType.getFieldNames();
+            for (int i = 0; i < numColumns; i++) {
+                String fieldName = fieldNamesFromQuery.get(i);
+                String alias = fieldName.toLowerCase();
+                String colName = columns[i].name;
+                if (!alias.equals(colName)) {
+                    usingAliases = true;
+                    break;
+                }
             }
         }
         if (usingAliases) {
+            List<String> fieldNamesFromQuery = rowType.getFieldNames();
             String[] fieldNames = new String[numColumns];
             int[] projections = new int[numColumns];
             for (int i = 0; i < numColumns; i++) {
-                String alias = rowType.getFieldNames().get(i).toLowerCase();
+                String alias = fieldNamesFromQuery.get(i).toLowerCase();
                 fieldNames[i] = alias;
                 projections[i] = i;
             }
