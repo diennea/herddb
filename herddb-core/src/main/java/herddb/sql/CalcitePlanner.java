@@ -784,8 +784,35 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
-        ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
-        return new TableScanOp(scanStatement);
+        Column[] columns = table.getColumns();
+        int numColumns = columns.length;
+        boolean usingAliases = false;
+        for (int i = 0; i < numColumns; i++) {
+            String alias = rowType.getFieldNames().get(i).toLowerCase();
+            String colName = columns[i].name;
+            if (!alias.equals(colName)) {
+                usingAliases = true;
+                break;
+            }
+        }
+        if (usingAliases) {
+            String[] fieldNames = new String[numColumns];
+            int[] projections = new int[numColumns];
+            for (int i = 0; i < numColumns; i++) {
+                String alias = rowType.getFieldNames().get(i).toLowerCase();
+                fieldNames[i] = alias;
+                projections[i] = i;
+            }
+            Projection zeroCopy = new ProjectOp.ZeroCopyProjection(
+                    fieldNames,
+                    columns,
+                    projections);
+             ScanStatement scanStatement = new ScanStatement(tableSpace, table, zeroCopy, null);
+            return new TableScanOp(scanStatement);
+        } else {
+            ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
+            return new TableScanOp(scanStatement);
+        }
     }
 
     private PlannerOp planBindableTableScan(BindableTableScan scan, RelDataType rowType) {
@@ -993,7 +1020,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         if (allowZeroCopyProjection) {
             if (identity) {
-                return new ProjectOp.IdentityProjection(fieldNames, columns);
+                return Projection.IDENTITY(fieldNames, columns);
             }
             return new ProjectOp.ZeroCopyProjection(
                     fieldNames,
