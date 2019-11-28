@@ -24,23 +24,18 @@ import herddb.model.DataScannerException;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 import herddb.model.TransactionContext;
-import herddb.model.FullTableScanPredicate;
-import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
-import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.model.Column;
 import herddb.model.Table;
-import herddb.model.TableSpace;
-import herddb.model.TupleComparator;
 import herddb.sql.TranslatedQuery;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 /**
@@ -56,6 +51,7 @@ public abstract class TableDataChecksum{
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
     public static long TABLE_DIGEST_DURATION=0;
+    
     public static long createChecksum(DBManager manager, TableSpaceManager tableSpaceManager,String tableSpace,String tableName){
         
          final Table table = tableSpaceManager.getTableManager(tableName).getTable();
@@ -98,17 +94,10 @@ public abstract class TableDataChecksum{
         } 
     }
     private static String parsePrimaryKeys(Table table){
-        return Arrays.toString(table.getPrimaryKey()).replaceAll("\\[", "").replaceAll("\\]","");
+        return Arrays.asList(table.getPrimaryKey()).stream().collect(Collectors.joining(","));
     }
     private static String  parseColumns(Table table){
-        Column[] colums = table.getColumns();
-        String cl="";
-        for (Column c : colums){
-            cl= cl + "," + c.name;
-        }
-        return cl.replaceFirst(",", "");
+        return Stream.of(table.getColumns()).map(Column::getName).collect(Collectors.joining(","));
     }
 }
-
-
 

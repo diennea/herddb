@@ -57,6 +57,9 @@ public class Column {
     public static Column column(String name, int type, int serialPosition) {
         return new Column(name, type, serialPosition);
     }
+    public  String getName(){
+        return name;
+    }
 
     @Override
     public String toString() {
@@ -64,3 +67,6 @@ public class Column {
     }
 
 }
+
+
+
