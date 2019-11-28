@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.jdbc;
 
 import herddb.client.HDBException;
@@ -68,8 +67,9 @@ public final class HerdDBResultSet implements ResultSet {
     private boolean closed;
 
     HerdDBResultSet(ScanResultSet scanResult) {
-         this(scanResult, null);
-     }
+        this(scanResult, null);
+    }
+
     HerdDBResultSet(ScanResultSet scanResult, HerdDBStatement parent) {
         this.scanResult = scanResult;
         this.metadata = scanResult.getMetadata();
@@ -256,11 +256,21 @@ public final class HerdDBResultSet implements ResultSet {
             if (lastValue instanceof Number) {
                 return ((Number) lastValue).intValue();
             }
-            return Integer.parseInt(lastValue.toString());
+            try {
+                return Integer.parseInt(lastValue.toString());
+            } catch (NumberFormatException err) {
+                throw buildPrettyPrintConvertionError(columnLabel, "getInt", err);
+            }
         } else {
             wasNull = true;
             return 0;
         }
+    }
+
+    private SQLException buildPrettyPrintConvertionError(int columnLabel, String method, NumberFormatException err) throws SQLException {
+        throw  new SQLException(
+                "Value '" + lastValue + "' (" + lastValue.getClass() + ") cannot be converted to an integer value, call was " + method + "(" + columnLabel + "), column names: " + Arrays.asList(
+                this.metadata.getColumnNames()), err);
     }
 
     @Override
@@ -275,7 +285,11 @@ public final class HerdDBResultSet implements ResultSet {
             if (lastValue instanceof Number) {
                 return ((Number) lastValue).longValue();
             }
-            return Long.parseLong(lastValue.toString());
+            try {
+                return Long.parseLong(lastValue.toString());
+            } catch (NumberFormatException err) {
+                throw buildPrettyPrintConvertionError(columnLabel, "getLong", err);
+            }
         } else {
             wasNull = true;
             return 0;
@@ -336,7 +350,11 @@ public final class HerdDBResultSet implements ResultSet {
             if (lastValue instanceof java.util.Date) {
                 return new java.sql.Date(((java.util.Date) lastValue).getTime());
             }
-            return new java.sql.Date(Long.parseLong(lastValue.toString()));
+            try {
+                return new java.sql.Date(Long.parseLong(lastValue.toString()));
+            } catch (NumberFormatException err) {
+                throw buildPrettyPrintConvertionError(columnLabel, "getDate", err);
+            }
         } else {
             wasNull = true;
             return null;
@@ -360,7 +378,11 @@ public final class HerdDBResultSet implements ResultSet {
             if (lastValue instanceof java.util.Date) {
                 return new java.sql.Timestamp(((java.util.Date) lastValue).getTime());
             }
-            return new java.sql.Timestamp(Long.parseLong(lastValue.toString()));
+            try {
+                return new java.sql.Timestamp(Long.parseLong(lastValue.toString()));
+            } catch (NumberFormatException err) {
+                throw buildPrettyPrintConvertionError(columnLabel, "getTimestamp", err);
+            }
         } else {
             wasNull = true;
             return null;
@@ -1064,7 +1086,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public int getHoldability() throws SQLException {
-       return ResultSet.CLOSE_CURSORS_AT_COMMIT;
+        return ResultSet.CLOSE_CURSORS_AT_COMMIT;
     }
 
     @Override
