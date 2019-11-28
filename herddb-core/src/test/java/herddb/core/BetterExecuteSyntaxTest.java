@@ -113,24 +113,14 @@ public class BetterExecuteSyntaxTest {
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "ALTER TABLESPACE 'TBLSPACE1','expectedreplicacount:2'", Collections.emptyList());
-            long tx = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
-            execute(manager, "COMMIT TRANSACTION 'tblspace1'," + tx, Collections.emptyList());
-
-            long tx2 = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
-            execute(manager, "ROLLBACK TRANSACTION 'tblspace1'," + tx2, Collections.emptyList());
-
             //execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
-            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int primary key auto_increment, s1 string)", Collections.emptyList());
-
-            execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.tsql'", Collections.emptyList());
-            execute(manager, "CHECKTABLEINTEGRITY tblspace1.tsql", Collections.emptyList());
-             execute(manager,"checktableintegrity tblspace1.tsql", Collections.emptyList());
-            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"))) {
-                DataAccessor first = scan.consume().get(0);
-                Number count = (Number) first.get(first.getFieldNames()[0]);
-                assertEquals(0, count.intValue());
+            execute(manager, "CREATE TABLE tblspace1.mytable (n1 int primary key auto_increment, s1 string)", Collections.emptyList());
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.mytable", Collections.emptyList())) {                 
             }
+
+            execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.mytable'", Collections.emptyList());
+            execute(manager, "CHECKTABLEINTEGRITY tblspace1.mytable", Collections.emptyList());
+             execute(manager,"checktableintegrity tblspace1.mytable", Collections.emptyList());          
 
         }
     }

@@ -920,7 +920,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
+        return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
     }
     
     private String makeVirtualTableSpaceManagerId(String nodeId) {

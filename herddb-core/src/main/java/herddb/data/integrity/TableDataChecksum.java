@@ -24,23 +24,16 @@ import herddb.model.DataScannerException;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 import herddb.model.TransactionContext;
-import herddb.model.FullTableScanPredicate;
-import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
-import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.model.Column;
 import herddb.model.Table;
-import herddb.model.TableSpace;
-import herddb.model.TupleComparator;
 import herddb.sql.TranslatedQuery;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 /**
@@ -65,8 +58,7 @@ public abstract class TableDataChecksum{
          System.out.println("colonne " + columns);
           TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
                         + columns 
-                        + " FROM " + tableSpace 
-                        +"." + tableName 
+                        + " FROM "+ tableName 
                         + " order by " 
                         + parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
         
