@@ -1259,7 +1259,7 @@ public class HerdDBCLI {
             return;
         }
         String message = err.toString();
-        int stacktrace = message.indexOf("\n\tat ");        
+        int stacktrace = message.indexOf("\n\tat ");
         if (stacktrace > 0) {
             int exceptionName = message.lastIndexOf("Exception: ", stacktrace);
             if (exceptionName > 0 && exceptionName < stacktrace) {
@@ -1610,7 +1610,7 @@ public class HerdDBCLI {
                 line = reader.readLine(prompt);
                 if (line == null) {
                     return;
-                }                
+                }
                 executeStatement(verbose, true, false, false, line, statement, null, false, pretty);
             } catch (UserInterruptException | EndOfFileException e) {
                 return;
