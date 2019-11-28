@@ -61,8 +61,7 @@ public abstract class TableDataChecksum{
          System.out.println("colonne " + columns);
           TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
                         + columns 
-                        + " FROM " + tableSpace 
-                        +"." + tableName 
+                        + " FROM "+ tableName 
                         + " order by " 
                         + parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
         
@@ -100,4 +99,5 @@ public abstract class TableDataChecksum{
         return Stream.of(table.getColumns()).map(Column::getName).collect(Collectors.joining(","));
     }
 }
+
 

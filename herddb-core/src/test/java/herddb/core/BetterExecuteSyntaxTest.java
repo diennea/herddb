@@ -121,8 +121,10 @@ public class BetterExecuteSyntaxTest {
                    execute(manager, "CHECKTABLEINTEGRITY tblspace1.mytable", Collections.emptyList());
                     execute(manager,"checktableintegrity tblspace1.mytable", Collections.emptyList());          
 
+
         }
     }
 }
+
 
 
