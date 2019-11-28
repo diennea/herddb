@@ -503,9 +503,7 @@ public class TableSpaceManager {
                     String[] e = pair.split(":");
                     map.put(e[0].trim().replace("\"", ""), e[1].trim().replace("\"", ""));
                 }
-//                System.out.println(map);
-                if(recovery){
-                    long _start = System.currentTimeMillis();                    
+                if(recovery){                
                     String tableNanme = entry.tableName;
                     
                     AbstractTableManager tablemanager = this.getTableManager(tableNanme);
@@ -514,19 +512,17 @@ public class TableSpaceManager {
                         throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
                     } 
                     
-                    long followerDigest = TableDataChecksum.createChecksum(this, this.tableSpaceName, tableNanme);
+                    long followerDigest = TableDataChecksum.createChecksum(this.getDbmanager(),this, this.tableSpaceName, tableNanme);
                     long masterDigest = Long.parseLong(map.get("digest"));
                     if(followerDigest == masterDigest){
-                        long _stop = System.currentTimeMillis();
-                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,this.tableSpaceName,(_stop - _start)});
+                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,this.tableSpaceName,TableDataChecksum.TABLE_DIGEST_DURATION});
                     }else{
                          long _stop = System.currentTimeMillis();
-                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2}" , new Object[]{tableNanme,this.tableSpaceName,(_stop - _start)});  
+                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,this.tableSpaceName,TableDataChecksum.TABLE_DIGEST_DURATION});  
                     }
                 }else{
-                     long digest = Long.parseLong(map.get("digest"));
-                    //the master has nothing to do
-                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} ", new Object[]{digest,entry.tableName,this.tableSpaceName});
+                    long digest = Long.parseLong(map.get("digest"));
+                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,this.tableSpaceName, TableDataChecksum.TABLE_DIGEST_DURATION});
                 }
             }
             break;
@@ -1666,7 +1662,7 @@ public class TableSpaceManager {
             if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }            
-            long digest = TableDataChecksum.createChecksum(manager, tableSpace, table); 
+            long digest = TableDataChecksum.createChecksum(manager.getDbmanager(),manager, tableSpace, table); 
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
             int numRecords = TableDataChecksum.NUM_RECORD;
             if(digest != 0){

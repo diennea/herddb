@@ -30,8 +30,17 @@ import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractTableManager;
+import herddb.core.DBManager;
 import herddb.model.Column;
+import herddb.model.Table;
+import herddb.model.TableSpace;
 import herddb.model.TupleComparator;
+import herddb.sql.TranslatedQuery;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 /**
@@ -46,16 +55,28 @@ public abstract class TableDataChecksum{
     public static final  int DIGEST_NOT_AVAILABLE = 0;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
-
-    public static long createChecksum(TableSpaceManager manager,String tableSpace,String table){
-        // ??? how this work?
-        TupleComparator comparator=null;
-        ScanStatement statement = new ScanStatement(tableSpace, table, null,new FullTableScanPredicate(),comparator,null);
+    public static long TABLE_DIGEST_DURATION=0;
+    public static long createChecksum(DBManager manager, TableSpaceManager tableSpaceManager,String tableSpace,String tableName){
         
-        try ( DataScanner scan = manager.scan(statement,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION, false,false);){
+         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
+         System.out.println("primary key "  + parsePrimaryKeys(table));
+          System.out.println("columns"  + Arrays.toString(table.getColumns()));
+         String columns = parseColumns(table);
+         System.out.println("colonne " + columns);
+          TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
+                        + columns 
+                        + " FROM " + tableSpace 
+                        +"." + tableName 
+                        + " order by " 
+                        + parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
+        
+        ScanStatement statement =  translated.plan.mainStatement.unwrap(ScanStatement.class);
+        
+        try ( DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);){
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
-
             byte[] serialize;
+            long _start = System.currentTimeMillis(); 
+            
             while(scan.hasNext()){
                 NUM_RECORD++;
                 DataAccessor data = scan.next();
@@ -67,18 +88,25 @@ public abstract class TableDataChecksum{
                 }
             }
             LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,table, NUM_RECORD});
+            long _stop = System.currentTimeMillis();    
+            TABLE_DIGEST_DURATION = (_stop - _start);
+            
            return hash64.getValue();
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
             return DIGEST_NOT_AVAILABLE;
         } 
     }
-    
-    public String hashType(){
-        return HASH_TYPE;
+    private static String parsePrimaryKeys(Table table){
+        return Arrays.toString(table.getPrimaryKey()).replaceAll("\\[", "").replaceAll("\\]","");
     }
-    public int numRecords(){
-        return NUM_RECORD;
+    private static String  parseColumns(Table table){
+        Column[] colums = table.getColumns();
+        String cl="";
+        for (Column c : colums){
+            cl= cl + "," + c.name;
+        }
+        return cl.replaceFirst(",", "");
     }
 }
 
