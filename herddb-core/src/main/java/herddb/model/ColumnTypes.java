@@ -20,6 +20,8 @@
 
 package herddb.model;
 
+import java.sql.Types;
+
 /**
  * Column types
  *
@@ -109,6 +111,12 @@ public class ColumnTypes {
     }
 
 
+    /**
+     * Convert HerdDB Type to Metadata type.
+     * @param type
+     * @return the mapped value
+     * @see #sqlDataTypeToJdbcType(java.lang.String)
+     */
     public static String sqlDataType(int type) {
         switch (type) {
             case STRING:
@@ -132,6 +140,34 @@ public class ColumnTypes {
                 return "boolean";
             default:
                 return "type?" + type;
+        }
+    }
+
+    /**
+     * Convert metadata type to java.sql.Types (used on client side, JDBC driver).
+     * @param type
+     * @return the mapped value
+     */
+    public static int sqlDataTypeToJdbcType(String type) {
+        switch (type) {
+            case "string":
+                return Types.VARCHAR;
+            case "long":
+                return Types.BIGINT;
+            case "integer":
+                return Types.INTEGER;
+            case "bytearray":
+                return Types.BLOB;
+            case "timestamp":
+                return Types.TIMESTAMP;
+            case "null":
+                return Types.NULL;
+            case "double":
+                return Types.DOUBLE;
+            case "boolean":
+                return Types.BOOLEAN;
+            default:
+                return Types.OTHER;
         }
     }
 
