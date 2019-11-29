@@ -91,6 +91,7 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableIntegrityCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -1196,6 +1197,8 @@ public class TableSpaceManager {
                 res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
+            } else if(statement instanceof TableIntegrityCheckStatement){
+                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableIntegrityCheckStatement) statement));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -2082,5 +2085,3 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
-
-

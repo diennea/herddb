@@ -639,16 +639,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
-        if(statement instanceof TableIntegrityCheckStatement){
-            if(transactionContext.transactionId > 0){
-                return FutureUtils.exception(new StatementExecutionException("CHECKTABLEINTEGRITY cannot be issue inside a transaction"));
-            }
-            try {
-                return CompletableFuture.completedFuture(createTableDigest((TableIntegrityCheckStatement) statement));
-            } catch (IOException ex) {
-                LOGGER.log(Level.SEVERE, null, ex);
-            }
-        }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             return FutureUtils.exception(new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
@@ -916,10 +906,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
       
-    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ) throws IOException{
+    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
-        manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);   
+        try {   
+            manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);
+        } catch (IOException ex) {
+           LOGGER.log(Level.SEVERE, null, ex);
+        }
         return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
     }
     
@@ -1336,5 +1330,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
+
 
 
