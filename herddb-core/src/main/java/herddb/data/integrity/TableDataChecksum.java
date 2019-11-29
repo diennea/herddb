@@ -28,12 +28,15 @@ import herddb.model.commands.ScanStatement;
 import herddb.core.TableSpaceManager;
 import herddb.utils.DataAccessor;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.model.Column;
 import herddb.model.Table;
 import herddb.sql.TranslatedQuery;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
@@ -47,25 +50,30 @@ public abstract class TableDataChecksum{
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
     private static final int SEED = 0x9747b28c;
-    public static final  int DIGEST_NOT_AVAILABLE = 0;
+    public static final  boolean DIGEST_NOT_AVAILABLE = false;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
     public static long TABLE_DIGEST_DURATION=0;
+    private static TranslatedQuery translated;
+    private static final  Map<String, Object> scanresult = new HashMap<>();
     
-    public static long createChecksum(DBManager manager, TableSpaceManager tableSpaceManager,String tableSpace,String tableName){
+    //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename )
+    //this data will be written to the transaction log so the follower nodes will do exactly what the master did
+    public static Map<String,Object> createChecksum(DBManager manager,TranslatedQuery query, TableSpaceManager tableSpaceManager,String tableSpace,String tableName){
         
-         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
-         System.out.println("primary key "  + parsePrimaryKeys(table));
-          System.out.println("columns"  + Arrays.toString(table.getColumns()));
-         String columns = parseColumns(table);
-         System.out.println("colonne " + columns);
-          TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
-                        + columns 
-                        + " FROM "+ tableName 
-                        + " order by " 
-                        + parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
-        
+        AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
+        if(query == null){
+            final Table table = tableSpaceManager.getTableManager(tableName).getTable();
+            String columns = parseColumns(table);
+            translated = manager.getPlanner().translate(tableSpace, "SELECT  "
+                    + columns 
+                    + " FROM "+ tableName 
+                    + " order by " 
+                    + parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
+         }
+        translated = query;        
         ScanStatement statement =  translated.plan.mainStatement.unwrap(ScanStatement.class);
+        LOGGER.log(Level.INFO,"creating digest for table {0}.{1} ", new Object[]{tableSpace,tableName});
         
         try ( DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);){
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
@@ -82,20 +90,35 @@ public abstract class TableDataChecksum{
                     hash64.update(serialize, 0, SEED);
                 }
             }
-            LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,table, NUM_RECORD});
-            long _stop = System.currentTimeMillis();    
+            LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,tableName, NUM_RECORD});
+            long _stop = System.currentTimeMillis();
+            long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();  
             TABLE_DIGEST_DURATION = (_stop - _start);
+             LOGGER.log(Level.INFO,"Creating digest for table {0}.{1} finished ", new Object[]{tableSpace,tableName});
+             
+            scanresult.put("digest", hash64.getValue());
+            scanresult.put("digestType", HASH_TYPE);
+            scanresult.put("numRecords", NUM_RECORD);
+            scanresult.put("tableSpaceName", tableSpace);
+            scanresult.put("tableName", tableName);
+            scanresult.put("nextAutoIncrementValue", nextAutoIncrementValue);
+            scanresult.put("ScanDuration", TABLE_DIGEST_DURATION);
+            scanresult.put("query",translated.context.query);
+            scanresult.put("DIGEST_NOT_AVAIBLE", false);
             
-           return hash64.getValue();
+            
+           return scanresult;
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
-            return DIGEST_NOT_AVAILABLE;
+            scanresult.put("DIGEST_NOT_AVAIBLE", DIGEST_NOT_AVAILABLE);
+            return scanresult;
         } 
     }
-    private static String parsePrimaryKeys(Table table){
+    
+    public  static String parsePrimaryKeys(Table table){
         return Arrays.asList(table.getPrimaryKey()).stream().collect(Collectors.joining(","));
     }
-    private static String  parseColumns(Table table){
+    public static String  parseColumns(Table table){
         return Stream.of(table.getColumns()).map(Column::getName).collect(Collectors.joining(","));
     }
 }

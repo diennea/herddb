@@ -46,6 +46,7 @@ import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
 import herddb.data.integrity.DigestData;
 import herddb.data.integrity.TableDataChecksum;
+import static herddb.data.integrity.TableDataChecksum.parseColumns;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.jmx.JMXUtils;
@@ -95,6 +96,7 @@ import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.server.ServerConfiguration;
+import herddb.sql.TranslatedQuery;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -498,31 +500,43 @@ public class TableSpaceManager {
                 String values = new String(b);
                 values = values.substring(1, values.length()-1);
                 String[] keyvaluePairs = values.split(",");
-                Map<String, String> map = new HashMap<>();
+                //this map contains the values ​​written to the transaction log by the master
+                Map<String, String> map = new HashMap<>();               
                 for(String pair : keyvaluePairs){
                     String[] e = pair.split(":");
                     map.put(e[0].trim().replace("\"", ""), e[1].trim().replace("\"", ""));
                 }
+                String tablespacename =  map.get("tableSpaceName");
+                String query = map.get("query");
+                //In recovery mode the follower will have to run the query on the transaction log
                 if(recovery){                
                     String tableNanme = entry.tableName;
+
                     
                     AbstractTableManager tablemanager = this.getTableManager(tableNanme);
-
+                    DBManager manager = this.getDbmanager();
+                    
                     if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                         throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
                     } 
+                    TranslatedQuery translated = manager.getPlanner().translate(tablespacename,query, Collections.emptyList(), true, false, false, -1) ;
                     
-                    long followerDigest = TableDataChecksum.createChecksum(this.getDbmanager(),this, this.tableSpaceName, tableNanme);
+                    Map<String,Object> scanResult = TableDataChecksum.createChecksum(manager,translated,this, tablespacename, tableNanme);
+                    
+                    long followerDigest =Long.parseLong(scanResult.get("query").toString());                 
                     long masterDigest = Long.parseLong(map.get("digest"));
-                    if(followerDigest == masterDigest){
-                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,this.tableSpaceName,TableDataChecksum.TABLE_DIGEST_DURATION});
+                    int  masterNumRecords = Integer.parseInt(map.get("numRecords"));
+                    int follNumRecords = Integer.parseInt(scanResult.get("numRecords").toString());
+                    
+                    //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
+                    if(followerDigest == masterDigest && masterNumRecords == follNumRecords ){
+                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});
                     }else{
-                         long _stop = System.currentTimeMillis();
-                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,this.tableSpaceName,TableDataChecksum.TABLE_DIGEST_DURATION});  
+                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});  
                     }
                 }else{
-                    long digest = Long.parseLong(map.get("digest"));
-                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,this.tableSpaceName, TableDataChecksum.TABLE_DIGEST_DURATION});
+                   long digest = Long.parseLong(map.get("digest"));
+                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,tablespacename, TableDataChecksum.TABLE_DIGEST_DURATION});
                 }
             }
             break;
@@ -1642,47 +1656,58 @@ public class TableSpaceManager {
             this.tablesCheckpoints = tablesCheckpoints;
         }
     }
-    
-    public Map<String,Object> createAndWriteTableDigest(TableSpaceManager manager, String tableSpace,String table ) throws IOException{
+    //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
+    public Map<String,Object> createAndWriteTableDigest(TableSpaceManager tableSpaceManager, String tableSpace,String tableName ) throws IOException{
         CommitLogResult pos;
         boolean lockAcquired = false;   
         StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
-        Map<String,Object> map = null;
+        Map<String, Object> scanresult=null;
         
         if (context.getTableSpaceLock() == 0) {
-            long lockStamp = acquireWriteLock("checkDataIntegrity_"+table);
+            long lockStamp = acquireWriteLock("checkDataIntegrity_"+tableName);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }      
         try{
-            AbstractTableManager tablemanager = manager.getTableManager(table);
-            if(manager == null){
+            AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
+            if(tableSpaceManager == null){
                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));  
             }
             if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
-            }            
-            long digest = TableDataChecksum.createChecksum(manager.getDbmanager(),manager, tableSpace, table); 
-            long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
-            int numRecords = TableDataChecksum.NUM_RECORD;
-            if(digest != 0){
-                DigestData digestData = new DigestData();
-                digestData.setDigest(digest);
-                digestData.setDigestType(TableDataChecksum.HASH_TYPE);
-                digestData.SetNumRecords(numRecords);
+            }
+            DBManager manager = tableSpaceManager.getDbmanager();
+            final Table table = tableSpaceManager.getTableManager(tableName).getTable();            
+            String columns = TableDataChecksum.parseColumns(table);
+            TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
+                    + columns 
+                    + " FROM "+ tableName 
+                    + " order by " 
+                    + TableDataChecksum.parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
+                    
+            scanresult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(),translated,tableSpaceManager, tableSpace, tableName);
+            
+            if(scanresult.get("DIGEST_NOT_AVAIBLE").equals(false)){
+                
+                String query = scanresult.get("query").toString().replace(",", "+");
+                DigestData digestData = new DigestData();               
+                digestData.setScanQuery(query);
+                digestData.setDigest(Long.parseLong(scanresult.get("digest").toString()));
+                digestData.setDigestType(scanresult.get("digestType").toString());
+                digestData.SetNumRecords(Integer.parseInt(scanresult.get("numRecords").toString()));
                 digestData.setTableSpaceName(tableSpace);
-                digestData.setNextAutoIncrementValue(nextAutoIncrementValue);
-                digestData.setTableName(table);
+                digestData.setNextAutoIncrementValue(Integer.parseInt(scanresult.get("nextAutoIncrementValue").toString()));
+                digestData.setTableName(tableName);
+                              
                 ObjectMapper mapper = new ObjectMapper();
-                byte[] serialize = mapper.writeValueAsBytes(digestData);
+                byte[] serialize = mapper.writeValueAsBytes(digestData.digestInfo());
                 
                 Bytes value = Bytes.from_array(serialize);
-                LogEntry entry = LogEntryFactory.dataIntegrity(table,0, value);
+                LogEntry entry = LogEntryFactory.dataIntegrity(tableName,0, value);
                 pos=log.log(entry, false);
                 apply(pos, entry, false);         
-                map=digestData.digestInfo();
-                
-                return map;
+
+                return scanresult;
             }else{
                 LOGGER.log(Level.SEVERE, "Digest for TABLE {0} in TABLESPACE {1} FAILLED ", new Object[]{table,tableSpace});                
             }        
@@ -1692,7 +1717,7 @@ public class TableSpaceManager {
                 context.setTableSpaceLock(0);
             }
         }
-        return map;
+        return scanresult;
     }
 
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
@@ -2057,26 +2082,5 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

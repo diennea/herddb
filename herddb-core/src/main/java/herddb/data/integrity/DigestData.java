@@ -19,6 +19,7 @@
  */
 package herddb.data.integrity;
 
+import herddb.sql.TranslatedQuery;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,14 +35,14 @@ public  class DigestData {
     private  String digestType;
     private  int numRecords;
     private  long nextAutoIncrementValue;
-
+    private String query;
+    
     public void setDigest(long digest){
         this.digest = digest;
     }
     public void setDigestType(String digestType){
         this.digestType = digestType;
-    }
-    
+    }    
     public void SetNumRecords(int numRecords){
         this.numRecords = numRecords;
     }
@@ -53,6 +54,9 @@ public  class DigestData {
     }
     public void setNextAutoIncrementValue(long nextAutoIncrementValue){
         this.nextAutoIncrementValue = nextAutoIncrementValue;
+    }
+    public void setScanQuery(String query){
+        this.query = query;
     }
     
     public long getDigest(){
@@ -73,6 +77,9 @@ public  class DigestData {
     public long getNextAutoIncrementValue(){
         return this.nextAutoIncrementValue;
     }
+    public String getScanQuery(String query){
+        return this.query;
+    }
     
     public Map<String,Object> digestInfo(){
         Map<String, Object> map = new HashMap<>();
@@ -82,7 +89,7 @@ public  class DigestData {
         map.put("tableSpaceName", tableSpaceName);
         map.put("tableName", tableName);
         map.put("nextAutoIncrementValue", nextAutoIncrementValue);
-        
+        map.put("query", query);
         return map;
     }
     
