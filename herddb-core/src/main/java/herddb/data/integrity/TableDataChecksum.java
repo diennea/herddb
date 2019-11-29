@@ -50,7 +50,7 @@ public abstract class TableDataChecksum{
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
     private static final int SEED = 0x9747b28c;
-    public static final  boolean DIGEST_NOT_AVAILABLE = false;
+    public static final  boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
     public static long TABLE_DIGEST_DURATION=0;
