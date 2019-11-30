@@ -502,7 +502,7 @@ public class TableSpaceManager {
                 try {
                     Map<String, Object> map = new ObjectMapper().readValue(new ByteArrayInputStream(entry.value.to_array()), Map.class);
                     String tablespacename =  map.get("tableSpaceName").toString();
-                    String query = map.get("query").toString();
+                    String query = map.get("query").toString().replaceAll("\\+", "");
                     //In recovery mode the follower will have to run the query on the transaction log
                     if(recovery){
                         String tableNanme = entry.tableName;                                          
@@ -2080,3 +2080,4 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
+
