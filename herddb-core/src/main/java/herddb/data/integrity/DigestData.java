@@ -77,7 +77,7 @@ public  class DigestData {
     public long getNextAutoIncrementValue(){
         return this.nextAutoIncrementValue;
     }
-    public String getScanQuery(String query){
+    public String getScanQuery(){
         return this.query;
     }
     

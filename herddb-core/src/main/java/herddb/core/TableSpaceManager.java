@@ -104,6 +104,7 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import herddb.utils.SystemProperties;
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,6 +137,7 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 
 /**
  * Manages a TableSet in memory
@@ -496,48 +498,41 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
-            case LogEntryType.TABLE_INTEGRITY_CHECKSUM: {   
-                byte[] b = entry.value.to_array();
-                String values = new String(b);
-                values = values.substring(1, values.length()-1);
-                String[] keyvaluePairs = values.split(",");
-                //this map contains the values ​​written to the transaction log by the master
-                Map<String, String> map = new HashMap<>();               
-                for(String pair : keyvaluePairs){
-                    String[] e = pair.split(":");
-                    map.put(e[0].trim().replace("\"", ""), e[1].trim().replace("\"", ""));
-                }
-                String tablespacename =  map.get("tableSpaceName");
-                String query = map.get("query");
-                //In recovery mode the follower will have to run the query on the transaction log
-                if(recovery){                
-                    String tableNanme = entry.tableName;
-
-                    
-                    AbstractTableManager tablemanager = this.getTableManager(tableNanme);
-                    DBManager manager = this.getDbmanager();
-                    
-                    if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
-                        throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
-                    } 
-                    TranslatedQuery translated = manager.getPlanner().translate(tablespacename,query, Collections.emptyList(), true, false, false, -1) ;
-                    
-                    Map<String,Object> scanResult = TableDataChecksum.createChecksum(manager,translated,this, tablespacename, tableNanme);
-                    
-                    long followerDigest =Long.parseLong(scanResult.get("query").toString());                 
-                    long masterDigest = Long.parseLong(map.get("digest"));
-                    int  masterNumRecords = Integer.parseInt(map.get("numRecords"));
-                    int follNumRecords = Integer.parseInt(scanResult.get("numRecords").toString());
-                    
-                    //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
-                    if(followerDigest == masterDigest && masterNumRecords == follNumRecords ){
-                        LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});
+            case LogEntryType.TABLE_INTEGRITY_CHECKSUM:  {
+                try {
+                    Map<String, Object> map = new ObjectMapper().readValue(new ByteArrayInputStream(entry.value.to_array()), Map.class);
+                    String tablespacename =  map.get("tableSpaceName").toString();
+                    String query = map.get("query").toString();
+                    //In recovery mode the follower will have to run the query on the transaction log
+                    if(recovery){
+                        String tableNanme = entry.tableName;                                          
+                        AbstractTableManager tablemanager = this.getTableManager(tableNanme);
+                        DBManager manager = this.getDbmanager();
+                        
+                        if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
+                            throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
+                        }
+                        TranslatedQuery translated = manager.getPlanner().translate(tablespacename,query, Collections.emptyList(), true, false, false, -1) ;
+                        
+                        Map<String,Object> scanResult = TableDataChecksum.createChecksum(manager,translated,this, tablespacename, tableNanme);
+                        
+                        long followerDigest =Long.parseLong(scanResult.get("digest").toString());
+                        long masterDigest = Long.parseLong(map.get("digest").toString());
+                        int  masterNumRecords = Integer.parseInt(map.get("numRecords").toString());
+                        int follNumRecords = Integer.parseInt(scanResult.get("numRecords").toString());
+                        
+                        //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
+                        if(followerDigest == masterDigest && masterNumRecords == follNumRecords ){
+                            LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});
+                        }else{
+                            LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});
+                        }
                     }else{
-                         LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,tablespacename,TableDataChecksum.TABLE_DIGEST_DURATION});  
+                        long digest = Long.parseLong(map.get("digest").toString());  
+                        LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,tablespacename, TableDataChecksum.TABLE_DIGEST_DURATION});
                     }
-                }else{
-                   long digest = Long.parseLong(map.get("digest"));
-                    LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,tablespacename, TableDataChecksum.TABLE_DIGEST_DURATION});
+                } catch (IOException ex) {
+                    LOGGER.log(Level.SEVERE, null, ex);
                 }
             }
             break;
