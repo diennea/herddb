@@ -41,6 +41,7 @@ import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataIntegrityStatementResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
@@ -906,15 +907,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
       
-    public StatementExecutionResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){
+    public DataIntegrityStatementResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){    
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
-        try {   
+        try {
             manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);
-        } catch (IOException ex) {
-           LOGGER.log(Level.SEVERE, null, ex);
+        } catch (IOException | DataScannerException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
         }
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
+        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);        
     }
     
     private String makeVirtualTableSpaceManagerId(String nodeId) {

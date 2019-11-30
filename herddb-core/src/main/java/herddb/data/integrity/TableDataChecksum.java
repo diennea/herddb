@@ -35,8 +35,6 @@ import herddb.model.Table;
 import herddb.sql.TranslatedQuery;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
@@ -53,13 +51,12 @@ public abstract class TableDataChecksum{
     public static final  boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
-    public static long TABLE_DIGEST_DURATION=0;
+    public static long TABLE_SCAN_DURATION=0;
     private static TranslatedQuery translated;
-    private static final  Map<String, Object> scanresult = new HashMap<>();
     
-    //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename )
+    //this method returns a TableChecksum object with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename )
     //this data will be written to the transaction log so the follower nodes will do exactly what the master did
-    public static Map<String,Object> createChecksum(DBManager manager,TranslatedQuery query, TableSpaceManager tableSpaceManager,String tableSpace,String tableName){
+    public static TableChecksum createChecksum(DBManager manager,TranslatedQuery query, TableSpaceManager tableSpaceManager,String tableSpace,String tableName) throws DataScannerException{
         
         AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
         if(query == null){
@@ -93,25 +90,13 @@ public abstract class TableDataChecksum{
             LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,tableName, NUM_RECORD});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();  
-            TABLE_DIGEST_DURATION = (_stop - _start);
+            TABLE_SCAN_DURATION = (_stop - _start);
              LOGGER.log(Level.INFO,"Creating digest for table {0}.{1} finished ", new Object[]{tableSpace,tableName});
-             
-            scanresult.put("digest", hash64.getValue());
-            scanresult.put("digestType", HASH_TYPE);
-            scanresult.put("numRecords", NUM_RECORD);
-            scanresult.put("tableSpaceName", tableSpace);
-            scanresult.put("tableName", tableName);
-            scanresult.put("nextAutoIncrementValue", nextAutoIncrementValue);
-            scanresult.put("ScanDuration", TABLE_DIGEST_DURATION);
-            scanresult.put("query",translated.context.query);
-            scanresult.put("DIGEST_NOT_AVAIBLE", false);
             
-            
-           return scanresult;
+           return new TableChecksum ( tableSpace, tableName, hash64.getValue(), HASH_TYPE, NUM_RECORD,  nextAutoIncrementValue, translated.context.query,TABLE_SCAN_DURATION,true);
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
-            scanresult.put("DIGEST_NOT_AVAIBLE", DIGEST_NOT_AVAILABLE);
-            return scanresult;
+            throw new DataScannerException(ex);
         } 
     }
     

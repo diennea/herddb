@@ -34,6 +34,7 @@ import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataIntegrityStatementResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
@@ -784,7 +785,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     channel.sendReplyMessage(message.messageId,
                             PduCodec.ExecuteStatementResult.write(
                                     message.messageId, 1, ddl.transactionId, null));
-                } else {
+                } else if(result instanceof DataIntegrityStatementResult){
+                    DataIntegrityStatementResult disr = (DataIntegrityStatementResult) result;
+                    channel.sendReplyMessage(message.messageId, 
+                            PduCodec.ExecuteStatementResult.write(
+                                    message.messageId, 1, disr.transactionId, null));
+                }else {
                     ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "unknown result type:" + result);
                     channel.sendReplyMessage(message.messageId, error);
                 }
