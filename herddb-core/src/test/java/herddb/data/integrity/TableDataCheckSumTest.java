@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
 import herddb.model.commands.TableIntegrityCheckStatement;
+import herddb.model.commands.TableSpaceIntegrityCheckStatement;
 /**
  *
  * @author Hamado.Dene
@@ -45,15 +46,20 @@ public class TableDataCheckSumTest{
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());            
+            execute(manager, "CREATE TABLE tblspace1.tsql1 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());            
+            execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            
             for(int i=0; i<10; i++){
                 System.out.println("insert number " + i);
-                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
+                execute(manager, "INSERT INTO tblspace1.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
+                execute(manager, "INSERT INTO tblspace1.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            TableIntegrityCheckStatement statement = new TableIntegrityCheckStatement("tblspace1", "tsql");
-            
-            manager.executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-
+            TableIntegrityCheckStatement statement = new TableIntegrityCheckStatement("tblspace1", "tsql");            
+            manager.executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);            
+            TableSpaceIntegrityCheckStatement statement2  = new TableSpaceIntegrityCheckStatement("tblspace1");
+            manager.executeStatement(statement2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
     }
 

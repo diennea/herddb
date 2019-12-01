@@ -51,6 +51,7 @@ import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
@@ -61,6 +62,7 @@ import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TableIntegrityCheckStatement;
+import herddb.model.commands.TableSpaceIntegrityCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -640,6 +642,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
+        if(statement instanceof TableSpaceIntegrityCheckStatement){
+            if(transactionContext.transactionId > 0){
+                return FutureUtils.exception(new StatementExecutionException("CHECKTABLESPACEINTEGRITY cannot be issue inside a transaction"));
+            }
+            return CompletableFuture.completedFuture(createTableSpaceDigest ((TableSpaceIntegrityCheckStatement) statement));
+        }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             return FutureUtils.exception(new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
@@ -916,6 +924,27 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, null, ex);
         }
         return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);        
+    }
+    
+    public DataIntegrityStatementResult createTableSpaceDigest(TableSpaceIntegrityCheckStatement tableSpaceIntegrityCheckStatement ){    
+        TableSpaceManager manager= tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
+        String tableSpace = tableSpaceIntegrityCheckStatement.getTableSpace();
+        List<Table> tables = manager.getAllCommittedTables();
+        long _start = System.currentTimeMillis();
+        for(Table table : tables){
+            AbstractTableManager tableManager = manager.getTableManager(table.name);
+            if(!tableManager.isSystemTable()){
+                try{
+                    manager.createAndWriteTableDigest(manager, tableSpace, tableManager.getTable().name);
+                }catch(IOException | DataScannerException ex){
+                    LOGGER.log(Level.SEVERE, null, ex);
+                }           
+            }                   
+        }
+        long _stop = System.currentTimeMillis();
+        long tableSpace_check_duration = (_stop - _start);
+        LOGGER.log(Level.INFO,"CHECK TABLESPACE {0} INTEGRITY DONE IN {1} ms", new Object[]{tableSpace,tableSpace_check_duration});
+        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);                
     }
     
     private String makeVirtualTableSpaceManagerId(String nodeId) {

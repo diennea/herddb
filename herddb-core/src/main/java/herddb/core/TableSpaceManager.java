@@ -1707,7 +1707,7 @@ public class TableSpaceManager {
             }
         }        
     }
-
+    
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
@@ -2070,7 +2070,3 @@ public class TableSpaceManager {
                 + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
-
-
-
-
