@@ -181,6 +181,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
     public static final  String TABLE_INTEGRITY_COMMAND="CHECKTABLEINTEGRITY";
+    public static final  String TABLESPACE_INTEGRITY_COMMAND="CHECKTABLESPACEINTEGRITY";
     
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
@@ -246,6 +247,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if(query.startsWith(TABLE_INTEGRITY_COMMAND) || query.startsWith(TABLE_INTEGRITY_COMMAND.toLowerCase())){
+            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }
+        if(query.startsWith(TABLESPACE_INTEGRITY_COMMAND) || query.startsWith(TABLESPACE_INTEGRITY_COMMAND.toLowerCase())){
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }

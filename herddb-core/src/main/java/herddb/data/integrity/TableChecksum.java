@@ -61,7 +61,7 @@ public class TableChecksum {
     }
 
     public boolean isDigestIsAvaible() {
-        return digestIsAvaible;
+        return true;
     }
 
     public void setDigestIsAvaible(boolean digestIsAvaible) {

@@ -109,18 +109,25 @@ public class BetterExecuteSyntaxTest {
     public void betterSyntax() throws Exception {
 
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-                   manager.start();
-                   execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
-                   manager.waitForTablespace("tblspace1", 10000);
-
-                   //execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
-                   execute(manager, "CREATE TABLE tblspace1.mytable (n1 int primary key auto_increment, s1 string)", Collections.emptyList());
-                   try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.mytable", Collections.emptyList())) {                 
-                   }
-                   execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.mytable'", Collections.emptyList());
-                   execute(manager, "CHECKTABLEINTEGRITY tblspace1.mytable", Collections.emptyList());
-                    execute(manager,"checktableintegrity tblspace1.mytable", Collections.emptyList());          
-
+                manager.start();
+                execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
+                manager.waitForTablespace("tblspace1", 10000);
+                execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+                execute(manager, "CREATE TABLE tblspace1.tsql1 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+                execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+                    
+                for(int i=0; i<10; i++){
+                    System.out.println("insert number " + i);
+                    execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
+                    execute(manager, "INSERT INTO tblspace1.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
+                    execute(manager, "INSERT INTO tblspace1.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+                }
+                    try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.mytable", Collections.emptyList())) {                 
+                }
+                execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.mytable'", Collections.emptyList());
+                execute(manager, "CHECKTABLEINTEGRITY tblspace1.mytable", Collections.emptyList());
+                execute(manager,"checktableintegrity tblspace1.mytable", Collections.emptyList());          
+                execute(manager,"checktablespaceintegrity tblspace1", Collections.emptyList());      
 
         }
     }

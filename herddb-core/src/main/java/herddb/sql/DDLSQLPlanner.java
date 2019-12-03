@@ -46,6 +46,7 @@ import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.TableIntegrityCheckStatement;
+import herddb.model.commands.TableSpaceIntegrityCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
@@ -222,6 +223,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
         if(query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND.toLowerCase())){
             ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(defaultTableSpace,query,parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        }
+        if(query.startsWith(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND.toLowerCase())){
+            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(query));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
         
@@ -883,6 +888,21 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
         }
         
+    }
+    public Statement QueryCheckIntegrityStatement(String query){
+        if (query.contains(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND) || query.contains(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND.toLowerCase())) {
+            String tableSpace = query.substring(query.substring(0,24).length());           
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
+            System.out.println("tablespace " + tableSpace);
+            System.out.println("tablespaceManager " + tableSpaceManager);
+
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+            }
+            return new TableSpaceIntegrityCheckStatement(tableSpace.trim());
+        }else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
+        }
     }
                   
     private Statement buildAlterStatement(String defaultTableSpace, Alter alter) throws StatementExecutionException {
