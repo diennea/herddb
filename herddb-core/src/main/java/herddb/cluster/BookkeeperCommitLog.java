@@ -257,7 +257,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 // we are "closed", no need to create a new writer
                 return _writer;
             }
-            if (!_writer.isWritable()) {
+            if (_writer == null || !_writer.isWritable()) {
                 lock.readLock().unlock();
                 lock.writeLock().lock();
                 if (closed) {
@@ -266,7 +266,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     _writer = writer;
-                    if (!_writer.isWritable()) {
+                    if (_writer == null || !_writer.isWritable()) {
                         return openNewLedger();
                     }
                 } finally {
