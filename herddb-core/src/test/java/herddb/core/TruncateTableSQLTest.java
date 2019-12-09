@@ -24,6 +24,7 @@ import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import herddb.file.FileDataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -33,8 +34,11 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import java.nio.file.Path;
 import java.util.Collections;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on table creation
@@ -42,6 +46,9 @@ import org.junit.Test;
  * @author enrico.olivelli
  */
 public class TruncateTableSQLTest {
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
     public void truncateTableNoTransaction() throws Exception {
@@ -112,6 +119,37 @@ public class TruncateTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(0, scan.consume().size());
             }
+
+        }
+
+    }
+
+    @Test
+    public void truncateTableFileDataStore() throws Exception {
+        String nodeId = "localhost";
+        Path dataPath = folder.newFolder("data").toPath();
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(),
+                new FileDataStorageManager(dataPath), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 =
+                    new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(
+                    st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int not nul,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE INDEX test1 ON tblspace1.tsql (n1)", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values('a',1)", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
+                assertEquals(1, scan.consume().size());
+            } catch (TableDoesNotExistException ok) {}
+
+            execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
+                assertEquals(0, scan.consume().size());
+            } catch (TableDoesNotExistException ok) {}
 
         }
 
