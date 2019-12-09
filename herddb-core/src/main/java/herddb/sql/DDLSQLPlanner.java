@@ -420,7 +420,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             String tableName = s.getTable().getName().toLowerCase();
 
-            String indexName = s.getIndex().getName();
+            String indexName = s.getIndex().getName().toLowerCase();
             String indexType = convertIndexType(s.getIndex().getType());
 
             herddb.model.Index.Builder builder = herddb.model.Index
