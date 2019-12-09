@@ -24,6 +24,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.server.ServerConfiguration;
+import java.io.File;
+import java.io.FileWriter;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -49,6 +51,39 @@ public class SimpleEmbeddedTest {
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             try (Connection con = dataSource.getConnection();
                  Statement statement = con.createStatement()) {
+                statement.execute("CREATE TABLE mytable (key string primary key, name string)");
+                assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
+                try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
+                    boolean found = false;
+                    while (rs.next()) {
+                        String key = rs.getString("key");
+                        String name = rs.getString("name");
+                        assertEquals("k1", key);
+                        assertEquals("name1", name);
+                        found = true;
+                    }
+                    assertTrue(found);
+                }
+            }
+        }
+    }
+
+     @Test
+    public void testAdditionalConfiguration() throws Exception {
+        File baseDir = folder.newFolder();
+        File file = new File(baseDir, "additionalConfiguration.txt");
+        try (FileWriter w = new FileWriter(file);) {
+            w.write("server.base.dir="+baseDir.getAbsolutePath()+"\n");
+            w.write("client.base.dir="+baseDir.getAbsolutePath()+"\n");
+            w.write("server.start=true");
+        }
+
+        try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
+            dataSource.setUrl("jdbc:herddb:server:localhost:7000?configFile="+file.getAbsolutePath());
+            try (Connection con = dataSource.getConnection();
+                Statement statement = con.createStatement()) {
+                assertEquals(baseDir.getAbsolutePath(), dataSource.getServer().getManager().getServerConfiguration().getString(ServerConfiguration.PROPERTY_BASEDIR, ""));
+                assertEquals(baseDir.getAbsolutePath(), dataSource.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_BASEDIR, ""));
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                 assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
                 try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
