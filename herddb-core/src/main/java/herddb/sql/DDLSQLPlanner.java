@@ -372,11 +372,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
                         herddb.model.Index.Builder builder = herddb.model.Index
                                 .builder()
+                                .onTable(table)
                                 .name(indexName)
                                 .type(indexType)
-                                .uuid(UUID.randomUUID().toString())
-                                .table(tableName)
-                                .tablespace(tableSpace);
+                                .uuid(UUID.randomUUID().toString());
 
                         for (String columnName : index.getColumnsNames()) {
                             columnName = fixMySqlBackTicks(columnName.toLowerCase());
@@ -419,7 +418,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String tableName = s.getTable().getName();
+            String tableName = s.getTable().getName().toLowerCase();
 
             String indexName = s.getIndex().getName().toLowerCase();
             String indexType = convertIndexType(s.getIndex().getType());
