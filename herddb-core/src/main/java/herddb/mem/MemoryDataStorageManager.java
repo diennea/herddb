@@ -542,6 +542,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void truncateIndex(String tableSpaceUUID, String name) throws DataStorageManagerException {
+        dropIndex(tableSpaceUUID, name);
+    }
+
+    @Override
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
         List<Index> indexes = indexesByTablespace.get(tablespace);
         if (indexes != null) {
