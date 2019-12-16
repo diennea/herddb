@@ -141,6 +141,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
 
+    public static final String PROPERTY_DEFAULT_REPLICA_COUNT = "tablespace.default.replica.count";
+    public static final int PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT = 1;
+
     public static final String PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT = "server.abandoned.transactions.timeout";
     public static final long PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
 

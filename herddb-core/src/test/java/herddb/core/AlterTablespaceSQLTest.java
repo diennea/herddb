@@ -32,9 +32,11 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
+import herddb.server.ServerConfiguration;
 import herddb.utils.DataAccessor;
 import java.util.Collections;
 import java.util.List;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Test;
 
 /**
@@ -87,6 +89,28 @@ public class AlterTablespaceSQLTest {
                     assertEquals(12, t.get("expectedreplicacount"));
                 }
             }
+        }
+    }
+
+    @Test
+    public void defaultReplicaCount() throws Exception {
+        String nodeId = "localhost";
+        ServerConfiguration config = new ServerConfiguration();
+        config.set(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, "4");
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),
+                null, null, config, NullStatsLogger.INSTANCE)) {
+            manager.start();
+            assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
+            execute(manager, "CREATE TABLESPACE myts", Collections.emptyList());
+            assertEquals(4, manager.getMetadataStorageManager().describeTableSpace("myts").expectedReplicaCount);
+        }
+
+        // default ServerConfiguration, defaults to 1
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
+            execute(manager, "CREATE TABLESPACE myts", Collections.emptyList());
+            assertEquals(1, manager.getMetadataStorageManager().describeTableSpace("myts").expectedReplicaCount);
         }
     }
 

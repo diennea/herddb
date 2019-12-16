@@ -45,6 +45,7 @@ import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.TruncateTableStatement;
+import herddb.server.ServerConfiguration;
 import herddb.utils.SQLUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -653,7 +654,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 String leader = null;
                 Set<String> replica = new HashSet<>();
-                int expectedreplicacount = 1;
+                int expectedreplicacount = this.manager.getServerConfiguration() != null
+                        ? this.manager.getServerConfiguration().getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT)
+                        : 1;
                 long maxleaderinactivitytime = 0;
                 int wait = 0;
                 for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
