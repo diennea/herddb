@@ -654,9 +654,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 String leader = null;
                 Set<String> replica = new HashSet<>();
-                int expectedreplicacount = this.manager.getServerConfiguration() != null
-                        ? this.manager.getServerConfiguration().getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT)
-                        : 1;
+                int expectedreplicacount = this.manager.getServerConfiguration().getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
                 long maxleaderinactivitytime = 0;
                 int wait = 0;
                 for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
