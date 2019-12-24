@@ -257,7 +257,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 // we are "closed", no need to create a new writer
                 return _writer;
             }
-            if (!_writer.isWritable()) {
+            if (_writer == null || !_writer.isWritable()) {
                 lock.readLock().unlock();
                 lock.writeLock().lock();
                 if (closed) {
@@ -266,7 +266,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     _writer = writer;
-                    if (!_writer.isWritable()) {
+                    if (_writer == null || !_writer.isWritable()) {
                         return openNewLedger();
                     }
                 } finally {
@@ -390,7 +390,8 @@ public class BookkeeperCommitLog extends CommitLog {
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
                 FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
-            } catch (BKException.BKNoSuchLedgerExistsException e) {
+            } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
                 throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
@@ -541,7 +542,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 actualLedgersList.removeLedger(ledgerId);
                 try {
                     bookKeeper.deleteLedger(ledgerId);
-                } catch (BKException.BKNoSuchLedgerExistsException error) {
+                } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException error) {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }

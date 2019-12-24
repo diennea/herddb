@@ -241,11 +241,7 @@ public class HerdDBCLI {
                         describeRawFile(tablespaceuuid, table, tablesmetadatafile, file, filetype);
                     }
                 } catch (Exception error) {
-                    if (verbose) {
-                        error.printStackTrace();
-                    } else {
-                        println("error:" + error);
-                    }
+                    prettyPrintException(verbose, error);
                     exitCode = 1;
                 }
                 return;
@@ -375,7 +371,7 @@ public class HerdDBCLI {
 
                     connection.setSchema(schema);
                     if (sqlconsole) {
-                        runSqlConsole(connection, statement, PRETTY_PRINT);
+                        runSqlConsole(connection, statement, PRETTY_PRINT, verbose);
                     } else if (backup) {
                         performBackup(statement, schema, file, options, connection, dumpfetchsize);
                     } else if (restore) {
@@ -418,11 +414,7 @@ public class HerdDBCLI {
                 }
                 exitCode = 0;
             } catch (Exception error) {
-                if (verbose) {
-                    error.printStackTrace();
-                } else {
-                    println("error:" + error);
-                }
+                prettyPrintException(verbose, error);
                 exitCode = 1;
             } finally {
                 if (metadataStorageManager != null) {
@@ -1253,12 +1245,32 @@ public class HerdDBCLI {
             }
         } catch (SQLException err) {
             if (ignoreerrors) {
-                println("ERROR:" + err);
+                prettyPrintException(verbose, err);
                 return null;
             } else {
                 throw err;
             }
         }
+    }
+
+    private static void prettyPrintException(boolean verbose, Throwable err) {
+        if (verbose) {
+            println("Error:" + err);
+            return;
+        }
+        String message = err.toString();
+        int stacktrace = message.indexOf("\n\tat ");
+        if (stacktrace > 0) {
+            int exceptionName = message.lastIndexOf("Exception: ", stacktrace);
+            if (exceptionName > 0 && exceptionName < stacktrace) {
+                println("Error:" + message.substring(exceptionName + "Exception:".length(), stacktrace));
+            } else {
+                println("Error:" + message.substring(0, stacktrace));
+            }
+        } else {
+            println("Error:" + message);
+        }
+
     }
 
     private static class SqlFileStatus {
@@ -1329,8 +1341,8 @@ public class HerdDBCLI {
                             .executeBatchAsync();
 
                     future.whenComplete((res, error) -> {
-                        if (error != null) {
-                            error.printStackTrace();
+                        if (error != null && verbose) {
+                            prettyPrintException(verbose, error);
                         }
                         try {
                             // we are creating one connection per PreparedStatement
@@ -1583,7 +1595,7 @@ public class HerdDBCLI {
         System.out.println(msg);
     }
 
-    private static void runSqlConsole(Connection connection, Statement statement, boolean pretty) throws IOException {
+    private static void runSqlConsole(Connection connection, Statement statement, boolean pretty, boolean verbose) throws IOException {
         Terminal terminal = TerminalBuilder.builder()
                 .system(true)
                 .build();
@@ -1599,11 +1611,11 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, true, false, false, line, statement, null, false, pretty);
+                executeStatement(verbose, true, false, false, line, statement, null, false, pretty);
             } catch (UserInterruptException | EndOfFileException e) {
                 return;
             } catch (Exception e) {
-                e.printStackTrace();
+                prettyPrintException(verbose, e);
             }
 
         }

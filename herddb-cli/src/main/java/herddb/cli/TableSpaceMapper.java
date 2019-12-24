@@ -56,7 +56,7 @@ public class TableSpaceMapper {
             tableName = st.getTable().getFullyQualifiedName();
         } else if (statement instanceof Update) {
             Update st = (Update) statement;
-            tableName = st.getTables().get(0).getFullyQualifiedName();
+            tableName = st.getTable().getFullyQualifiedName();
         } else if (statement instanceof Delete) {
             Delete st = (Delete) statement;
             tableName = st.getTables().get(0).getFullyQualifiedName();

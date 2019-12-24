@@ -40,6 +40,8 @@ import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
+import herddb.utils.CleanDirectoryFileVisitor;
+import herddb.utils.DeleteFileVisitor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
@@ -59,14 +61,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1281,6 +1281,17 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void truncateIndex(String tablespace, String name) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tablespace, name);
+        LOGGER.log(Level.INFO, "truncateIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
+        try {
+            cleanDirectory(tableDir);
+        } catch (IOException ex) {
+            throw new DataStorageManagerException(ex);
+        }
+    }
+
+    @Override
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tablespace, name);
         LOGGER.log(Level.INFO, "dropIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
@@ -1339,27 +1350,19 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
-    private static class FileDeleter extends SimpleFileVisitor<Path> {
-
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-//            println("delete file " + file.toAbsolutePath());
-            Files.delete(file);
-            return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-//            println("delete directory " + dir);
-            Files.delete(dir);
-            return FileVisitResult.CONTINUE;
-        }
+    public static void deleteDirectory(Path f) throws IOException {
+        deleteDirectoryContent(f, false);
     }
 
-    public static void deleteDirectory(Path f) throws IOException {
+    public static void cleanDirectory(Path f) throws IOException {
+        deleteDirectoryContent(f, true);
+    }
+
+    private static void deleteDirectoryContent(Path f, boolean keepDirectory) throws IOException {
         if (Files.isDirectory(f)) {
-            Files.walkFileTree(f, new FileDeleter());
-            Files.deleteIfExists(f);
+            final SimpleFileVisitor<Path> visitor =
+                    keepDirectory ? new CleanDirectoryFileVisitor() : DeleteFileVisitor.INSTANCE;
+            Files.walkFileTree(f, visitor);
         } else if (Files.isRegularFile(f)) {
             throw new IOException("name " + f.toAbsolutePath() + " is not a directory");
         }
@@ -1367,10 +1370,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) throws DataStorageManagerException {
-
         return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
-
-//        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
     }
 
     @Override

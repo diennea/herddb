@@ -33,6 +33,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.sql.TranslatedQuery;
 import java.util.Arrays;
 import java.util.Collections;
+import org.junit.Assert;
 import org.junit.Test;
 
 
@@ -120,6 +121,39 @@ public class CreateTableTest {
 
             TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t1 (id,name) values(?,?)", Arrays.asList("test", null), true, true, false, -1);
             manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+        }
+    }
+
+
+    @Test
+    public void weThrowExceptionOnInsertingNullInNonNullColumnOnAutoIncrementPrimaryKey() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t11")
+                    .column("id", ColumnTypes.LONG)
+                    .column("firstname", ColumnTypes.STRING)
+                    .column("lastname", ColumnTypes.NOTNULL_STRING)
+                    .primaryKey("id", true)
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TranslatedQuery translated1 = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (firstname, lastname) values(?,?)", Arrays.asList("Joe", "cool"), true, true, false, -1);
+            manager.executePlan(translated1.plan, translated1.context, TransactionContext.NO_TRANSACTION);
+
+            TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (firstname) values(?)", Arrays.asList("test"), true, true, false, -1);
+            manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+        } catch (Exception ex) {
+            Assert.assertTrue(ex.getMessage().contains("Column 'lastname' has no default value and does not allow NULLs"));
         }
     }
 

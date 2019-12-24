@@ -1,35 +1,43 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.utils;
 
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.ZooKeeper;
 
 public class ZKTestEnv implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
 
     TestingServer zkServer;
     BookieServer bookie;
@@ -37,6 +45,23 @@ public class ZKTestEnv implements AutoCloseable {
 
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
+        // waiting for ZK to be reachable
+        CountDownLatch latch = new CountDownLatch(1);
+        ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(),
+                herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, (WatchedEvent event) -> {
+                    LOG.log(Level.INFO, "ZK EVENT {0}", event);
+                    if (event.getState() == KeeperState.SyncConnected) {
+                        latch.countDown();
+                    }
+                });
+        try {
+            if (!latch.await(herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, TimeUnit.MILLISECONDS)) {
+                LOG.log(Level.INFO, "ZK client did not connect withing {0} seconds, maybe the server did not start up",
+                        herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT);
+            }
+        } finally {
+            zk.close(1000);
+        }
         this.path = path;
     }
 
@@ -67,7 +92,6 @@ public class ZKTestEnv implements AutoCloseable {
 
         conf.setAllowLoopback(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms
-
 
         try (ZooKeeperClient zkc = ZooKeeperClient
                 .newBuilder()

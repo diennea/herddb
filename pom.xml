@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.13.0-SNAPSHOT</version>
+    <version>0.14.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>
     <url>http://herddb.org</url>
@@ -70,14 +70,14 @@
         <libs.calcite>1.22.0-SNAPSHOT</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-        <libs.zookeeper>3.5.5</libs.zookeeper>
-        <libs.jsqlparser>0.9.7</libs.jsqlparser>
+        <libs.zookeeper>3.5.6</libs.zookeeper>
+        <libs.jsqlparser>3.1</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>
-        <libs.slf4j>1.7.21</libs.slf4j>
+        <libs.slf4j>1.7.29</libs.slf4j>
         <libs.commonscollections>3.2.1</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
-        <libs.bookkeeper>4.9.2</libs.bookkeeper>
+        <libs.bookkeeper>4.10.0</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>

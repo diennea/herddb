@@ -20,6 +20,7 @@
 
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
@@ -27,6 +28,9 @@ import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
 import herddb.index.SecondaryIndexSeek;
+import herddb.mem.MemoryCommitLogManager;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.GetResult;
@@ -136,4 +140,57 @@ public class IndexCreationTest {
 
     }
 
+    @Test
+    public void caseSensitivity() throws Exception {
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 =
+                    new CreateTableSpaceStatement("tbl1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tbl1", 10000);
+
+            // Table create uppercase, index create uppercase
+            {
+                execute(manager,
+                        "CREATE TABLE tbl1.TABLE_1 (TABLE_ID BIGINT NOT NULL, FIELD INT NOT NULL, PRIMARY KEY (TABLE_ID))",
+                        Collections.emptyList());
+
+                execute(manager, "CREATE INDEX TABLE_1_INDEX ON tbl1.TABLE_1(TABLE_ID,FIELD)", Collections.emptyList());
+            }
+
+            // Table create lowercase, index create lowercase
+            {
+                execute(manager,
+                        "CREATE TABLE tbl1.table_2 (TABLE_ID BIGINT NOT NULL, FIELD INT NOT NULL, PRIMARY KEY (TABLE_ID))",
+                        Collections.emptyList());
+
+                execute(manager, "CREATE INDEX table_2_index ON tbl1.table_2(TABLE_ID,FIELD)", Collections.emptyList());
+            }
+
+            // Table create uppercase, index create lowercase
+            {
+                execute(manager,
+                        "CREATE TABLE tbl1.TABLE_3 (TABLE_ID BIGINT NOT NULL, FIELD INT NOT NULL, PRIMARY KEY (TABLE_ID))",
+                        Collections.emptyList());
+
+                execute(manager, "CREATE INDEX TABLE_3_INDEX ON tbl1.table_3(TABLE_ID,FIELD)", Collections.emptyList());
+            }
+
+            // Table create lowercase, index create uppercase
+            {
+                execute(manager,
+                        "CREATE TABLE tbl1.table_4 (TABLE_ID BIGINT NOT NULL, FIELD INT NOT NULL, PRIMARY KEY (TABLE_ID))",
+                        Collections.emptyList());
+
+                execute(manager, "CREATE INDEX table_4_index ON tbl1.TABLE_4(TABLE_ID,FIELD)", Collections.emptyList());
+            }
+
+        }
+
+    }
 }
