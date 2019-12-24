@@ -50,7 +50,6 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.sql.TranslatedQuery;
 import herddb.storage.FullTableScanConsumer;
-import herddb.storage.TableStatus;
 import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;

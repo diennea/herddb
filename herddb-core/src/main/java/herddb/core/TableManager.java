@@ -494,9 +494,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                         @Override
                         public void acceptPage(long pageId, List<Record> records) {
-                            for (Record record :records) {
+                            for (Record record : records) {
                                 keyToPage.put(record.key.nonShared(), pageId, null /* PK is empty */);
-                            };
+                            }
                         }
 
                         @Override
@@ -1869,7 +1869,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         checkpointLock.asReadLock().lock();
         try {
             for (Record r : record) {
-                System.out.println("GOT "+r.key);
                 applyInsert(r.key, r.value, false);
             }
         } finally {

@@ -30,7 +30,6 @@ import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
-import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import java.util.ArrayList;
 import java.util.List;

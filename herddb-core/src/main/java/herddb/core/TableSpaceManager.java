@@ -291,7 +291,7 @@ public class TableSpaceManager {
         });
 
         if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
-            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced ("+ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT+"=true) for tableSpace " + tableSpaceName);
+            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
         } else {
