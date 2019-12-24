@@ -180,7 +180,11 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
                 propsNoPassword.setProperty("password", "-------");
             }
             LOGGER.log(Level.INFO, "Booting HerdDB Client, url:" + url + ", properties:" + propsNoPassword + " clientConfig " + clientConfiguration);
-            clientConfiguration.readJdbcUrl(url);
+            try {
+                clientConfiguration.readJdbcUrl(url);
+            } catch (RuntimeException err) {
+                throw new SQLException(err);
+            }
             if (properties.containsKey("discoverTableSpaceFromQuery")) {
                 this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
             }
