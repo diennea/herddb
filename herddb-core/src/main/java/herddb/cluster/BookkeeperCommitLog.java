@@ -298,12 +298,19 @@ public class BookkeeperCommitLog extends CommitLog {
                         }
                     }
             );
-            res.thenAccept((pos) -> {
+            // publish the lastSequenceNumber
+            // we must return a new CompletableFuture that completes only
+            // AFTER lastSequenceNumber is updated
+            // otherwise while doing a checkpoint we could observe
+            // an old value for lastSequenceNumber
+            // in case of a slow system
+            res = res.thenApply((pos) -> {
                         if (lastLedgerId == pos.ledgerId) {
                             lastSequenceNumber.accumulateAndGet(pos.offset,
                                     EnsureLongIncrementAccumulator.INSTANCE);
                         }
                         notifyListeners(pos, edit);
+                        return pos;
                     }
             );
         }
