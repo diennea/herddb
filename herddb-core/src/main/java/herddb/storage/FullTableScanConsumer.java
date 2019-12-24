@@ -21,6 +21,7 @@
 package herddb.storage;
 
 import herddb.model.Record;
+import java.util.List;
 
 /**
  * Receives all data from a table
@@ -29,13 +30,12 @@ import herddb.model.Record;
  */
 public interface FullTableScanConsumer {
 
-    void acceptTableStatus(TableStatus tableStatus);
+    default void acceptTableStatus(TableStatus tableStatus) {
+    }
 
-    void startPage(long pageId);
+    default void acceptPage(long pageId, List<Record> records) {
+    }
 
-    void acceptRecord(Record record);
-
-    void endPage();
-
-    void endTable();
+    default void endTable() {
+    }
 }

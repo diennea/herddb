@@ -21,6 +21,7 @@
 package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
+import herddb.index.KeyToPageIndex;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -29,6 +30,7 @@ import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
+import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,8 +50,11 @@ class SingleTableDumper implements FullTableScanConsumer {
     private final String tableSpaceName;
     private final int timeout;
     private final int fetchSize;
+    private final KeyToPageIndex keyToPageIndex;
+    private final List<KeyValue> batch = new ArrayList<>();
 
     public SingleTableDumper(String tableSpaceName, AbstractTableManager tableManager, Channel channel, String dumpId, int timeout, int fetchSize) {
+        this.keyToPageIndex = tableManager.getKeyToPageIndex();
         this.tableSpaceName = tableSpaceName;
         this.tableManager = tableManager;
         this.channel = channel;
@@ -58,7 +63,6 @@ class SingleTableDumper implements FullTableScanConsumer {
         this.fetchSize = fetchSize;
     }
 
-    final List<KeyValue> batch = new ArrayList<>();
 
     @Override
     public void acceptTableStatus(TableStatus tableStatus) {
@@ -82,23 +86,23 @@ class SingleTableDumper implements FullTableScanConsumer {
     }
 
     @Override
-    public void startPage(long pageId) {
-    }
-
-    @Override
-    public void acceptRecord(Record record) {
+    public void acceptPage(long pageId, List<Record> records) {
         try {
-            batch.add(new KeyValue(record.key, record.value));
-            if (batch.size() == fetchSize) {
-                sendBatch();
+            for (Record record : records) {
+                // since 0.14 we are no more compacting the table before sending a dump
+                // we have to check that the record is really on the current page
+                // before sending it to the client/follower
+                Long currentPageForRecord = keyToPageIndex.get(record.key);
+                if (currentPageForRecord != null && currentPageForRecord == pageId) {
+                    batch.add(new KeyValue(record.key, record.value));
+                    if (batch.size() == fetchSize) {
+                        sendBatch();
+                    }
+                }
             }
         } catch (Exception error) {
             throw new RuntimeException(error);
         }
-    }
-
-    @Override
-    public void endPage() {
     }
 
     @Override

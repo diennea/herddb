@@ -290,12 +290,18 @@ public class TableSpaceManager {
             }
         });
 
-        try {
-            log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
-        } catch (FullRecoveryNeededException fullRecoveryNeeded) {
-            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced ("+ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT+"=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
+        } else {
+            try {
+                log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
+            } catch (FullRecoveryNeededException fullRecoveryNeeded) {
+                LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+                downloadTableSpaceData();
+                log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
+            }
         }
         checkpoint(false, false, false);
 
@@ -815,7 +821,7 @@ public class TableSpaceManager {
             log.attachCommitLogListener(logDumpReceiver);
         }
 
-        checkpoint = checkpoint(true, true, true /* already locked */);
+        checkpoint = checkpoint(false /*do not compact records*/, true, true /* already locked */);
 
         /* Downgrade lock */
 //        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
