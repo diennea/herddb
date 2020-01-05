@@ -21,7 +21,6 @@
 package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
-import herddb.index.KeyToPageIndex;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -49,11 +48,9 @@ class SingleTableDumper implements FullTableScanConsumer {
     private final String tableSpaceName;
     private final int timeout;
     private final int fetchSize;
-    private final KeyToPageIndex keyToPageIndex;
     private final List<KeyValue> batch = new ArrayList<>();
 
     public SingleTableDumper(String tableSpaceName, AbstractTableManager tableManager, Channel channel, String dumpId, int timeout, int fetchSize) {
-        this.keyToPageIndex = tableManager.getKeyToPageIndex();
         this.tableSpaceName = tableSpaceName;
         this.tableManager = tableManager;
         this.channel = channel;
@@ -88,15 +85,9 @@ class SingleTableDumper implements FullTableScanConsumer {
     public void acceptPage(long pageId, List<Record> records) {
         try {
             for (Record record : records) {
-                // since 0.14 we are no more compacting the table before sending a dump
-                // we have to check that the record is really on the current page
-                // before sending it to the client/follower
-                Long currentPageForRecord = keyToPageIndex.get(record.key);
-                if (currentPageForRecord != null && currentPageForRecord == pageId) {
-                    batch.add(new KeyValue(record.key, record.value));
-                    if (batch.size() == fetchSize) {
-                        sendBatch();
-                    }
+                batch.add(new KeyValue(record.key, record.value));
+                if (batch.size() == fetchSize) {
+                    sendBatch();
                 }
             }
         } catch (Exception error) {

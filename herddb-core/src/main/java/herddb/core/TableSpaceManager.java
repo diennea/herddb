@@ -821,7 +821,8 @@ public class TableSpaceManager {
             log.attachCommitLogListener(logDumpReceiver);
         }
 
-        checkpoint = checkpoint(false /*do not compact records*/, true, true /* already locked */);
+        checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
+        LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
 
         /* Downgrade lock */
 //        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
@@ -831,12 +832,12 @@ public class TableSpaceManager {
         }
         try {
             final int timeout = 60000;
-            LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
+            LogSequenceNumber checkpointSequenceNumber = checkpoint.sequenceNumber;
 
             long id = channel.generateRequestId();
             LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, channel});
             try (Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
-                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout)) {
+                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), checkpointSequenceNumber.ledgerId, checkpointSequenceNumber.offset, null, null), timeout)) {
                 if (response_to_start.type != Pdu.TYPE_ACK) {
                     LOGGER.log(Level.SEVERE, "error response at start command");
                     return;
@@ -845,7 +846,7 @@ public class TableSpaceManager {
 
             if (includeLog) {
                 List<Transaction> transactionsSnapshot = new ArrayList<>();
-                dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, transactionsSnapshot::add);
+                dataStorageManager.loadTransactions(checkpointSequenceNumber, tableSpaceUUID, transactionsSnapshot::add);
                 List<Transaction> batch = new ArrayList<>();
                 for (Transaction t : transactionsSnapshot) {
                     batch.add(t);
@@ -863,6 +864,7 @@ public class TableSpaceManager {
                     continue;
                 }
                 try {
+                    LOGGER.log(Level.INFO, "Sending table checkpoint for {} took at sequence number {}", new Object[]{tableManager.getTable().name, sequenceNumber});
                     FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, channel, dumpId, timeout, fetchSize);
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
