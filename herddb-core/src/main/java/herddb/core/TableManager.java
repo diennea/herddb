@@ -2503,7 +2503,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         final long fillPageThreshold = (long) (fillThreshold * maxLogicalPageSize);
-        final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
+        final long dirtyPageThreshold = dirtyThreshold >0 ? (long) (dirtyThreshold * maxLogicalPageSize) : -1;
 
         long start = System.currentTimeMillis();
         long end;
