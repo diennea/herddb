@@ -48,6 +48,7 @@ class SingleTableDumper implements FullTableScanConsumer {
     private final String tableSpaceName;
     private final int timeout;
     private final int fetchSize;
+    private final List<KeyValue> batch = new ArrayList<>();
 
     public SingleTableDumper(String tableSpaceName, AbstractTableManager tableManager, Channel channel, String dumpId, int timeout, int fetchSize) {
         this.tableSpaceName = tableSpaceName;
@@ -58,7 +59,6 @@ class SingleTableDumper implements FullTableScanConsumer {
         this.fetchSize = fetchSize;
     }
 
-    final List<KeyValue> batch = new ArrayList<>();
 
     @Override
     public void acceptTableStatus(TableStatus tableStatus) {
@@ -82,23 +82,17 @@ class SingleTableDumper implements FullTableScanConsumer {
     }
 
     @Override
-    public void startPage(long pageId) {
-    }
-
-    @Override
-    public void acceptRecord(Record record) {
+    public void acceptPage(long pageId, List<Record> records) {
         try {
-            batch.add(new KeyValue(record.key, record.value));
-            if (batch.size() == fetchSize) {
-                sendBatch();
+            for (Record record : records) {
+                batch.add(new KeyValue(record.key, record.value));
+                if (batch.size() == fetchSize) {
+                    sendBatch();
+                }
             }
         } catch (Exception error) {
             throw new RuntimeException(error);
         }
-    }
-
-    @Override
-    public void endPage() {
     }
 
     @Override

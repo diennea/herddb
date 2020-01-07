@@ -432,18 +432,14 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private void fullTableScan(String tableSpace, String tableUuid, TableStatus status, FullTableScanConsumer consumer) {
-        LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableUuid + ", status: " + status);
+        LOGGER.log(Level.INFO, "fullTableScan table {0}.{1}, status: {2}", new Object[]{tableSpace, tableUuid, status});
         consumer.acceptTableStatus(status);
         List<Long> activePages = new ArrayList<>(status.activePages.keySet());
         activePages.sort(null);
         for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableUuid, idpage);
-            consumer.startPage(idpage);
-            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableUuid + ", page " + idpage + ", contains " + records.size() + " records");
-            for (Record record : records) {
-                consumer.acceptRecord(record);
-            }
-            consumer.endPage();
+            LOGGER.log(Level.FINE, "fullTableScan table {0}.{1}, page {2}, contains {3} records", new Object[]{tableSpace, tableUuid, idpage, records.size()});
+            consumer.acceptPage(idpage, records);
         }
         consumer.endTable();
     }

@@ -142,6 +142,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_MAX_IDLE_TIME = "server.bookkeeper.max.idle.time";
     public static final long PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT = 1000L * 10;
 
+    public static final String PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT = "server.boot.force.download.snapshot";
+    public static final boolean PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT = false;
+
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
 

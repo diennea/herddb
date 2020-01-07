@@ -265,12 +265,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         activePages.sort(null);
         for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableName, idpage);
-            consumer.startPage(idpage);
-            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
-            for (Record record : records) {
-                consumer.acceptRecord(record);
-            }
-            consumer.endPage();
+            consumer.acceptPage(idpage, records);
         }
         consumer.endTable();
     }
