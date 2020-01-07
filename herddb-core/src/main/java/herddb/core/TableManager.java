@@ -2357,11 +2357,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                     /* The page was found in memory. Currently built page should go into memory */
                     currentPageWasInMemory = true;
-
-                    /* Current dirty record page isn't known to page replacement policy */
-                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
-                        pageReplacementPolicy.remove(dataPage);
-                    }
                 }
 
                 for (Record record : records) {
@@ -2466,9 +2461,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 if (dataPage != null) {
 
+                    /* Current dirty record page isn't known to page replacement policy */
+                    if (currentDirtyRecordsPage.get() != dataPage.pageId) {
+                        pageReplacementPolicy.remove(dataPage);
+                    }
+
                     final DataPage removedDataPage = pages.remove(page.pageId);
 
-                    if (removedDataPage != null) {
+                    unloadedPagesCount.increment();
+
+                    if (removedDataPage != null && removedDataPage != dataPage) {
                         /*
                          * DataPage can be removed due to an unload request from PageReplacementPolicy and
                          * could be event reloaded again in the meantime due to a concurrent read.
