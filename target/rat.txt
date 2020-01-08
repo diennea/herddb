@@ -1,0 +1,58 @@
+
+*****************************************************
+Summary
+-------
+Generated at: 2020-01-08T13:17:51+01:00
+
+Notes: 5
+Binaries: 1
+Archives: 0
+Standards: 26
+
+Apache Licensed: 26
+Generated Documents: 0
+
+JavaDocs are generated, thus a license header is optional.
+Generated files do not require license headers.
+
+0 Unknown Licenses
+
+*****************************************************
+  Files with Apache License headers will be marked AL
+  Binary files (which do not require any license headers) will be marked B
+  Compressed archives will be marked A
+  Notices, licenses etc. will be marked N
+  B     docs/herddb.png
+  AL    herddb-docker/pom.xml
+  AL    herddb-docker/src/main/docker/Dockerfile
+  AL    herddb-docker/src/main/docker/build.sh
+  N     herddb-docker/README.txt
+  AL    checkstyle.xml
+  AL    pom.xml
+  AL    .travis.yml
+  AL    suppressions.xml
+  N     licences/bookkeeper.NOTICE.txt
+  N     licences/zookeeper.NOTICE.txt
+  AL    licenseheader.txt
+  AL    Jenkinsfile
+  N     LICENSE
+  AL    excludeFindBugsFilter.xml
+  AL    ycsb-runner/ycsb-report_mysql.sh
+  AL    ycsb-runner/full-ycsb_mysql.sh
+  AL    ycsb-runner/setsenv_bench_jdk10.sh
+  AL    ycsb-runner/ycsb-report.sh
+  AL    ycsb-runner/herd.properties
+  AL    ycsb-runner/run-ycsb-with-zk.sh
+  AL    ycsb-runner/run-ycsb.sh
+  AL    ycsb-runner/ycsb-report_cluster.sh
+  AL    ycsb-runner/full-ycsb.sh
+  AL    ycsb-runner/cluster.properties
+  AL    ycsb-runner/setsenv_bench_jdk11.sh
+  AL    ycsb-runner/final_report.sh
+  AL    ycsb-runner/full-ycsb-url.sh
+  AL    ycsb-runner/parse_report.sh
+  AL    ycsb-runner/prepare.sh
+  N     ycsb-runner/README
+  AL    ycsb-runner/metrics.sh
+ 
+*****************************************************
