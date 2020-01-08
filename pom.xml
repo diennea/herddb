@@ -441,6 +441,29 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.rat</groupId>
+                    <artifactId>apache-rat-plugin</artifactId>
+                    <version>0.13</version>
+                    <configuration>
+                        <consoleOutput>true</consoleOutput>
+                        <excludes>
+                            <!-- markdown -->
+                            <exclude>.github/**/*</exclude>                                                                        
+                            <exclude>**/README.md</exclude>
+
+                            <exclude>docs/*.graphml</exclude>
+                            <exclude>nbproject/**</exclude>
+                            <exclude>nbactions.xml</exclude>
+                            <exclude>nb-configuration.xml</exclude>
+
+                            <!-- Eclipse -->
+                            <exclude>**/.classpath</exclude>
+                            <exclude>**/.project</exclude>
+                            <exclude>**/.settings/*</exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
