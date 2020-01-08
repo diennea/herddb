@@ -476,7 +476,6 @@
                 			<pattern>Licensed under MIT</pattern>
 					<pattern>MIT License</pattern>
 					<pattern>License: MIT</pattern>
-					<pattern>DataTables 1.10.</pattern>
               			</patterns>
             			</license>
           		</licenses>
@@ -486,41 +485,44 @@
 				</licenseFamily>
 			</licenseFamilies>
                         <excludes>
-			    <!-- Intellij -->
-			    <exclude>**/.idea/**</exclude>
+				<!-- Intellij -->
+				<exclude>**/.idea/**</exclude>
 
-                            <!-- Git -->
-			    <exclude>.git/**/*</exclude>
-                            <exclude>.github/**/*</exclude>
-			    <exclude>**/.gitignore</exclude>
+				<!-- Git -->
+				<exclude>.git/**/*</exclude>
+				<exclude>.github/**/*</exclude>
+				<exclude>**/.gitignore</exclude>
 
-			    <!-- Built directory -->
-			    <exclude>**/target/**/*</exclude>
+				<!-- Built directory -->
+				<exclude>**/target/**/*</exclude>
 
-			    <!-- Project files -->
-                            <exclude>**/README.md</exclude>
-                            <exclude>docs/*.graphml</exclude>
-                            <exclude>nbproject/**</exclude>
-                            <exclude>nbactions.xml</exclude>
-                            <exclude>nb-configuration.xml</exclude>
+				<!-- Project files -->
+				<exclude>**/README.md</exclude>
+				<exclude>docs/*.graphml</exclude>
+				<exclude>nbproject/**</exclude>
+				<exclude>nbactions.xml</exclude>
+				<exclude>nb-configuration.xml</exclude>
 
-			    <!-- Website markdonw -->
-			    <exclude>src/site/markdown/index.md</exclude>
+				<!-- Website markdonw -->
+				<exclude>src/site/markdown/index.md</exclude>
 
-			    <!-- java.sql.Driver -->
-			    <exclude>src/main/resources/META-INF/services/java.sql.Driver</exclude>
+				<!-- java.sql.Driver -->
+				<exclude>src/main/resources/META-INF/services/java.sql.Driver</exclude>
 
-                            <!-- IDE files (eclipse & intellij) -->
-                            <exclude>**/.classpath</exclude>
-                            <exclude>**/.project</exclude>
-			    <exclude>**/.checkstyle</exclude>
-                            <exclude>**/.settings/*</exclude>
-			    <exclude>**/*.iml</exclude>
-			    <exclude>**/*.iws</exclude>
-			    <exclude>**/*.ipr</exclude>
+				<!-- IDE files (eclipse & intellij) -->
+				<exclude>**/.classpath</exclude>
+				<exclude>**/.project</exclude>
+				<exclude>**/.checkstyle</exclude>
+				<exclude>**/.settings/*</exclude>
+				<exclude>**/*.iml</exclude>
+				<exclude>**/*.iws</exclude>
+				<exclude>**/*.ipr</exclude>
 
-			    <!-- Oracle BSD -->
-			    <exclude>jmh/**</exclude>
+				<!-- Oracle BSD license -->
+				<exclude>jmh/**</exclude>
+
+				<!-- datatables MIT license -->
+				<exclude>src/main/webapp/js/jquery.dataTables.min.js</exclude>
                         </excludes>
                     </configuration>
                 </plugin>
