@@ -507,6 +507,9 @@
 			    <!-- Website markdonw -->
 			    <exclude>src/site/markdown/index.md</exclude>
 
+			    <!-- java.sql.Driver -->
+			    <exclude>src/main/resources/META-INF/services/java.sql.Driver</exclude>
+
                             <!-- IDE files (eclipse & intellij) -->
                             <exclude>**/.classpath</exclude>
                             <exclude>**/.project</exclude>
