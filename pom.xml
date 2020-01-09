@@ -502,6 +502,7 @@
 				<exclude>nbproject/**</exclude>
 				<exclude>nbactions.xml</exclude>
 				<exclude>nb-configuration.xml</exclude>
+				<exclude>dependency-reduced-pom.xml</exclude>
 
 				<!-- Website markdonw -->
 				<exclude>src/site/markdown/index.md</exclude>
