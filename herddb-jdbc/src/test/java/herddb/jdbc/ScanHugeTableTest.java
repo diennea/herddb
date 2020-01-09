@@ -62,7 +62,7 @@ public class ScanHugeTableTest {
 
                     String bigPrefix = StringUtils.repeat("Test", 300);
                     // int size = 1_000_000;
-                    int size = 100_000;
+                    int size = 10_000;
                     {
                         long _start = System.currentTimeMillis();
                         con.setAutoCommit(false);
@@ -70,7 +70,7 @@ public class ScanHugeTableTest {
                             ps.setInt(1, i);
                             ps.setString(2, bigPrefix + i);
                             ps.addBatch();
-                            if (i % 60000 == 0) {
+                            if (i % 6000 == 0) {
                                 ps.executeBatch();
                                 con.commit();
                                 long _stop = System.currentTimeMillis();
@@ -101,7 +101,7 @@ public class ScanHugeTableTest {
                         try (ResultSet rs = s.executeQuery("SELECT * from mytable")) {
                             int i = 0;
                             while (rs.next()) {
-                                if (i % 100000 == 0) {
+                                if (i % 1000 == 0) {
                                     System.out.println("read " + i + " records");
                                 }
                                 i++;
