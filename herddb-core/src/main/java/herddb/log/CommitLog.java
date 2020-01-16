@@ -56,7 +56,7 @@ public abstract class CommitLog implements AutoCloseable {
         return null;
     }
 
-    public static interface EntryAcceptor {
+    public interface EntryAcceptor {
         boolean accept(LogSequenceNumber lsn, LogEntry entry) throws Exception;
     }
 

@@ -1006,7 +1006,6 @@ public class MultiServerTest {
 
                 LogSequenceNumber lastSequenceNumberServer1 = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
 
-
                 for (int i = 0; i < size; i++) {
                     server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", i, "s", "1" + i)), StatementEvaluationContext.
                             DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -1018,7 +1017,7 @@ public class MultiServerTest {
 
                 LogSequenceNumber lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
                 while (!lastSequenceNumberServer2.after(lastSequenceNumberServer1)) {
-                    System.out.println("WAITING FOR server2 to be in sync....now it is a "+lastSequenceNumberServer2+" vs "+lastSequenceNumberServer1);
+                    System.out.println("WAITING FOR server2 to be in sync....now it is a " + lastSequenceNumberServer2 + " vs " + lastSequenceNumberServer1);
                     lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
                     Thread.sleep(1000);
                 }
@@ -1030,7 +1029,8 @@ public class MultiServerTest {
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
                 for (int i = 0; i < size; i++) {
-                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            TransactionContext.NO_TRANSACTION);
                     if (found.found()) {
                         break;
                     }
