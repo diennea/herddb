@@ -29,11 +29,14 @@ import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.SystemProperties;
 import io.netty.buffer.ByteBuf;
-import java.io.EOFException;
+import io.netty.buffer.ByteBufInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +49,6 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
@@ -61,10 +63,13 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
 public class BookkeeperCommitLog extends CommitLog {
 
     private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
+    private static final int RECOVERY_BATCH_SIZE = SystemProperties.getIntSystemProperty("herddb.commitlog.recoverybatchsize", 100_000);
+
     // Max number for entry to read while tailing
-    private static final int MAX_ENTRY_TO_TAIL = 5000;
+    private static final int MAX_ENTRY_TO_TAIL = SystemProperties.getIntSystemProperty("herddb.commitlog.tailbatchsize", 10_000);
     // Max time to wait for an entry to arrive
-    private static final int LONG_POLL_TIMEOUT = 1000;
+    private static final int LONG_POLL_TIMEOUT = SystemProperties.getIntSystemProperty("herddb.commitlog.longpolltimeout", 1_000);
+
     static final String SHARED_SECRET = "herddb";
     private final BookKeeper bookKeeper;
     private final BookkeeperCommitLogManager parent;
@@ -432,54 +437,62 @@ public class BookkeeperCommitLog extends CommitLog {
                                     + " is not valid. Adjusting to 0");
                             first = 0;
                         }
-                        LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription
-                                + ", recovering from latest snapshot ledger " + ledgerId + ", starting from entry "
-                                + first);
+                        if (LOGGER.isLoggable(Level.FINE)) {
+                            LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription
+                                    + ", recovering from latest snapshot ledger " + ledgerId + ", starting from entry "
+                                    + first);
+                        }
                     } else {
                         first = 0;
-                        LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription + ", recovering from ledger "
-                                + ledgerId + ", starting from entry " + first);
+                        if (LOGGER.isLoggable(Level.FINE)) {
+                            LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription + ", recovering from ledger "
+                                    + ledgerId + ", starting from entry " + first);
+                        }
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     LOGGER.log(Level.INFO, "Tablespace " + tableSpaceDescription + ", Recovering from ledger "
                             + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
 
-                    final int batchSize = 10000;
                     if (lastAddConfirmed >= 0) {
 
                         for (long b = first; b <= lastAddConfirmed; ) {
                             long start = b;
-                            long end = b + batchSize;
+                            long end = b + RECOVERY_BATCH_SIZE;
                             if (end > lastAddConfirmed) {
                                 end = lastAddConfirmed;
                             }
                             b = end + 1;
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
                             int entriesToRead = (int) (1 + end - start);
-                            LOGGER.log(Level.FINE, "From entry {0}, to entry {1} ({2} %)",
-                                    new Object[]{start, end, percent, tableSpaceDescription});
+                            if (LOGGER.isLoggable(Level.FINE)) {
+                                LOGGER.log(Level.FINE, "From entry {0}, to entry {1} ({2} %)",
+                                        new Object[]{start, end, percent, tableSpaceDescription});
+                            }
                             long _start = System.currentTimeMillis();
 
-                            Enumeration<LedgerEntry> entries = handle.readEntries(start, end);
                             int localEntryCount = 0;
-                            while (entries.hasMoreElements()) {
-
-                                LedgerEntry entry = entries.nextElement();
-                                long entryId = entry.getEntryId();
-                                LogSequenceNumber number = new LogSequenceNumber(ledgerId, entryId);
-                                LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
-                                lastLedgerId = ledgerId;
-                                currentLedgerId = ledgerId;
-                                lastSequenceNumber.set(entryId);
-                                if (number.after(snapshotSequenceNumber)) {
-                                    LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}",
-                                            new Object[]{number, statusEdit});
-                                    consumer.accept(number, statusEdit);
-                                } else {
-                                    LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}",
-                                            new Object[]{number, snapshotSequenceNumber, statusEdit});
+                            try (LedgerEntries entries = handle.read(start, end);) {
+                                for (org.apache.bookkeeper.client.api.LedgerEntry entry : entries) {
+                                    long entryId = entry.getEntryId();
+                                    LogSequenceNumber number = new LogSequenceNumber(ledgerId, entryId);
+                                    LogEntry statusEdit = readLogEntry(entry);
+                                    lastLedgerId = ledgerId;
+                                    currentLedgerId = ledgerId;
+                                    lastSequenceNumber.set(entryId);
+                                    if (number.after(snapshotSequenceNumber)) {
+                                        if (LOGGER.isLoggable(Level.FINEST)) {
+                                            LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}",
+                                                    new Object[]{number, statusEdit});
+                                        }
+                                        consumer.accept(number, statusEdit);
+                                    } else {
+                                        if (LOGGER.isLoggable(Level.FINEST)) {
+                                            LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}",
+                                                    new Object[]{number, snapshotSequenceNumber, statusEdit});
+                                        }
+                                    }
+                                    localEntryCount++;
                                 }
-                                localEntryCount++;
                             }
                             LOGGER.log(Level.FINER, "read " + localEntryCount + " entries from ledger " + ledgerId
                                     + ", expected " + entriesToRead);
@@ -503,7 +516,8 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             LOGGER.log(Level.INFO, "After recovery of {0} lastSequenceNumber {1}",
                     new Object[]{tableSpaceDescription, getLastSequenceNumber()});
-        } catch (InterruptedException | EOFException | RuntimeException | BKException err) {
+        } catch (LogNotAvailableException | IOException | InterruptedException
+                | org.apache.bookkeeper.client.api.BKException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription, err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
@@ -735,7 +749,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public void followTheLeader(
-            LogSequenceNumber lastPosition, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            LogSequenceNumber lastPosition, EntryAcceptor consumer,
             FollowerContext context
     ) throws LogNotAvailableException {
         if (LOGGER.isLoggable(Level.FINER)) {
@@ -770,7 +784,11 @@ public class BookkeeperCommitLog extends CommitLog {
                     readLastAddConfirmedAndEntry(nextEntry, LONG_POLL_TIMEOUT, false)) {
                 if (entryAndLac.hasEntry()) {
                     org.apache.bookkeeper.client.api.LedgerEntry e = entryAndLac.getEntry();
-                    acceptEntryForFollower(e, consumer);
+                    boolean canContinue = acceptEntryForFollower(e, consumer);
+                    if (!canContinue) {
+                        LOGGER.log(Level.INFO, "exit follower {0}", tableSpaceDescription());
+                        return;
+                    }
                     long startEntry = nextEntry + 1;
                     long endEntry = entryAndLac.getLastAddConfirmed();
                     if (startEntry > endEntry) {
@@ -793,26 +811,29 @@ public class BookkeeperCommitLog extends CommitLog {
 
         } catch (BKClientClosedException err) {
             LOGGER.log(Level.FINE, "stop following " + tableSpaceDescription(), err);
-        } catch (EOFException | org.apache.bookkeeper.client.api.BKException err) {
-            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
+        } catch (org.apache.bookkeeper.client.api.BKException err) {
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal BK error", err);
             throw new LogNotAvailableException(err);
         } catch (InterruptedException err) {
-            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " interrupted", err);
             Thread.currentThread().interrupt();
+            throw new LogNotAvailableException(err);
+        } catch (Exception err) {
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
             throw new LogNotAvailableException(err);
         }
     }
 
-    private void acceptEntryForFollower(
+    private boolean acceptEntryForFollower(
             org.apache.bookkeeper.client.api.LedgerEntry e,
-            BiConsumer<LogSequenceNumber, LogEntry> consumer
-    ) throws EOFException {
+            EntryAcceptor consumer
+    ) throws Exception {
         long entryId = e.getEntryId();
-        byte[] entryData = e.getEntryBytes();
-        LogEntry statusEdit = LogEntry.deserialize(entryData);
+        LogEntry statusEdit = readLogEntry(e);
+
         LogSequenceNumber number = new LogSequenceNumber(e.getLedgerId(), entryId);
         if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.finer(tableSpaceDescription() + " follow entry " + number);
+            LOGGER.log(Level.FINER, "{0} follow entry {1}", new Object[]{tableSpaceDescription(), number});
         }
         if (lastLedgerId == number.ledgerId) {
             lastSequenceNumber.accumulateAndGet(number.offset, EnsureLongIncrementAccumulator.INSTANCE);
@@ -821,7 +842,17 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         lastLedgerId = number.ledgerId;
         currentLedgerId = number.ledgerId;
-        consumer.accept(number, statusEdit);
+        return consumer.accept(number, statusEdit);
+
+    }
+
+    private LogEntry readLogEntry(org.apache.bookkeeper.client.api.LedgerEntry e) throws IOException {
+        LogEntry statusEdit;
+        try (InputStream entryData = new ByteBufInputStream(e.getEntryBuffer(), false /*releaseOnClose*/);
+                ExtendedDataInputStream in = new ExtendedDataInputStream(entryData)) {
+            statusEdit = LogEntry.deserialize(in);
+        }
+        return statusEdit;
     }
 
     @Override

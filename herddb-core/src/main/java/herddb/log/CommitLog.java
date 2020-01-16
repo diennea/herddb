@@ -56,8 +56,12 @@ public abstract class CommitLog implements AutoCloseable {
         return null;
     }
 
+    public interface EntryAcceptor {
+        boolean accept(LogSequenceNumber lsn, LogEntry entry) throws Exception;
+    }
+
     public void followTheLeader(
-            LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            LogSequenceNumber skipPast, EntryAcceptor consumer,
             FollowerContext context
     ) throws LogNotAvailableException {
         // useful only on cluster

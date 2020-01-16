@@ -976,13 +976,19 @@ public class TableSpaceManager {
         public void run() {
             try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
+                    long readLock = acquireReadLock("follow");
+                    try {
                     log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
                         try {
                             apply(new CommitLogResult(num, false, true), u, false);
                         } catch (Throwable t) {
                             throw new RuntimeException(t);
                         }
+                        return !isLeader() && !closed;
                     }, context);
+                    } finally {
+                        releaseReadLock(readLock, "follow");
+                    }
                 }
             } catch (Throwable t) {
                 LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);
