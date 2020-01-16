@@ -516,7 +516,8 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             LOGGER.log(Level.INFO, "After recovery of {0} lastSequenceNumber {1}",
                     new Object[]{tableSpaceDescription, getLastSequenceNumber()});
-        } catch (LogNotAvailableException | IOException | InterruptedException | BKException err) {
+        } catch (LogNotAvailableException | IOException | InterruptedException
+                | org.apache.bookkeeper.client.api.BKException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription, err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
