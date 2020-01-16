@@ -957,4 +957,88 @@ public class MultiServerTest {
             }
         }
     }
+
+    @Test
+    public void testCheckpointFollower() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("s", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            Index index = Index
+                    .builder()
+                    .onTable(table)
+                    .type(Index.TYPE_BRIN)
+                    .column("s", ColumnTypes.STRING)
+                    .build();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeStatement(new CreateIndexStatement(index), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            int size = 1000;
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                LogSequenceNumber lastSequenceNumberServer1 = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+
+
+                for (int i = 0; i < size; i++) {
+                    server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", i, "s", "1" + i)), StatementEvaluationContext.
+                            DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                    if (i % 30 == 0) {
+                        server_2.getManager().checkpoint();
+                    }
+                }
+
+                LogSequenceNumber lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+                while (!lastSequenceNumberServer2.after(lastSequenceNumberServer1)) {
+                    System.out.println("WAITING FOR server2 to be in sync....now it is a "+lastSequenceNumberServer2+" vs "+lastSequenceNumberServer1);
+                    lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+                    Thread.sleep(1000);
+                }
+            }
+
+            // reboot follower˙
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                for (int i = 0; i < size; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+
+            }
+
+        }
+    }
 }
