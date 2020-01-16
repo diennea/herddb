@@ -1685,22 +1685,18 @@ public class TableSpaceManager {
                     + TableDataChecksum.parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
                     
             TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(),translated,tableSpaceManager, tableSpace, tableName);
-            
-            if(scanResult.isDigestIsAvaible()){
-                
-                ObjectMapper mapper = new ObjectMapper();
-                byte[] serialize = mapper.writeValueAsBytes(scanResult);
-                
-                Bytes value = Bytes.from_array(serialize);
-                LogEntry entry = LogEntryFactory.dataIntegrity(tableName,0, value);
-                pos=log.log(entry, false);
-                apply(pos, entry, false);         
 
-                return scanResult;
-            }else{
-                throw new DigestNotAvailableException("Digest for TABLE " + tableSpaceName+"." + tableName + " FAILLED");               
-            }        
-        } finally {
+            ObjectMapper mapper = new ObjectMapper();
+            byte[] serialize = mapper.writeValueAsBytes(scanResult);
+
+            Bytes value = Bytes.from_array(serialize);
+            LogEntry entry = LogEntryFactory.dataIntegrity(tableName,0, value);
+            pos=log.log(entry, false);
+            apply(pos, entry, false);         
+
+            return scanResult;
+            
+        }finally {
             if (lockAcquired) {
                 releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");
                 context.setTableSpaceLock(0);

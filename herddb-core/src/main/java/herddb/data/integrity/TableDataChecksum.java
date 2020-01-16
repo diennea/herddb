@@ -93,13 +93,12 @@ public abstract class TableDataChecksum{
             TABLE_SCAN_DURATION = (_stop - _start);
              LOGGER.log(Level.INFO,"Creating digest for table {0}.{1} finished ", new Object[]{tableSpace,tableName});
             
-           return new TableChecksum ( tableSpace, tableName, hash64.getValue(), HASH_TYPE, NUM_RECORD,  nextAutoIncrementValue, translated.context.query,TABLE_SCAN_DURATION,true);
+           return new TableChecksum ( tableSpace, tableName, hash64.getValue(), HASH_TYPE, NUM_RECORD,  nextAutoIncrementValue, translated.context.query,TABLE_SCAN_DURATION);
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE,"Scan failled", ex);
             throw new DataScannerException(ex);
         } 
-    }
-    
+    }    
     public  static String parsePrimaryKeys(Table table){
         return Arrays.asList(table.getPrimaryKey()).stream().collect(Collectors.joining(","));
     }

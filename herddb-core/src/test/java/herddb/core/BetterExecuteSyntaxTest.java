@@ -122,11 +122,11 @@ public class BetterExecuteSyntaxTest {
                     execute(manager, "INSERT INTO tblspace1.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
                     execute(manager, "INSERT INTO tblspace1.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
                 }
-                    try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.mytable", Collections.emptyList())) {                 
+                    try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql", Collections.emptyList())) {                 
                 }
-                execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.mytable'", Collections.emptyList());
-                execute(manager, "CHECKTABLEINTEGRITY tblspace1.mytable", Collections.emptyList());
-                execute(manager,"checktableintegrity tblspace1.mytable", Collections.emptyList());          
+                execute(manager, "CHECKTABLEINTEGRITY 'tblspace1.tsql'", Collections.emptyList());
+                execute(manager, "CHECKTABLEINTEGRITY tblspace1.tsql1", Collections.emptyList());
+                execute(manager,"checktableintegrity tblspace1.tsql2", Collections.emptyList());          
                 execute(manager,"checktablespaceintegrity tblspace1", Collections.emptyList());      
 
         }

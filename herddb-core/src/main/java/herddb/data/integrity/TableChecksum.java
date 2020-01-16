@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * Table checksum info
  * @author hamado
  */
- @JsonPropertyOrder({"tableSpaceName","tableName","digest","digestType","numRecords", "nexAutoIncrementValue","query","scanDuration","digestIsAvaible"})
+ @JsonPropertyOrder({"tableSpaceName","tableName","digest","digestType","numRecords", "nexAutoIncrementValue","query","scanDuration"})
 public class TableChecksum {
     
     private   String tableSpaceName;
@@ -35,9 +35,8 @@ public class TableChecksum {
     private   long nextAutoIncrementValue;
     private   String query;
     private   long scanDuration;
-    private   boolean digestIsAvaible;
     
-    TableChecksum(String tableSpaceName,String tableName,long digest,String digestType,int numRecords, long nexAutoIncrementValue,String query,long scanDuration,boolean digestIsAvaible){
+    TableChecksum(String tableSpaceName,String tableName,long digest,String digestType,int numRecords, long nexAutoIncrementValue,String query,long scanDuration){
         this.tableSpaceName = tableSpaceName;
         this.tableName = tableName;
         this.digest = digest;
@@ -46,7 +45,6 @@ public class TableChecksum {
         this.nextAutoIncrementValue = nexAutoIncrementValue;
         this.query = query;
         this.scanDuration = scanDuration;
-        this.digestIsAvaible = digestIsAvaible;
     }
     public TableChecksum(){
         super();
@@ -58,14 +56,6 @@ public class TableChecksum {
 
     public void setScanDuration(long scanDuration) {
         this.scanDuration = scanDuration;
-    }
-
-    public boolean isDigestIsAvaible() {
-        return true;
-    }
-
-    public void setDigestIsAvaible(boolean digestIsAvaible) {
-        this.digestIsAvaible = digestIsAvaible;
     }
 
     public String getTableSpaceName() {
@@ -122,7 +112,5 @@ public class TableChecksum {
 
     public void setQuery(String query) {
         this.query = query;
-    }
-    
-    
+    }        
 }
