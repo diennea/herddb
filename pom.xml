@@ -37,7 +37,7 @@
         <url>https://github.com/diennea/herddb.git</url>
         <connection>scm:git:https://github.com/diennea/herddb.git</connection>
         <developerConnection>scm:git:https://github.com/diennea/herddb.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>release/0.14</tag>
     </scm>
     <developers>
         <developer>
@@ -469,7 +469,7 @@
             			<license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
               			<licenseFamilyCategory>MIT</licenseFamilyCategory>
               			<licenseFamilyName>MIT License</licenseFamilyName>
-              			<notes></notes>
+              			<notes />
               			<patterns>
 					<pattern>Licensed under the MIT license</pattern>
                 			<pattern>Released under the MIT license</pattern>
