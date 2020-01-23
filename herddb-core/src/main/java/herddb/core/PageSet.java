@@ -25,8 +25,10 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -96,6 +98,10 @@ public final class PageSet {
 
     Map<Long, DataPageMetaData> getActivePages() {
         return new HashMap<>(activePages);
+    }
+
+    Set<Long> getActivePagesIDs() {
+        return Collections.unmodifiableSet(activePages.keySet());
     }
 
     int getActivePagesCount() {

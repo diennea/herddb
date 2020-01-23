@@ -101,7 +101,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -166,7 +165,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final PageSet pageSet = new PageSet();
 
     private long nextPageId = 1;
-    private final Lock nextPageLock = new ReentrantLock();
+    private final StampedLock nextPageLock = new StampedLock();
 
     private final AtomicLong currentDirtyRecordsPage = new AtomicLong();
 
@@ -487,7 +486,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         public void acceptTableStatus(TableStatus tableStatus) {
                             LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
                             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
-                            nextPageId = tableStatus.nextPageId;
+                            setCurretNewPageId(tableStatus.nextPageId);
                             bootSequenceNumber = tableStatus.sequenceNumber;
                             activePagesAtBoot.putAll(tableStatus.activePages);
                         }
@@ -511,7 +510,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
             }
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
-            nextPageId = tableStatus.nextPageId;
+            setCurretNewPageId(tableStatus.nextPageId);
             bootSequenceNumber = tableStatus.sequenceNumber;
             activePagesAtBoot.putAll(tableStatus.activePages);
         }
@@ -526,6 +525,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
 
         started = true;
+    }
+
+    public PageSet getPageSet() {
+        return pageSet;
     }
 
     @Override
@@ -575,7 +578,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private Long allocateLivePage(Long lastKnownPageId) {
         /* This method expect that a new page actually exists! */
-        nextPageLock.lock();
+        final long stamp = nextPageLock.writeLock();
 
         final Long newId;
         Page.Metadata unload = null;
@@ -593,7 +596,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 newId = nextPageId++;
 
                 if (pages.containsKey(newId)) {
-                    throw new IllegalStateException("invalid newpage id " + newId + ", " + newPages.keySet() + "/" + pages.keySet());
+                    throw new IllegalStateException("invalid newpage id " + newId + ", " + newPages.keySet() + "/" + pageSet.getActivePagesIDs());
                 }
 
                 /*
@@ -620,7 +623,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         } finally {
-            nextPageLock.unlock();
+            nextPageLock.unlockWrite(stamp);
         }
 
         /* Dereferenced page unload. Out of locking */
@@ -630,6 +633,48 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         /* Both created now or already created */
         return newId;
+    }
+
+    /**
+     * Generate and increment the next new page id.
+     *
+     * @return next new page id
+     */
+    private long getNextNewPageId() {
+        final long stamp = nextPageLock.writeLock();
+        try {
+            return nextPageId++;
+        } finally {
+            nextPageLock.unlockWrite(stamp);
+        }
+    }
+
+    /**
+     * Retrieve the current new page id.
+     *
+     * @return current new page id
+     */
+    private long getCurretNewPageId() {
+        final long stamp = nextPageLock.writeLock();
+        try {
+            return nextPageId;
+        } finally {
+            nextPageLock.unlockWrite(stamp);
+        }
+    }
+
+    /**
+     * Forcefully set the current new page id.
+     *
+     * @param newPageId current new page id
+     */
+    private void setCurretNewPageId(long newPageId) {
+        final long stamp = nextPageLock.writeLock();
+        try {
+            this.nextPageId = newPageId;
+        } finally {
+            nextPageLock.unlockWrite(stamp);
+        }
     }
 
     /**
@@ -644,7 +689,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new IllegalStateException("invalid new page initialization, other new pages already exist: " + newPages.keySet());
         }
 
-        createNewPage(nextPageId++);
+        createNewPage(getNextNewPageId());
     }
 
     /**
@@ -2350,7 +2395,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         buildingPageSize = 0;
 
                         /* Get a new building page */
-                        buildingPage = createMutablePage(nextPageId++, buildingPage.size(), 0);
+                        buildingPage = createMutablePage(getNextNewPageId(), buildingPage.size(), 0);
 
                         /* And if needed lock again the new building page */
                         if (page.dirty && lock == null) {
@@ -2582,7 +2627,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             boolean keepFlushedPageInMemory = false;
 
             /* New page actually rebuilt */
-            DataPage buildingPage = createMutablePage(nextPageId++, 0, 0);
+            DataPage buildingPage = createMutablePage(getNextNewPageId(), 0, 0);
 
 
             /* **************************** */
@@ -2749,7 +2794,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pageSet.checkpointDone(flushedPages);
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
-                    Bytes.longToByteArray(nextPrimaryKeyValue.get()), nextPageId,
+                    Bytes.longToByteArray(nextPrimaryKeyValue.get()), getCurretNewPageId(),
                     pageSet.getActivePages());
 
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));
@@ -3448,7 +3493,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
             if (relocatedPageId == null) {
                 // deleted
-                LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages()
+                            + ", record " + key + " deleted during data access");
+                }
                 return null;
             }
             pageId = relocatedPageId;
