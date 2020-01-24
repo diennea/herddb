@@ -543,6 +543,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
                 LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
                 LOGGER.log(Level.SEVERE, "Error", t);
+                tablesSpaces.remove(tableSpaceName);
                 try {
                     manager.close();
                 } catch (Throwable t2) {

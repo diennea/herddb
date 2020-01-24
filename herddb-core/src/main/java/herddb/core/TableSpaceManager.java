@@ -592,6 +592,16 @@ public class TableSpaceManager {
         if (!leaderAddress.isPresent()) {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
+        
+        // ensure we do not have any data on disk and in memory
+        dataStorageManager.eraseTablespaceData(tableSpaceUUID);
+                
+        actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+        newTransactionId.set(0);
+        tables.clear();
+        indexes.clear();
+        transactions.clear();
+        
         NodeMetadata nodeData = leaderAddress.get();
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
@@ -611,20 +621,14 @@ public class TableSpaceManager {
             try (HDBConnection con = client.openConnection()) {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
-                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
-                long _start = System.currentTimeMillis();
-                boolean ok = receiver.join(1000 * 60 * 60);
-                if (!ok) {
-                    throw new DataStorageManagerException("Cannot receive dump within " + (System.currentTimeMillis() - _start) + " ms");
-                }
-                if (receiver.getError() != null) {
-                    throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
-                }
+                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);                
+                receiver.getLatch().get(1, TimeUnit.HOURS);                
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
-                LOGGER.log(Level.INFO, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
+                LOGGER.log(Level.INFO, tableSpaceName + " After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 
-            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
-                throw new DataStorageManagerException(networkError);
+            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException | ExecutionException | TimeoutException internalError) {
+                LOGGER.log(Level.SEVERE, tableSpaceName + " error downloading snapshot", internalError);
+                throw new DataStorageManagerException(internalError);
             }
 
         }

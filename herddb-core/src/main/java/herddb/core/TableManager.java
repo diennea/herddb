@@ -695,6 +695,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     public Collection<DataPage> getLoadedPages() {
         return pages.values();
     }
+    
+    public void forceFlushallPagesForTests() {
+        List<Long> ids = new ArrayList<>(pages.keySet());
+        for (long pageId : ids) {
+            unload(pageId);
+        }
+    }
 
     @Override
     public void unload(long pageId) {

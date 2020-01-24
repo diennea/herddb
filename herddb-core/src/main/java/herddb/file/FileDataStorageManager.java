@@ -167,6 +167,18 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    @Override
+    public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
+        Path tablespaceDirectory = getTablespaceDirectory(tableSpace);
+        LOGGER.log(Level.INFO, "erasing directory {0}", tablespaceDirectory.toAbsolutePath().toString());
+        try {
+            FileUtils.cleanDirectory(tablespaceDirectory);
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Cannot clean directory", err);
+            throw new DataStorageManagerException(err);
+        }
+    }
+
     private Path getTablespaceDirectory(String tablespace) {
         return baseDirectory.resolve(tablespace + ".tablespace");
     }
