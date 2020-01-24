@@ -88,6 +88,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
+import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
@@ -290,7 +291,8 @@ public class TableSpaceManager {
             }
         });
 
-        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+        if (LogSequenceNumber.START_OF_TIME.equals(logSequenceNumber)
+                && dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
             LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
@@ -598,6 +600,7 @@ public class TableSpaceManager {
                 
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
+        LOGGER.log(Level.INFO,"tablespace "+tableSpaceName+" at downloadTableSpaceData "+tables+", "+indexes+", "+transactions);
         tables.clear();
         indexes.clear();
         transactions.clear();
@@ -890,13 +893,16 @@ public class TableSpaceManager {
             }
 
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
-            long requestId2 = channel.generateRequestId();
-
-            try (Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
+            channel.sendOneWayMessage(PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "finish", null, 0,
                     finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
-                    null, null), timeout)) {
-            }
+                    null, null), (Throwable error) -> {
+                        if (error != null) {
+                            LOGGER.log(Level.SEVERE, "Cannot send last dump msg for " + dumpId, error);
+                        } else {
+                            LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
+                        }
+            });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
