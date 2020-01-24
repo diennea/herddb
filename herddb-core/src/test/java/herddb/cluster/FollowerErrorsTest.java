@@ -20,6 +20,7 @@
 package herddb.cluster;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
@@ -80,7 +81,8 @@ public class FollowerErrorsTest {
         SystemCrashSimulator.addListener(new SystemCrashSimulator.SimpleCrashPointListener("receiveTableDataChunk") {
             @Override
             public void crashPoint(Object... args) throws Exception {
-                // force write to disk and then inject an error
+                // force write to disk and then inject an erro
+                fail("THIS IS NOT THE GOOD WAY TO FORCE A FLUSH TO DISK");
                 TableSpaceManager manager = (TableSpaceManager) args[0];
                 TableManager tableManager = (TableManager) manager.getTableManager("t1");
                 
@@ -171,6 +173,10 @@ public class FollowerErrorsTest {
                 }
 
             }
+            
+            fail("This ISSUE  is not finished, if we crash while starting the tablespace we should unload all of the index pages and data pages held in memory and notify the Policy");
+            
+            fail("This ISSUE  is not finished, we should reproduce the case in which during recovery we are really writing data to disk and eraseTablespaceData really deletes something");
 
         }
     }
