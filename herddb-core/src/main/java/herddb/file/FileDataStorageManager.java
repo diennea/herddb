@@ -51,7 +51,7 @@ import herddb.utils.ODirectFileOutputStream;
 import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import herddb.utils.SystemCrashSimulator;
+import herddb.utils.SystemInstrumentation;
 import herddb.utils.SystemProperties;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
@@ -170,7 +170,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
-        SystemCrashSimulator.crashPointRuntimeException("eraseTablespaceData", tableSpace);
+        SystemInstrumentation.instrumentationPoint("eraseTablespaceData", tableSpace);
         Path tablespaceDirectory = getTablespaceDirectory(tableSpace);
         LOGGER.log(Level.INFO, "erasing tablespace "+tableSpace+" directory {0}", tablespaceDirectory.toAbsolutePath().toString());
         try {

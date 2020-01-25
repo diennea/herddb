@@ -23,20 +23,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Utility for fault inject.
+ * Utility for fault injection and code instrumentation.
  *
  * @author enrico.olivelli
  */
-public class SystemCrashSimulator {
+public abstract class SystemInstrumentation {
+
+    private SystemInstrumentation() {
+    }
 
     /**
      * Listens only for a given crashpoint
      */
-    public static abstract class SimpleCrashPointListener implements CrashPointListener {
+    public static abstract class SingleInstrumentationPointListener implements InstrumentationPointListener {
 
         private final String crashpointid;
 
-        public SimpleCrashPointListener(String crashpointid) {
+        public SingleInstrumentationPointListener(String crashpointid) {
             this.crashpointid = crashpointid;
         }
 
@@ -51,22 +54,22 @@ public class SystemCrashSimulator {
 
     }
 
-    public static interface CrashPointListener {
+    public static interface InstrumentationPointListener {
 
-        public void crashPoint(String crashpointid, Object... args) throws Exception;
+        public void crashPoint(String id, Object... args) throws Exception;
     }
-    private static List<CrashPointListener> listeners = null;
+    private static List<InstrumentationPointListener> listeners = null;
 
-    public static void addListener(CrashPointListener l) {
+    public static void addListener(InstrumentationPointListener l) {
         if (listeners == null) {
             listeners = new ArrayList<>();
         }
         listeners.add(l);
     }
 
-    public static void crashPointRuntimeException(String crashpointid, Object... args) {
+    public static void instrumentationPoint(String crashpointid, Object... args) {
         if (listeners != null) {
-            for (CrashPointListener listener : listeners) {
+            for (InstrumentationPointListener listener : listeners) {
                 try {
                     listener.crashPoint(crashpointid, args);
                 } catch (Throwable t) {
@@ -80,8 +83,8 @@ public class SystemCrashSimulator {
     }
 
     public static void clear() {
-        // settiamo a null
-        // se facciamo clear non è possibile aggiungere/togliere listeners durante l'invocazione di un listener (ConcurrentModificationException)
+        // lose all hard references to local variables captured by
+        // listeners declared inside methods
         listeners = null;
     }
 }

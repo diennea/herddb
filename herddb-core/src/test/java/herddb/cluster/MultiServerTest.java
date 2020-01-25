@@ -53,7 +53,7 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.SystemCrashSimulator;
+import herddb.utils.SystemInstrumentation;
 import herddb.utils.TestUtils;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
@@ -90,7 +90,7 @@ public class MultiServerTest {
 
     @After
     public void afterTeardown() throws Exception {
-        SystemCrashSimulator.clear();
+        SystemInstrumentation.clear();
         if (testEnv != null) {
             testEnv.close();
         }
@@ -462,7 +462,7 @@ public class MultiServerTest {
     public void testLeaderOnlineLogNoMoreAvailableDataAlreadyPresent() throws Exception {
         
         final AtomicInteger countErase = new AtomicInteger();
-            SystemCrashSimulator.addListener(new SystemCrashSimulator.SimpleCrashPointListener("eraseTablespaceData") {
+            SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("eraseTablespaceData") {
                 @Override
                 public void crashPoint(Object... args) throws Exception {
                     countErase.incrementAndGet();
@@ -644,7 +644,7 @@ public class MultiServerTest {
         final AtomicInteger callCount = new AtomicInteger();
         // inject a temporary error during download
         final AtomicInteger errorCount = new AtomicInteger(1);
-        SystemCrashSimulator.addListener(new SystemCrashSimulator.SimpleCrashPointListener("receiveTableDataChunk") {
+        SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("receiveTableDataChunk") {
             @Override
             public void crashPoint(Object... args) throws Exception {
                 callCount.incrementAndGet();

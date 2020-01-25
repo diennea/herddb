@@ -27,7 +27,7 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManagerException;
-import herddb.utils.SystemCrashSimulator;
+import herddb.utils.SystemInstrumentation;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -104,7 +104,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
         }
         currentTable.writeFromDump(record);
         // after writing to local storage
-        SystemCrashSimulator.crashPointRuntimeException("receiveTableDataChunk", tableSpaceManager, currentTable, record);
+        SystemInstrumentation.instrumentationPoint("receiveTableDataChunk", tableSpaceManager, currentTable, record);
     }
 
     @Override
