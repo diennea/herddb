@@ -457,19 +457,19 @@ public class MultiServerTest {
         }
 
     }
-    
+
     @Test
     public void testLeaderOnlineLogNoMoreAvailableDataAlreadyPresent() throws Exception {
-        
+
         final AtomicInteger countErase = new AtomicInteger();
             SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("eraseTablespaceData") {
                 @Override
-                public void crashPoint(Object... args) throws Exception {
+                public void acceptSingle(Object... args) throws Exception {
                     countErase.incrementAndGet();
                 }
             });
 
-        
+
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -553,14 +553,14 @@ public class MultiServerTest {
             }
             server_1.getManager().checkpoint();
         }
-                
+
         assertEquals(0, countErase.get());
-            
+
         LogSequenceNumber server2checkpointPosition;
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
-            
+
             // start server_2, and flush data locally
             try (Server server_2 = new Server(serverconfig_2)) {
                 server_2.start();
@@ -577,13 +577,13 @@ public class MultiServerTest {
                 // force a checkpoint, data is flushed to disk
                 server_2.getManager().checkpoint();
                 server2checkpointPosition = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
-                System.out.println("server2 checkpoint time: "+server2checkpointPosition);
+                System.out.println("server2 checkpoint time: " + server2checkpointPosition);
             }
 
         }
-        
+
         // server_2 now is offline for a while
-        
+
         // start again server_1, in order to create a new ledger
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -600,20 +600,20 @@ public class MultiServerTest {
             ll.rollNewLedger();
             // a checkpoint will delete old ledgers
             server_1.getManager().checkpoint();
-            
+
             {
                 ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
                 LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
                 System.out.println("ledgerList: " + ledgersList);
                 assertEquals(1, ledgersList.getActiveLedgers().size());
-                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));                
+                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
                 // we want to be sure that server_2 cannot recover from log
                 assertTrue(!ledgersList.getActiveLedgers().contains(server2checkpointPosition.ledgerId));
             }
-                        
+
             assertEquals(1, countErase.get());
-            
-            
+
+
             // data will be downloaded again from the other server
             // but the server already has local data, tablespace directory must be erased
             try (Server server_2 = new Server(serverconfig_2)) {
@@ -623,7 +623,7 @@ public class MultiServerTest {
                 assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertEquals(2, countErase.get());
-               
+
                 TranslatedQuery translated = server_2.getManager().getPlanner().translate(TableSpace.DEFAULT,
                         "SELECT * FROM " + TableSpace.DEFAULT + ".t1 WHERE s=1", Collections.emptyList(),
                         true, true, false, -1);
@@ -636,8 +636,8 @@ public class MultiServerTest {
         }
 
     }
-    
-    
+
+
     @Test
     public void testFollowerBootError() throws Exception {
         int size = 20_000;
@@ -646,7 +646,7 @@ public class MultiServerTest {
         final AtomicInteger errorCount = new AtomicInteger(1);
         SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("receiveTableDataChunk") {
             @Override
-            public void crashPoint(Object... args) throws Exception {
+            public void acceptSingle(Object... args) throws Exception {
                 callCount.incrementAndGet();
                 if (errorCount.decrementAndGet() == 0) {
                     throw new Exception("synthetic error");

@@ -230,7 +230,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     } catch (RuntimeException error) {
                         LOGGER.log(Level.SEVERE, "error while handling dump data", error);
                         receiver.onError(error);
-                        
+
                         if (channel != null) {
                             ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, error);
                             channel.sendReplyMessage(message.messageId, res);

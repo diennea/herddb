@@ -33,9 +33,9 @@ public abstract class SystemInstrumentation {
     }
 
     /**
-     * Listens only for a given crashpoint
+     * Listens only for a given instrumentation point
      */
-    public static abstract class SingleInstrumentationPointListener implements InstrumentationPointListener {
+    public abstract static class SingleInstrumentationPointListener implements InstrumentationPointListener {
 
         private final String crashpointid;
 
@@ -43,20 +43,20 @@ public abstract class SystemInstrumentation {
             this.crashpointid = crashpointid;
         }
 
-        public abstract void crashPoint(Object... args) throws Exception;
+        public abstract void acceptSingle(Object... args) throws Exception;
 
         @Override
-        public final void crashPoint(String crashpointid, Object... args) throws Exception {
+        public final void accept(String crashpointid, Object... args) throws Exception {
             if (crashpointid.equals(this.crashpointid)) {
-                crashPoint(args);
+                acceptSingle(args);
             }
         }
 
     }
 
-    public static interface InstrumentationPointListener {
+    public interface InstrumentationPointListener {
 
-        public void crashPoint(String id, Object... args) throws Exception;
+        void accept(String id, Object... args) throws Exception;
     }
     private static List<InstrumentationPointListener> listeners = null;
 
@@ -71,7 +71,7 @@ public abstract class SystemInstrumentation {
         if (listeners != null) {
             for (InstrumentationPointListener listener : listeners) {
                 try {
-                    listener.crashPoint(crashpointid, args);
+                    listener.accept(crashpointid, args);
                 } catch (Throwable t) {
                     if (t instanceof RuntimeException) {
                         throw (RuntimeException) t;

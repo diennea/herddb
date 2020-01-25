@@ -88,7 +88,6 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
-import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
@@ -594,17 +593,32 @@ public class TableSpaceManager {
         if (!leaderAddress.isPresent()) {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
-        
+
         // ensure we do not have any data on disk and in memory
-        dataStorageManager.eraseTablespaceData(tableSpaceUUID);
-                
+        
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
-        LOGGER.log(Level.INFO,"tablespace "+tableSpaceName+" at downloadTableSpaceData "+tables+", "+indexes+", "+transactions);
+        LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
+        for (AbstractTableManager manager : tables.values()) {
+            // this is like a truncate table, and it releases all pages
+            // and all indexes
+            if (!manager.isSystemTable()) {
+                manager.dropTableData();
+            }
+            manager.close();
+        }
         tables.clear();
+
+        // this map should be empty
+        for (AbstractIndexManager manager : indexes.values()) {
+            manager.dropIndexData();
+            manager.close();
+        }
         indexes.clear();
         transactions.clear();
-        
+
+        dataStorageManager.eraseTablespaceData(tableSpaceUUID);
+
         NodeMetadata nodeData = leaderAddress.get();
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
@@ -624,8 +638,8 @@ public class TableSpaceManager {
             try (HDBConnection con = client.openConnection()) {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
-                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);                
-                receiver.getLatch().get(1, TimeUnit.HOURS);                
+                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
+                receiver.getLatch().get(1, TimeUnit.HOURS);
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
                 LOGGER.log(Level.INFO, tableSpaceName + " After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 

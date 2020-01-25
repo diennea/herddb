@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.core;
 
 import herddb.backup.DumpedTableMetadata;
@@ -68,7 +67,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     public CompletableFuture<Object> getLatch() {
         return latch;
     }
-        
+
     public Throwable getError() {
         return error;
     }
@@ -97,7 +96,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     }
 
     @Override
-    public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {       
+    public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
         if (currentTable == null) {
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", receiveTableDataChunk swallow data after leader side error");
             return;
