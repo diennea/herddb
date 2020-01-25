@@ -182,7 +182,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      */
     @Override
     public abstract void close() throws DataStorageManagerException;
-    
+
     public abstract void eraseTablespaceData(String tableSpace) throws DataStorageManagerException;
 
     /**

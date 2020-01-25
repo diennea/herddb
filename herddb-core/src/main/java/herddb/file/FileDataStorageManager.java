@@ -172,11 +172,11 @@ public class FileDataStorageManager extends DataStorageManager {
     public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
         SystemInstrumentation.instrumentationPoint("eraseTablespaceData", tableSpace);
         Path tablespaceDirectory = getTablespaceDirectory(tableSpace);
-        LOGGER.log(Level.INFO, "erasing tablespace "+tableSpace+" directory {0}", tablespaceDirectory.toAbsolutePath().toString());
+        LOGGER.log(Level.INFO, "erasing tablespace " + tableSpace + " directory {0}", tablespaceDirectory.toAbsolutePath().toString());
         try {
             FileUtils.cleanDirectory(tablespaceDirectory);
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Cannot clean directory for tablespace "+tableSpace, err);
+            LOGGER.log(Level.SEVERE, "Cannot clean directory for tablespace " + tableSpace, err);
             throw new DataStorageManagerException(err);
         }
     }

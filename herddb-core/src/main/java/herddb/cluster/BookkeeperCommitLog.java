@@ -628,7 +628,7 @@ public class BookkeeperCommitLog extends CommitLog {
         BKFollowerContext(LogSequenceNumber lastPosition) {
             ledgerToTail = lastPosition.ledgerId;
             nextEntryToRead = lastPosition.offset + 1;
-            LOGGER.info(tableSpaceDescription() + " start following, fist position is " + lastPosition);
+            LOGGER.info(tableSpaceDescription() + " start following, first position is " + lastPosition);
         }
 
         void ensureOpenReader(LogSequenceNumber currentPosition) throws org.apache.bookkeeper.client.api.BKException,

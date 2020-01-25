@@ -595,7 +595,7 @@ public class TableSpaceManager {
         }
 
         // ensure we do not have any data on disk and in memory
-        
+
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
         LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
