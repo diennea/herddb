@@ -53,6 +53,7 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.SystemInstrumentation;
 import herddb.utils.TestUtils;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
@@ -62,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -88,13 +90,14 @@ public class MultiServerTest {
 
     @After
     public void afterTeardown() throws Exception {
+        SystemInstrumentation.clear();
         if (testEnv != null) {
             testEnv.close();
         }
     }
 
     @Test
-    public void test_leader_online_log_available() throws Exception {
+    public void testLeaderOnlineLogAvailable() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -243,7 +246,7 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_leader_offline_log_available() throws Exception {
+    public void testLeaderOfflineLogAvailable() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -324,7 +327,7 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_leader_online_log_no_more_available() throws Exception {
+    public void testLeaderOnlineLogNoMoreAvailable() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -456,7 +459,277 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_follow_multiple_tablespaces() throws Exception {
+    public void testLeaderOnlineLogNoMoreAvailableDataAlreadyPresent() throws Exception {
+
+        final AtomicInteger countErase = new AtomicInteger();
+            SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("eraseTablespaceData") {
+                @Override
+                public void acceptSingle(Object... args) throws Exception {
+                    countErase.incrementAndGet();
+                }
+            });
+
+
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+        Table table = Table.builder()
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .column("s", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
+        Index index = Index
+                .builder()
+                .onTable(table)
+                .type(Index.TYPE_BRIN)
+                .column("s", ColumnTypes.STRING)
+                .build();
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeStatement(new CreateIndexStatement(index), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1, "s", "1")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2, "s", "2")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3, "s", "3")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4, "s", "4")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TranslatedQuery translated = server_1.getManager().getPlanner().translate(TableSpace.DEFAULT,
+                    "SELECT * FROM " + TableSpace.DEFAULT + ".t1 WHERE s=1",
+                    Collections.emptyList(), true, true, false, -1);
+            ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
+            assertTrue(statement.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+            try (DataScanner scan = server_1.getManager().scan(statement, translated.context, TransactionContext.NO_TRANSACTION)) {
+                assertEquals(1, scan.consume().size());
+            }
+        }
+
+        String tableSpaceUUID;
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                tableSpaceUUID = man.describeTableSpace(TableSpace.DEFAULT).uuid;
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5, "s", "5")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().checkpoint();
+        }
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 6, "s", "6")), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().checkpoint();
+        }
+
+        assertEquals(0, countErase.get());
+
+        LogSequenceNumber server2checkpointPosition;
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            // start server_2, and flush data locally
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+                // force a checkpoint, data is flushed to disk
+                server_2.getManager().checkpoint();
+                server2checkpointPosition = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+                System.out.println("server2 checkpoint time: " + server2checkpointPosition);
+            }
+
+        }
+
+        // server_2 now is offline for a while
+
+        // start again server_1, in order to create a new ledger
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            BookkeeperCommitLog ll = (BookkeeperCommitLog) server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog();
+            // server_1 make much  progress
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            ll.rollNewLedger();
+            // a checkpoint will delete old ledgers
+            server_1.getManager().checkpoint();
+
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                System.out.println("ledgerList: " + ledgersList);
+                assertEquals(1, ledgersList.getActiveLedgers().size());
+                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
+                // we want to be sure that server_2 cannot recover from log
+                assertTrue(!ledgersList.getActiveLedgers().contains(server2checkpointPosition.ledgerId));
+            }
+
+            assertEquals(1, countErase.get());
+
+
+            // data will be downloaded again from the other server
+            // but the server already has local data, tablespace directory must be erased
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+                assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+
+                assertEquals(2, countErase.get());
+
+                TranslatedQuery translated = server_2.getManager().getPlanner().translate(TableSpace.DEFAULT,
+                        "SELECT * FROM " + TableSpace.DEFAULT + ".t1 WHERE s=1", Collections.emptyList(),
+                        true, true, false, -1);
+                ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(statement.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan = server_2.getManager().scan(statement, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                }
+            }
+        }
+
+    }
+
+
+    @Test
+    public void testFollowerBootError() throws Exception {
+        int size = 20_000;
+        final AtomicInteger callCount = new AtomicInteger();
+        // inject a temporary error during download
+        final AtomicInteger errorCount = new AtomicInteger(1);
+        SystemInstrumentation.addListener(new SystemInstrumentation.SingleInstrumentationPointListener("receiveTableDataChunk") {
+            @Override
+            public void acceptSingle(Object... args) throws Exception {
+                callCount.incrementAndGet();
+                if (errorCount.decrementAndGet() == 0) {
+                    throw new Exception("synthetic error");
+                }
+            }
+        });
+
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                // force downloading a snapshot from the leader
+                .set(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, true)
+                .set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, 5_000_000)
+                .set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 200_000)
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("s", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                LogSequenceNumber lastSequenceNumberServer1 = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+
+                for (int i = 0; i < size; i++) {
+                    server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", i, "s", "1" + i)), StatementEvaluationContext.
+                            DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                }
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                LogSequenceNumber lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+                while (!lastSequenceNumberServer2.after(lastSequenceNumberServer1)) {
+                    System.out.println("WAITING FOR server2 to be in sync....now it is a " + lastSequenceNumberServer2 + " vs " + lastSequenceNumberServer1);
+                    lastSequenceNumberServer2 = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog().getLastSequenceNumber();
+                    Thread.sleep(1000);
+                }
+            }
+
+            // reboot follower˙
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                for (int i = 0; i < size; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+
+            }
+
+            assertEquals(3, callCount.get());
+            assertTrue(errorCount.get() <= 0);
+        }
+    }
+
+    @Test
+    public void testFollowMultipleTablespaces() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -560,7 +833,7 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_follower_catchup_after_restart_after_longtime() throws Exception {
+    public void test_FollowerCatchupAfterRestartAfterLongtimeNoDataPresent() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -873,7 +1146,7 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_leader_online_log_available_multiple_versions_active_pages() throws Exception {
+    public void testLeaderOnlineLogAvailableMultipleVersionsActivePages() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 1000);
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
@@ -1041,4 +1314,5 @@ public class MultiServerTest {
 
         }
     }
+
 }

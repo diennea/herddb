@@ -455,6 +455,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
+        tablesByTablespace.remove(tableSpace);
+    }
+
+    @Override
     public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
         List<Table> res = tablesByTablespace.get(tableSpace);
         if (res != null) {

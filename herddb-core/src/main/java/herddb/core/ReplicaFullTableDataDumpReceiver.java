@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.core;
 
 import herddb.backup.DumpedTableMetadata;
@@ -27,10 +26,10 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.SystemInstrumentation;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,19 +38,19 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
+public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
 
     private static final Logger LOGGER = Logger.getLogger(ReplicaFullTableDataDumpReceiver.class.getName());
 
     private TableManager currentTable;
-    private final CountDownLatch latch;
+    private final CompletableFuture<Object> latch;
     private Throwable error;
     LogSequenceNumber logSequenceNumber;
     private final TableSpaceManager tableSpaceManager;
     private final String tableSpaceName;
 
     public ReplicaFullTableDataDumpReceiver(TableSpaceManager tableSpaceManager) {
-        this.latch = new CountDownLatch(1);
+        this.latch = new CompletableFuture<>();
         this.tableSpaceManager = tableSpaceManager;
         this.tableSpaceName = tableSpaceManager.getTableSpaceName();
     }
@@ -65,8 +64,8 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
         return logSequenceNumber;
     }
 
-    public boolean join(int timeout) throws InterruptedException {
-        return latch.await(timeout, TimeUnit.MILLISECONDS);
+    public CompletableFuture<Object> getLatch() {
+        return latch;
     }
 
     public Throwable getError() {
@@ -77,13 +76,13 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     public void onError(Throwable error) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", onError ", error);
         this.error = error;
-        latch.countDown();
+        latch.completeExceptionally(error);
     }
 
     @Override
     public void finish(LogSequenceNumber pos) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
-        latch.countDown();
+        latch.complete("");
     }
 
     @Override
@@ -103,6 +102,8 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
             return;
         }
         currentTable.writeFromDump(record);
+        // after writing to local storage
+        SystemInstrumentation.instrumentationPoint("receiveTableDataChunk", tableSpaceManager, currentTable, record);
     }
 
     @Override

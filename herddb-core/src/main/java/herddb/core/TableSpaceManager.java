@@ -290,7 +290,8 @@ public class TableSpaceManager {
             }
         });
 
-        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+        if (LogSequenceNumber.START_OF_TIME.equals(logSequenceNumber)
+                && dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
             LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
@@ -592,6 +593,32 @@ public class TableSpaceManager {
         if (!leaderAddress.isPresent()) {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
+
+        // ensure we do not have any data on disk and in memory
+
+        actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+        newTransactionId.set(0);
+        LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
+        for (AbstractTableManager manager : tables.values()) {
+            // this is like a truncate table, and it releases all pages
+            // and all indexes
+            if (!manager.isSystemTable()) {
+                manager.dropTableData();
+            }
+            manager.close();
+        }
+        tables.clear();
+
+        // this map should be empty
+        for (AbstractIndexManager manager : indexes.values()) {
+            manager.dropIndexData();
+            manager.close();
+        }
+        indexes.clear();
+        transactions.clear();
+
+        dataStorageManager.eraseTablespaceData(tableSpaceUUID);
+
         NodeMetadata nodeData = leaderAddress.get();
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
@@ -612,19 +639,13 @@ public class TableSpaceManager {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
-                long _start = System.currentTimeMillis();
-                boolean ok = receiver.join(1000 * 60 * 60);
-                if (!ok) {
-                    throw new DataStorageManagerException("Cannot receive dump within " + (System.currentTimeMillis() - _start) + " ms");
-                }
-                if (receiver.getError() != null) {
-                    throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
-                }
+                receiver.getLatch().get(1, TimeUnit.HOURS);
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
-                LOGGER.log(Level.INFO, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
+                LOGGER.log(Level.INFO, tableSpaceName + " After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 
-            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
-                throw new DataStorageManagerException(networkError);
+            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException | ExecutionException | TimeoutException internalError) {
+                LOGGER.log(Level.SEVERE, tableSpaceName + " error downloading snapshot", internalError);
+                throw new DataStorageManagerException(internalError);
             }
 
         }
@@ -886,13 +907,16 @@ public class TableSpaceManager {
             }
 
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
-            long requestId2 = channel.generateRequestId();
-
-            try (Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
+            channel.sendOneWayMessage(PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "finish", null, 0,
                     finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
-                    null, null), timeout)) {
-            }
+                    null, null), (Throwable error) -> {
+                        if (error != null) {
+                            LOGGER.log(Level.SEVERE, "Cannot send last dump msg for " + dumpId, error);
+                        } else {
+                            LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
+                        }
+            });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
