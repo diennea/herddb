@@ -750,7 +750,21 @@ public class TableSpaceManager {
                         new Object[]{t.transactionId,
                                 new java.sql.Timestamp(t.localCreationTimestamp),
                                 new java.sql.Timestamp(t.lastActivityTs)});
-                validateTransactionBeforeTxCommand(t.transactionId);
+                try {
+                    if (!validateTransactionBeforeTxCommand(t.transactionId, false /* no wait */)) {
+                        // Continue to check next transaction
+                        continue;
+                    }
+                } catch (StatementExecutionException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}: {1}",
+                            new Object[] { t.transactionId, e.getMessage() });
+                    // Continue to check next transaction
+                    continue;
+                } catch (RuntimeException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[] { t.transactionId, e });
+                    // Continue to check next transaction
+                    continue;
+                }
                 long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
                 try {
                     forceTransactionRollback(t.transactionId);
@@ -1812,6 +1826,10 @@ public class TableSpaceManager {
     }
 
     private void validateTransactionBeforeTxCommand(long txId) throws StatementExecutionException {
+        validateTransactionBeforeTxCommand(txId, true);
+    }
+
+    private boolean validateTransactionBeforeTxCommand(long txId, boolean wait) throws StatementExecutionException {
         Transaction tc = transactions.get(txId);
         if (tc == null) {
             throw new StatementExecutionException("no such transaction " + txId + " in tablespace " + tableSpaceName);
@@ -1820,19 +1838,23 @@ public class TableSpaceManager {
             LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
                     new Object[]{txId, tableSpaceName, tc.getRefCount()});
             if (!ENABLE_PENDING_TRANSACTION_CHECK) {
-                break;
+                return true;
+            }
+            if (!wait) {
+                return false;
             }
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new StatementExecutionException("Error while waiting for pending actities of transaction " + txId + " in " + tableSpaceName,
+                throw new StatementExecutionException("Error while waiting for pending activities of transaction " + txId + " in " + tableSpaceName,
                         ex);
             }
         }
         if (closed) {
             throw new StatementExecutionException("tablespace closed during commit of transaction " + txId + " in tablespace " + tableSpaceName);
         }
+        return true;
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
