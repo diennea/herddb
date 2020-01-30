@@ -223,7 +223,8 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + key + ", value=" + value + ", timestamp=" + timestamp + '}';
+        // this string is printed on logs during debug...better to save space
+        return "LE{" + "t=" + type + ",tx=" + transactionId + ",tn=" + tableName + ",k=" + key + ",v=" + value + ",ts=" + timestamp + '}';
     }
 
 }

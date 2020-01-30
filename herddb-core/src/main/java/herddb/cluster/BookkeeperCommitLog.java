@@ -101,6 +101,12 @@ public class BookkeeperCommitLog extends CommitLog {
         failed = true;
     }
 
+    // only for testsm this is needed to undo the automatic close of the log
+    // in case of failures
+    public void resetClosedFlagForTests() {
+        closed = false;
+    }
+
     public void rollNewLedger() {
         openNewLedger();
     }
@@ -346,7 +352,7 @@ public class BookkeeperCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "this server was fenced for tablespace " + tableSpaceDescription() + " !", cause);
             close();
             signalLogFailed();
-        } else if (cause instanceof BKException.BKNotEnoughBookiesException) {
+        } else if (cause instanceof org.apache.bookkeeper.client.api.BKException) {
             LOGGER.log(Level.SEVERE, "bookkeeper failure for tablespace " + tableSpaceDescription(), cause);
             close();
             signalLogFailed();
@@ -465,7 +471,7 @@ public class BookkeeperCommitLog extends CommitLog {
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
                             int entriesToRead = (int) (1 + end - start);
                             if (LOGGER.isLoggable(Level.FINE)) {
-                                LOGGER.log(Level.FINE, "From entry {0}, to entry {1} ({2} %)",
+                                LOGGER.log(Level.FINE, "{3} From entry {0}, to entry {1} ({2} %)",
                                         new Object[]{start, end, percent, tableSpaceDescription});
                             }
                             long _start = System.currentTimeMillis();
@@ -481,26 +487,24 @@ public class BookkeeperCommitLog extends CommitLog {
                                     lastSequenceNumber.set(entryId);
                                     if (number.after(snapshotSequenceNumber)) {
                                         if (LOGGER.isLoggable(Level.FINEST)) {
-                                            LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}",
+                                            LOGGER.log(Level.FINEST, "rec " + tableSpaceName + " #" + localEntryCount + " {0}, {1}",
                                                     new Object[]{number, statusEdit});
                                         }
                                         consumer.accept(number, statusEdit);
                                     } else {
                                         if (LOGGER.isLoggable(Level.FINEST)) {
-                                            LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}",
+                                            LOGGER.log(Level.FINEST, "skip " + tableSpaceName + " #" + localEntryCount + " {0}<{1}, {2}",
                                                     new Object[]{number, snapshotSequenceNumber, statusEdit});
                                         }
                                     }
                                     localEntryCount++;
                                 }
                             }
-                            LOGGER.log(Level.FINER, "read " + localEntryCount + " entries from ledger " + ledgerId
+                            LOGGER.log(Level.FINER, tableSpaceDescription() + " read " + localEntryCount + " entries from ledger " + ledgerId
                                     + ", expected " + entriesToRead);
 
-                            LOGGER.log(Level.FINER, "finished waiting for " + entriesToRead
-                                    + " entries to be read from ledger " + ledgerId);
                             if (localEntryCount != entriesToRead) {
-                                throw new LogNotAvailableException("Read " + localEntryCount + " entries, expected "
+                                throw new LogNotAvailableException(tableSpaceDescription() + " Read " + localEntryCount + " entries, expected "
                                         + entriesToRead);
                             }
                             lastLedgerId = ledgerId;
@@ -518,7 +522,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     new Object[]{tableSpaceDescription, getLastSequenceNumber()});
         } catch (LogNotAvailableException | IOException | InterruptedException
                 | org.apache.bookkeeper.client.api.BKException err) {
-            LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription, err);
+            LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription(), err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
         }
