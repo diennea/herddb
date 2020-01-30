@@ -112,6 +112,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -319,9 +320,13 @@ public class TableSpaceManager {
             // this will wait for the write to be acknowledged by the log
             // it can throw LogNotAvailableException
             this.actualLogSequenceNumber = position.getLogSequenceNumber();
-        }
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
+            if (LOGGER.isLoggable(Level.FINEST)) {            
+                LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position.getLogSequenceNumber(), entry});
+            }
+        } else {
+            if (LOGGER.isLoggable(Level.FINEST)) {            
+                LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position, entry});
+            }
         }
         switch (entry.type) {
             case LogEntryType.NOOP: {
@@ -672,7 +677,7 @@ public class TableSpaceManager {
     private void releaseWriteLock(long lockStamp, Object description) {
         generalLock.unlockWrite(lockStamp);
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "RELEASE TS WRITELOCK for " + description);
+            LOGGER.log(Level.FINEST, "{0} ts {2} relwlock {1}", new Object[]{tableSpaceName, description, lockStamp});
         }
 //        LOGGER.log(Level.SEVERE, "RELEASE TS WRITELOCK for " + description + " -> " + lockStamp + " " + generalLock);
     }
@@ -1289,7 +1294,7 @@ public class TableSpaceManager {
 
     private long acquireReadLock(Object statement) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "ACQUIRE TS READLOCK for " + statement);
+            LOGGER.log(Level.FINEST, "{0} rlock {1}", new Object[]{tableSpaceName, statement});
         }
         long lockStamp = generalLock.readLock();
 //        LOGGER.log(Level.SEVERE, "ACQUIRED READLOCK for " + statement + ", " + generalLock);
@@ -1298,7 +1303,7 @@ public class TableSpaceManager {
 
     private long acquireWriteLock(Object statement) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "ACQUIRE TS WRITELOCK for " + statement);
+            LOGGER.log(Level.FINEST, "{0} wlock {1}", new Object[]{tableSpaceName, statement});
         }
 //        LOGGER.log(Level.SEVERE, "ACQUIRINGTS WRITELOCK for " + statement + ", " + generalLock);
 
@@ -1811,9 +1816,18 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
-            apply(pos, entry, false);
-            return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
+            if (error == null) {
+                apply(pos, entry, false);
+                return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
+            } else {
+                // if the log is not able to write the commit
+                // apply a dummy "rollback", we are no more going to accept commands
+                // in the scope of this transaction
+                LogEntry rollback = LogEntryFactory.rollbackTransaction(txId);
+                apply(new CommitLogResult(LogSequenceNumber.START_OF_TIME, false, false), rollback, false);
+                throw new CompletionException(error);
+            }
         }, callbacksExecutor);
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
@@ -1867,7 +1881,7 @@ public class TableSpaceManager {
 
     private void releaseReadLock(long lockStamp, Object description) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);
+            LOGGER.log(Level.FINEST, "{0} ts {2} relrlock {1}", new Object[]{tableSpaceName, description, lockStamp});
         }
 //        LOGGER.log(Level.SEVERE, "RELEASED READLOCK for " + description + ", " + generalLock);
         generalLock.unlockRead(lockStamp);
