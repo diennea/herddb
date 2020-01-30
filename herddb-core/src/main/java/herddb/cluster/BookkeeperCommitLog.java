@@ -500,13 +500,11 @@ public class BookkeeperCommitLog extends CommitLog {
                                     localEntryCount++;
                                 }
                             }
-                            LOGGER.log(Level.FINER, tableSpaceDescription()+" read " + localEntryCount + " entries from ledger " + ledgerId
+                            LOGGER.log(Level.FINER, tableSpaceDescription() + " read " + localEntryCount + " entries from ledger " + ledgerId
                                     + ", expected " + entriesToRead);
 
-                            LOGGER.log(Level.FINER, tableSpaceDescription()+" finished waiting for " + entriesToRead
-                                    + " entries to be read from ledger " + ledgerId);
                             if (localEntryCount != entriesToRead) {
-                                throw new LogNotAvailableException(tableSpaceDescription()+" Read " + localEntryCount + " entries, expected "
+                                throw new LogNotAvailableException(tableSpaceDescription() + " Read " + localEntryCount + " entries, expected "
                                         + entriesToRead);
                             }
                             lastLedgerId = ledgerId;
