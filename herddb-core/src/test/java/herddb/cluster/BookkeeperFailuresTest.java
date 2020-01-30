@@ -52,12 +52,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.LedgerMetadata;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.junit.After;
 import org.junit.Assert;
@@ -651,7 +649,7 @@ public class BookkeeperFailuresTest {
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
              } catch (StatementExecutionException expected) {
                 System.out.println("Rollback failed as expected:" + expected);
-                assertEquals("no such transaction "+transactionId+" in tablespace "+TableSpace.DEFAULT, expected.getMessage());
+                assertEquals("no such transaction " + transactionId + " in tablespace " + TableSpace.DEFAULT, expected.getMessage());
             }
 
              // start a follower, it must be able to boot

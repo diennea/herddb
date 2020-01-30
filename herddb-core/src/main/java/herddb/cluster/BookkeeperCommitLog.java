@@ -487,13 +487,13 @@ public class BookkeeperCommitLog extends CommitLog {
                                     lastSequenceNumber.set(entryId);
                                     if (number.after(snapshotSequenceNumber)) {
                                         if (LOGGER.isLoggable(Level.FINEST)) {
-                                            LOGGER.log(Level.FINEST, "RECOVER ENTRY "+tableSpaceName+" #" + localEntryCount + " {0}, {1}",
+                                            LOGGER.log(Level.FINEST, "rec " + tableSpaceName + " #" + localEntryCount + " {0}, {1}",
                                                     new Object[]{number, statusEdit});
                                         }
                                         consumer.accept(number, statusEdit);
                                     } else {
                                         if (LOGGER.isLoggable(Level.FINEST)) {
-                                            LOGGER.log(Level.FINEST, "SKIP ENTRY "+tableSpaceName+" #" + localEntryCount + " {0}<{1}, {2}",
+                                            LOGGER.log(Level.FINEST, "skip " + tableSpaceName + " #" + localEntryCount + " {0}<{1}, {2}",
                                                     new Object[]{number, snapshotSequenceNumber, statusEdit});
                                         }
                                     }

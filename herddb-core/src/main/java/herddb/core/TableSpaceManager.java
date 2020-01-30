@@ -320,11 +320,11 @@ public class TableSpaceManager {
             // this will wait for the write to be acknowledged by the log
             // it can throw LogNotAvailableException
             this.actualLogSequenceNumber = position.getLogSequenceNumber();
-            if (LOGGER.isLoggable(Level.FINEST)) {            
+            if (LOGGER.isLoggable(Level.FINEST)) {
                 LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position.getLogSequenceNumber(), entry});
             }
         } else {
-            if (LOGGER.isLoggable(Level.FINEST)) {            
+            if (LOGGER.isLoggable(Level.FINEST)) {
                 LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position, entry});
             }
         }
