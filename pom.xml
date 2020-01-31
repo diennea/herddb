@@ -101,7 +101,7 @@
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
         <libs.spotbugsmaven>3.1.8</libs.spotbugsmaven>
         <fbs.version>1.9.0</fbs.version>
-        <checkstyle.version>8.23</checkstyle.version>
+        <checkstyle.version>8.29</checkstyle.version>
     </properties>
 
     <dependencies>
