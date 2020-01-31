@@ -75,6 +75,11 @@
             <name>Francesco Caliumi</name>
             <organization>Diennea</organization>
         </developer>
+        <developer>
+            <id>amitvc</id>
+            <name>Amit Chavan</name>
+            <organization>Diennea</organization>
+        </developer>
     </developers>
     <issueManagement>
         <url>https://dev.herddb.org/jira</url>
