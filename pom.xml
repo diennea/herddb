@@ -78,11 +78,10 @@
         <developer>
             <id>amitvc</id>
             <name>Amit Chavan</name>
-            <organization>Diennea</organization>
         </developer>
     </developers>
     <issueManagement>
-        <url>https://dev.herddb.org/jira</url>
+        <url>https://github.com/diennea/herddb/issues</url>
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
