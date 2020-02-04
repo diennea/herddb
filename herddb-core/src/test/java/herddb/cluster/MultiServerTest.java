@@ -909,7 +909,7 @@ public class MultiServerTest {
             try (Server server_2 = new Server(serverconfig_2)) {
                 server_2.start();
 
-                assertFalse(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 10000, false /* follower */));
+                assertFalse(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, true /* follower */));
             }
 
             // make server_2 leader again
@@ -924,7 +924,7 @@ public class MultiServerTest {
             try (Server server_2 = new Server(serverconfig_2)) {
                 server_2.start();
 
-                assertFalse(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 10000, true /* leader */));
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, true /* leader */));
             }
 
         }
