@@ -21,6 +21,7 @@
 package herddb.cluster;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
@@ -65,7 +66,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
-import static org.junit.Assert.assertFalse;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
