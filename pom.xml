@@ -75,9 +75,13 @@
             <name>Francesco Caliumi</name>
             <organization>Diennea</organization>
         </developer>
+        <developer>
+            <id>amitvc</id>
+            <name>Amit Chavan</name>
+        </developer>
     </developers>
     <issueManagement>
-        <url>https://dev.herddb.org/jira</url>
+        <url>https://github.com/diennea/herddb/issues</url>
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
