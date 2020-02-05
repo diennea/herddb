@@ -61,6 +61,4 @@ public abstract class BookkeeperFailuresBase {
         return BookKeeper.forConfig(clientConfiguration).build();
     }
 
-    
-
 }
