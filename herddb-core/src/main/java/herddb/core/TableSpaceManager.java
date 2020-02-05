@@ -1025,14 +1025,14 @@ public class TableSpaceManager {
                 while (!isLeader() && !closed) {
                     long readLock = acquireReadLock("follow");
                     try {
-                    log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
-                        try {
-                            apply(new CommitLogResult(num, false, true), u, false);
-                        } catch (Throwable t) {
-                            throw new RuntimeException(t);
-                        }
-                        return !isLeader() && !closed;
-                    }, context);
+                        log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                            try {
+                                apply(new CommitLogResult(num, false, true), u, false);
+                            } catch (Throwable t) {
+                                throw new RuntimeException(t);
+                            }
+                            return !isLeader() && !closed;
+                        }, context);
                     } finally {
                         releaseReadLock(readLock, "follow");
                     }

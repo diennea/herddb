@@ -529,7 +529,7 @@ public class BookkeeperCommitLog extends CommitLog {
         }
     }
 
-    private String extractLeaderFromMetadata(Map<String, byte[]> metadata) {
+    private static String extractLeaderFromMetadata(Map<String, byte[]> metadata) {
         byte[] leaderInMetadata = metadata.get("leader");
         String ledgerLeader = leaderInMetadata != null ? new String(leaderInMetadata, StandardCharsets.UTF_8) : "?";
         return ledgerLeader;
