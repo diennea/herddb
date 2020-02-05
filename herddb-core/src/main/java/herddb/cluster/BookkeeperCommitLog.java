@@ -125,7 +125,8 @@ public class BookkeeperCommitLog extends CommitLog {
         }
     }
 
-    class CommitFileWriter implements AutoCloseable {
+    // Visible for Testing
+    public class CommitFileWriter implements AutoCloseable {
 
         private final LedgerHandle out;
         private final long ledgerId;
