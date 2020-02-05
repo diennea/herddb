@@ -116,6 +116,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -156,6 +157,7 @@ public class TableSpaceManager {
     private final StampedLock generalLock = new StampedLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
+    private volatile FollowerThread followerThread;
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
 
@@ -1010,6 +1012,8 @@ public class TableSpaceManager {
 
     private class FollowerThread implements Runnable {
 
+        private volatile CountDownLatch running = new CountDownLatch(1);
+
         @Override
         public String toString() {
             return "FollowerThread{" + tableSpaceName + '}';
@@ -1021,14 +1025,14 @@ public class TableSpaceManager {
                 while (!isLeader() && !closed) {
                     long readLock = acquireReadLock("follow");
                     try {
-                    log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
-                        try {
-                            apply(new CommitLogResult(num, false, true), u, false);
-                        } catch (Throwable t) {
-                            throw new RuntimeException(t);
-                        }
-                        return !isLeader() && !closed;
-                    }, context);
+                        log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                            try {
+                                apply(new CommitLogResult(num, false, true), u, false);
+                            } catch (Throwable t) {
+                                throw new RuntimeException(t);
+                            }
+                            return !isLeader() && !closed;
+                        }, context);
                     } finally {
                         releaseReadLock(readLock, "follow");
                     }
@@ -1036,9 +1040,16 @@ public class TableSpaceManager {
             } catch (Throwable t) {
                 LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);
                 setFailed();
+            } finally {
+                running.countDown();
             }
         }
 
+        void waitForStop() throws InterruptedException {
+            LOGGER.log(Level.INFO, "Waiting for FollowerThread of {0} to stop", tableSpaceName);
+            running.await(1, TimeUnit.HOURS);
+            LOGGER.log(Level.INFO, "FollowerThread of {0} stopped", tableSpaceName);
+        }
     }
 
     void setFailed() {
@@ -1053,7 +1064,8 @@ public class TableSpaceManager {
     }
 
     void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
-        dbmanager.submit(new FollowerThread());
+        followerThread = new FollowerThread();
+        dbmanager.submit(followerThread);
     }
 
     void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
@@ -1623,6 +1635,15 @@ public class TableSpaceManager {
     public void close() throws LogNotAvailableException {
         boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
+
+        if (followerThread != null) {
+            try {
+                followerThread.waitForStop();
+            } catch (InterruptedException err) {
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.SEVERE, "Cannot wait for FollowerThread to stop", err);
+            }
+        }
         if (!virtual) {
             long lockStamp = acquireWriteLock("closeTablespace");
             try {

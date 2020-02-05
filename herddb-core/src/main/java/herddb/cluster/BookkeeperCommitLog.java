@@ -299,7 +299,7 @@ public class BookkeeperCommitLog extends CommitLog {
             res = new CompletableFuture();
             res.completeExceptionally(
                     new LogNotAvailableException(new Exception("this commitlog has been closed for tablespace "
-                            + tableSpaceDescription()))
+                            + tableSpaceDescription() + ", node " + this.localNodeId))
                             .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
@@ -456,8 +456,9 @@ public class BookkeeperCommitLog extends CommitLog {
                         }
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
+                    String ledgerLeader = extractLeaderFromMetadata(handle.getLedgerMetadata().getCustomMetadata());
                     LOGGER.log(Level.INFO, "Tablespace " + tableSpaceDescription + ", Recovering from ledger "
-                            + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
+                            + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed + " written by " + ledgerLeader);
 
                     if (lastAddConfirmed >= 0) {
 
@@ -526,6 +527,12 @@ public class BookkeeperCommitLog extends CommitLog {
             signalLogFailed();
             throw new LogNotAvailableException(err);
         }
+    }
+
+    private static String extractLeaderFromMetadata(Map<String, byte[]> metadata) {
+        byte[] leaderInMetadata = metadata.get("leader");
+        String ledgerLeader = leaderInMetadata != null ? new String(leaderInMetadata, StandardCharsets.UTF_8) : "?";
+        return ledgerLeader;
     }
 
     @Override
@@ -632,7 +639,7 @@ public class BookkeeperCommitLog extends CommitLog {
         BKFollowerContext(LogSequenceNumber lastPosition) {
             ledgerToTail = lastPosition.ledgerId;
             nextEntryToRead = lastPosition.offset + 1;
-            LOGGER.info(tableSpaceDescription() + " start following, first position is " + lastPosition);
+            LOGGER.log(Level.INFO, "{0} start following, first position is {1}", new Object[]{tableSpaceDescription(), lastPosition});
         }
 
         void ensureOpenReader(LogSequenceNumber currentPosition) throws org.apache.bookkeeper.client.api.BKException,
@@ -691,9 +698,8 @@ public class BookkeeperCommitLog extends CommitLog {
             if (currentLedger == null) {
                 currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
                         BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine(tableSpaceDescription() + " opened direct ledger " + ledgerToTail);
-                }
+                String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
+                LOGGER.log(Level.INFO, "{0} opened direct ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
                 nextEntryToRead = currentPosition.offset + 1;
                 return;
             }
@@ -724,6 +730,10 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
                     BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
+
+            String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
+            LOGGER.log(Level.INFO, "{0} ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
+
             nextEntryToRead = 0;
         }
 

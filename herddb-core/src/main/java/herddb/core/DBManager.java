@@ -368,7 +368,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * @throws herddb.metadata.MetadataStorageManagerException
      */
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
-
+        LOGGER.log(Level.INFO, "Starting DBManager at {0}", nodeId);
         if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.registerDBManagerStatsMXBean(stats);
         }
@@ -535,7 +535,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
-                LOGGER.log(Level.INFO, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + ""});
+                LOGGER.log(Level.INFO, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms leader:{4}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + "", manager.isLeader()});
                 tablesSpaces.put(tableSpaceName, manager);
                 if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
                     JMXUtils.registerTableSpaceManagerStatsMXBean(tableSpaceName, manager.getStats());
@@ -578,6 +578,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                                 .cloning(tableSpace);
                 while (!availableOtherNodes.isEmpty() && countMissing > 0) {
                     String node = availableOtherNodes.remove(0);
+                    LOGGER.log(Level.WARNING, "Tablespace {0} adding {1} node as replica", new Object[]{tableSpaceName, node});
                     newTableSpaceBuilder.replica(node);
                 }
                 TableSpace newTableSpace = newTableSpaceBuilder.build();
@@ -1288,8 +1289,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     @Override
-    public void metadataChanged() {
-        LOGGER.log(Level.INFO, "metadata changed");
+    public void metadataChanged(String description) {
+        LOGGER.log(Level.INFO, "metadata changed: " + description);
         triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
     }
 
