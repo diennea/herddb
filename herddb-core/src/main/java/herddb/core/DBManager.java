@@ -1290,7 +1290,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     @Override
     public void metadataChanged(String description) {
-        LOGGER.log(Level.INFO, "metadata changed: "+description);
+        LOGGER.log(Level.INFO, "metadata changed: " + description);
         triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
     }
 

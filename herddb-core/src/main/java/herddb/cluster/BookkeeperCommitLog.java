@@ -299,7 +299,7 @@ public class BookkeeperCommitLog extends CommitLog {
             res = new CompletableFuture();
             res.completeExceptionally(
                     new LogNotAvailableException(new Exception("this commitlog has been closed for tablespace "
-                            + tableSpaceDescription()+", node "+this.localNodeId))
+                            + tableSpaceDescription() + ", node " + this.localNodeId))
                             .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
@@ -458,7 +458,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     String ledgerLeader = extractLeaderFromMetadata(handle.getLedgerMetadata().getCustomMetadata());
                     LOGGER.log(Level.INFO, "Tablespace " + tableSpaceDescription + ", Recovering from ledger "
-                            + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed+" written by "+ledgerLeader);
+                            + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed + " written by " + ledgerLeader);
 
                     if (lastAddConfirmed >= 0) {
 
@@ -698,9 +698,8 @@ public class BookkeeperCommitLog extends CommitLog {
             if (currentLedger == null) {
                 currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
                         BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine(tableSpaceDescription() + " opened direct ledger " + ledgerToTail);
-                }
+                String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
+                LOGGER.log(Level.INFO, "{0} opened direct ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
                 nextEntryToRead = currentPosition.offset + 1;
                 return;
             }
@@ -731,11 +730,10 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
                     BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
-            
-            if (LOGGER.isLoggable(Level.FINE)) {
-                String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
-                LOGGER.fine(tableSpaceDescription() + " ledger " + ledgerToTail + " was created by " + ledgerLeader);
-            }
+
+            String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
+            LOGGER.log(Level.INFO, "{0} ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
+
             nextEntryToRead = 0;
         }
 

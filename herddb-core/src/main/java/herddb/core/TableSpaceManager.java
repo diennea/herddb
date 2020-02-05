@@ -1013,14 +1013,14 @@ public class TableSpaceManager {
     private class FollowerThread implements Runnable {
 
         private volatile CountDownLatch running = new CountDownLatch(1);
-                
+
         @Override
         public String toString() {
             return "FollowerThread{" + tableSpaceName + '}';
         }
 
         @Override
-        public void run() {            
+        public void run() {
             try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
                     long readLock = acquireReadLock("follow");
@@ -1044,7 +1044,7 @@ public class TableSpaceManager {
                 running.countDown();
             }
         }
-        
+
         void waitForStop() throws InterruptedException {
             LOGGER.log(Level.INFO, "Waiting for FollowerThread of {0} to stop", tableSpaceName);
             running.await(1, TimeUnit.HOURS);
@@ -1635,13 +1635,13 @@ public class TableSpaceManager {
     public void close() throws LogNotAvailableException {
         boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
-        
+
         if (followerThread != null) {
             try {
                 followerThread.waitForStop();
             } catch (InterruptedException err) {
                 Thread.currentThread().interrupt();
-                LOGGER.log(Level.SEVERE,"Cannot wait for FollowerThread to stop", err);
+                LOGGER.log(Level.SEVERE, "Cannot wait for FollowerThread to stop", err);
             }
         }
         if (!virtual) {
