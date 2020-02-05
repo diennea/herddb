@@ -128,9 +128,10 @@ public abstract class MetadataStorageManager implements AutoCloseable {
         return listener;
     }
 
-    protected void notifyMetadataChanged() {
+
+    protected final void notifyMetadataChanged(String description) {
         if (listener != null) {
-            listener.metadataChanged();
+            listener.metadataChanged(description);
         }
     }
 
