@@ -101,12 +101,6 @@ public class BookkeeperCommitLog extends CommitLog {
         failed = true;
     }
 
-    // only for testsm this is needed to undo the automatic close of the log
-    // in case of failures
-    public void resetClosedFlagForTests() {
-        closed = false;
-    }
-
     public void rollNewLedger() {
         openNewLedger();
     }
