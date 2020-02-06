@@ -1047,7 +1047,7 @@ public class TableSpaceManager {
 
         void waitForStop() throws InterruptedException {
             LOGGER.log(Level.INFO, "Waiting for FollowerThread of {0} to stop", tableSpaceName);
-            running.await(1, TimeUnit.HOURS);
+            running.await();
             LOGGER.log(Level.INFO, "FollowerThread of {0} stopped", tableSpaceName);
         }
     }
