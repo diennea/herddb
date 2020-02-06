@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.cluster;
 
 import herddb.log.CommitLog;
@@ -41,7 +40,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -49,10 +50,11 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
@@ -88,6 +90,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxLedgerSizeBytes = 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
 
     private volatile boolean closed = false;
@@ -111,7 +114,7 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         long _lastWriteTs = lastApplicationWriteTs;
         long idleTime = System.currentTimeMillis() - _lastWriteTs;
-        if (_lastWriteTs > 0 && idleTime > maxIdleTime) {
+        if (_lastWriteTs > 0 && idleTime > maxIdleTime && !failed && !closed) {
             CommitFileWriter _writer = writer;
             if (_writer != null) {
                 _writer.writeNoop();
@@ -120,11 +123,13 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     // Visible for Testing
-    public class CommitFileWriter implements AutoCloseable {
+    public class CommitFileWriter {
 
-        private final LedgerHandle out;
+        private final WriteHandle out;
         private final long ledgerId;
         private volatile boolean errorOccurredDuringWrite;
+        private final AtomicLong pendingAdds = new AtomicLong();
+        private final AtomicReference<Throwable> writeError = new AtomicReference<>();
 
         private CommitFileWriter() throws LogNotAvailableException {
             try {
@@ -132,12 +137,21 @@ public class BookkeeperCommitLog extends CommitLog {
                 metadata.put("tablespaceuuid", tableSpaceUUID.getBytes(StandardCharsets.UTF_8));
                 metadata.put("tablespacename", tableSpaceName.getBytes(StandardCharsets.UTF_8));
                 metadata.put("leader", localNodeId.getBytes(StandardCharsets.UTF_8));
-                this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize,
-                        BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8), metadata);
+                metadata.put("application", "herddb".getBytes(StandardCharsets.UTF_8));
+                metadata.put("component", "commitlog".getBytes(StandardCharsets.UTF_8));
+                this.out = FutureUtils.result(bookKeeper.
+                        newCreateLedgerOp()
+                        .withEnsembleSize(ensemble)
+                        .withWriteQuorumSize(writeQuorumSize)
+                        .withAckQuorumSize(ackQuorumSize)
+                        .withDigestType(DigestType.CRC32C)
+                        .withPassword(SHARED_SECRET.getBytes(StandardCharsets.UTF_8))
+                        .withCustomMetadata(metadata)
+                        .execute(), BKException.HANDLER);
                 this.ledgerId = this.out.getId();
                 lastLedgerId = ledgerId;
                 lastSequenceNumber.set(-1);
-            } catch (InterruptedException | BKException err) {
+            } catch (BKException err) {
                 throw new LogNotAvailableException(err);
             }
         }
@@ -149,37 +163,55 @@ public class BookkeeperCommitLog extends CommitLog {
         public CompletableFuture<LogSequenceNumber> writeEntry(LogEntry edit) {
             // BK will release the buffer after handling the entry
             ByteBuf serialize = edit.serializeAsByteBuf();
-            CompletableFuture<LogSequenceNumber> res = new CompletableFuture<>();
-            this.out.asyncAddEntry(serialize, (int rc, LedgerHandle lh, long offset, Object o) -> {
-                if (rc == BKException.Code.OK) {
-                    if (edit.type != LogEntryType.NOOP) { // do not take into account NOOPs
-                        lastApplicationWriteTs = System.currentTimeMillis();
-                    }
-                    res.complete(new LogSequenceNumber(lh.getId(), offset));
-                } else {
-                    errorOccurredDuringWrite = true;
-                    res.completeExceptionally(new LogNotAvailableException(BKException.create(rc)));
-                }
-            }, null);
+            pendingAdds.incrementAndGet();
+            final CompletableFuture<LogSequenceNumber> res = this.out.appendAsync(serialize)
+                    .handle((offset, error) -> {
+                        if (error == null) {
+                            pendingAdds.decrementAndGet();
+                            if (edit.type != LogEntryType.NOOP) { // do not take into account NOOPs
+                                lastApplicationWriteTs = System.currentTimeMillis();
+                            }
+                            return new LogSequenceNumber(ledgerId, offset);
+                        } else {
+                            writeError.set(error);
+                            pendingAdds.decrementAndGet();
+                            errorOccurredDuringWrite = true;
+                            handleBookKeeperFailure(error, edit);
+                            throw new LogNotAvailableException(error);
+                        }
+                    });
             return res;
         }
 
-        @Override
-        public void close() throws LogNotAvailableException {
+        public void waitForAllPendingWrites() throws LogNotAvailableException {
             try {
-                LOGGER.log(Level.INFO, "Closing ledger " + out.getId()
-                        + ", with LastAddConfirmed=" + out.getLastAddConfirmed()
-                        + ", LastAddPushed=" + out.getLastAddPushed()
-                        + " length=" + out.getLength()
-                        + ", errorOccurred:" + errorOccurredDuringWrite);
-
-                out.close();
-            } catch (InterruptedException | BKException err) {
+                while (pendingAdds.get() > 0) {
+                    LOGGER.log(Level.INFO, "{0} Waiting for {1} writes to complete on ledger {2}", new Object[]{tableSpaceDescription(), pendingAdds.get(), ledgerId});
+                    Throwable gotWriterError = writeError.get();
+                    if (gotWriterError != null) {
+                        throw new LogNotAvailableException(gotWriterError);
+                    }
+                    Thread.sleep(1000);
+                }
+            } catch (LogNotAvailableException err) {
+                throw err;
+            } catch (InterruptedException err) {
+                Thread.currentThread().interrupt();
                 throw new LogNotAvailableException(err);
             }
         }
 
-        public LedgerHandle getOut() {
+        public void close() throws LogNotAvailableException {
+            try {
+                LOGGER.log(Level.INFO, "{0} closing ledger {1}, with LastAddConfirmed={2}, LastAddPushed={3} length={4}, errorOccurred:{5}",
+                        new Object[]{tableSpaceDescription(), out.getId(), out.getLastAddConfirmed(), out.getLastAddPushed(), out.getLength(), errorOccurredDuringWrite});
+                out.close();
+            } catch (InterruptedException | org.apache.bookkeeper.client.api.BKException err) {
+                throw new LogNotAvailableException(err);
+            }
+        }
+
+        public WriteHandle getOut() {
             return out;
         }
 
@@ -187,13 +219,20 @@ public class BookkeeperCommitLog extends CommitLog {
             // write a dummy entry, this will force LastAddConfirmed to be piggybacked
             try {
                 log(LogEntryFactory.noop(), false);
-            } catch (Throwable t) {
+            } catch (LogNotAvailableException t) {
                 LOGGER.log(Level.SEVERE, "error", t);
             }
         }
 
         private boolean isWritable() {
-            return !errorOccurredDuringWrite && out != null && !out.isClosed();
+            return !errorOccurredDuringWrite
+                    && !out.isClosed()
+                    && maxLedgerSizeBytes >= out.getLength();
+        }
+
+        @Override
+        public String toString() {
+            return "CommitFileWriter{" + "ledgerId=" + ledgerId + ", size=" + out.getLength() + ", errorOccurredDuringWrite=" + errorOccurredDuringWrite + ", pendingAdds=" + pendingAdds + '}';
         }
 
     }
@@ -247,6 +286,14 @@ public class BookkeeperCommitLog extends CommitLog {
         this.ledgersRetentionPeriod = ledgersRetentionPeriod;
     }
 
+    public long getMaxLedgerSizeBytes() {
+        return maxLedgerSizeBytes;
+    }
+
+    public void setMaxLedgerSizeBytes(long maxLedgerSizeBytes) {
+        this.maxLedgerSizeBytes = maxLedgerSizeBytes;
+    }
+
     public long getMaxIdleTime() {
         return maxIdleTime;
     }
@@ -264,6 +311,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 return _writer;
             }
             if (_writer == null || !_writer.isWritable()) {
+                LOGGER.log(Level.INFO, "Writer {0} is no more writable, need to open a new writer", _writer);
                 lock.readLock().unlock();
                 lock.writeLock().lock();
                 if (closed) {
@@ -287,23 +335,25 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public CommitLogResult log(LogEntry edit, boolean sync) throws LogNotAvailableException {
-        CommitFileWriter _writer = getValidWriter();
+    public CommitLogResult log(LogEntry edit, boolean sync)  {
         CompletableFuture<LogSequenceNumber> res;
-        if (closed || _writer == null) {
-            res = new CompletableFuture();
-            res.completeExceptionally(
-                    new LogNotAvailableException(new Exception("this commitlog has been closed for tablespace "
+        CommitFileWriter _writer = null;
+        try {
+            _writer = getValidWriter();
+        } catch (LogNotAvailableException errorWhileRollingLedger) {
+            LOGGER.log(Level.SEVERE,"Cannot get a valid writer for "+tableSpaceDescription(), errorWhileRollingLedger);
+        }
+        if (failed) {
+            res = FutureUtils.exception( new LogNotAvailableException(new Exception("this commitlog is failed, tablespace "
+                            + tableSpaceDescription() + ", node " + this.localNodeId))
+                            .fillInStackTrace());
+        } else if (closed || _writer == null) {
+            res = FutureUtils.exception( new LogNotAvailableException(new Exception("this commitlog has been closed, tablespace "
                             + tableSpaceDescription() + ", node " + this.localNodeId))
                             .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
-            res.whenCompleteAsync((pos, error) -> {
-                        if (error != null) {
-                            handleBookKeeperAsyncFailure(error, edit);
-                        }
-                    }
-            );
+
             // publish the lastSequenceNumber
             // we must return a new CompletableFuture that completes only
             // AFTER lastSequenceNumber is updated
@@ -311,22 +361,26 @@ public class BookkeeperCommitLog extends CommitLog {
             // an old value for lastSequenceNumber
             // in case of a slow system
             res = res.thenApply((pos) -> {
-                        if (lastLedgerId == pos.ledgerId) {
-                            lastSequenceNumber.accumulateAndGet(pos.offset,
-                                    EnsureLongIncrementAccumulator.INSTANCE);
-                        }
-                        notifyListeners(pos, edit);
-                        return pos;
-                    }
+                if (lastLedgerId == pos.ledgerId) {
+                    lastSequenceNumber.accumulateAndGet(pos.offset,
+                            EnsureLongIncrementAccumulator.INSTANCE);
+                }
+                notifyListeners(pos, edit);
+                return pos;
+            }
             );
         }
         if (!sync) {
             // client is not really interested to the result of the write
             // sending a fake completed result
             return new CommitLogResult(
-                    CompletableFuture.completedFuture(null), true /* deferred */, false);
+                    CompletableFuture.completedFuture(null), true /*
+                     * deferred
+                     */, false);
         } else {
-            return new CommitLogResult(res, false /* deferred */, true);
+            return new CommitLogResult(res, false /*
+                     * deferred
+                     */, true);
         }
     }
 
@@ -334,7 +388,10 @@ public class BookkeeperCommitLog extends CommitLog {
         return this.tableSpaceName + " (" + this.tableSpaceUUID + ")";
     }
 
-    private void handleBookKeeperAsyncFailure(Throwable cause, LogEntry edit) {
+    private void handleBookKeeperFailure(Throwable cause, LogEntry edit) {
+        if (cause.getCause() != null && cause instanceof CompletionException) {
+            cause = cause.getCause();
+        }
         if (cause.getCause() != null && cause instanceof LogNotAvailableException) {
             cause = cause.getCause();
         }
@@ -345,11 +402,9 @@ public class BookkeeperCommitLog extends CommitLog {
                     + tableSpaceDescription(), cause);
         } else if (cause instanceof BKException.BKLedgerFencedException) {
             LOGGER.log(Level.SEVERE, "this server was fenced for tablespace " + tableSpaceDescription() + " !", cause);
-            close();
             signalLogFailed();
         } else if (cause instanceof org.apache.bookkeeper.client.api.BKException) {
             LOGGER.log(Level.SEVERE, "bookkeeper failure for tablespace " + tableSpaceDescription(), cause);
-            close();
             signalLogFailed();
         }
     }
@@ -357,7 +412,10 @@ public class BookkeeperCommitLog extends CommitLog {
     private CommitFileWriter openNewLedger() throws LogNotAvailableException {
         lock.writeLock().lock();
         try {
-            closeCurrentWriter();
+            // wait for all previous writes to succeed and then close the ledger
+            // closing a ledger invalidates all pending writes and seals metadata
+            // if a pending write fails we are failing the creation of the new ledger
+            closeCurrentWriter(true);
             writer = new CommitFileWriter();
             currentLedgerId = writer.getLedgerId();
             LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}",
@@ -368,6 +426,9 @@ public class BookkeeperCommitLog extends CommitLog {
             actualLedgersList.addLedger(currentLedgerId);
             metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
             return writer;
+        } catch (LogNotAvailableException err) {
+            signalLogFailed();
+            throw err;
         } finally {
             lock.writeLock().unlock();
         }
@@ -392,7 +453,7 @@ public class BookkeeperCommitLog extends CommitLog {
             // TODO: download snapshot from another remote broker
             throw new FullRecoveryNeededException(new Exception(
                     "Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + " tablespace "
-                            + tableSpaceDescription));
+                    + tableSpaceDescription));
         }
         if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty()
                 && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
@@ -408,6 +469,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
+            } catch (LogNotAvailableException e) {
+                throw e;
             } catch (Exception e) {
                 throw new LogNotAvailableException(e);
             }
@@ -419,7 +482,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.FINER, "Skipping ledger {0}", ledgerId);
                     continue;
                 }
-                LedgerHandle handle;
+                ReadHandle handle;
                 if (fencing) {
                     handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(
                             StandardCharsets.UTF_8));
@@ -457,7 +520,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
                     if (lastAddConfirmed >= 0) {
 
-                        for (long b = first; b <= lastAddConfirmed; ) {
+                        for (long b = first; b <= lastAddConfirmed;) {
                             long start = b;
                             long end = b + RECOVERY_BATCH_SIZE;
                             if (end > lastAddConfirmed) {
@@ -516,11 +579,15 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             LOGGER.log(Level.INFO, "After recovery of {0} lastSequenceNumber {1}",
                     new Object[]{tableSpaceDescription, getLastSequenceNumber()});
-        } catch (LogNotAvailableException | IOException | InterruptedException
+        } catch (IOException | InterruptedException
                 | org.apache.bookkeeper.client.api.BKException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription(), err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
+        } catch (LogNotAvailableException err) {
+            LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription(), err);
+            signalLogFailed();
+            throw err;
         }
     }
 
@@ -570,7 +637,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 try {
                     bookKeeper.deleteLedger(ledgerId);
                 } catch (BKException.BKNoSuchLedgerExistsException
-                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException error) {
+                        | BKException.BKNoSuchLedgerExistsOnMetadataServerException error) {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }
@@ -593,7 +660,7 @@ public class BookkeeperCommitLog extends CommitLog {
             if (closed) {
                 return;
             }
-            closeCurrentWriter();
+            closeCurrentWriter(false);
             closed = true;
             LOGGER.severe("closed");
         } finally {
@@ -603,12 +670,16 @@ public class BookkeeperCommitLog extends CommitLog {
 
     }
 
-    private void closeCurrentWriter() {
+    private void closeCurrentWriter(boolean waitForPendingAdds) throws LogNotAvailableException {
         if (writer != null) {
             try {
+                if (waitForPendingAdds) {
+                    writer.waitForAllPendingWrites();
+                }
                 writer.close();
             } catch (LogNotAvailableException err) {
-                LOGGER.log(Level.SEVERE, "error while closing ledger during write", err);
+                signalLogFailed();
+                throw err;
             } finally {
                 writer = null;
             }
@@ -694,7 +765,9 @@ public class BookkeeperCommitLog extends CommitLog {
                 currentLedger = bookKeeper.openLedgerNoRecovery(ledgerToTail,
                         BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
                 String ledgerLeader = extractLeaderFromMetadata(currentLedger.getLedgerMetadata().getCustomMetadata());
-                LOGGER.log(Level.INFO, "{0} opened direct ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
+                if (LOGGER.isLoggable(Level.FINER)) {
+                    LOGGER.log(Level.FINER, "{0} opened direct ledger {1} was created by {2}", new Object[]{tableSpaceDescription(), ledgerToTail, ledgerLeader});
+                }
                 nextEntryToRead = currentPosition.offset + 1;
                 return;
             }
@@ -827,6 +900,9 @@ public class BookkeeperCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, tableSpaceDescription() + " interrupted", err);
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
+        } catch (LogNotAvailableException err) {
+            LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
+            throw err;
         } catch (Exception err) {
             LOGGER.log(Level.SEVERE, tableSpaceDescription() + " internal error", err);
             throw new LogNotAvailableException(err);
@@ -857,7 +933,9 @@ public class BookkeeperCommitLog extends CommitLog {
 
     private LogEntry readLogEntry(org.apache.bookkeeper.client.api.LedgerEntry e) throws IOException {
         LogEntry statusEdit;
-        try (InputStream entryData = new ByteBufInputStream(e.getEntryBuffer(), false /*releaseOnClose*/);
+        try (InputStream entryData = new ByteBufInputStream(e.getEntryBuffer(), false /*
+         * releaseOnClose
+         */);
                 ExtendedDataInputStream in = new ExtendedDataInputStream(entryData)) {
             statusEdit = LogEntry.deserialize(in);
         }

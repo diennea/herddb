@@ -69,10 +69,12 @@ public class ZKTestEnv implements AutoCloseable {
         ServerConfiguration conf = new ServerConfiguration();
         conf.setBookiePort(5621);
         conf.setUseHostNameAsBookieID(true);
+        
+        // no need to preallocate journal in tests
+        conf.setEntryLogFilePreAllocationEnabled(false);
 
         Path targetDir = path.resolve("bookie_data");
-        conf.setZkServers("localhost:1282");
-        conf.setZkLedgersRootPath(herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
+        conf.setMetadataServiceUri("zk+null://localhost:1282" + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
@@ -80,7 +82,12 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setJournalFlushWhenQueueEmpty(true);
 //        conf.setJournalBufferedEntriesThreshold(1);
         conf.setAutoRecoveryDaemonEnabled(false);
+
+        // no need for real network in tests
         conf.setEnableLocalTransport(true);
+        conf.setDisableServerSocketBind(true);
+        
+        // no need to fsync in tests
         conf.setJournalSyncData(false);
 
         conf.setAllowLoopback(true);
@@ -94,6 +101,15 @@ public class ZKTestEnv implements AutoCloseable {
         this.bookie = new BookieServer(conf);
         this.bookie.start();
     }
+
+    public void pauseBookie() throws Exception {
+        bookie.suspendProcessing();
+    }
+
+    public void resumeBookie() throws Exception {
+        bookie.resumeProcessing();
+    }
+
 
     public void stopBookie() throws Exception {
         if (bookie != null) {

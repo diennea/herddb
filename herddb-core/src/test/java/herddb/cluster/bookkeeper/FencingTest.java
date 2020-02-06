@@ -103,12 +103,11 @@ public class FencingTest extends BookkeeperFailuresBase {
             }
 
             while (true) {
-                System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.
-                        isFailed());
+                System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.isFailed());
                 if (tableSpaceManager.isFailed()) {
                     break;
                 }
-                Thread.sleep(100);
+                Thread.sleep(1000);
             }
 
             server.getManager().setActivatorPauseStatus(false);
