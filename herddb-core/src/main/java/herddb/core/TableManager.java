@@ -1368,15 +1368,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed during a checkpoint");
         }
         if (tableSpaceManager.isTransactionRunningOnTable(table.name)) {
-            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.name
-                    + ": at least one transaction is pending on it");
+            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.tablespace + "."
+                    + table.name + ": at least one transaction is pending on it");
         }
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             for (AbstractIndexManager index : indexes.values()) {
                 if (!index.isAvailable()) {
                     throw new DataStorageManagerException("index " + index.getIndexName()
-                            + " in not full available. Cannot TRUNCATE table " + table.name);
+                            + " in not full available. Cannot TRUNCATE table " + table.tablespace + "." + table.name);
                 }
             }
         }
@@ -1601,12 +1601,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long pageId = keyToPage.remove(key);
         if (pageId == null) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table "
+                    + table.tablespace + "." + table.name);
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId);
+            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId + " from table " + table.tablespace
+                    + "." + table.name);
         }
 
 
@@ -1631,8 +1632,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 previous = page.get(key);
 
                 if (previous == null) {
-                    throw new IllegalStateException(
-                            "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
+                    throw new IllegalStateException("corrupted PK: old page " + pageId + " for deleted record at " + key
+                            + " was not found in table " + table.tablespace + "." + table.name);
                 }
             } else {
                 previous = null;
@@ -1643,8 +1644,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = page.get(key);
 
             if (previous == null) {
-                throw new IllegalStateException(
-                        "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
+                throw new IllegalStateException("corrupted PK: old page " + pageId + " for deleted record at " + key
+                        + " was not found in table " + table.tablespace + "." + table.name);
             }
         }
 
@@ -1692,8 +1693,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long prevPageId = keyToPage.get(key);
         if (prevPageId == null) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table "
+                    + table.tablespace + "." + table.name);
         }
 
         /*
@@ -1718,8 +1719,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 previous = prevPage.get(key);
 
                 if (previous == null) {
-                    throw new IllegalStateException(
-                            "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
+                    throw new IllegalStateException("corrupted PK: old page " + prevPageId + " for updated record at "
+                            + key + " was not found in table " + table.tablespace + "." + table.name);
                 }
             } else {
                 previous = null;
@@ -1731,8 +1732,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = prevPage.get(key);
 
             if (previous == null) {
-                throw new IllegalStateException(
-                        "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
+                throw new IllegalStateException("corrupted PK: old page " + prevPageId + " for updated record at " + key
+                        + " was not found in table" + table.tablespace + "." + table.name);
             }
         }
 
@@ -1799,7 +1800,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId);
+            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId
+                    + " on table " + table.tablespace + "." + table.name);
         }
 
         if (indexes != null) {
@@ -1954,12 +1956,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         /* Insert  the value on keyToPage */
         if (!keyToPage.put(key, insertionPageId, null)) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is already present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is already present in table "
+                            + table.tablespace + "." + table.name);
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId);
+            LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId + " into table "
+                    + table.tablespace + "." + table.name);
         }
 
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
@@ -2079,8 +2082,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         if (LOGGER.isLoggable(Level.FINE)) {
             long stop = System.currentTimeMillis();
-            LOGGER.log(Level.FINE, "table {0}, temporary loaded {1} records from page {2} in {3} ms, ({4} ms read)",
-                    new Object[]{result.size(), pageId, (stop - start), (ioStop - ioStart)});
+            LOGGER.log(Level.FINE, "table {0}.{1}, temporary loaded {2} records from page {4} in {5} ms, ({6} ms read)",
+                    new Object[] { table.tablespace, table.name, result.size(), pageId, (stop - start),
+                            (ioStop - ioStart) });
         }
 
         return result;
@@ -2140,9 +2144,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (computed.value && LOGGER.isLoggable(Level.FINE)) {
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.FINE,
-                    "table {0}, loaded {1} records from page {2} in {3} ms, ({4} ms read + plock, {5} ms unlock)",
-                    new Object[]{result.size(), pageId, (_stop - _start), (_ioAndLock - _start),
-                            (_stop - _ioAndLock)});
+                    "table {0}.{1}, loaded {2} records from page {3} in {4} ms, ({5} ms read + plock, {6} ms unlock)",
+                    new Object[] { table.tablespace, table.name, result.size(), pageId, (_stop - _start),
+                            (_ioAndLock - _start), (_stop - _ioAndLock) });
         }
         return result;
     }
@@ -2311,8 +2315,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
                     currentPageWasInMemory = false;
-                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
-                            new Object[]{page.pageId, records.size()});
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} for table {1}.{2} on tmp buffer: {3} records",
+                            new Object[] { page.pageId, table.tablespace, table.name, records.size() });
                 } else {
                     records = dataPage.getRecordsForFlush();
 
@@ -2415,7 +2419,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     "Data inconsistency! Found a clean page with dirty records based on PK data. "
                                             + "It could be a key to page inconsistency (broken PK) or a page metadata "
                                             + "inconsistency (failed to track dirty record on page metadata). "
-                                            + "Page: " + page + ", Record " + unshared);
+                                            + "Page: " + page + ", Record: " + unshared + ", Table: " + table.tablespace
+                                            + "." + table.name);
                             LOGGER.log(Level.SEVERE, ex.getMessage());
                             throw ex;
                         }
@@ -2452,7 +2457,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     "Data inconsistency! Failed to remove the right page from page knowledge during "
                                             + "checkpoint. It could be an illegal concurrent write during checkpoint or "
                                             + "the reloaded page doesn't match in memory one. " + "Expected page "
-                                            + dataPage + ", found page " + removedDataPage);
+                                            + dataPage + ", found page " + removedDataPage + " on table "
+                                            + table.tablespace + "." + table.name);
                             LOGGER.log(Level.SEVERE, ex.getMessage());
                             throw ex;
                         }
