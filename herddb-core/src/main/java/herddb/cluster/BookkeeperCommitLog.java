@@ -341,16 +341,16 @@ public class BookkeeperCommitLog extends CommitLog {
         try {
             _writer = getValidWriter();
         } catch (LogNotAvailableException errorWhileRollingLedger) {
-            LOGGER.log(Level.SEVERE,"Cannot get a valid writer for "+tableSpaceDescription(), errorWhileRollingLedger);
+            LOGGER.log(Level.SEVERE, "Cannot get a valid writer for " + tableSpaceDescription(), errorWhileRollingLedger);
         }
         if (failed) {
-            res = FutureUtils.exception( new LogNotAvailableException(new Exception("this commitlog is failed, tablespace "
-                            + tableSpaceDescription() + ", node " + this.localNodeId))
-                            .fillInStackTrace());
+            res = FutureUtils.exception(new LogNotAvailableException(new Exception("this commitlog is failed, tablespace "
+                    + tableSpaceDescription() + ", node " + this.localNodeId))
+                    .fillInStackTrace());
         } else if (closed || _writer == null) {
-            res = FutureUtils.exception( new LogNotAvailableException(new Exception("this commitlog has been closed, tablespace "
-                            + tableSpaceDescription() + ", node " + this.localNodeId))
-                            .fillInStackTrace());
+            res = FutureUtils.exception(new LogNotAvailableException(new Exception("this commitlog has been closed, tablespace "
+                    + tableSpaceDescription() + ", node " + this.localNodeId))
+                    .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
 

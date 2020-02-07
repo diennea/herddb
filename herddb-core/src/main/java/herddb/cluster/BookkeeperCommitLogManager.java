@@ -20,7 +20,6 @@
 
 package herddb.cluster;
 
-import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;

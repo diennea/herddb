@@ -69,7 +69,7 @@ public class ZKTestEnv implements AutoCloseable {
         ServerConfiguration conf = new ServerConfiguration();
         conf.setBookiePort(5621);
         conf.setUseHostNameAsBookieID(true);
-        
+
         // no need to preallocate journal in tests
         conf.setEntryLogFilePreAllocationEnabled(false);
 
@@ -86,7 +86,7 @@ public class ZKTestEnv implements AutoCloseable {
         // no need for real network in tests
         conf.setEnableLocalTransport(true);
         conf.setDisableServerSocketBind(true);
-        
+
         // no need to fsync in tests
         conf.setJournalSyncData(false);
 

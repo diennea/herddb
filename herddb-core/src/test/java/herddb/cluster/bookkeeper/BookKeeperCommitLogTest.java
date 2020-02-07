@@ -19,14 +19,14 @@
  */
 package herddb.cluster.bookkeeper;
 
-import herddb.cluster.BookkeeperCommitLog;
-import herddb.cluster.BookkeeperCommitLogManager;
-import herddb.cluster.ZookeeperMetadataStorageManager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import herddb.cluster.BookkeeperCommitLog;
+import herddb.cluster.BookkeeperCommitLogManager;
+import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
