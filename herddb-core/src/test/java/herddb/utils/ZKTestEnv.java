@@ -70,8 +70,9 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setBookiePort(5621);
         conf.setUseHostNameAsBookieID(true);
 
-        // no need to preallocate journal in tests
+        // no need to preallocate journal and entrylog in tests
         conf.setEntryLogFilePreAllocationEnabled(false);
+        conf.setProperty("journalPreAllocSizeMB", 1);
 
         Path targetDir = path.resolve("bookie_data");
         conf.setMetadataServiceUri("zk+null://localhost:1282" + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
