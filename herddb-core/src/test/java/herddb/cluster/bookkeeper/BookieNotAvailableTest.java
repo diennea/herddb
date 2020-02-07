@@ -91,7 +91,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            testEnv.stopBookie();
+            testEnv.pauseBookie();
 
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
@@ -101,7 +101,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
             }
 
-            testEnv.startBookie(false);
+            testEnv.resumeBookie();
 
             while (true) {
                 System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.
