@@ -409,7 +409,7 @@ public class BookKeeperCommitLogTest {
                     list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
                     ledgerIds.add(a.ledgerId);
                 }, false);
-                assertTrue("unexpected number of entries on reader: " + list.size(), list.size() <= 70);
+                assertTrue("unexpected number of entries on reader: " + list.size(), list.size() <= 80);
             }
 
         }
