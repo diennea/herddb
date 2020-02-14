@@ -161,6 +161,7 @@ public class TableSpaceManager {
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
 
+    private volatile boolean recoveryInProgress;
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -245,6 +246,10 @@ public class TableSpaceManager {
     }
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+        if (recoveryInProgress) {
+            throw new HerdDBInternalException("Cannot run recovery twice");
+        }
+        recoveryInProgress = true;
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
         actualLogSequenceNumber = logSequenceNumber;
         LOGGER.log(Level.INFO, "{0} recover {1}, logSequenceNumber from DataStorage: {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
@@ -307,14 +312,22 @@ public class TableSpaceManager {
                 log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
             }
         }
+        recoveryInProgress = false;
+        LOGGER.log(Level.INFO, "Recovery finished for {0}", tableSpaceName);
         checkpoint(false, false, false);
 
     }
 
     void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
+        if (recoveryInProgress) {
+            throw new HerdDBInternalException("Cannot run recovery twice");
+        }
+        recoveryInProgress = true;
         actualLogSequenceNumber = log.getLastSequenceNumber();
-        LOGGER.log(Level.INFO, "recovering tablespace " + tableSpaceName + " log from sequence number " + actualLogSequenceNumber + ", with fencing");
+        LOGGER.log(Level.INFO, "recovering tablespace {0} log from sequence number {1}, with fencing", new Object[]{tableSpaceName, actualLogSequenceNumber});
         log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
+        LOGGER.log(Level.INFO, "Recovery (with fencing) finished for {0}", tableSpaceName);
+        recoveryInProgress = false;
     }
 
     void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
@@ -865,6 +878,9 @@ public class TableSpaceManager {
 
         checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
         LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
+        if (checkpoint == null) {
+            throw new DataStorageManagerException("failed to create a checkpoint, check logs for the reason");
+        }
 
         /* Downgrade lock */
 //        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
@@ -1683,6 +1699,11 @@ public class TableSpaceManager {
 
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
+            return null;
+        }
+
+        if (recoveryInProgress) {
+            LOGGER.log(Level.INFO, "Checkpoint for tablespace {0} skipped. Recovery is still in progress", tableSpaceName);
             return null;
         }
 
