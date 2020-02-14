@@ -573,6 +573,9 @@ public class BookkeeperCommitLog extends CommitLog {
                                     new Object[]{start, end, percent, (_stop - _start) + " ms", tableSpaceDescription});
                         }
                     }
+                } catch (RuntimeException err) {
+                    LOGGER.log(Level.SEVERE, "Internal error while recovering tablespace " + tableSpaceDescription() + ": " + err, err);
+                    throw err;
                 } finally {
                     handle.close();
                 }
