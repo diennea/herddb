@@ -435,32 +435,48 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
+    public boolean isRecoveryAvailable(LogSequenceNumber snapshotSequenceNumber) {
+        LedgersInfo actualLedgersListFromMetadata = metadataManager.getActualLedgersList(tableSpaceUUID);
+        return isRecoveryAvailable(snapshotSequenceNumber, actualLedgersListFromMetadata, tableSpaceDescription());
+    }
+
+    private static boolean isRecoveryAvailable(LogSequenceNumber snapshotSequenceNumber, LedgersInfo actualLedgersList, String tableSpaceDescription) {
+        final long snapshotLedgerId = snapshotSequenceNumber.ledgerId;
+        LOGGER.log(Level.INFO, "Actual ledgers list:{0} tableSpace {1}",
+                new Object[]{actualLedgersList, tableSpaceDescription});
+        if (snapshotLedgerId > 0 && !actualLedgersList.getActiveLedgers().contains(snapshotLedgerId)
+                && !actualLedgersList.getActiveLedgers().isEmpty()) {
+            LOGGER.log(Level.SEVERE, "Actual ledgers list does not include latest snapshot ledgerid:" + snapshotLedgerId + " tablespace " + tableSpaceDescription);
+            return false;
+        }
+        if (snapshotSequenceNumber.isStartOfTime() && !actualLedgersList.getActiveLedgers().isEmpty()
+                && !actualLedgersList.getActiveLedgers().contains(actualLedgersList.getFirstLedger())) {
+            LOGGER.log(Level.SEVERE, "Tablespace " + tableSpaceDescription
+                    + ": Local data is absent, and actual ledger list " + actualLedgersList.getActiveLedgers()
+                    + " does not contain first ledger of ever: " + actualLedgersList.getFirstLedger());
+            return false;
+        }
+        return true;
+    }
+
+    @Override
     public void recovery(
             LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer,
             boolean fencing
     ) throws LogNotAvailableException {
         String tableSpaceDescription = tableSpaceDescription();
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
-        LOGGER.log(Level.INFO, "Actual ledgers list:{0} tableSpace {1}",
-                new Object[]{actualLedgersList, tableSpaceDescription});
+        LOGGER.log(Level.INFO, "Actual ledgers list:{0} tableSpace {1}", new Object[]{actualLedgersList, tableSpaceDescription});
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         this.lastSequenceNumber.set(snapshotSequenceNumber.offset);
         LOGGER.log(Level.INFO, "recovery from latest snapshotSequenceNumber:{0} tableSpace {1}, node {2}, fencing {3}",
                 new Object[]{snapshotSequenceNumber, tableSpaceDescription, localNodeId, fencing});
-        if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId)
-                && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
-            // TODO: download snapshot from another remote broker
-            throw new FullRecoveryNeededException(new Exception(
-                    "Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + " tablespace "
-                    + tableSpaceDescription));
+
+        if (!isRecoveryAvailable(snapshotSequenceNumber, actualLedgersList, tableSpaceDescription)) {
+            throw new FullRecoveryNeededException("Cannot recover from BookKeeper, not enough data, plese check the logs");
         }
-        if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty()
-                && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
-            throw new FullRecoveryNeededException(new Exception("Tablespace " + tableSpaceDescription
-                    + ": Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers()
-                    + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
-        }
+
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
                 FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
