@@ -222,7 +222,7 @@ public class BootFollowerTest extends MultiServerBase {
             server_2.getManager().setActivatorPauseStatus(true);
             server_2.start();
 
-            assertFalse(server_2.getManager().isTableSpaceLocallyRecoverable(server_2.getMetadataStorageManager().describeTableSpace(TableSpace.DEFAULT)));
+            assertTrue(server_2.getManager().isTableSpaceLocallyRecoverable(server_2.getMetadataStorageManager().describeTableSpace(TableSpace.DEFAULT)));
 
             server_2.getManager().setActivatorPauseStatus(false);
 
