@@ -911,7 +911,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
 
-    private boolean isTableSpaceLocallyRecoverable(TableSpace tableSpace) {
+    // visible for testing
+    public boolean isTableSpaceLocallyRecoverable(TableSpace tableSpace) {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpace.uuid);
         try (CommitLog tmpCommitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);) {
             return tmpCommitLog.isRecoveryAvailable(logSequenceNumber);

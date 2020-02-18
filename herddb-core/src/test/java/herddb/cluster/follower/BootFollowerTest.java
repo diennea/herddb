@@ -20,6 +20,7 @@
 package herddb.cluster.follower;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.cluster.BookkeeperCommitLog;
 import herddb.cluster.LedgersInfo;
@@ -115,7 +116,12 @@ public class BootFollowerTest extends MultiServerBase {
                     DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.getManager().setActivatorPauseStatus(true);
                 server_2.start();
+
+                assertTrue(server_2.getManager().isTableSpaceLocallyRecoverable(server_2.getMetadataStorageManager().describeTableSpace(TableSpace.DEFAULT)));
+
+                server_2.getManager().setActivatorPauseStatus(false);
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                         new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -212,7 +218,13 @@ public class BootFollowerTest extends MultiServerBase {
         }
 
         try (Server server_2 = new Server(serverconfig_2)) {
+
+            server_2.getManager().setActivatorPauseStatus(true);
             server_2.start();
+
+            assertFalse(server_2.getManager().isTableSpaceLocallyRecoverable(server_2.getMetadataStorageManager().describeTableSpace(TableSpace.DEFAULT)));
+
+            server_2.getManager().setActivatorPauseStatus(false);
 
             assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
