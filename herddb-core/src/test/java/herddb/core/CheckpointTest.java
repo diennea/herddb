@@ -135,6 +135,9 @@ public class CheckpointTest {
         /* Disable page compaction (avoid compaction of dirty page) */
         config1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
 
+        // local consistency check may load pages and make this test flaky
+        config1.set(ServerConfiguration.PROPERTY_ENABLE_CONSISTENCY_CHECK, false);
+
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
