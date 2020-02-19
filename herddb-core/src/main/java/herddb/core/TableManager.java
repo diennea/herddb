@@ -1989,7 +1989,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void close() {
+
+        // unload all pages
+        final List<DataPage> unload = pages.values().stream()
+                .collect(Collectors.toList());
+        pageReplacementPolicy.remove(unload);
+
+        // unload keyToPage
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.uuid, keyToPage);
+
     }
 
     private CompletableFuture<StatementExecutionResult> executeGetAsync(
