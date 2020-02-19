@@ -312,10 +312,34 @@ public class TableSpaceManager {
                 log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
             }
         }
+        verifyTableSpaceConsistency();
         recoveryInProgress = false;
         LOGGER.log(Level.INFO, "Recovery finished for {0}", tableSpaceName);
         checkpoint(false, false, false);
+        verifyTableSpaceConsistency();
+    }
 
+    private void verifyTableSpaceConsistency() {
+        boolean enableConsistencyCheck = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_ENABLE_CONSISTENCY_CHECK,
+                ServerConfiguration.PROPERTY_ENABLE_CONSISTENCY_CHECK_DEFAULT);
+        if (!enableConsistencyCheck) {
+            return;
+        }
+        long _start = System.currentTimeMillis();
+        LOGGER.log(Level.INFO, "Verifing tablespace {0} consistency", tableSpaceName);
+        long lock = acquireWriteLock("verifyTableSpaceConsistency");
+        try {
+            for (AbstractTableManager tableManager : tables.values()) {
+                if (!tableManager.isSystemTable()) {
+                    LOGGER.log(Level.INFO, "Verifing table {0} consistency", tableSpaceName + "." + tableManager.getTable().name);
+                    tableManager.verifyTableConsistency();
+                }
+            }
+        } finally {
+            releaseWriteLock(lock, "verifyTableSpaceConsistency");
+        }
+        long time = System.currentTimeMillis() - _start;
+        LOGGER.log(Level.INFO, "Tablespace consistency {0} is ok, time {1} ms", new Object[]{tableSpaceName, time});
     }
 
     void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
@@ -1099,6 +1123,7 @@ public class TableSpaceManager {
             for (long tx : pending_transactions) {
                 forceTransactionRollback(tx);
             }
+            verifyTableSpaceConsistency();
         }
         leader = true;
     }

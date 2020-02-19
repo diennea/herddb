@@ -27,6 +27,7 @@ import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexFullScan;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
@@ -78,6 +79,7 @@ import herddb.utils.ILocalLockManager;
 import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import herddb.utils.LongHolder;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -1830,6 +1832,28 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
         unloadAllPagesForTruncate();
+    }
+
+    @Override
+    public void verifyTableConsistency() throws DataStorageManagerException {
+        LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} using PK", new Object[]{table.tablespace, table.name});
+        final LongHolder countPk = new LongHolder();
+        scanForIndexRebuild((Record record) -> {
+            countPk.value++;
+        });
+        LOGGER.log(Level.INFO, "Verify table consistency {0}.{1}, scanned {2} records using PK", new Object[]{table.tablespace, table.name, countPk.value});
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        for (AbstractIndexManager index : indexes.values()) {
+            LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} using index {2}", new Object[]{table.tablespace, table.name, index.index.name});
+            final LongHolder countIndex = new LongHolder();
+            index.scanner(new SecondaryIndexFullScan(index.index.name), new StatementEvaluationContext(), tableContext)
+                    .forEach(key -> {
+                        countIndex.value++;
+                    });
+
+            LOGGER.log(Level.INFO, "Verify table consistency {0}.{1}, scanned {2} records using index {3}", new Object[]{table.tablespace, table.name, countIndex.value, index.index.name});
+        }
+        LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} finished", new Object[]{table.tablespace, table.name});
     }
 
     @Override

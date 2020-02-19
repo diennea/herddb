@@ -137,7 +137,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ack.quorum.size";
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
-    public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
+    public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 7;
 
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE = "server.bookkeeper.ledgers.max.size";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE_DEFAULT = 1024L * 1024 * 1024;
@@ -150,6 +150,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
+
+    public static final String PROPERTY_ENABLE_CONSISTENCY_CHECK = "server.localconsistencycheck.enabled";
+    public static final boolean PROPERTY_ENABLE_CONSISTENCY_CHECK_DEFAULT = true;
 
     public static final String PROPERTY_DEFAULT_REPLICA_COUNT = "tablespace.default.replica.count";
     public static final int PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT = 1;

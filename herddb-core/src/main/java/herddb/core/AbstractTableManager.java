@@ -145,6 +145,9 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
+    default void verifyTableConsistency() throws DataStorageManagerException {
+    }
+
     final class TableCheckpoint {
 
         final String tableName;

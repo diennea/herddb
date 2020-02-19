@@ -29,6 +29,7 @@ import herddb.core.PageReplacementPolicy;
 import herddb.core.PostCheckpointAction;
 import herddb.core.TableSpaceManager;
 import herddb.index.IndexOperation;
+import herddb.index.SecondaryIndexFullScan;
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
@@ -411,6 +412,9 @@ public class BRINIndexManager extends AbstractIndexManager {
             LOGGER.log(Level.FINE, "range scan on {0}.{1}, from {2} to {1}", new Object[]{index.table, index.name, firstKey, lastKey});
             return data.query(firstKey, lastKey);
 
+        } else if (operation instanceof SecondaryIndexFullScan) {
+            LOGGER.log(Level.FINE, "full scan on {0}.{1}", new Object[]{index.table, index.name});
+            return data.query(null, Bytes.POSITIVE_INFINITY);
         } else {
             throw new UnsupportedOperationException("unsuppported index access type " + operation);
         }

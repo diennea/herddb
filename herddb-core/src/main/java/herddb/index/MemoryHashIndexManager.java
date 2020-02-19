@@ -218,6 +218,12 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                     .filter(predicate)
                     .map(entry -> entry.getValue())
                     .flatMap(l -> l.stream());
+        } else if (operation instanceof SecondaryIndexFullScan) {
+            return data
+                    .entrySet()
+                    .stream()
+                    .map(entry -> entry.getValue())
+                    .flatMap(l -> l.stream());
         } else {
             throw new UnsupportedOperationException("unsuppported index access type " + operation);
         }
