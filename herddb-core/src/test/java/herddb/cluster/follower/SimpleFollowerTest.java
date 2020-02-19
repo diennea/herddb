@@ -252,6 +252,9 @@ public class SimpleFollowerTest extends MultiServerBase {
             // data will be downloaded from the server_1 (PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT)
             try (Server server_2 = new Server(serverconfig_2)) {
                 server_2.start();
+
+                assertTrue(server_2.getManager().isTableSpaceLocallyRecoverable(server_1.getMetadataStorageManager().describeTableSpace(TableSpace.DEFAULT)));
+
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                         new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
