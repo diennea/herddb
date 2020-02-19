@@ -1843,15 +1843,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         });
         LOGGER.log(Level.INFO, "Verify table consistency {0}.{1}, scanned {2} records using PK", new Object[]{table.tablespace, table.name, countPk.value});
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-        for (AbstractIndexManager index : indexes.values()) {
-            LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} using index {2}", new Object[]{table.tablespace, table.name, index.index.name});
-            final LongHolder countIndex = new LongHolder();
-            index.scanner(new SecondaryIndexFullScan(index.index.name), new StatementEvaluationContext(), tableContext)
-                    .forEach(key -> {
-                        countIndex.value++;
-                    });
+        if (indexes != null) {
+            for (AbstractIndexManager index : indexes.values()) {
+                LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} using index {2}", new Object[]{table.tablespace, table.name, index.index.name});
+                final LongHolder countIndex = new LongHolder();
+                index.scanner(new SecondaryIndexFullScan(index.index.name), new StatementEvaluationContext(), tableContext)
+                        .forEach(key -> {
+                            countIndex.value++;
+                        });
 
-            LOGGER.log(Level.INFO, "Verify table consistency {0}.{1}, scanned {2} records using index {3}", new Object[]{table.tablespace, table.name, countIndex.value, index.index.name});
+                LOGGER.log(Level.INFO, "Verify table consistency {0}.{1}, scanned {2} records using index {3}", new Object[]{table.tablespace, table.name, countIndex.value, index.index.name});
+            }
         }
         LOGGER.log(Level.INFO, "Verify table consistency {0}.{1} finished", new Object[]{table.tablespace, table.name});
     }
