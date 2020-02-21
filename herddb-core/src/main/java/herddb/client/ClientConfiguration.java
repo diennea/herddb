@@ -230,7 +230,10 @@ public class ClientConfiguration {
 
     @Override
     public String toString() {
-        return "ClientConfiguration{" + properties + '}';
+        Properties propsNoPassword = new Properties();
+        propsNoPassword.putAll(properties);
+        propsNoPassword.setProperty("password", "---");
+        return "ClientConfiguration{" + propsNoPassword + '}';
     }
 
 }
