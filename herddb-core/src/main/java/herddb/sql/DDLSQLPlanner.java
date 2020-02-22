@@ -45,8 +45,8 @@ import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
-import herddb.model.commands.TableIntegrityCheckStatement;
-import herddb.model.commands.TableSpaceIntegrityCheckStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
@@ -221,12 +221,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
-        if(query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_INTEGRITY_COMMAND.toLowerCase())){
-            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(defaultTableSpace,query,parameters));
+        if(query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())){
+            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryConsistencyCheckStatement(defaultTableSpace,query,parameters));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
-        if(query.startsWith(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND.toLowerCase())){
-            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryCheckIntegrityStatement(query));
+        if(query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())){
+            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.QueryConsistencyCheckStatement(query));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
         
@@ -859,9 +859,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         
     }
 
-    public Statement QueryCheckIntegrityStatement(String defaultTablespace,String query,List<Object> parameters ){
-        if (query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND) || query.contains(CalcitePlanner.TABLE_INTEGRITY_COMMAND.toLowerCase())) {
-            query = query.substring(query.substring(0,19).length());
+    public Statement QueryConsistencyCheckStatement(String defaultTablespace,String query,List<Object> parameters ){
+        if (query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())) {
+            query = query.substring(query.substring(0,21).length());
             System.out.println(query);         
             String tableSpace = defaultTablespace;
             String tableName;
@@ -883,15 +883,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
             
-            return new TableIntegrityCheckStatement(tableSpace, tableName);
+            return new TableConsistencyCheckStatement(tableSpace, tableName);
         }else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
         }
         
     }
-    public Statement QueryCheckIntegrityStatement(String query){
-        if (query.contains(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND) || query.contains(CalcitePlanner.TABLESPACE_INTEGRITY_COMMAND.toLowerCase())) {
-            String tableSpace = query.substring(query.substring(0,24).length());           
+    public Statement QueryConsistencyCheckStatement(String query){
+        if (query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())) {
+            String tableSpace = query.substring(query.substring(0,26).length()).replace("\'", "");           
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
             System.out.println("tablespace " + tableSpace);
             System.out.println("tablespaceManager " + tableSpaceManager);
@@ -899,7 +899,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
-            return new TableSpaceIntegrityCheckStatement(tableSpace.trim());
+            return new TableSpaceConsistencyCheckStatement(tableSpace.trim());
         }else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
         }

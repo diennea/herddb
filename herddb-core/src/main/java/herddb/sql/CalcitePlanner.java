@@ -180,8 +180,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
-    public static final  String TABLE_INTEGRITY_COMMAND="CHECKTABLEINTEGRITY";
-    public static final  String TABLESPACE_INTEGRITY_COMMAND="CHECKTABLESPACEINTEGRITY";
+    public static final  String TABLE_CONSISTENCY_COMMAND="TABLECONSISTENCYCHECK";
+    public static final  String TABLESPACE_CONSISTENCY_COMMAND="TABLESPACECONSISTENCYCHECK";
     
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
@@ -246,11 +246,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
-        if(query.startsWith(TABLE_INTEGRITY_COMMAND) || query.startsWith(TABLE_INTEGRITY_COMMAND.toLowerCase())){
+        if(query.startsWith(TABLE_CONSISTENCY_COMMAND) || query.startsWith(TABLE_CONSISTENCY_COMMAND.toLowerCase())){
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
-        if(query.startsWith(TABLESPACE_INTEGRITY_COMMAND) || query.startsWith(TABLESPACE_INTEGRITY_COMMAND.toLowerCase())){
+        if(query.startsWith(TABLESPACE_CONSISTENCY_COMMAND) || query.startsWith(TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())){
             query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }

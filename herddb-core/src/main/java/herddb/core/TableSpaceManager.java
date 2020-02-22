@@ -44,9 +44,9 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
-import herddb.data.integrity.DigestNotAvailableException;
-import herddb.data.integrity.TableChecksum;
-import herddb.data.integrity.TableDataChecksum;
+import herddb.data.consistency.DigestNotAvailableException;
+import herddb.data.consistency.TableChecksum;
+import herddb.data.consistency.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.jmx.JMXUtils;
@@ -92,7 +92,7 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.commands.TableIntegrityCheckStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -1194,8 +1194,8 @@ public class TableSpaceManager {
                 res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
-            } else if(statement instanceof TableIntegrityCheckStatement){
-                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableIntegrityCheckStatement) statement));
+            } else if(statement instanceof TableConsistencyCheckStatement){
+                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableConsistencyCheckStatement) statement));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());

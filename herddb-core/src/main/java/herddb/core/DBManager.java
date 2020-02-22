@@ -61,8 +61,8 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.commands.TableIntegrityCheckStatement;
-import herddb.model.commands.TableSpaceIntegrityCheckStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -642,11 +642,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
-        if(statement instanceof TableSpaceIntegrityCheckStatement){
+        if(statement instanceof TableSpaceConsistencyCheckStatement){
             if(transactionContext.transactionId > 0){
                 return FutureUtils.exception(new StatementExecutionException("CHECKTABLESPACEINTEGRITY cannot be issue inside a transaction"));
             }
-            return CompletableFuture.completedFuture(createTableSpaceDigest ((TableSpaceIntegrityCheckStatement) statement));
+            return CompletableFuture.completedFuture(createTableSpaceDigest ((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -915,7 +915,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
       
-    public DataIntegrityStatementResult createTableDigest(TableIntegrityCheckStatement tableIntegrityCheckStatement ){    
+    public DataIntegrityStatementResult createTableDigest(TableConsistencyCheckStatement tableIntegrityCheckStatement ){    
         TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         try {
@@ -926,7 +926,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);        
     }
     
-    public DataIntegrityStatementResult createTableSpaceDigest(TableSpaceIntegrityCheckStatement tableSpaceIntegrityCheckStatement ){    
+    public DataIntegrityStatementResult createTableSpaceDigest(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement ){    
         TableSpaceManager manager= tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
         String tableSpace = tableSpaceIntegrityCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
