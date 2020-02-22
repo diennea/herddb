@@ -31,7 +31,6 @@ import herddb.model.Tuple;
 import herddb.model.TuplePredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
@@ -68,12 +67,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     private final String validatedTableAlias;
     private final CompiledSQLExpression where;
     private CompiledSQLExpression primaryKeyFilter;
-
-    public SQLRecordPredicate(Table table, String tableAlias, Expression where) {
-        this.table = table;
-        this.validatedTableAlias = tableAlias;
-        this.where = SQLExpressionCompiler.compileExpression(validatedTableAlias, where);
-    }
 
     public SQLRecordPredicate(Table table, String tableAlias, CompiledSQLExpression where) {
         this.table = table;
@@ -126,14 +119,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     public CompiledSQLExpression getPrimaryKeyFilter() {
         return primaryKeyFilter;
-    }
-
-    public void setPrimaryKeyFilter(Expression primaryKeyFilter) {
-        if (primaryKeyFilter != null) {
-            this.primaryKeyFilter = SQLExpressionCompiler.compileExpression(validatedTableAlias, primaryKeyFilter);
-        } else {
-            this.primaryKeyFilter = null;
-        }
     }
 
     public void setPrimaryKeyFilter(CompiledSQLExpression primaryKeyFilter) {

@@ -20,9 +20,16 @@
 
 package herddb.client;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Client configuration
@@ -31,6 +38,7 @@ import java.util.Properties;
  */
 public class ClientConfiguration {
 
+    private static final Logger LOG = Logger.getLogger(ClientConfiguration.class.getName());
     private final Properties properties;
 
     /**
@@ -198,6 +206,25 @@ public class ClientConfiguration {
                     set(param, "");
                 }
             }
+        }
+        readAdditionalProperties();
+
+    }
+
+    private void readAdditionalProperties() {
+        String configFile = getString("configFile", "");
+        if (!configFile.isEmpty()) {
+            File file = new File(configFile);
+            LOG.log(Level.INFO, "Reading additional configuration file configFile={0}", file.getAbsolutePath());
+            Properties additionalProperties = new Properties();
+            try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
+                additionalProperties.load(reader);
+            } catch (IOException err) {
+                throw new RuntimeException(err);
+            }
+            additionalProperties.forEach((k, v) -> {
+                set(k.toString(), v);
+            });
         }
     }
 

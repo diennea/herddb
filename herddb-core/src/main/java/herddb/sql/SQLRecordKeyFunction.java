@@ -31,13 +31,11 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.sf.jsqlparser.expression.Expression;
 
 /**
  * Record mutator using SQL
@@ -52,34 +50,6 @@ public class SQLRecordKeyFunction extends RecordFunction {
     private final ColumnsList table;
     private final boolean fullPrimaryKey;
     private final boolean isConstant;
-
-    public SQLRecordKeyFunction(ColumnsList table, List<String> expressionToColumn, List<Expression> expressions) {
-        this.table = table;
-        this.columns = new Column[expressions.size()];
-        this.expressions = new ArrayList<>();
-        this.pkColumnNames = new String[expressions.size()];
-        int i = 0;
-        boolean constant = true;
-        for (String cexp : expressionToColumn) {
-            Column pkcolumn = table.getColumn(cexp);
-            this.columns[i] = pkcolumn;
-            Expression exp = expressions.get(i);
-            this.expressions.add(SQLExpressionCompiler.compileExpression(null, exp));
-            if (!SQLRecordPredicate.isConstant(exp)) {
-                constant = false;
-            }
-            i++;
-        }
-        this.isConstant = constant;
-        int k = 0;
-        String[] primaryKey = table.getPrimaryKey();
-        for (String pk : primaryKey) {
-            if (expressionToColumn.contains(pk)) {
-                this.pkColumnNames[k++] = pk;
-            }
-        }
-        this.fullPrimaryKey = (primaryKey.length == columns.length);
-    }
 
     public SQLRecordKeyFunction(
             List<String> expressionToColumn,

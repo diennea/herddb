@@ -21,8 +21,12 @@
 package herddb.server;
 
 import herddb.utils.SystemProperties;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
@@ -138,8 +142,14 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_MAX_IDLE_TIME = "server.bookkeeper.max.idle.time";
     public static final long PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT = 1000L * 10;
 
+    public static final String PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT = "server.boot.force.download.snapshot";
+    public static final boolean PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT = false;
+
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
+
+    public static final String PROPERTY_DEFAULT_REPLICA_COUNT = "tablespace.default.replica.count";
+    public static final int PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT = 1;
 
     public static final String PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT = "server.abandoned.transactions.timeout";
     public static final long PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
@@ -378,7 +388,6 @@ public final class ServerConfiguration {
         if (questionMark < url.length()) {
             String qs = url.substring(questionMark + 1);
             String[] params = qs.split("&");
-            LOG.log(Level.SEVERE, "url " + url + " qs " + qs + " params " + Arrays.toString(params));
             for (String param : params) {
                 // TODO: URLDecoder??
                 int pos = param.indexOf('=');
@@ -390,6 +399,25 @@ public final class ServerConfiguration {
                     set(param, "");
                 }
             }
+        }
+        readAdditionalProperties();
+
+    }
+
+    private void readAdditionalProperties() {
+        String configFile = getString("configFile", "");
+        if (!configFile.isEmpty()) {
+            File file = new File(configFile);
+            LOG.log(Level.INFO, "Reading additional server configuration file configFile={0}", file.getAbsolutePath());
+            Properties additionalProperties = new Properties();
+            try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
+                additionalProperties.load(reader);
+            } catch (IOException err) {
+                throw new RuntimeException(err);
+            }
+            additionalProperties.forEach((k, v) -> {
+                set(k.toString(), v);
+            });
         }
     }
 

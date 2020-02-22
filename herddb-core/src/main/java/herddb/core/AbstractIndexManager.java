@@ -182,6 +182,20 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         dataStorageManager.dropIndex(tableSpaceUUID, index.uuid);
     }
 
+    /**
+     * Truncate the index from persist storage
+     * <p>
+     * Differs from {@link #dropIndexData()} because it leaves in place every support structure needed by
+     * index runtime (for example if index is persisted into a directory it doesn't delete the directory
+     * itself). The index will continue to work but without current data that will be erased
+     * </p>
+     *
+     * @throws DataStorageManagerException
+     */
+    public void truncateIndexData() throws DataStorageManagerException {
+        dataStorageManager.truncateIndex(tableSpaceUUID, index.uuid);
+    }
+
     final void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {

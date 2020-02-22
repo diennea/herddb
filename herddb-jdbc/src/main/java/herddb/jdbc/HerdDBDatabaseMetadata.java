@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ScanResultSetMetadata;
 import herddb.client.impl.EmptyScanResultSet;
 import herddb.client.impl.MapListScanResultSet;
+import herddb.model.ColumnTypes;
 import herddb.model.TransactionContext;
 import herddb.utils.SQLUtils;
 import java.sql.Connection;
@@ -684,6 +685,14 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             "FILTER_CONDITION"
     };
 
+    private static final String[] GET_PRIMARYKEYS_SCHEMA = new String[]{
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "COLUMN_NAME",
+            "KEY_SEQ"
+    };
+
     @Override
     /**
      * Retrieves a description of the tables available in the given catalog.
@@ -975,17 +984,17 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 data.put("TABLE_NAME", table_name);
                 data.put("COLUMN_NAME", column_name);
                 data.put("TYPE_NAME", type_name);
-                data.put("DATA_TYPE", data_type);
+                data.put("DATA_TYPE", ColumnTypes.sqlDataTypeToJdbcType(data_type));
                 data.put("COLUMN_SIZE", 0);
                 data.put("BUFFER_LENGTH", 0);
                 data.put("DECIMAL_DIGITS", null);
                 data.put("NUM_PREC_RADIX", null);
-                data.put("NULLABLE", is_nullable > 0 ? "YES" : "NO");
+                data.put("NULLABLE", is_nullable > 0 ? 1 : 0);
                 data.put("REMARKS", "");
                 data.put("COLUMN_DEF", "");
                 data.put("SQL_DATA_TYPE", "");
                 data.put("SQL_DATETIME_SUB", "");
-                data.put("CHAR_OCTET_LENGTH", "");
+                data.put("CHAR_OCTET_LENGTH", Integer.MAX_VALUE);
                 data.put("ORDINAL_POSITION", ordinal_position);
                 data.put("IS_NULLABLE", is_nullable > 0 ? "YES" : "NO");
                 data.put("SCOPE_CATALOG", null);
@@ -1023,9 +1032,61 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
     }
 
+     /**
+     * Retrieves a description of the given table's primary key columns.  They
+     * are ordered by COLUMN_NAME.
+     *
+     * <P>Each primary key column description has the following columns:
+     *  <OL>
+     *  <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be <code>null</code>)
+     *  <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be <code>null</code>)
+     *  <LI><B>TABLE_NAME</B> String {@code =>} table name
+     *  <LI><B>COLUMN_NAME</B> String {@code =>} column name
+     *  <LI><B>KEY_SEQ</B> short {@code =>} sequence number within primary key( a value
+     *  of 1 represents the first column of the primary key, a value of 2 would
+     *  represent the second column within the primary key).
+     *  <LI><B>PK_NAME</B> String {@code =>} primary key name (may be <code>null</code>)
+     *  </OL>
+     *
+     * @param catalog a catalog name; must match the catalog name as it
+     *        is stored in the database; "" retrieves those without a catalog;
+     *        <code>null</code> means that the catalog name should not be used to narrow
+     *        the search
+     * @param schema a schema name; must match the schema name
+     *        as it is stored in the database; "" retrieves those without a schema;
+     *        <code>null</code> means that the schema name should not be used to narrow
+     *        the search
+     * @param table a table name; must match the table name as it is stored
+     *        in the database
+     * @return <code>ResultSet</code> - each row is a primary key column description
+     * @exception SQLException if a database access error occurs
+     */
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+        String query = "SELECT * FROM SYSINDEXCOLUMNS WHERE index_type='pk' ";
+        if (table != null && !table.isEmpty()) {
+            query = query + " AND table_name = '" + SQLUtils.escape(table) + "'";
+        }
+        try (Statement statement = con.createStatement();
+             ResultSet rs = statement.executeQuery(query)) {
+
+            List<Map<String, Object>> results = new ArrayList<>();
+            while (rs.next()) {
+                String table_name = rs.getString("table_name");
+                String column_name = rs.getString("column_name");
+                int ordinal_position = rs.getInt("ordinal_position");
+                Map<String, Object> data = new HashMap<>();
+                data.put("TABLE_CAT", null);
+                data.put("TABLE_SCHEM", tableSpace);
+                data.put("TABLE_NAME", table_name);
+                data.put("COLUMN_NAME", column_name);
+                data.put("KEY_SEQ", ordinal_position);
+                results.add(data);
+
+            }
+            ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_PRIMARYKEYS_SCHEMA);
+            return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_PRIMARYKEYS_SCHEMA, results));
+        }
     }
 
     @Override
@@ -1354,4 +1415,5 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface.isInstance(this);
     }
+
 }

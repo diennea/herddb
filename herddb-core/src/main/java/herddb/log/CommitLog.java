@@ -87,7 +87,7 @@ public abstract class CommitLog implements AutoCloseable {
     protected synchronized void notifyListeners(LogSequenceNumber logPos, LogEntry edit) {
         if (listeners != null) {
             for (CommitLogListener l : listeners) {
-                LOG.log(Level.SEVERE, "notifyListeners {0}, {1}", new Object[]{logPos, edit});
+                LOG.log(Level.INFO, "notifyListeners {0}, {1}", new Object[]{logPos, edit});
                 l.logEntry(logPos, edit);
             }
         }

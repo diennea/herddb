@@ -26,7 +26,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
 import net.sf.jsqlparser.expression.Function;
 import org.apache.calcite.sql.fun.SqlSingleValueAggFunction;
 import org.apache.calcite.sql.fun.SqlSumEmptyIsZeroAggFunction;
@@ -88,16 +87,6 @@ public class BuiltinFunctions {
             return Column.column(fieldName, ColumnTypes.LONG);
         }
         return null;
-    }
-
-    public static AggregatedColumnCalculator getColumnCalculator(
-            Function f, String fieldName,
-            StatementEvaluationContext context
-    ) throws StatementExecutionException {
-        String functionName = f.getName();
-        CompiledSQLExpression firstParam = f.getParameters() == null || f.getParameters().getExpressions() == null || f.getParameters().getExpressions().isEmpty() ? null
-                : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
-        return getColumnCalculator(functionName, fieldName, firstParam, context);
     }
 
     public static AggregatedColumnCalculator getColumnCalculator(

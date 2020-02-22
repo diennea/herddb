@@ -795,8 +795,40 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
-        ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
-        return new TableScanOp(scanStatement);
+        Column[] columns = table.getColumns();
+        int numColumns = columns.length;
+        boolean usingAliases = false;
+        if (rowType != null) {
+            List<String> fieldNamesFromQuery = rowType.getFieldNames();
+            for (int i = 0; i < numColumns; i++) {
+                String fieldName = fieldNamesFromQuery.get(i);
+                String alias = fieldName.toLowerCase();
+                String colName = columns[i].name;
+                if (!alias.equals(colName)) {
+                    usingAliases = true;
+                    break;
+                }
+            }
+        }
+        if (usingAliases) {
+            List<String> fieldNamesFromQuery = rowType.getFieldNames();
+            String[] fieldNames = new String[numColumns];
+            int[] projections = new int[numColumns];
+            for (int i = 0; i < numColumns; i++) {
+                String alias = fieldNamesFromQuery.get(i).toLowerCase();
+                fieldNames[i] = alias;
+                projections[i] = i;
+            }
+            Projection zeroCopy = new ProjectOp.ZeroCopyProjection(
+                    fieldNames,
+                    columns,
+                    projections);
+             ScanStatement scanStatement = new ScanStatement(tableSpace, table, zeroCopy, null);
+            return new TableScanOp(scanStatement);
+        } else {
+            ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
+            return new TableScanOp(scanStatement);
+        }
     }
 
     private PlannerOp planBindableTableScan(BindableTableScan scan, RelDataType rowType) {
@@ -1004,7 +1036,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         if (allowZeroCopyProjection) {
             if (identity) {
-                return new ProjectOp.IdentityProjection(fieldNames, columns);
+                return Projection.IDENTITY(fieldNames, columns);
             }
             return new ProjectOp.ZeroCopyProjection(
                     fieldNames,
@@ -1307,12 +1339,16 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             keys = ImmutableList.of(builder.build());
         }
 
+        private static boolean isColumnNullable(Column c, Table t) {
+            return  (!t.isPrimaryKeyColumn(c.name) || t.auto_increment) && !ColumnTypes.isNotNullDataType(c.type);
+        }
+
         @Override
         public RelDataType getRowType(RelDataTypeFactory typeFactory) {
             RelDataTypeFactory.Builder builder = new RelDataTypeFactory.Builder(typeFactory);
             Table table = tableManager.getTable();
             for (Column c : table.getColumns()) {
-                boolean nullable = !table.isPrimaryKeyColumn(c.name) || table.auto_increment;
+                boolean nullable = isColumnNullable(c, table);
                 builder.add(c.name, convertType(c.type, typeFactory, nullable));
             }
             return builder.build();
