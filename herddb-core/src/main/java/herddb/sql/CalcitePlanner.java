@@ -115,6 +115,9 @@ import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
 import org.apache.calcite.linq4j.Queryable;
 import org.apache.calcite.linq4j.tree.Expression;
+import org.apache.calcite.linq4j.tree.ExpressionType;
+import org.apache.calcite.linq4j.tree.Shuttle;
+import org.apache.calcite.linq4j.tree.Visitor;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -1371,7 +1374,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         @Override
         public Expression getExpression(SchemaPlus schema, String tableName, Class clazz) {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return null;
         }
 
         @Override
