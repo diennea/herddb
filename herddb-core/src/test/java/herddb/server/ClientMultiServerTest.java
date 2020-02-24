@@ -67,7 +67,7 @@ public class ClientMultiServerTest {
     @Before
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder("zkdata").toPath());
-        testEnv.startBookie();
+        testEnv.startBookieAndInitCluster();
     }
 
     @After

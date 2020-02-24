@@ -202,7 +202,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            testEnv.stopBookie();
+            String bookieAddr = testEnv.stopBookie();
 
             // transaction will continue and see the failure only the time of the commit
             try {
@@ -243,9 +243,9 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
                 fail();
             } catch (StatementExecutionException expected) {
                 System.out.println("Commit failed as expected:" + expected);
-            }
+            }            
 
-            testEnv.startBookie(false);
+            testEnv.startStoppedBookie(bookieAddr);
 
             while (true) {
                 System.out.println("status leader:" + tableSpaceManager.isLeader() + " failed:" + tableSpaceManager.

@@ -62,7 +62,7 @@ public class SimpleClusterTest extends BaseTestcase {
     @Override
     protected void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
-        testEnv.startBookie();
+        testEnv.startBookieAndInitCluster();
     }
 
     @Override
