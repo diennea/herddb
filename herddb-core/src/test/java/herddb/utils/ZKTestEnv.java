@@ -21,6 +21,8 @@
 package herddb.utils;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -37,8 +39,10 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     TestingServer zkServer;
-    BookieServer bookie;
+    List<BookieServer> bookies = new ArrayList<>();
     Path path;
+    private int nextBookiePort = 5621;
+    
 
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
@@ -62,20 +66,18 @@ public class ZKTestEnv implements AutoCloseable {
         startBookie(true);
     }
 
-    public void startBookie(boolean format) throws Exception {
-        if (bookie != null) {
-            throw new Exception("bookie already started");
-        }
+    public void startBookie(boolean format) throws Exception {        
         ServerConfiguration conf = new ServerConfiguration();
-        conf.setBookiePort(5621);
+        conf.setBookiePort(nextBookiePort++);
+        System.out.println("STARTING BOOKIE at port " + nextBookiePort);
         conf.setUseHostNameAsBookieID(true);
 
         // no need to preallocate journal and entrylog in tests
         conf.setEntryLogFilePreAllocationEnabled(false);
         conf.setProperty("journalPreAllocSizeMB", 1);
 
-        Path targetDir = path.resolve("bookie_data");
-        conf.setMetadataServiceUri("zk+null://localhost:1282" + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
+        Path targetDir = path.resolve("bookie_data_"+conf.getBookiePort());
+        conf.setMetadataServiceUri("zk+null://" + zkServer.getConnectString() + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
@@ -99,25 +101,45 @@ public class ZKTestEnv implements AutoCloseable {
             BookKeeperAdmin.format(conf, false, true);
         }
 
-        this.bookie = new BookieServer(conf);
-        this.bookie.start();
+        BookieServer bookie = new BookieServer(conf);
+        bookies.add(bookie);
+        bookie.start();
     }
-
+    
     public void pauseBookie() throws Exception {
-        bookie.suspendProcessing();
+        bookies.get(0).suspendProcessing();
+    }
+    
+    public void pauseBookie(String addr) throws Exception {        
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                bookie.suspendProcessing();
+                return;
+            }
+        }
+        throw new Exception("Cannot find bookie "+addr);
     }
 
     public void resumeBookie() throws Exception {
-        bookie.resumeProcessing();
+        bookies.get(0).resumeProcessing();
     }
-
+    
+    public void resumeBookie(String addr) throws Exception {        
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                bookie.resumeProcessing();
+                return;
+            }
+        }
+        throw new Exception("Cannot find bookie "+addr);
+    }        
 
     public void stopBookie() throws Exception {
-        if (bookie != null) {
+        for (BookieServer bookie : bookies) {
             bookie.shutdown();
-            bookie.join();
-            bookie = null;
+            bookie.join();         
         }
+        bookies.clear();
     }
 
     public String getAddress() {
@@ -134,12 +156,13 @@ public class ZKTestEnv implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        try {
-            if (bookie != null) {
+        for (BookieServer bookie : bookies) {
+            try {
                 bookie.shutdown();
+            } catch (Throwable t) {
             }
-        } catch (Throwable t) {
         }
+        
         try {
             if (zkServer != null) {
                 zkServer.close();
