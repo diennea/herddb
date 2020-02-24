@@ -1160,6 +1160,7 @@ public class HerdDBCLI {
         println("Backup finished for tablespace " + schema);
     }
 
+    @SuppressFBWarnings({"SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING", "SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE"})
     private static ExecuteStatementResult executeStatement(
             boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query,
             final Statement statement,
@@ -1621,6 +1622,7 @@ public class HerdDBCLI {
                 System.out.println("Storing SQL Console History to " + historyFile.getAbsolutePath());
             }
             readerBuilder = readerBuilder.variable(LineReader.HISTORY_FILE, historyFile);
+            readerBuilder = readerBuilder.variable(LineReader.HISTORY_FILE_SIZE, 100);
         }
         LineReader reader = readerBuilder.build();
         String prompt = "herddb(" + statement.getConnection().getSchema() + "): ";
