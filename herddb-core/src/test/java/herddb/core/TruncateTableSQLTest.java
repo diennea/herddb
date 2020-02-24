@@ -109,7 +109,7 @@ public class TruncateTableSQLTest {
                 execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
                 fail();
             } catch (StatementExecutionException ok) {
-                assertEquals("TRUNCATE TABLE cannot be executed table tsql: at least one transaction is pending on it",
+                assertEquals("TRUNCATE TABLE cannot be executed table tblspace1.tsql: at least one transaction is pending on it",
                         ok.getCause().getMessage());
             }
             TestUtils.commitTransaction(manager, "tblspace1", txId);

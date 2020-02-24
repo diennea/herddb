@@ -112,9 +112,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -155,9 +157,11 @@ public class TableSpaceManager {
     private final StampedLock generalLock = new StampedLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
+    private volatile FollowerThread followerThread;
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
 
+    private volatile boolean recoveryInProgress;
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -242,6 +246,10 @@ public class TableSpaceManager {
     }
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+        if (recoveryInProgress) {
+            throw new HerdDBInternalException("Cannot run recovery twice");
+        }
+        recoveryInProgress = true;
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
         actualLogSequenceNumber = logSequenceNumber;
         LOGGER.log(Level.INFO, "{0} recover {1}, logSequenceNumber from DataStorage: {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
@@ -290,7 +298,8 @@ public class TableSpaceManager {
             }
         });
 
-        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+        if (LogSequenceNumber.START_OF_TIME.equals(logSequenceNumber)
+                && dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
             LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
@@ -303,14 +312,22 @@ public class TableSpaceManager {
                 log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
             }
         }
+        recoveryInProgress = false;
+        LOGGER.log(Level.INFO, "Recovery finished for {0}", tableSpaceName);
         checkpoint(false, false, false);
 
     }
 
     void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
+        if (recoveryInProgress) {
+            throw new HerdDBInternalException("Cannot run recovery twice");
+        }
+        recoveryInProgress = true;
         actualLogSequenceNumber = log.getLastSequenceNumber();
-        LOGGER.log(Level.INFO, "recovering tablespace " + tableSpaceName + " log from sequence number " + actualLogSequenceNumber + ", with fencing");
+        LOGGER.log(Level.INFO, "recovering tablespace {0} log from sequence number {1}, with fencing", new Object[]{tableSpaceName, actualLogSequenceNumber});
         log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
+        LOGGER.log(Level.INFO, "Recovery (with fencing) finished for {0}", tableSpaceName);
+        recoveryInProgress = false;
     }
 
     void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
@@ -318,9 +335,13 @@ public class TableSpaceManager {
             // this will wait for the write to be acknowledged by the log
             // it can throw LogNotAvailableException
             this.actualLogSequenceNumber = position.getLogSequenceNumber();
-        }
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
+            if (LOGGER.isLoggable(Level.FINEST)) {
+                LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position.getLogSequenceNumber(), entry});
+            }
+        } else {
+            if (LOGGER.isLoggable(Level.FINEST)) {
+                LOGGER.log(Level.FINEST, "apply {0} {1}", new Object[]{position, entry});
+            }
         }
         switch (entry.type) {
             case LogEntryType.NOOP: {
@@ -592,6 +613,32 @@ public class TableSpaceManager {
         if (!leaderAddress.isPresent()) {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
+
+        // ensure we do not have any data on disk and in memory
+
+        actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+        newTransactionId.set(0);
+        LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
+        for (AbstractTableManager manager : tables.values()) {
+            // this is like a truncate table, and it releases all pages
+            // and all indexes
+            if (!manager.isSystemTable()) {
+                manager.dropTableData();
+            }
+            manager.close();
+        }
+        tables.clear();
+
+        // this map should be empty
+        for (AbstractIndexManager manager : indexes.values()) {
+            manager.dropIndexData();
+            manager.close();
+        }
+        indexes.clear();
+        transactions.clear();
+
+        dataStorageManager.eraseTablespaceData(tableSpaceUUID);
+
         NodeMetadata nodeData = leaderAddress.get();
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
@@ -612,19 +659,13 @@ public class TableSpaceManager {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
-                long _start = System.currentTimeMillis();
-                boolean ok = receiver.join(1000 * 60 * 60);
-                if (!ok) {
-                    throw new DataStorageManagerException("Cannot receive dump within " + (System.currentTimeMillis() - _start) + " ms");
-                }
-                if (receiver.getError() != null) {
-                    throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
-                }
+                receiver.getLatch().get(1, TimeUnit.HOURS);
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
-                LOGGER.log(Level.INFO, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
+                LOGGER.log(Level.INFO, tableSpaceName + " After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 
-            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
-                throw new DataStorageManagerException(networkError);
+            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException | ExecutionException | TimeoutException internalError) {
+                LOGGER.log(Level.SEVERE, tableSpaceName + " error downloading snapshot", internalError);
+                throw new DataStorageManagerException(internalError);
             }
 
         }
@@ -651,7 +692,7 @@ public class TableSpaceManager {
     private void releaseWriteLock(long lockStamp, Object description) {
         generalLock.unlockWrite(lockStamp);
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "RELEASE TS WRITELOCK for " + description);
+            LOGGER.log(Level.FINEST, "{0} ts {2} relwlock {1}", new Object[]{tableSpaceName, description, lockStamp});
         }
 //        LOGGER.log(Level.SEVERE, "RELEASE TS WRITELOCK for " + description + " -> " + lockStamp + " " + generalLock);
     }
@@ -729,7 +770,21 @@ public class TableSpaceManager {
                         new Object[]{t.transactionId,
                                 new java.sql.Timestamp(t.localCreationTimestamp),
                                 new java.sql.Timestamp(t.lastActivityTs)});
-                validateTransactionBeforeTxCommand(t.transactionId);
+                try {
+                    if (!validateTransactionBeforeTxCommand(t.transactionId, false /* no wait */)) {
+                        // Continue to check next transaction
+                        continue;
+                    }
+                } catch (StatementExecutionException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}: {1}",
+                            new Object[] { t.transactionId, e.getMessage() });
+                    // Continue to check next transaction
+                    continue;
+                } catch (RuntimeException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[] { t.transactionId, e });
+                    // Continue to check next transaction
+                    continue;
+                }
                 long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
                 try {
                     forceTransactionRollback(t.transactionId);
@@ -823,6 +878,9 @@ public class TableSpaceManager {
 
         checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
         LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
+        if (checkpoint == null) {
+            throw new DataStorageManagerException("failed to create a checkpoint, check logs for the reason");
+        }
 
         /* Downgrade lock */
 //        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
@@ -886,13 +944,16 @@ public class TableSpaceManager {
             }
 
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
-            long requestId2 = channel.generateRequestId();
-
-            try (Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
+            channel.sendOneWayMessage(PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "finish", null, 0,
                     finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
-                    null, null), timeout)) {
-            }
+                    null, null), (Throwable error) -> {
+                        if (error != null) {
+                            LOGGER.log(Level.SEVERE, "Cannot send last dump msg for " + dumpId, error);
+                        } else {
+                            LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
+                        }
+            });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
@@ -967,6 +1028,8 @@ public class TableSpaceManager {
 
     private class FollowerThread implements Runnable {
 
+        private volatile CountDownLatch running = new CountDownLatch(1);
+
         @Override
         public String toString() {
             return "FollowerThread{" + tableSpaceName + '}';
@@ -976,20 +1039,33 @@ public class TableSpaceManager {
         public void run() {
             try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
-                    log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
-                        try {
-                            apply(new CommitLogResult(num, false, true), u, false);
-                        } catch (Throwable t) {
-                            throw new RuntimeException(t);
-                        }
-                    }, context);
+                    long readLock = acquireReadLock("follow");
+                    try {
+                        log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                            try {
+                                apply(new CommitLogResult(num, false, true), u, false);
+                            } catch (Throwable t) {
+                                throw new RuntimeException(t);
+                            }
+                            return !isLeader() && !closed;
+                        }, context);
+                    } finally {
+                        releaseReadLock(readLock, "follow");
+                    }
                 }
             } catch (Throwable t) {
                 LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);
                 setFailed();
+            } finally {
+                running.countDown();
             }
         }
 
+        void waitForStop() throws InterruptedException {
+            LOGGER.log(Level.INFO, "Waiting for FollowerThread of {0} to stop", tableSpaceName);
+            running.await();
+            LOGGER.log(Level.INFO, "FollowerThread of {0} stopped", tableSpaceName);
+        }
     }
 
     void setFailed() {
@@ -1004,7 +1080,8 @@ public class TableSpaceManager {
     }
 
     void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
-        dbmanager.submit(new FollowerThread());
+        followerThread = new FollowerThread();
+        dbmanager.submit(followerThread);
     }
 
     void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
@@ -1245,7 +1322,7 @@ public class TableSpaceManager {
 
     private long acquireReadLock(Object statement) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "ACQUIRE TS READLOCK for " + statement);
+            LOGGER.log(Level.FINEST, "{0} rlock {1}", new Object[]{tableSpaceName, statement});
         }
         long lockStamp = generalLock.readLock();
 //        LOGGER.log(Level.SEVERE, "ACQUIRED READLOCK for " + statement + ", " + generalLock);
@@ -1254,7 +1331,7 @@ public class TableSpaceManager {
 
     private long acquireWriteLock(Object statement) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "ACQUIRE TS WRITELOCK for " + statement);
+            LOGGER.log(Level.FINEST, "{0} wlock {1}", new Object[]{tableSpaceName, statement});
         }
 //        LOGGER.log(Level.SEVERE, "ACQUIRINGTS WRITELOCK for " + statement + ", " + generalLock);
 
@@ -1574,6 +1651,15 @@ public class TableSpaceManager {
     public void close() throws LogNotAvailableException {
         boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
+
+        if (followerThread != null) {
+            try {
+                followerThread.waitForStop();
+            } catch (InterruptedException err) {
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.SEVERE, "Cannot wait for FollowerThread to stop", err);
+            }
+        }
         if (!virtual) {
             long lockStamp = acquireWriteLock("closeTablespace");
             try {
@@ -1613,6 +1699,11 @@ public class TableSpaceManager {
 
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
+            return null;
+        }
+
+        if (recoveryInProgress) {
+            LOGGER.log(Level.INFO, "Checkpoint for tablespace {0} skipped. Recovery is still in progress", tableSpaceName);
             return null;
         }
 
@@ -1767,9 +1858,18 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
-            apply(pos, entry, false);
-            return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
+            if (error == null) {
+                apply(pos, entry, false);
+                return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
+            } else {
+                // if the log is not able to write the commit
+                // apply a dummy "rollback", we are no more going to accept commands
+                // in the scope of this transaction
+                LogEntry rollback = LogEntryFactory.rollbackTransaction(txId);
+                apply(new CommitLogResult(LogSequenceNumber.START_OF_TIME, false, false), rollback, false);
+                throw new CompletionException(error);
+            }
         }, callbacksExecutor);
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
@@ -1782,6 +1882,10 @@ public class TableSpaceManager {
     }
 
     private void validateTransactionBeforeTxCommand(long txId) throws StatementExecutionException {
+        validateTransactionBeforeTxCommand(txId, true);
+    }
+
+    private boolean validateTransactionBeforeTxCommand(long txId, boolean wait) throws StatementExecutionException {
         Transaction tc = transactions.get(txId);
         if (tc == null) {
             throw new StatementExecutionException("no such transaction " + txId + " in tablespace " + tableSpaceName);
@@ -1790,19 +1894,23 @@ public class TableSpaceManager {
             LOGGER.log(Level.INFO, "Transaction {0} ({1}) has {2} pending activities",
                     new Object[]{txId, tableSpaceName, tc.getRefCount()});
             if (!ENABLE_PENDING_TRANSACTION_CHECK) {
-                break;
+                return true;
+            }
+            if (!wait) {
+                return false;
             }
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new StatementExecutionException("Error while waiting for pending actities of transaction " + txId + " in " + tableSpaceName,
+                throw new StatementExecutionException("Error while waiting for pending activities of transaction " + txId + " in " + tableSpaceName,
                         ex);
             }
         }
         if (closed) {
             throw new StatementExecutionException("tablespace closed during commit of transaction " + txId + " in tablespace " + tableSpaceName);
         }
+        return true;
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
@@ -1815,7 +1923,7 @@ public class TableSpaceManager {
 
     private void releaseReadLock(long lockStamp, Object description) {
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);
+            LOGGER.log(Level.FINEST, "{0} ts {2} relrlock {1}", new Object[]{tableSpaceName, description, lockStamp});
         }
 //        LOGGER.log(Level.SEVERE, "RELEASED READLOCK for " + description + ", " + generalLock);
         generalLock.unlockRead(lockStamp);

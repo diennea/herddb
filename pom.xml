@@ -21,7 +21,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.14.0-SNAPSHOT</version>
+    <version>0.15.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>
     <url>http://herddb.org</url>
@@ -75,9 +75,13 @@
             <name>Francesco Caliumi</name>
             <organization>Diennea</organization>
         </developer>
+        <developer>
+            <id>amitvc</id>
+            <name>Amit Chavan</name>
+        </developer>
     </developers>
     <issueManagement>
-        <url>https://dev.herddb.org/jira</url>
+        <url>https://github.com/diennea/herddb/issues</url>
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
@@ -99,7 +103,7 @@
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
-        <libs.spotbugsmaven>3.1.8</libs.spotbugsmaven>
+        <libs.spotbugsmaven>3.1.12.2</libs.spotbugsmaven>
         <fbs.version>1.9.0</fbs.version>
         <checkstyle.version>8.23</checkstyle.version>
     </properties>
@@ -468,7 +472,7 @@
             			<license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
               			<licenseFamilyCategory>MIT</licenseFamilyCategory>
               			<licenseFamilyName>MIT License</licenseFamilyName>
-              			<notes></notes>
+              			<notes />
               			<patterns>
 					<pattern>Licensed under the MIT license</pattern>
                 			<pattern>Released under the MIT license</pattern>
@@ -594,7 +598,7 @@
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
-                            <argLine>-Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
+                            <argLine>-Dzookeeper.forceSync=no -Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
                     </plugin>

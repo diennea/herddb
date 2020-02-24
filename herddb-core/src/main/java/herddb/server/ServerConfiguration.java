@@ -139,6 +139,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
 
+    public static final String PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE = "server.bookkeeper.ledgers.max.size";
+    public static final long PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE_DEFAULT = 1024L * 1024 * 1024;
+
     public static final String PROPERTY_BOOKKEEPER_MAX_IDLE_TIME = "server.bookkeeper.max.idle.time";
     public static final long PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT = 1000L * 10;
 

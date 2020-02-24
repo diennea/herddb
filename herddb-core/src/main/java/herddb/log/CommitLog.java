@@ -45,6 +45,16 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
 
+    /**
+     * Checks if log contains enough data in order to recovery from a given snapshot sequence number.
+     *
+     * @param snapshotSequenceNumber
+     * @return true in case recovery is possible.
+     */
+    public boolean isRecoveryAvailable(LogSequenceNumber snapshotSequenceNumber) {
+        return true;
+    }
+
     public interface FollowerContext extends AutoCloseable {
 
         @Override
@@ -56,8 +66,12 @@ public abstract class CommitLog implements AutoCloseable {
         return null;
     }
 
+    public interface EntryAcceptor {
+        boolean accept(LogSequenceNumber lsn, LogEntry entry) throws Exception;
+    }
+
     public void followTheLeader(
-            LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer,
+            LogSequenceNumber skipPast, EntryAcceptor consumer,
             FollowerContext context
     ) throws LogNotAvailableException {
         // useful only on cluster

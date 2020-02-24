@@ -18,14 +18,44 @@
 
  */
 
-package herddb.metadata;
+package herddb.cluster.follower;
+
+import herddb.utils.SystemInstrumentation;
+import herddb.utils.ZKTestEnv;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 /**
- * Listens for changes on metadata, for instance changes on
+ * Booting two servers, one table space
  *
  * @author enrico.olivelli
  */
-public interface MetadataChangeListener {
+public class MultiServerBase {
 
-    void metadataChanged(String description);
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    protected ZKTestEnv testEnv;
+
+    @Before
+    public void beforeSetup() throws Exception {
+        testEnv = new ZKTestEnv(folder.newFolder().toPath());
+        testEnv.startBookie();
+    }
+
+    @After
+    public void afterTeardown() throws Exception {
+        SystemInstrumentation.clear();
+        if (testEnv != null) {
+            testEnv.close();
+        }
+    }
+
+
+
+
+
+
 }

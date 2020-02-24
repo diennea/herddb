@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.cluster;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -70,7 +69,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         switch (event.getState()) {
             case SyncConnected:
             case SaslAuthenticated:
-                notifyMetadataChanged();
+                notifyMetadataChanged("zkevent " + event.getState() + " " + event.getType() + " " + event.getPath());
                 break;
             default:
                 // ignore
@@ -101,7 +100,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     case SyncConnected:
                     case SaslAuthenticated:
                         firstConnectionLatch.countDown();
-                        notifyMetadataChanged();
+                        notifyMetadataChanged("zkevent " + event.getState() + " " + event.getType() + " " + event.getPath());
                         break;
                     default:
                         // ignore
@@ -299,7 +298,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     private boolean updateTableSpaceNode(TableSpace tableSpace, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
         try {
             ensureZooKeeper().setData(tableSpacesPath + "/" + tableSpace.name.toLowerCase(), tableSpace.serialize(), metadataStorageVersion);
-            notifyMetadataChanged();
+            notifyMetadataChanged("updateTableSpaceNode " + tableSpace + " metadataStorageVersion " + metadataStorageVersion);
             return true;
         } catch (KeeperException.BadVersionException changed) {
             return false;
@@ -311,7 +310,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     private boolean deleteTableSpaceNode(String tableSpaceName, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
         try {
             ensureZooKeeper().delete(tableSpacesPath + "/" + tableSpaceName.toLowerCase(), metadataStorageVersion);
-            notifyMetadataChanged();
+            notifyMetadataChanged("deleteTableSpaceNode " + tableSpaceName + " metadataStorageVersion " + metadataStorageVersion);
             return true;
         } catch (KeeperException.BadVersionException changed) {
             return false;
@@ -392,7 +391,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
         try {
             createTableSpaceNode(tableSpace);
-            notifyMetadataChanged();
+            notifyMetadataChanged("registerTableSpace " + tableSpace);
         } catch (KeeperException | InterruptedException | IOException ex) {
             handleSessionExpiredError(ex);
             throw new MetadataStorageManagerException(ex);
@@ -407,7 +406,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         try {
             boolean result = updateTableSpaceNode(tableSpace, (Integer) previous.metadataStorageVersion);
             if (result) {
-                notifyMetadataChanged();
+                notifyMetadataChanged("updateTableSpace " + tableSpace);
             }
             return result;
         } catch (KeeperException | InterruptedException | IOException ex) {
@@ -424,7 +423,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         try {
             boolean result = deleteTableSpaceNode(name, (Integer) previous.metadataStorageVersion);
             if (result) {
-                notifyMetadataChanged();
+                notifyMetadataChanged("dropTableSpace " + name);
             }
         } catch (KeeperException | InterruptedException | IOException ex) {
             handleSessionExpiredError(ex);
@@ -490,7 +489,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 LOGGER.severe("registerNode at " + path + " " + ok);
                 ensureZooKeeper().setData(path, data, -1);
             }
-            notifyMetadataChanged();
+            notifyMetadataChanged("registerNode " + nodeMetadata);
         } catch (IOException | InterruptedException | KeeperException err) {
             handleSessionExpiredError(err);
             throw new MetadataStorageManagerException(err);
