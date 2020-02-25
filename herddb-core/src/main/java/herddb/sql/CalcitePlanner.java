@@ -115,9 +115,6 @@ import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
 import org.apache.calcite.linq4j.Queryable;
 import org.apache.calcite.linq4j.tree.Expression;
-import org.apache.calcite.linq4j.tree.ExpressionType;
-import org.apache.calcite.linq4j.tree.Shuttle;
-import org.apache.calcite.linq4j.tree.Visitor;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -131,6 +128,7 @@ import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
@@ -906,10 +904,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         // please note that EnumerableSemiJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
-        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
 
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
@@ -923,17 +923,35 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, false,
+                nonEquiConditions);
+    }
+
+    private List<CompiledSQLExpression> convertJoinNonEquiConditions(final JoinInfo analyzeCondition) throws IllegalStateException {
+        List<CompiledSQLExpression> nonEquiConditions = new ArrayList<>();
+        if (!analyzeCondition.isEqui()) {
+            for (RexNode rexNode : analyzeCondition.nonEquiConditions) {
+                nonEquiConditions.add(SQLExpressionCompiler.compileExpression(rexNode));
+            }
+        } else {
+            if (!analyzeCondition.nonEquiConditions.isEmpty()) {
+                throw new IllegalStateException("Unexpected non equi with " + analyzeCondition.nonEquiConditions + " conditions");
+            }
+        }
+        return nonEquiConditions;
     }
 
     private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
-        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -946,7 +964,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, false,
+                nonEquiConditions);
     }
 
     private PlannerOp planEnumerableNestedLoopJoin(EnumerableNestedLoopJoin op, RelDataType rowType) {
@@ -972,11 +992,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         // please note that EnumerableMergeJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.analyzeCondition().leftKeys.toIntArray();
-        int[] rightKeys = op.analyzeCondition().rightKeys.toIntArray();
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
         String[] fieldNames = new String[columns.length];
@@ -988,7 +1010,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, true,
+                nonEquiConditions);
     }
 
     private Projection buildProjection(

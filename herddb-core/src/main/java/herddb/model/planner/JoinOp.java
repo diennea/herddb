@@ -27,11 +27,15 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Arrays;
+import java.util.List;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
 import org.apache.calcite.linq4j.function.Function2;
+import org.apache.calcite.linq4j.function.Predicate2;
 
 /**
  * basic join operation
@@ -50,13 +54,15 @@ public class JoinOp implements PlannerOp {
     private final boolean generateNullsOnLeft;
     private final boolean generateNullsOnRight;
     private final boolean mergeJoin;
+    private final List<CompiledSQLExpression> nonEquiConditions;
 
     public JoinOp(String[] fieldNames,
             Column[] columns, int[] leftKeys, PlannerOp left,
             int[] rightKeys, PlannerOp right,
             boolean generateNullsOnLeft,
             boolean generateNullsOnRight,
-            boolean mergeJoin) {
+            boolean mergeJoin,
+            List<CompiledSQLExpression> nonEquiConditions) {
         this.fieldNames = fieldNames;
         this.columns = columns;
         this.leftKeys = leftKeys;
@@ -65,6 +71,7 @@ public class JoinOp implements PlannerOp {
         this.right = right.optimize();
         this.generateNullsOnLeft = generateNullsOnLeft;
         this.generateNullsOnRight = generateNullsOnRight;
+        this.nonEquiConditions = nonEquiConditions;
         this.mergeJoin = mergeJoin;
     }
 
@@ -85,14 +92,36 @@ public class JoinOp implements PlannerOp {
         final long resTransactionId = resRight.transactionId;
         final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
         final String[] fieldNamesFromRight = resRight.dataScanner.getFieldNames();
-
+        Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
+        final Predicate2 predicate;
+        if (nonEquiConditions != null && !nonEquiConditions.isEmpty()) {
+            if (mergeJoin) {
+                throw new IllegalStateException("Unspected nonEquiConditions " + nonEquiConditions + ""
+                        + "for merge join");
+            }
+            predicate = (Predicate2) (Object t0, Object t1) -> {
+                DataAccessor da0 = (DataAccessor) t0;
+                DataAccessor da1 = (DataAccessor) t1;
+                DataAccessor currentRow = resultProjection.apply(da0, da1);
+                for (CompiledSQLExpression exp : nonEquiConditions) {
+                    Object result = exp.evaluate(currentRow, context);
+                    boolean asBoolean = SQLRecordPredicateFunctions.toBoolean(result);
+                    if (!asBoolean) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+        } else {
+            predicate = null;
+        }
         Enumerable<DataAccessor> result = mergeJoin
                 ? EnumerableDefaults.mergeJoin(
                         resLeft.dataScanner.createEnumerable(),
                         resRight.dataScanner.createEnumerable(),
                         JoinKey.keyExtractor(leftKeys),
                         JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
+                        resultProjection,
                         generateNullsOnLeft,
                         generateNullsOnRight
                 )
@@ -101,10 +130,11 @@ public class JoinOp implements PlannerOp {
                         resRight.dataScanner.createEnumerable(),
                         JoinKey.keyExtractor(leftKeys),
                         JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
+                        resultProjection,
                         null,
                         generateNullsOnLeft,
-                        generateNullsOnRight
+                        generateNullsOnRight,
+                        predicate
                 );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
@@ -127,6 +157,5 @@ public class JoinOp implements PlannerOp {
     public String toString() {
         return "JoinOp{" + "leftKeys=" + Arrays.toString(leftKeys) + ", left=" + left + ", rightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + ", fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns) + ", generateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + '}';
     }
-
 
 }

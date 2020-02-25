@@ -34,9 +34,6 @@ public class CompiledNotEqualsExpression extends CompiledBinarySQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-//        Object leftValue = left.evaluate(bean, context);
-//        Object rightValue = right.evaluate(bean, context);
-//        boolean res = !SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
         boolean res = !left.opEqualsTo(bean, context, right);
         if (not) {
             return !res;
@@ -56,4 +53,11 @@ public class CompiledNotEqualsExpression extends CompiledBinarySQLExpression {
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
+    @Override
+    public String toString() {
+        return "CompiledNotEqualsExpression{" + "not=" + not + "left=" + left + ", right=" + right + '}';
+    }
+
+
 }

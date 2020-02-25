@@ -105,6 +105,7 @@ public class SystemTablesJoinTest {
 
             }
 
+            // non equi join on AccessCurrentRow(0)  (tablespace_name)
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
                         + "systablespaces.tablespace_name,"
@@ -112,6 +113,30 @@ public class SystemTablesJoinTest {
                         + " systablespaces "
                         + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
                         + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("leader", t.getFieldNames()[0]);
+                    assertEquals("tablespace_name", t.getFieldNames()[1]);
+                    assertEquals("address", t.getFieldNames()[2]);
+                }
+                assertEquals(1, tuples.size());
+
+                assertTrue(
+                        tuples.get(0).toMap().equals(MapUtils.map(
+                                "leader", "localhost", "address", "localhost:7000", "tablespace_name", "tblspace1"
+                        )));
+
+            }
+
+            // non equi join on AccessCurrentRow(1) (uuid)
+            {
+                String tableSpaceUUid = manager.getTableSpaceManager(TableSpace.DEFAULT).getTableSpaceUUID();
+                List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
+                        + "systablespaces.tablespace_name,"
+                        + "sysnodes.address FROM"
+                        + " systablespaces "
+                        + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.uuid <> ?"
+                        + " ORDER BY tablespace_name DESC", Arrays.asList(tableSpaceUUid)).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);
