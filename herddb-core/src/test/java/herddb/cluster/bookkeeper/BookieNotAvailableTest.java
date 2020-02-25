@@ -243,7 +243,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
                 fail();
             } catch (StatementExecutionException expected) {
                 System.out.println("Commit failed as expected:" + expected);
-            }            
+            }
 
             testEnv.startStoppedBookie(bookieAddr);
 

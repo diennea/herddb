@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.utils;
 
 import java.nio.file.Path;
@@ -43,7 +42,6 @@ public class ZKTestEnv implements AutoCloseable {
     Path path;
     private int nextBookiePort = 5621;
 
-
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
         this.path = path;
@@ -65,11 +63,11 @@ public class ZKTestEnv implements AutoCloseable {
     public void startBookieAndInitCluster() throws Exception {
         startBookie(true);
     }
-    
+
     public void startNewBookie() throws Exception {
         startBookie(false);
     }
-    
+
     private void startBookie(boolean format) throws Exception {
         if (format && !bookies.isEmpty()) {
             throw new Exception("cannot format, you aleady have bookies");
@@ -94,7 +92,7 @@ public class ZKTestEnv implements AutoCloseable {
         // no need to preallocate journal and entrylog in tests
         conf.setEntryLogFilePreAllocationEnabled(false);
         conf.setProperty("journalPreAllocSizeMB", 1);
-        Path targetDir = path.resolve("bookie_data_"+conf.getBookiePort());
+        Path targetDir = path.resolve("bookie_data_" + conf.getBookiePort());
         conf.setMetadataServiceUri("zk+null://" + zkServer.getConnectString() + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
@@ -118,7 +116,7 @@ public class ZKTestEnv implements AutoCloseable {
         for (BookieServer bookie : bookies) {
             if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
                 if (bookie.isRunning()) {
-                    throw new Exception("you did not stop bookie "+addr);
+                    throw new Exception("you did not stop bookie " + addr);
                 }
                 ServerConfiguration conf = createBookieConf(bookie.getLocalAddress().getPort());
                 BookieServer newBookie = new BookieServer(conf);
@@ -128,7 +126,7 @@ public class ZKTestEnv implements AutoCloseable {
             }
             index++;
         }
-        throw new Exception("Cannot find bookie "+addr);
+        throw new Exception("Cannot find bookie " + addr);
     }
 
     public void pauseBookie() throws Exception {
@@ -142,7 +140,7 @@ public class ZKTestEnv implements AutoCloseable {
                 return;
             }
         }
-        throw new Exception("Cannot find bookie "+addr);
+        throw new Exception("Cannot find bookie " + addr);
     }
 
     public void resumeBookie() throws Exception {
@@ -156,7 +154,7 @@ public class ZKTestEnv implements AutoCloseable {
                 return;
             }
         }
-        throw new Exception("Cannot find bookie "+addr);
+        throw new Exception("Cannot find bookie " + addr);
     }
 
     public String stopBookie() throws Exception {
@@ -164,7 +162,7 @@ public class ZKTestEnv implements AutoCloseable {
         stopBookie(addr);
         return addr;
     }
-    
+
     public void stopBookie(String addr) throws Exception {
         for (BookieServer bookie : bookies) {
             if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
@@ -173,8 +171,8 @@ public class ZKTestEnv implements AutoCloseable {
                 return;
             }
         }
-        throw new Exception("Cannot find bookie "+addr);
-    }    
+        throw new Exception("Cannot find bookie " + addr);
+    }
 
     public String getAddress() {
         return zkServer.getConnectString();
