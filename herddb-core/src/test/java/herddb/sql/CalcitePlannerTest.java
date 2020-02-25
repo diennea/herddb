@@ -64,6 +64,7 @@ import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.SortedBindableTableScanOp;
+import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.server.ServerSideScannerPeer;
 import herddb.sql.expressions.AccessCurrentRowExpression;
@@ -113,7 +114,7 @@ public class CalcitePlannerTest {
                 assertThat(equals.getRight(), instanceOf(ConstantExpression.class));
             }
 
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
@@ -221,7 +222,7 @@ public class CalcitePlannerTest {
                 assertEquals(1, scan.consume().size());
             }
 
-            assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), TableScanOp.class);
             assertInstanceOf(plan(manager, "/* multiline\ncomment */\nselect * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "\n\nselect n1 from tblspace1.tsql"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "-- comment\nupdate tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);

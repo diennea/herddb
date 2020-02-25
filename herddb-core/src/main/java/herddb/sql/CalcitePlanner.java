@@ -61,6 +61,7 @@ import herddb.model.planner.FilteredTableScanOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
+import herddb.model.planner.NestedLoopJoinOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SimpleDeleteOp;
@@ -68,7 +69,6 @@ import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
-import herddb.model.planner.ThetaJoinOp;
 import herddb.model.planner.UnionAllOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
@@ -290,8 +290,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                             .optimize());
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Query: {0} --HerdDB Plan {1}",
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
                         new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
             }
             if (!scan) {
@@ -519,8 +519,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -984,7 +984,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new ThetaJoinOp(fieldNames, columns,
+        return new NestedLoopJoinOp(fieldNames, columns,
                 left, right, condition, op.getJoinType(), false);
     }
 

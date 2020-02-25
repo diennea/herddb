@@ -56,4 +56,9 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
+    @Override
+    public String toString() {
+        return "CompiledGreaterThenExpression{" + "not=" + not + ",left=" + left + ", right=" + right + "}";
+    }
 }

@@ -21,8 +21,12 @@
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.core.MaterializedRecordSet;
+import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -32,8 +36,10 @@ import herddb.sql.CalciteEnumUtils;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.SQLRecordPredicateFunctions;
+import java.util.Arrays;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
+import org.apache.calcite.linq4j.JoinType;
 import org.apache.calcite.linq4j.function.Function2;
 import org.apache.calcite.linq4j.function.Predicate2;
 import org.apache.calcite.rel.core.JoinRelType;
@@ -44,7 +50,7 @@ import org.apache.calcite.rel.core.JoinRelType;
  * @author eolivelli
  */
 @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
-public class ThetaJoinOp implements PlannerOp {
+public class NestedLoopJoinOp implements PlannerOp {
 
     private final PlannerOp left;
     private final PlannerOp right;
@@ -53,7 +59,7 @@ public class ThetaJoinOp implements PlannerOp {
     private final JoinRelType joinRelType;
     private final CompiledSQLExpression condition;
 
-    public ThetaJoinOp(
+    public NestedLoopJoinOp(
             String[] fieldNames,
             Column[] columns, PlannerOp left,
             PlannerOp right,
@@ -79,24 +85,53 @@ public class ThetaJoinOp implements PlannerOp {
             TransactionContext transactionContext,
             StatementEvaluationContext context, boolean lockRequired, boolean forWrite
     ) throws StatementExecutionException {
-        ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
-                context, lockRequired, forWrite);
-        transactionContext = new TransactionContext(resLeft.transactionId);
-        ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext,
-                context, lockRequired, forWrite);
-        final long resTransactionId = resRight.transactionId;
-        final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
-        final String[] fieldNamesFromRight = resRight.dataScanner.getFieldNames();
-        final Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
 
+            ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
+                    context, lockRequired, forWrite);
 
-        Enumerable<DataAccessor> result = EnumerableDefaults.nestedLoopJoin(resLeft.dataScanner.createEnumerable(),
-                resRight.dataScanner.createEnumerable(),
-                predicate(resultProjection, context), resultProjection,
-                CalciteEnumUtils.toLinq4jJoinType(joinRelType)
-        );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
-        return new ScanResult(resTransactionId, joinedScanner);
+            transactionContext = new TransactionContext(resLeft.transactionId);
+            ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext,
+                    context, lockRequired, forWrite);
+            DataScanner rightScanner = resRight.dataScanner;
+            final JoinType linq4jJoinType = CalciteEnumUtils.toLinq4jJoinType(joinRelType);
+
+            // in case of !generatesNullsOnLeft() EnumerableDefaults#nestedLoopJoin
+            // will rewind the "right" (outer) scanner
+            // we have to swap it to memory or disk
+            // otherwise Calcite will dump it to memory (heap)!
+            // this is not good, but it has to be improved inside Calcite
+
+            if (!linq4jJoinType.generatesNullsOnLeft()
+                    && !rightScanner.isRewindSupported()) {
+                try {
+                    MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                            .createRecordSet(rightScanner.getFieldNames(),
+                                    rightScanner.getSchema());
+                    rightScanner.forEach(d -> {
+                        recordSet.add(d);
+                    });
+                    recordSet.writeFinished();
+                    SimpleDataScanner materialized = new SimpleDataScanner(rightScanner.getTransaction(), recordSet);
+                    rightScanner.close();
+                    rightScanner = materialized;
+                } catch (DataScannerException err) {
+                    throw new StatementExecutionException(err);
+                }
+
+            }
+
+            final long resTransactionId = resRight.transactionId;
+            final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
+            final String[] fieldNamesFromRight = rightScanner.getFieldNames();
+            final Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
+            Enumerable<DataAccessor> result = EnumerableDefaults
+                    .nestedLoopJoin(resLeft.dataScanner.createEnumerable(),
+                            rightScanner.createEnumerable(),
+                            predicate(resultProjection, context),
+                            resultProjection, linq4jJoinType);
+            EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result);
+            return new ScanResult(resTransactionId, joinedScanner);
+
 
     }
 
@@ -123,4 +158,16 @@ public class ThetaJoinOp implements PlannerOp {
                 b != null ? b : nullsOnRight);
 
     }
+
+    @Override
+    public String toString() {
+        return "ThetaJoinOp{" + "left=" + left
+                + ", right=" + right
+                + ", fieldNames=" + Arrays.toString(fieldNames)
+                + ", columns=" + Arrays.toString(columns)
+                + ", joinRelType=" + joinRelType
+                + ", condition=" + condition + '}';
+    }
+
+
 }

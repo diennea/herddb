@@ -342,6 +342,11 @@ public class ProjectOp implements PlannerOp {
         }
 
         @Override
+        public boolean isRewindSupported() {
+            return downstream.isRewindSupported();
+        }
+
+        @Override
         public void close() throws DataScannerException {
             downstream.close();
         }

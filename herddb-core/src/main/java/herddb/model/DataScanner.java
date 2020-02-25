@@ -113,8 +113,12 @@ public abstract class DataScanner implements AutoCloseable {
         return !hasNext();
     }
 
+    public boolean isRewindSupported() {
+        return false;
+    }
+
     public void rewind() throws DataScannerException {
-        throw new RuntimeException("not implemented for " + this.getClass());
+        throw new RuntimeException("not supported for " + this.getClass());
     }
 
     public Enumerable<DataAccessor> createEnumerable() {
@@ -126,7 +130,16 @@ public abstract class DataScanner implements AutoCloseable {
         };
     }
 
+    private boolean enumeratorOpened = false;
     public Enumerator<DataAccessor> asEnumerator() {
+        if (enumeratorOpened) {
+            try {
+                rewind();
+            } catch (DataScannerException ex) {
+               throw new StatementExecutionException(ex);
+            }
+        }
+        enumeratorOpened = true;
         return new Enumerator<DataAccessor>() {
             private DataAccessor current;
 
@@ -151,6 +164,7 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void reset() {
+                new Exception("reset!!").printStackTrace();
                 try {
                     rewind();
                 } catch (DataScannerException ex) {
