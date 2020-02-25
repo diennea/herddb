@@ -36,7 +36,13 @@ public class TypedJdbcParameterExpression implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return SQLRecordPredicate.cast(context.getJdbcParameter(index), type);
+        Object value = context.getJdbcParameter(index);
+        try {
+            return SQLRecordPredicate.cast(value, type);
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException("Unexpected cast to type "+type+" for value "+value+" "
+                    + "while accessing JDBC paramter #"+index, err);
+        }
     }
 
     @Override

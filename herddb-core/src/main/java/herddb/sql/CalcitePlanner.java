@@ -731,12 +731,16 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         Table table = tableImpl.tableManager.getTable();
         List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
 
+
+        System.out.println("updateColumnList "+updateColumnList);
         for (RexNode node : sourceExpressionList) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
+            System.out.println("exp "+exp+" (FROM "+node+")");
             expressions.add(exp);
         }
         RecordFunction function = new SQLRecordFunction(updateColumnList, table, expressions);
         UpdateStatement update = null;
+        System.out.println("QUI: input "+input+" "+input.getClass());
         if (input instanceof TableScanOp) {
             update = new UpdateStatement(tableSpace, tableName, null, function, null);
         } else if (input instanceof FilterOp) {
