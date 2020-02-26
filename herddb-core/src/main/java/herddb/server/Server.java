@@ -423,7 +423,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             }
         }
     }
-    
+
     protected ServerSideConnectionPeer buildPeer(Channel channel) {
         return new ServerSideConnectionPeer(channel, this);
     }

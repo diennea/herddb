@@ -28,5 +28,5 @@ public class HDBOperationTimeoutException extends HDBException {
     public HDBOperationTimeoutException(Throwable cause) {
         super(cause);
     }
-    
+
 }

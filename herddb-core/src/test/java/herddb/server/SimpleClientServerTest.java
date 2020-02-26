@@ -637,7 +637,7 @@ public class SimpleClientServerTest {
                     @Override
                     public void requestReceived(Pdu message, Channel channel) {
                         if (suspendProcessing.get()) {
-                            LOG.log(Level.INFO, "dropping message type "+message.type+" id "+message.messageId);
+                            LOG.log(Level.INFO, "dropping message type " + message.type + " id " + message.messageId);
                             message.close();
                             return;
                         }
@@ -655,7 +655,7 @@ public class SimpleClientServerTest {
             clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
 
             try (HDBClient client = new HDBClient(clientConfiguration);
-                 HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
@@ -677,7 +677,7 @@ public class SimpleClientServerTest {
                             "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList(1, "test1")).updateCount);
 
                 }
-           }
+            }
 
         }
     }

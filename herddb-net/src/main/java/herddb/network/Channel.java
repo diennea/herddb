@@ -88,15 +88,14 @@ public abstract class Channel implements AutoCloseable {
             return resp.get(timeout, TimeUnit.MILLISECONDS);
         } catch (ExecutionException err) {
             if (err.getCause() instanceof IOException) {
-                TimeoutException te = new TimeoutException("io-error while waiting for reply from "+this.getRemoteAddress()+": " + err.getCause());
+                TimeoutException te = new TimeoutException("io-error while waiting for reply from " + this.getRemoteAddress() + ": " + err.getCause());
                 te.initCause(err.getCause());
                 throw te;
             }
-            throw new RuntimeException("Error "+err+" while talking to "+this.getRemoteAddress(), err.getCause());
+            throw new RuntimeException("Error " + err + " while talking to " + this.getRemoteAddress(), err.getCause());
         } catch (TimeoutException timeoutException) {
             long _stop = System.currentTimeMillis();
-            TimeoutException err
-                    = new TimeoutException("Request timedout (" + ((_stop - _start) / 1000) + "s). Slow server "+this.getRemoteAddress()+" or internal error");
+            TimeoutException err = new TimeoutException("Request timedout (" + ((_stop - _start) / 1000) + "s). Slow server " + this.getRemoteAddress() + " or internal error");
             err.initCause(timeoutException);
             throw err;
         }
