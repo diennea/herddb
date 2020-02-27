@@ -289,6 +289,12 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     performAuthentication(channel, server.getHost());
                     this.channel = channel;
                     return this.channel;
+                } catch (TimeoutException err) {
+                    LOGGER.log(Level.SEVERE, "Error", err);
+                    if (channel != null) {
+                        channel.close();
+                    }
+                    throw new HDBOperationTimeoutException(err);
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "Error", err);
                     if (channel != null) {
@@ -303,6 +309,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         } catch (java.net.ConnectException err) {
             // this error will be retryed by the client
             throw new UnreachableServerException(err);
+        } catch (HDBException err) {
+            throw err;
         } catch (Exception err) {
             throw new HDBException(err);
         } finally {
