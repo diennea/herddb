@@ -175,10 +175,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected synchronized void ensureClient() throws SQLException {
         if (client == null) {
             ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
-            Properties propsNoPassword = new Properties(properties);
-            if (propsNoPassword.contains("password")) {
-                propsNoPassword.setProperty("password", "-------");
-            }
+            Properties propsNoPassword = new Properties();
+            propsNoPassword.putAll(properties);
+            propsNoPassword.setProperty("password", "---");
             LOGGER.log(Level.INFO, "Booting HerdDB Client, url:" + url + ", properties:" + propsNoPassword + " clientConfig " + clientConfiguration);
             try {
                 clientConfiguration.readJdbcUrl(url);

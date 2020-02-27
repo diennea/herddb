@@ -153,6 +153,7 @@ public class HerdDBCLI {
             options.addOption("g", "script", true, "Groovy Script to execute");
             options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
             options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
+            options.addOption("nsch", "nosqlconsolehistory", false, "Disable SQL console history");
             options.addOption("fmd", "mysql", false, "Intruct the parser that the script is coming from a MySQL Dump");
             options.addOption("rwst", "rewritestatements", false, "Rewrite all statements to use JDBC parameters");
             options.addOption("b", "backup", false, "Backup one or more tablespaces (selected with --schema)");
@@ -257,7 +258,8 @@ public class HerdDBCLI {
             String tablespacemapperfile = commandLine.getOptionValue("tablespacemapper", "");
             int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
             final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
-            boolean sqlconsole = commandLine.hasOption("sqlconsole");
+            final boolean sqlconsole = commandLine.hasOption("sqlconsole");
+            final boolean persistSqlConsoleHistory = !commandLine.hasOption("nosqlconsolehistory");
             final boolean frommysqldump = commandLine.hasOption("mysql");
             final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.
                     isEmpty() || frommysqldump;
@@ -371,7 +373,7 @@ public class HerdDBCLI {
 
                     connection.setSchema(schema);
                     if (sqlconsole) {
-                        runSqlConsole(connection, statement, PRETTY_PRINT, verbose);
+                        runSqlConsole(statement, PRETTY_PRINT, verbose, persistSqlConsoleHistory);
                     } else if (backup) {
                         performBackup(statement, schema, file, options, connection, dumpfetchsize);
                     } else if (restore) {
@@ -1158,6 +1160,7 @@ public class HerdDBCLI {
         println("Backup finished for tablespace " + schema);
     }
 
+    @SuppressFBWarnings({"SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING", "SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE"})
     private static ExecuteStatementResult executeStatement(
             boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query,
             final Statement statement,
@@ -1217,6 +1220,16 @@ public class HerdDBCLI {
             if (formattedQuery.equals("rollback")) {
                 statement.getConnection().rollback();
                 System.out.println("Rollback executed.");
+                return null;
+            }
+            if (formattedQuery.toLowerCase().startsWith("setschema ")) {
+                if (!statement.getConnection().getAutoCommit()) {
+                    System.out.println("Please commit or rollback before changing schema");
+                    return null;
+                }
+                String schema = formattedQuery.substring(10).trim();
+                statement.getConnection().setSchema(schema);
+                System.out.println("Changed schema to '" + schema + "'");
                 return null;
             }
 
@@ -1595,23 +1608,33 @@ public class HerdDBCLI {
         System.out.println(msg);
     }
 
-    private static void runSqlConsole(Connection connection, Statement statement, boolean pretty, boolean verbose) throws IOException {
+    private static void runSqlConsole(Statement statement, boolean pretty, boolean verbose, boolean persistHistory) throws IOException, SQLException {
         Terminal terminal = TerminalBuilder.builder()
                 .system(true)
                 .build();
-        LineReader reader = LineReaderBuilder.builder()
+        LineReaderBuilder readerBuilder = LineReaderBuilder.builder()
                 .history(new DefaultHistory())
-                .terminal(terminal)
-                .build();
-        String prompt = "herd: ";
+                .terminal(terminal);
+        if (persistHistory) {
+            String historyDirectory = System.getProperty("user.home", ".");
+            File historyFile = new File(historyDirectory, ".herddb.cli.history");
+            if (verbose) {
+                System.out.println("Storing SQL Console History to " + historyFile.getAbsolutePath());
+            }
+            readerBuilder = readerBuilder.variable(LineReader.HISTORY_FILE, historyFile);
+            readerBuilder = readerBuilder.variable(LineReader.HISTORY_FILE_SIZE, 100);
+        }
+        LineReader reader = readerBuilder.build();
+        String prompt = "herddb(" + statement.getConnection().getSchema() + "): ";
         while (true) {
-            String line = null;
+            String line;
             try {
                 line = reader.readLine(prompt);
                 if (line == null) {
                     return;
                 }
                 executeStatement(verbose, true, false, false, line, statement, null, false, pretty);
+                prompt = "herddb(" + statement.getConnection().getSchema() + "): ";
             } catch (UserInterruptException | EndOfFileException e) {
                 return;
             } catch (Exception e) {
