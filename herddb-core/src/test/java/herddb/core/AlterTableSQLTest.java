@@ -29,6 +29,7 @@ import static org.junit.Assert.fail;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -86,7 +87,21 @@ public class AlterTableSQLTest {
             // check alter table is case non sensitive about table names
             execute(manager, "ALTER TABLE tblspace1.TSQL add column k10 string", Collections.emptyList());
             execute(manager, "ALTER TABLE tblspace1.tSql add column k11 string", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.STRING, table.getColumn("k11").type);
 
+            assertEquals("Found a record in table tsql that contains a NULL value for column k11 ALTER command is not possible",
+                    herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                execute(manager, "ALTER TABLE tblspace1.tSql modify column k11 string not null", Collections.emptyList());
+            }).getMessage());
+            // no effect
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.STRING, table.getColumn("k11").type);
+
+            execute(manager, "TRUNCATE  TABLE tblspace1.tSql", Collections.emptyList());
+            execute(manager, "ALTER TABLE tblspace1.tSql modify column k11 string not null", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.NOTNULL_STRING, table.getColumn("k11").type);
 
         }
     }

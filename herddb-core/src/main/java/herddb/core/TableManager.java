@@ -39,6 +39,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Index;
@@ -48,6 +49,7 @@ import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.RecordTooBigException;
 import herddb.model.ScanLimits;
+import herddb.model.ScanLimitsImpl;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -3527,6 +3529,45 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isStarted() {
         return started;
+    }
+
+    @Override
+    public void validateAlterTable(Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        List<String> columnsChangedFromNullToNotNull = new ArrayList<>();
+        for (Column c : this.table.columns) {
+            Column newColumnSpecs = table.getColumn(c.name);
+            if (newColumnSpecs == null) {
+                // dropped column
+                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " dropping column " + newColumnSpecs.name);
+            } else if (newColumnSpecs.type == c.type) {
+                // no data type change
+            } else if (ColumnTypes.isNotNullToNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " making column " + newColumnSpecs.name + " NULLABLE");
+            } else if (ColumnTypes.isNullToNotNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " making column " + newColumnSpecs.name + " NOT NULL");
+                columnsChangedFromNullToNotNull.add(c.name);
+            }
+        }
+        for (final String column : columnsChangedFromNullToNotNull) {
+            LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " validating column " + column + ", check for NULL values");
+            ScanStatement scan = new ScanStatement(this.table.tablespace,
+                    this.table, new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return record.getDataAccessor(table).get(column) == null;
+                }
+            });
+            scan.setLimits(new ScanLimitsImpl(1, 0));
+            boolean foundOneNull = false;
+            try (DataScanner scanner = this.scan(scan, context, null, false, false);) {
+                foundOneNull = scanner.hasNext();
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+            if (foundOneNull) {
+                throw new StatementExecutionException("Found a record in table " + table.name + " that contains a NULL value for column " + column + " ALTER command is not possible");
+            }
+        }
     }
 
     @Override
