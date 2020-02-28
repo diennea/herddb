@@ -3538,18 +3538,18 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             Column newColumnSpecs = table.getColumn(c.name);
             if (newColumnSpecs == null) {
                 // dropped column
-                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " dropping column " + newColumnSpecs.name);
+                LOGGER.log(Level.INFO, "Table {0}.{1} dropping column {2}", new Object[]{table.tablespace, table.name, c.name});
             } else if (newColumnSpecs.type == c.type) {
                 // no data type change
             } else if (ColumnTypes.isNotNullToNullConversion(c.type, newColumnSpecs.type)) {
-                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " making column " + newColumnSpecs.name + " NULLABLE");
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NULLABLE", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
             } else if (ColumnTypes.isNullToNotNullConversion(c.type, newColumnSpecs.type)) {
-                LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " making column " + newColumnSpecs.name + " NOT NULL");
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NOT NULL", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
                 columnsChangedFromNullToNotNull.add(c.name);
             }
         }
         for (final String column : columnsChangedFromNullToNotNull) {
-            LOGGER.log(Level.INFO, "Table " + table.tablespace + "." + table.name + " validating column " + column + ", check for NULL values");
+            LOGGER.log(Level.INFO, "Table {0}.{1} validating column {2}, check for NULL values", new Object[]{table.tablespace, table.name, column});
             ScanStatement scan = new ScanStatement(this.table.tablespace,
                     this.table, new Predicate() {
                 @Override
@@ -3557,6 +3557,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     return record.getDataAccessor(table).get(column) == null;
                 }
             });
+            // fast fail
             scan.setLimits(new ScanLimitsImpl(1, 0));
             boolean foundOneNull = false;
             try (DataScanner scanner = this.scan(scan, context, null, false, false);) {
