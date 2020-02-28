@@ -811,7 +811,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                     return new AlterTableStatement(Collections.emptyList(),
                             Collections.emptyList(), Collections.emptyList(),
-                            null, oldTableName, tableSpaceName, newTableName);
+                            null, oldTableName.toLowerCase(), tableSpaceName, newTableName.toLowerCase());
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }
@@ -984,7 +984,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
-                changeAutoIncrement, tableName, tableSpace, null);
+                changeAutoIncrement, tableName.toLowerCase(), tableSpace, null);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {

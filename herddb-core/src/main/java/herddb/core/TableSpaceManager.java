@@ -1353,7 +1353,8 @@ public class TableSpaceManager {
             }
             AbstractTableManager tableManager = tables.get(statement.getTable());
             if (tableManager == null) {
-                throw new TableDoesNotExistException("no table " + statement.getTable() + " in tablespace " + tableSpaceName);
+                throw new TableDoesNotExistException("no table " + statement.getTable() + " in tablespace " + tableSpaceName + ","
+                        + " only " + tables.keySet());
             }
 
             Table newTable;
