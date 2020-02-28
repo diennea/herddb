@@ -2316,7 +2316,14 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager,
                     "UPDATE tblspace1.IP set field3=?, field4=?, field2=?, field5=? WHERE field0=?",
                     Arrays.asList(1, 8, "localhost", "aaa", 1)).getUpdateCount());
-
+            try (DataScanner scan = scan(manager, "SELECT field5,field4,field2,field3 FROM tblspace1.IP where field0=?", Arrays.asList(1));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertThat(next, instanceOf(RuntimeProjectedDataAccessor.class));
+                    assertArrayEquals(new String[] {"field5", "field4", "field2", "field3"}, next.getFieldNames());
+                    assertArrayEquals(new Object[] {RawString.of("aaa"), 8, RawString.of("localhost"), 1 }, next.getValues());
+                }
+            }
 
         }
     }
