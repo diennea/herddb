@@ -85,7 +85,7 @@ public class AlterTableSQLTest {
 
             // check alter table is case non sensitive about table names
             execute(manager, "ALTER TABLE tblspace1.TSQL add column k10 string", Collections.emptyList());
-            execute(manager, "ALTER TABLE tblspace1.tSql add column k10 string", Collections.emptyList());
+            execute(manager, "ALTER TABLE tblspace1.tSql add column k11 string", Collections.emptyList());
 
 
         }
