@@ -544,7 +544,7 @@
                 <repository>
                     <id>apache.snapshots</id>
                     <name>Apache Development Snapshot Repository</name>
-                    <url>https://repository.apache.org/content/repositories/orgapachecalcite-1078</url>
+                    <url>https://repository.apache.org/content/repositories/orgapachecalcite-1080</url>
                     <releases>
                         <enabled>true</enabled>
                     </releases>

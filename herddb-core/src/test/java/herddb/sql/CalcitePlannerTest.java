@@ -64,6 +64,7 @@ import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.SortedBindableTableScanOp;
+import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.server.ServerSideScannerPeer;
@@ -127,7 +128,7 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
 
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
             {
@@ -170,7 +171,7 @@ public class CalcitePlannerTest {
                 assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), SortedBindableTableScanOp.class);
+                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), SortedTableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
@@ -186,7 +187,7 @@ public class CalcitePlannerTest {
                 assertFalse(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
