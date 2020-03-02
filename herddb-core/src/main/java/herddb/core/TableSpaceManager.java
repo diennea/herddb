@@ -1363,6 +1363,7 @@ public class TableSpaceManager {
             } catch (IllegalArgumentException error) {
                 throw new StatementExecutionException(error);
             }
+            validateAlterTable(newTable, null);
             LogEntry entry = LogEntryFactory.alterTable(newTable, null);
             try {
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
@@ -1625,6 +1626,21 @@ public class TableSpaceManager {
         }
         dbmanager.getPlanner().clearCache();
         return indexManager;
+    }
+
+    private void validateAlterTable(Table table, StatementEvaluationContext context) {
+        AbstractTableManager tableManager = null;
+        String oldTableName = null;
+        for (AbstractTableManager tm : tables.values()) {
+            if (tm.getTable().uuid.equals(table.uuid)) {
+                tableManager = tm;
+                oldTableName = tm.getTable().name;
+            }
+        }
+        if (tableManager == null || oldTableName == null) {
+            throw new TableDoesNotExistException("Cannot find table " + table.name + " with uuid " + table.uuid);
+        }
+        tableManager.validateAlterTable(table, context);
     }
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {

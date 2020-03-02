@@ -171,4 +171,15 @@ public class ColumnTypes {
         }
     }
 
+    public static boolean isNotNullToNullConversion(int oldType, int newType) {
+        return (ColumnTypes.isNotNullDataType(oldType)
+                                && !ColumnTypes.isNotNullDataType(newType)
+                                && ColumnTypes.getNonNullTypeForPrimitiveType(newType) == oldType);
+    }
+
+    public static boolean isNullToNotNullConversion(int oldType, int newType) {
+        return (ColumnTypes.isNotNullDataType(newType)
+                                && !ColumnTypes.isNotNullDataType(oldType)
+                                && ColumnTypes.getNonNullTypeForPrimitiveType(oldType) == newType);
+    }
 }
