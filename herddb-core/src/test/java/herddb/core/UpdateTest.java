@@ -31,6 +31,7 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Arrays;
@@ -133,5 +134,53 @@ public class UpdateTest {
             }
 
         }
+    }
+
+    @Test
+    public void updateMultiRowsWithValidationError() throws Exception {
+
+        final int inserts = 10;
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 int, n1 int not null, primary key(k1))", Collections.emptyList());
+
+            for (int i = 0; i < inserts; i++) {
+                assertEquals(1, executeUpdate(manager,
+                        "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)",
+                        Arrays.asList(Integer.valueOf(i), Integer.valueOf(1))).getUpdateCount());
+            }
+
+            long tx = beginTransaction(manager, "tblspace1");
+
+            TransactionContext ctx = new TransactionContext(tx);
+
+            // single record failed update
+            StatementExecutionException error =
+                    herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                        executeUpdate(manager,
+                                "UPDATE tblspace1.tsql set n1 = null WHERE n1=1",
+                                Collections.emptyList(), ctx);
+                    });
+            assertEquals("Cannot have null value in non null type integer", error.getMessage());
+
+            // multi record failed update
+            StatementExecutionException errors =
+                    herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                        executeUpdate(manager,
+                                "UPDATE tblspace1.tsql set n1 = null",
+                                Collections.emptyList(), ctx);
+                    });
+            assertEquals("Cannot have null value in non null type integer", errors.getMessage());
+
+            commitTransaction(manager, "tblspace1", tx);
+
+        }
+
     }
 }
