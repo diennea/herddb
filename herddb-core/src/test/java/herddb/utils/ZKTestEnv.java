@@ -64,11 +64,11 @@ public class ZKTestEnv implements AutoCloseable {
         startBookie(true);
     }
 
-    public void startNewBookie() throws Exception {
-        startBookie(false);
+    public String startNewBookie() throws Exception {
+        return startBookie(false);
     }
 
-    private void startBookie(boolean format) throws Exception {
+    private String startBookie(boolean format) throws Exception {
         if (format && !bookies.isEmpty()) {
             throw new Exception("cannot format, you aleady have bookies");
         }
@@ -82,6 +82,7 @@ public class ZKTestEnv implements AutoCloseable {
         BookieServer bookie = new BookieServer(conf);
         bookies.add(bookie);
         bookie.start();
+        return bookie.getLocalAddress().getSocketAddress().toString();
     }
 
     private ServerConfiguration createBookieConf(int port) {

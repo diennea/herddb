@@ -217,6 +217,16 @@ public class BookkeeperCommitLog extends CommitLog {
             return out;
         }
 
+        private void writeLedgerHeader() throws LogNotAvailableException {
+            // write a dummy entry, this will force Bookies to know about the ledger
+            try {
+                log(LogEntryFactory.noop(), true).getLogSequenceNumber();
+            } catch (LogNotAvailableException t) {
+                LOGGER.log(Level.SEVERE, "error", t);
+                throw t;
+            }
+        }
+
         private void writeNoop() {
             // write a dummy entry, this will force LastAddConfirmed to be piggybacked
             try {
@@ -419,6 +429,7 @@ public class BookkeeperCommitLog extends CommitLog {
             // if a pending write fails we are failing the creation of the new ledger
             closeCurrentWriter(true);
             writer = new CommitFileWriter();
+            writer.writeLedgerHeader();
             currentLedgerId = writer.getLedgerId();
             LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}",
                     new Object[]{currentLedgerId, tableSpaceDescription()});

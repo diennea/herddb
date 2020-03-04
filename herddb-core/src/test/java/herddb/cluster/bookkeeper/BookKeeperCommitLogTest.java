@@ -414,4 +414,42 @@ public class BookKeeperCommitLogTest {
 
         }
     }
+
+    @Test
+    public void testFollowEmptyLedgerBookieDown() throws Exception {
+        String secondBookie = testEnv.startNewBookie();
+        final String tableSpaceUUID = UUID.randomUUID().toString();
+        final String name = TableSpace.DEFAULT;
+        final String nodeid = "nodeid";
+        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, 2);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, 2);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, 2);
+        try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
+                testEnv.getTimeout(), testEnv.getPath());
+                BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
+            man.start();
+            logManager.start();
+
+            try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
+                writer.startWriting();
+
+                // create a ledger, up to 0.14.x no "logical" write happens, so Bookies are not aware of the
+                // the ledger
+
+                // stop one bookie
+                testEnv.stopBookie(secondBookie);
+
+                // start a reader, it will see the ledger "OPEN" and it will try to read from all of the Bookies in the tail of the ledger
+                // one Bookie would answer "NoSuchLedger" and the other bookie is down,
+                // but since 0.15.0 we are now writing a NOOP entry at the beginning of the ledger in order to workaround this issue.
+                try (BookkeeperCommitLog reader = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
+                    reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
+                    }, false);
+                }
+            }
+
+        }
+    }
+
 }
