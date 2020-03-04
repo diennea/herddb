@@ -62,7 +62,7 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
             Object rightValue = right.evaluate(bean, context);
             ok = like(leftValue, rightValue);
         }
-        return !ok;
+        return ok;
     }
 
     @Override
