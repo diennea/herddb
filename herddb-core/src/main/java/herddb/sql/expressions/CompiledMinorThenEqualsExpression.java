@@ -25,24 +25,13 @@ import herddb.model.StatementExecutionException;
 
 public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledMinorThenEqualsExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledMinorThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-//        Object leftValue = left.evaluate(bean, context);
-//        Object rightValue = right.evaluate(bean, context);
-//        boolean res = compare(leftValue, rightValue) <= 0;
-        boolean res = left.opCompareTo(bean, context, right) <= 0;
-        if (not) {
-            return !res;
-        } else {
-            return res;
-        }
+        return left.opCompareTo(bean, context, right) <= 0;
     }
 
     @Override
@@ -52,7 +41,7 @@ public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpressi
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledMinorThenEqualsExpression(not,
+        return new CompiledMinorThenEqualsExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }

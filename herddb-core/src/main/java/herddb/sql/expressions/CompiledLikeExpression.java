@@ -31,12 +31,10 @@ import java.util.regex.Pattern;
 
 public class CompiledLikeExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
     private final Pattern rightConstantPattern;
 
-    public CompiledLikeExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) throws HerdDBInternalException {
+    public CompiledLikeExpression(CompiledSQLExpression left, CompiledSQLExpression right) throws HerdDBInternalException {
         super(left, right);
-        this.not = not;
         this.rightConstantPattern = compilePattern(right);
     }
 
@@ -64,16 +62,12 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
             Object rightValue = right.evaluate(bean, context);
             ok = like(leftValue, rightValue);
         }
-        if (not) {
-            return !ok;
-        } else {
-            return ok;
-        }
+        return ok;
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledLikeExpression(not,
+        return new CompiledLikeExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }

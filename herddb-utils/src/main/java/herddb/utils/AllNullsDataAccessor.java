@@ -67,6 +67,11 @@ public class AllNullsDataAccessor extends AbstractDataAccessor {
     }
 
     @Override
+    public boolean fieldNotEqualsTo(int index, Object value) {
+        return false;
+    }
+
+    @Override
     public int fieldCompareTo(int index, Object value) {
         return SQLRecordPredicateFunctions.compareNullTo(value);
     }

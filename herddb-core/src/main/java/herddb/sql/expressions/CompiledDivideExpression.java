@@ -26,11 +26,8 @@ import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledDivideExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledDivideExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledDivideExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override

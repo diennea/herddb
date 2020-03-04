@@ -71,4 +71,9 @@ public class SimpleDeleteOp implements PlannerOp {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "SimpleDeleteOp{" + "statement=" + statement + '}';
+    }
+
 }
