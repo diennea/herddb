@@ -1226,7 +1226,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1246,9 +1246,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
@@ -1310,7 +1312,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1330,9 +1332,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
