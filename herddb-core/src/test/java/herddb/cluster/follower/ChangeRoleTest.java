@@ -134,7 +134,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
 
-            assertTrue("unexpected value "+server2MemoryManager.getDataPageReplacementPolicy().size(),
+            assertTrue("unexpected value " + server2MemoryManager.getDataPageReplacementPolicy().size(),
                     server2MemoryManager.getDataPageReplacementPolicy().size() >= 1);
             assertEquals(1, server2MemoryManager.getPKPageReplacementPolicy().size());
 
