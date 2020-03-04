@@ -53,9 +53,11 @@ import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
 import org.apache.bookkeeper.client.api.LedgerEntries;
+import org.apache.bookkeeper.client.api.LedgerMetadata;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.versioning.Versioned;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -479,7 +481,12 @@ public class BookkeeperCommitLog extends CommitLog {
 
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
-                FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
+                Versioned<LedgerMetadata> result = FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
+                LedgerMetadata metadata = result.getValue();
+                String ledgerLeader = extractLeaderFromMetadata(metadata.getCustomMetadata());
+                LOGGER.log(Level.INFO, "Ledger {0}: {1} {2} created by {3}, LastEntryId {4} Length {5}",
+                        new Object[]{String.valueOf(ledgerId), metadata.getState(), metadata.getAllEnsembles(),
+                            ledgerLeader, metadata.getLastEntryId(), metadata.getLength()});
             } catch (BKException.BKNoSuchLedgerExistsException
                     | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
                 throw new FullRecoveryNeededException(
@@ -499,12 +506,16 @@ public class BookkeeperCommitLog extends CommitLog {
                     continue;
                 }
                 ReadHandle handle;
-                if (fencing) {
-                    handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(
-                            StandardCharsets.UTF_8));
-                } else {
-                    handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.
-                            getBytes(StandardCharsets.UTF_8));
+                try {
+                    if (fencing) {
+                        handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.getBytes(
+                                StandardCharsets.UTF_8));
+                    } else {
+                        handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, SHARED_SECRET.
+                                getBytes(StandardCharsets.UTF_8));
+                    }
+                } catch (org.apache.bookkeeper.client.api.BKException errorDuringOpen) {
+                    throw new LogNotAvailableException("Cannot open ledger " + ledgerId + " (fencing " + fencing + "): " + errorDuringOpen, errorDuringOpen);
                 }
                 try {
                     long first;
