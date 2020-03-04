@@ -55,6 +55,12 @@ public interface CompiledSQLExpression {
         return SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
     }
 
+    default boolean opNotEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object leftValue = this.evaluate(bean, context);
+        Object rightValue = right.evaluate(bean, context);
+        return SQLRecordPredicateFunctions.objectNotEquals(leftValue, rightValue);
+    }
+
     default int opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);

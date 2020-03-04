@@ -56,6 +56,11 @@ public interface DataAccessor {
         return SQLRecordPredicateFunctions.objectEquals(val, value);
     }
 
+    default boolean fieldNotEqualsTo(int index, Object value) {
+        Object val = get(index);
+        return SQLRecordPredicateFunctions.objectNotEquals(val, value);
+    }
+
     default int fieldCompareTo(int index, Object value) {
         Object val = get(index);
         return SQLRecordPredicateFunctions.compare(val, value);
@@ -84,6 +89,12 @@ public interface DataAccessor {
         @Override
         public boolean fieldEqualsTo(int index, Object value) {
             return null == value;
+        }
+
+        @Override
+        public boolean fieldNotEqualsTo(int index, Object value) {
+            // nothing is "not equals" to NULL
+            return false;
         }
 
         @Override

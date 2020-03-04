@@ -225,6 +225,14 @@ public interface SQLRecordPredicateFunctions {
         return Objects.equals(a, b);
     }
 
+    static boolean objectNotEquals(Object a, Object b) {
+        if (a == null || b == null) {
+            // if one of the two operands is NULL that "not equals" should return false
+            return false;
+        }
+        return !objectEquals(a, b);
+    }
+
     static Pattern compileLikePattern(String b) throws HerdDBInternalException {
 
         /*

@@ -25,24 +25,13 @@ import herddb.model.StatementExecutionException;
 
 public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledGreaterThenEqualsExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledGreaterThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-//        Object leftValue = left.evaluate(bean, context);
-//        Object rightValue = right.evaluate(bean, context);
-//        boolean res = compare(leftValue, rightValue) >= 0;
-        boolean res = left.opCompareTo(bean, context, right) >= 0;
-        if (not) {
-            return !res;
-        } else {
-            return res;
-        }
+        return left.opCompareTo(bean, context, right) >= 0;
     }
 
     @Override
@@ -52,12 +41,12 @@ public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpres
 
     @Override
     public String toString() {
-        return "CompiledGreaterThenEqualsExpression{" + "not=" + not + ",left=" + left + ", right=" + right + "}";
+        return "CompiledGreaterThenEqualsExpression{left=" + left + ", right=" + right + "}";
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledGreaterThenEqualsExpression(not,
+        return new CompiledGreaterThenEqualsExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
