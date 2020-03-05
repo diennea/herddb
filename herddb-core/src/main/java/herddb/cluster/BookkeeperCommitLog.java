@@ -94,6 +94,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
     private long maxLedgerSizeBytes = 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
+    private boolean writeLedgerHeader = true;
 
     private volatile boolean closed = false;
     private volatile boolean failed = false;
@@ -151,6 +152,8 @@ public class BookkeeperCommitLog extends CommitLog {
                         .withCustomMetadata(metadata)
                         .execute(), BKException.HANDLER);
                 this.ledgerId = this.out.getId();
+                LOGGER.log(Level.INFO, "{0} created ledger {1} (" + ensemble + "/" + writeQuorumSize + "/" + ackQuorumSize + ") bookies: {2}",
+                        new Object[]{tableSpaceDescription(), ledgerId, this.out.getLedgerMetadata().getAllEnsembles()});
                 lastLedgerId = ledgerId;
                 lastSequenceNumber.set(-1);
             } catch (BKException err) {
@@ -217,10 +220,29 @@ public class BookkeeperCommitLog extends CommitLog {
             return out;
         }
 
+        private void writeLedgerHeader() throws LogNotAvailableException {
+            if (!writeLedgerHeader) {
+                // useful only for tests
+                return;
+            }
+            // write a dummy entry, this will force Bookies to know about the ledger
+            try {
+                LogSequenceNumber lsn = writeEntry(LogEntryFactory.noop()).get();
+                LOGGER.log(Level.INFO, "{0} ledger header written at {1}",
+                        new Object[]{tableSpaceDescription(), lsn});
+            } catch (LogNotAvailableException t) {
+                LOGGER.log(Level.SEVERE, "error", t);
+                throw t;
+            } catch (Exception t) {
+                LOGGER.log(Level.SEVERE, "error", t);
+                throw new LogNotAvailableException(t);
+            }
+        }
+
         private void writeNoop() {
             // write a dummy entry, this will force LastAddConfirmed to be piggybacked
             try {
-                log(LogEntryFactory.noop(), false);
+                writeEntry(LogEntryFactory.noop());
             } catch (LogNotAvailableException t) {
                 LOGGER.log(Level.SEVERE, "error", t);
             }
@@ -302,6 +324,14 @@ public class BookkeeperCommitLog extends CommitLog {
 
     public void setMaxIdleTime(long maxIdleTime) {
         this.maxIdleTime = maxIdleTime;
+    }
+
+    public boolean isWriteLedgerHeader() {
+        return writeLedgerHeader;
+    }
+
+    public void setWriteLedgerHeader(boolean writeLedgerHeader) {
+        this.writeLedgerHeader = writeLedgerHeader;
     }
 
     private CommitFileWriter getValidWriter() {
@@ -412,6 +442,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     private CommitFileWriter openNewLedger() throws LogNotAvailableException {
+        Long pendingLedgerId = null;
         lock.writeLock().lock();
         try {
             // wait for all previous writes to succeed and then close the ledger
@@ -419,6 +450,9 @@ public class BookkeeperCommitLog extends CommitLog {
             // if a pending write fails we are failing the creation of the new ledger
             closeCurrentWriter(true);
             writer = new CommitFileWriter();
+            pendingLedgerId = writer.getLedgerId();
+            writer.writeLedgerHeader();
+            pendingLedgerId = null;
             currentLedgerId = writer.getLedgerId();
             LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}",
                     new Object[]{currentLedgerId, tableSpaceDescription()});
@@ -432,6 +466,17 @@ public class BookkeeperCommitLog extends CommitLog {
             signalLogFailed();
             throw err;
         } finally {
+            if (pendingLedgerId != null) {
+                LOGGER.log(Level.SEVERE, "Trying to delete bad ledge from metadata {0}", pendingLedgerId);
+                try {
+                    bookKeeper.deleteLedger(pendingLedgerId);
+                } catch (InterruptedException ex) {
+                    LOGGER.log(Level.SEVERE, "Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
+                    Thread.currentThread().interrupt();
+                } catch (BKException ex) {
+                    LOGGER.log(Level.SEVERE, "Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
+                }
+            }
             lock.writeLock().unlock();
         }
     }
