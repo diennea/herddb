@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
+import herddb.client.impl.ConnectionOpenTimeoutException;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.client.impl.UnreachableServerException;
@@ -294,7 +295,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                     if (channel != null) {
                         channel.close();
                     }
-                    throw new HDBOperationTimeoutException(err);
+                    throw new ConnectionOpenTimeoutException(err);
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "Error", err);
                     if (channel != null) {
@@ -341,7 +342,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -374,7 +375,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -389,7 +390,11 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             channel.sendRequestWithAsyncReply(requestId, message, timeout,
                     (msg, error) -> {
                         if (error != null) {
-                            res.completeExceptionally(error);
+                            if (error instanceof TimeoutException) {
+                                res.completeExceptionally(new HDBOperationTimeoutException(error));
+                            } else {
+                                res.completeExceptionally(new HDBException(error));
+                            }
                             return;
                         }
                         try (Pdu reply = msg) {
@@ -467,7 +472,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -486,7 +491,11 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             channel.sendRequestWithAsyncReply(requestId, message, timeout,
                     (msg, error) -> {
                         if (error != null) {
-                            res.completeExceptionally(error);
+                            if (error instanceof TimeoutException) {
+                                res.completeExceptionally(new HDBOperationTimeoutException(error));
+                            } else {
+                                res.completeExceptionally(new HDBException(error));
+                            }
                             return;
                         }
                         try (Pdu reply = msg) {
@@ -564,7 +573,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -601,7 +610,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -622,7 +631,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -643,7 +652,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -711,7 +720,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             if (reply != null) {
                 reply.close();
             }
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -735,7 +744,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
@@ -814,7 +823,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             Thread.currentThread().interrupt();
             throw new HDBException(err);
         } catch (TimeoutException err) {
-            throw new HDBException(err);
+            throw new HDBOperationTimeoutException(err);
         }
     }
 
