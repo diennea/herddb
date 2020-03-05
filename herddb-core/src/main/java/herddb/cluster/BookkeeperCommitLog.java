@@ -225,17 +225,22 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             // write a dummy entry, this will force Bookies to know about the ledger
             try {
-                log(LogEntryFactory.noop(), true).getLogSequenceNumber();
+                LogSequenceNumber lsn = writeEntry(LogEntryFactory.noop()).get();
+                LOGGER.log(Level.INFO, "{0} ledger header written at {1}",
+                        new Object[]{tableSpaceDescription(), lsn});
             } catch (LogNotAvailableException t) {
                 LOGGER.log(Level.SEVERE, "error", t);
                 throw t;
+            } catch (Exception t) {
+                LOGGER.log(Level.SEVERE, "error", t);
+                throw new LogNotAvailableException(t);
             }
         }
 
         private void writeNoop() {
             // write a dummy entry, this will force LastAddConfirmed to be piggybacked
             try {
-                log(LogEntryFactory.noop(), false);
+                writeEntry(LogEntryFactory.noop());
             } catch (LogNotAvailableException t) {
                 LOGGER.log(Level.SEVERE, "error", t);
             }
