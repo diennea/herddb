@@ -17,9 +17,7 @@
  under the License.
 
  */
-package herddb.client;
-
-import herddb.client.impl.RetryRequestException;
+package herddb.client.impl;
 
 /**
  * A specific timeout exception
@@ -34,6 +32,12 @@ public class HDBOperationTimeoutException extends RetryRequestException {
     @Override
     public boolean isRequireMetadataRefresh() {
         return true;
+    }
+
+    @Override
+    public int getMaxRetry() {
+        // One will be enough for refresh metadata
+        return 1;
     }
 
 }

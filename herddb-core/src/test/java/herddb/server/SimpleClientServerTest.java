@@ -31,9 +31,9 @@ import herddb.client.GetResult;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.client.HDBOperationTimeoutException;
 import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
+import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
@@ -667,14 +667,19 @@ public class SimpleClientServerTest {
                 suspendProcessing.set(true);
                 try (HDBConnection connection2 = client.openConnection()) {
                     // auth will timeout
-                    TestUtils.assertThrows(HDBOperationTimeoutException.class, () -> {
+                    try {
                         connection2.executeUpdate(TableSpace.DEFAULT,
-                                "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList(1, "test1"));
-                    });
+                                "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID,
+                                false, true, Arrays.asList(1, "test1"));
+                        fail("insertion should fail");
+                    } catch (Exception e) {
+                        TestUtils.assertExceptionPresentInChain(e, HDBOperationTimeoutException.class);
+                    }
                     suspendProcessing.set(false);
                     // new connection
                     assertEquals(1, connection2.executeUpdate(TableSpace.DEFAULT,
-                            "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID, false, true, Arrays.asList(1, "test1")).updateCount);
+                            "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID,
+                            false, true, Arrays.asList(1, "test1")).updateCount);
 
                 }
             }

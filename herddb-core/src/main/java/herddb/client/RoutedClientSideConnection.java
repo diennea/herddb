@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
+import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.client.impl.UnreachableServerException;
