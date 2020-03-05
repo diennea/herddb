@@ -415,7 +415,7 @@ public class HDBConnection implements AutoCloseable {
         }
     }
 
-    public RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
+    protected RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
         if (closed) {
             throw new HDBException("connection is closed");
         }

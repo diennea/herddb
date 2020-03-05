@@ -24,9 +24,12 @@ import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
+import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.GetResult;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.client.HDBException;
+import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
@@ -463,8 +466,16 @@ public class RetryOnLeaderChangedTest {
                 clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, 2000);
 
                 StatsLogger logger = statsProvider.getStatsLogger("ds");
-                try (HDBClient client1 = new HDBClient(clientConfiguration, logger)) {
-                    try (HDBConnection connection = client1.openConnection()) {
+                try (HDBClient client1 = new HDBClient(clientConfiguration, logger) {
+                    @Override
+                    public HDBConnection openConnection() {
+                        HDBConnection con = new VisibleRouteHDBConnection(this);
+                        registerConnection(con);
+                        return con;
+                    }
+
+                }) {
+                    try (VisibleRouteHDBConnection connection = (VisibleRouteHDBConnection) client1.openConnection()) {
 
                         // create table and insert data
                         connection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLE ttt.t1(k1 int primary key, n1 int)",
@@ -478,7 +489,7 @@ public class RetryOnLeaderChangedTest {
                         switchLeader(server_1.getNodeId(), server_2.getNodeId(), server_1.getManager());
 
 
-                        try (HDBConnection connection2 = client1.openConnection()) {
+                        try (VisibleRouteHDBConnection connection2 = (VisibleRouteHDBConnection) client1.openConnection()) {
 
                             // connection routing still point to old leader (now follower)
                             assertEquals("server2", connection2.getRouteToTableSpace("ttt").getNodeId());
@@ -529,6 +540,21 @@ public class RetryOnLeaderChangedTest {
             }
             Thread.sleep(1000);
         }
+    }
+
+
+    public static final class VisibleRouteHDBConnection extends HDBConnection {
+
+        public VisibleRouteHDBConnection(HDBClient client) {
+            super(client);
+        }
+
+        @Override
+        public RoutedClientSideConnection getRouteToTableSpace(String tableSpace)
+                throws ClientSideMetadataProviderException, HDBException {
+            return super.getRouteToTableSpace(tableSpace);
+        }
+
     }
 
 }
