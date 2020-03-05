@@ -48,6 +48,6 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
 
     @Override
     public String toString() {
-        return "CompiledGreaterThenExpression{" + "not=" + not + ",left=" + left + ", right=" + right + "}";
+        return "CompiledGreaterThenExpression{left=" + left + ", right=" + right + "}";
     }
 }
