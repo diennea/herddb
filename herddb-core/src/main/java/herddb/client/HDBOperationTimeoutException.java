@@ -19,14 +19,21 @@
  */
 package herddb.client;
 
+import herddb.client.impl.RetryRequestException;
+
 /**
  * A specific timeout exception
  * @author eolivelli
  */
-public class HDBOperationTimeoutException extends HDBException {
+public class HDBOperationTimeoutException extends RetryRequestException {
 
     public HDBOperationTimeoutException(Throwable cause) {
         super(cause);
+    }
+
+    @Override
+    public boolean isRequireMetadataRefresh() {
+        return true;
     }
 
 }

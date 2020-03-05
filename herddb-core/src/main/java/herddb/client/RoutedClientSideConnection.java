@@ -93,6 +93,14 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
     private void performAuthentication(Channel channel, String serverHostname) throws Exception {
 
         SaslNettyClient saslNettyClient = new SaslNettyClient(

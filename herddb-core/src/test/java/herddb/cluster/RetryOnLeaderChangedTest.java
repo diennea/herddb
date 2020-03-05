@@ -35,14 +35,20 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.network.Channel;
+import herddb.proto.Pdu;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import herddb.server.ServerSideConnectionPeer;
 import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.test.TestStatsProvider;
 import org.junit.After;
@@ -57,6 +63,8 @@ import org.junit.rules.TemporaryFolder;
  * @author enrico.olivelli
  */
 public class RetryOnLeaderChangedTest {
+
+    private static final Logger LOG = Logger.getLogger(RetryOnLeaderChangedTest.class.getName());
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -378,6 +386,120 @@ public class RetryOnLeaderChangedTest {
 
             }
 
+        }
+    }
+
+    @Test
+    public void testSwitchLeaderAndAuthTimeout() throws Exception {
+
+        TestStatsProvider statsProvider = new TestStatsProvider();
+
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        final AtomicBoolean suspendProcessing = new AtomicBoolean(false);
+        try (Server server_1 = new Server(serverconfig_1)) {
+
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            try (Server server_2 = new Server(serverconfig_2) {
+                @Override
+                protected ServerSideConnectionPeer buildPeer(Channel channel) {
+                    return new ServerSideConnectionPeer(channel, this) {
+
+                        @Override
+                        public void requestReceived(Pdu message, Channel channel) {
+                            if (suspendProcessing.get()) {
+                                LOG.log(Level.INFO, "dropping message type " + message.type + " id " + message.messageId);
+                                message.close();
+                                return;
+                            }
+                            super.requestReceived(message, channel);
+                        }
+
+                    };
+                }
+            }) {
+
+                server_2.start();
+
+                TestUtils.execute(server_1.getManager(),
+                        "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','expectedreplicacount:2'",
+                        Collections.emptyList());
+
+                // wait for server_2 to wake up
+                for (int i = 0; i < 40; i++) {
+                    TableSpaceManager tableSpaceManager2 = server_2.getManager().getTableSpaceManager("ttt");
+                    if (tableSpaceManager2 != null
+                            && tableSpaceManager2.isLeader()) {
+                        break;
+                    }
+                    Thread.sleep(500);
+                }
+                assertTrue(server_2.getManager().getTableSpaceManager("ttt") != null
+                        && server_2.getManager().getTableSpaceManager("ttt").isLeader());
+
+                // wait for server_1 to announce as follower
+                waitClusterStatus(server_1.getManager(), server_1.getNodeId(), "follower");
+
+                ClientConfiguration clientConfiguration = new ClientConfiguration();
+                clientConfiguration.set(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_CLUSTER);
+                clientConfiguration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+                clientConfiguration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+                clientConfiguration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+                clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 2);
+                clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, 2000);
+
+                StatsLogger logger = statsProvider.getStatsLogger("ds");
+                try (HDBClient client1 = new HDBClient(clientConfiguration, logger)) {
+                    try (HDBConnection connection = client1.openConnection()) {
+
+                        // create table and insert data
+                        connection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLE ttt.t1(k1 int primary key, n1 int)",
+                                TransactionContext.NOTRANSACTION_ID, false, false, Collections.emptyList());
+                        connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO ttt.t1(k1,n1) values(1,1)",
+                                TransactionContext.NOTRANSACTION_ID, false, false, Collections.emptyList());
+
+                        assertEquals("server2", connection.getRouteToTableSpace("ttt").getNodeId());
+
+                        // change leader
+                        switchLeader(server_1.getNodeId(), server_2.getNodeId(), server_1.getManager());
+
+
+                        try (HDBConnection connection2 = client1.openConnection()) {
+
+                            // connection routing still point to old leader (now follower)
+                            assertEquals("server2", connection2.getRouteToTableSpace("ttt").getNodeId());
+
+                            // suspend server_2 authentication
+                            suspendProcessing.set(true);
+
+                            // attempt an insert with old routing. Suspended autentication generates a timeout
+                            // and routing will be reevaluated
+                            assertEquals(1, connection2.executeUpdate(TableSpace.DEFAULT, "INSERT INTO ttt.t1(k1,n1) values(2,2)",
+                                    TransactionContext.NOTRANSACTION_ID, false, false, Collections.emptyList()).updateCount);
+
+                            // right routing to current master
+                            assertEquals("server1", connection2.getRouteToTableSpace("ttt").getNodeId());
+
+                            suspendProcessing.set(false);
+
+                        }
+                    }
+                }
+            }
         }
     }
 
