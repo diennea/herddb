@@ -30,6 +30,7 @@ import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
+import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.TableSpace;
@@ -154,9 +155,11 @@ public class BookKeeperCommitLogTest {
 
             try (BookkeeperCommitLog reader = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
-                reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b)
-                        -> list.add(new AbstractMap.SimpleImmutableEntry<>(a, b)),
-                        false);
+                reader.recovery(LogSequenceNumber.START_OF_TIME, (lsn, entry) -> {
+                    if (entry.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(lsn, entry));
+                    }
+                }, false);
                 assertEquals(3, list.size());
                 assertEquals(lsn1, list.get(0).getKey());
                 assertEquals(lsn2, list.get(1).getKey());
@@ -201,8 +204,10 @@ public class BookKeeperCommitLogTest {
 
             try (BookkeeperCommitLog reader = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
-                reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
-                    list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
+                reader.recovery(LogSequenceNumber.START_OF_TIME, (lsn, entry) -> {
+                    if (entry.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(lsn, entry));
+                    }
                 }, false);
                 assertEquals(3, list.size());
 
@@ -257,8 +262,10 @@ public class BookKeeperCommitLogTest {
             // check expected reads
             try (BookkeeperCommitLog reader = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
-                reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
-                    list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
+                reader.recovery(LogSequenceNumber.START_OF_TIME, (lsn, entry) -> {
+                    if (entry.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(lsn, entry));
+                    }
                 }, false);
                 assertEquals(1, list.size());
 
@@ -316,8 +323,10 @@ public class BookKeeperCommitLogTest {
             // check expected reads
             try (BookkeeperCommitLog reader = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
-                reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
-                    list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
+                reader.recovery(LogSequenceNumber.START_OF_TIME, (lsn, entry) -> {
+                    if (entry.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(lsn, entry));
+                    }
                 }, false);
                 assertEquals(4, list.size());
             }
@@ -343,6 +352,8 @@ public class BookKeeperCommitLogTest {
             man.start();
             logManager.start();
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
+                // do not pollute the count with NOOP entries
+                writer.setWriteLedgerHeader(false);
                 writer.startWriting();
                 for (int i = 0; i < numberOfEntries; i++) {
                     writer.log(entry, false);
@@ -354,8 +365,10 @@ public class BookKeeperCommitLogTest {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
                 Set<Long> ledgerIds = new HashSet<>();
                 reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
-                    list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
-                    ledgerIds.add(a.ledgerId);
+                    if (b.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
+                        ledgerIds.add(a.ledgerId);
+                    }
                 }, false);
                 assertEquals(numberOfEntries + 1, list.size());
                 assertEquals(numberOfLedgers, ledgerIds.size());
@@ -406,8 +419,10 @@ public class BookKeeperCommitLogTest {
                 List<Map.Entry<LogSequenceNumber, LogEntry>> list = new ArrayList<>();
                 Set<Long> ledgerIds = new HashSet<>();
                 reader.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {
-                    list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
-                    ledgerIds.add(a.ledgerId);
+                    if (b.type != LogEntryType.NOOP) {
+                        list.add(new AbstractMap.SimpleImmutableEntry<>(a, b));
+                        ledgerIds.add(a.ledgerId);
+                    }
                 }, false);
                 assertTrue("unexpected number of entries on reader: " + list.size(), list.size() <= 80);
             }
