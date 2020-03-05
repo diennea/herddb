@@ -152,6 +152,8 @@ public class BookkeeperCommitLog extends CommitLog {
                         .withCustomMetadata(metadata)
                         .execute(), BKException.HANDLER);
                 this.ledgerId = this.out.getId();
+                LOGGER.log(Level.INFO, "{0} created ledger {1} (" + ensemble + "/" + writeQuorumSize + "/" + ackQuorumSize + ") bookies: {2}",
+                        new Object[]{tableSpaceDescription(), ledgerId, this.out.getLedgerMetadata().getAllEnsembles()});
                 lastLedgerId = ledgerId;
                 lastSequenceNumber.set(-1);
             } catch (BKException err) {

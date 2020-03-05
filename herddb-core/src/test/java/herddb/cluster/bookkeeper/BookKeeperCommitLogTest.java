@@ -435,12 +435,12 @@ public class BookKeeperCommitLogTest {
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
         ServerConfiguration serverConfiguration = new ServerConfiguration();
-        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, 2);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, 2);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, 2);
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
+            logManager.setEnsemble(2);
+            logManager.setWriteQuorumSize(2);
+            logManager.setAckQuorumSize(2);
             man.start();
             logManager.start();
 
@@ -449,7 +449,6 @@ public class BookKeeperCommitLogTest {
 
                 // create a ledger, up to 0.14.x no "logical" write happens, so Bookies are not aware of the
                 // the ledger
-
                 // stop one bookie
                 testEnv.stopBookie(secondBookie);
 

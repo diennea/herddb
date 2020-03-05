@@ -22,6 +22,8 @@ package herddb.utils;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -31,6 +33,8 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooDefs;
 
 public class ZKTestEnv implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
 
     static {
         System.setProperty("zookeeper.admin.enableServer", "false");
@@ -88,7 +92,7 @@ public class ZKTestEnv implements AutoCloseable {
     private ServerConfiguration createBookieConf(int port) {
         ServerConfiguration conf = new ServerConfiguration();
         conf.setBookiePort(port++);
-        System.out.println("STARTING BOOKIE at port " + port);
+        LOG.log(Level.INFO, "STARTING BOOKIE at port {0}", String.valueOf(port));
         conf.setUseHostNameAsBookieID(true);
         // no need to preallocate journal and entrylog in tests
         conf.setEntryLogFilePreAllocationEnabled(false);
