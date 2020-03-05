@@ -474,7 +474,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 } catch (BKException ex) {
                     LOGGER.log(Level.SEVERE, "Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
                 }
-            };
+            }
             lock.writeLock().unlock();
         }
     }
