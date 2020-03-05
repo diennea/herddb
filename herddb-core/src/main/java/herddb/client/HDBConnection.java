@@ -357,14 +357,18 @@ public class HDBConnection implements AutoCloseable {
         int sleepTimeout = client.getOperationRetryDelay();
         int maxTrials = client.getMaxOperationRetryCount();
         if (retry instanceof RetryRequestException) {
+            RetryRequestException retryError = (RetryRequestException) retry;
+            // Use implicit error max trials if override configuration
+            int errorMaxTrials = retryError.getMaxRetry();
+            if (errorMaxTrials != RetryRequestException.MAX_RETRY_NO_OVERRIDE) {
+                maxTrials = errorMaxTrials;
+            }
             if (retry instanceof LeaderChangedException) {
                 leaderChangedErrors.inc();
-                maxTrials = Integer.MAX_VALUE;
             }
             if (trialCount > maxTrials) {
                 throw new HDBException("Too many trials (" + trialCount + "/" + maxTrials + ") for " + retry, retry);
             }
-            RetryRequestException retryError = (RetryRequestException) retry;
             if (retryError.isRequireMetadataRefresh()) {
                 requestMetadataRefresh(retryError);
             }
@@ -415,7 +419,7 @@ public class HDBConnection implements AutoCloseable {
         }
     }
 
-    private RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
+    protected RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
         if (closed) {
             throw new HDBException("connection is closed");
         }

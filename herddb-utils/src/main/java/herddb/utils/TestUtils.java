@@ -108,7 +108,7 @@ public class TestUtils {
     public static void waitForCondition(Callable<Boolean> condition, Callable<Void> callback, int seconds, String description) throws Exception {
         try {
             long _start = System.currentTimeMillis();
-            long millis = (long) (seconds * 1000);
+            long millis = seconds * 1000;
             while (System.currentTimeMillis() - _start <= millis) {
                 if (condition.call()) {
                     return;
@@ -129,6 +129,12 @@ public class TestUtils {
     private static final Logger LOG = Logger.getLogger(TestUtils.class.getName());
 
     public static final Callable<Void> NOOP = () -> null;
+
+    public static void assertExceptionPresentInChain(Throwable t, Class<?> clazz) {
+        if (!isExceptionPresentInChain(t, clazz)) {
+            throw new AssertionError("exception didn't contain expected " + clazz.getSimpleName(), t);
+        }
+    }
 
     public static boolean isExceptionPresentInChain(Throwable t, Class clazz) {
         if (t == null) {

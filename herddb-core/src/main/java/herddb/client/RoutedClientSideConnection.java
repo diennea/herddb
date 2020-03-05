@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
+import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.client.impl.UnreachableServerException;
@@ -91,6 +92,14 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
+    }
+
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 
     private void performAuthentication(Channel channel, String serverHostname) throws Exception {

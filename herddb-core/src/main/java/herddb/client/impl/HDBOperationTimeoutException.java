@@ -17,16 +17,27 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.client.impl;
 
 /**
  * A specific timeout exception
  * @author eolivelli
  */
-public class HDBOperationTimeoutException extends HDBException {
+public class HDBOperationTimeoutException extends RetryRequestException {
 
     public HDBOperationTimeoutException(Throwable cause) {
         super(cause);
+    }
+
+    @Override
+    public boolean isRequireMetadataRefresh() {
+        return true;
+    }
+
+    @Override
+    public int getMaxRetry() {
+        // One will be enough for refresh metadata
+        return 1;
     }
 
 }
