@@ -334,10 +334,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 String columnName = fixMySqlBackTicks(cf.getColumnName().toLowerCase());
                 int type;
                 String dataType = cf.getColDataType().getDataType();
-                type = sqlDataTypeToColumnType(dataType, cf.getColDataType().getArgumentsStringList());
+                List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecStrings());
+                type = sqlDataTypeToColumnType(dataType,
+                        cf.getColDataType().getArgumentsStringList(), columnSpecs);
 
-                if (cf.getColumnSpecStrings() != null) {
-                    List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecStrings());
+                if (!columnSpecs.isEmpty()) {
+
                     boolean auto_increment = decodeAutoIncrement(columnSpecs);
                     if (columnSpecs.contains("PRIMARY")) {
                         foundPk = true;
@@ -345,10 +347,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                     if (auto_increment && primaryKey.contains(columnName)) {
                         tablebuilder.primaryKey(columnName, auto_increment);
-                    }
-
-                    if (String.join("_", columnSpecs).equals("NOT_NULL")) {
-                        type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
                     }
                 }
 
@@ -469,7 +467,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return indexType;
     }
 
-    private int sqlDataTypeToColumnType(String dataType, List<String> arguments) throws StatementExecutionException {
+    private int sqlDataTypeToColumnType(String dataType,
+            List<String> arguments, List<String> columnSpecs) throws StatementExecutionException {
         int type;
         switch (dataType.toLowerCase()) {
             case "string":
@@ -536,6 +535,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
             default:
                 throw new StatementExecutionException("bad type " + dataType);
+        }
+        if (String.join("_", columnSpecs).contains("NOT_NULL")) {
+             type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
         }
         return type;
     }
@@ -811,7 +813,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                     return new AlterTableStatement(Collections.emptyList(),
                             Collections.emptyList(), Collections.emptyList(),
-                            null, oldTableName, tableSpaceName, newTableName);
+                            null, oldTableName.toLowerCase(), tableSpaceName, newTableName.toLowerCase());
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }
@@ -832,7 +834,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         List<Column> addColumns = new ArrayList<>();
         List<Column> modifyColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
-        String tableName = fixMySqlBackTicks(alter.getTable().getName());
+        String tableName = fixMySqlBackTicks(alter.getTable().getName().toLowerCase());
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
             throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
         }
@@ -843,9 +845,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             case ADD: {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
+                    List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                     Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), sqlDataTypeToColumnType(
                             cl.getColDataType().getDataType(),
-                            cl.getColDataType().getArgumentsStringList()
+                            cl.getColDataType().getArgumentsStringList(),
+                            columnSpecs
                     ));
                     addColumns.add(newColumn);
                 }
@@ -886,17 +890,24 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             }
                         }
                     }
+                    List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                     int newType = sqlDataTypeToColumnType(
                             cl.getColDataType().getDataType(),
-                            cl.getColDataType().getArgumentsStringList()
+                            cl.getColDataType().getArgumentsStringList(),
+                            columnSpecs
                     );
 
                     if (oldColumn.type != newType) {
-                        throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().
-                                getDataType()
-                                + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                        if (ColumnTypes.isNotNullToNullConversion(oldColumn.type, newType)) {
+                            // allow change from "STRING NOT NULL" to "STRING NULL"
+                        } else if (ColumnTypes.isNullToNotNullConversion(oldColumn.type, newType)) {
+                            // allow change from "STRING NULL" to "STRING NOT NULL"
+                            // it will require a check on table at execution time
+                        } else {
+                            throw new StatementExecutionException("cannot change datatype to " + ColumnTypes.typeToString(newType)
+                                    + " for column " + columnName + " (" + ColumnTypes.typeToString(oldColumn.type) + ") in table " + tableName + " in tablespace '" + tableSpace + "'");
+                        }
                     }
-                    List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                     if (table.isPrimaryKeyColumn(columnName)) {
                         boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
                         if (new_auto_increment && table.primaryKey.length > 1) {
@@ -949,17 +960,18 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         }
                     }
                 }
+
+                List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                 int newType = sqlDataTypeToColumnType(
                         cl.getColDataType().getDataType(),
-                        cl.getColDataType().getArgumentsStringList()
+                        cl.getColDataType().getArgumentsStringList(),
+                        columnSpecs
                 );
 
                 if (oldColumn.type != newType) {
-                    throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().
-                            getDataType()
-                            + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                    throw new StatementExecutionException("cannot change datatype to " + ColumnTypes.typeToString(newType)
+                            + " for column " + columnName + " (" + ColumnTypes.typeToString(oldColumn.type) + ") in table " + tableName + " in tablespace '" + tableSpace + "'");
                 }
-                List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
                 if (table.isPrimaryKeyColumn(columnName)) {
                     boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
                     if (new_auto_increment && table.primaryKey.length > 1) {
@@ -984,7 +996,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
-                changeAutoIncrement, tableName, tableSpace, null);
+                changeAutoIncrement, tableName.toLowerCase(), tableSpace, null);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {
@@ -1025,7 +1037,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
-        String tableName = fixMySqlBackTicks(truncate.getTable().getName());
+        String tableName = fixMySqlBackTicks(truncate.getTable().getName().toLowerCase());
         return new TruncateTableStatement(tableSpace, tableName);
     }
 

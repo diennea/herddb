@@ -39,6 +39,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Index;
@@ -48,6 +49,7 @@ import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.RecordTooBigException;
 import herddb.model.ScanLimits;
+import herddb.model.ScanLimitsImpl;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -1224,7 +1226,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1244,9 +1246,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
@@ -1308,7 +1312,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1328,9 +1332,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
@@ -3527,6 +3533,46 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isStarted() {
         return started;
+    }
+
+    @Override
+    public void validateAlterTable(Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        List<String> columnsChangedFromNullToNotNull = new ArrayList<>();
+        for (Column c : this.table.columns) {
+            Column newColumnSpecs = table.getColumn(c.name);
+            if (newColumnSpecs == null) {
+                // dropped column
+                LOGGER.log(Level.INFO, "Table {0}.{1} dropping column {2}", new Object[]{table.tablespace, table.name, c.name});
+            } else if (newColumnSpecs.type == c.type) {
+                // no data type change
+            } else if (ColumnTypes.isNotNullToNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NULLABLE", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+            } else if (ColumnTypes.isNullToNotNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NOT NULL", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+                columnsChangedFromNullToNotNull.add(c.name);
+            }
+        }
+        for (final String column : columnsChangedFromNullToNotNull) {
+            LOGGER.log(Level.INFO, "Table {0}.{1} validating column {2}, check for NULL values", new Object[]{table.tablespace, table.name, column});
+            ScanStatement scan = new ScanStatement(this.table.tablespace,
+                    this.table, new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return record.getDataAccessor(table).get(column) == null;
+                }
+            });
+            // fast fail
+            scan.setLimits(new ScanLimitsImpl(1, 0));
+            boolean foundOneNull = false;
+            try (DataScanner scanner = this.scan(scan, context, null, false, false);) {
+                foundOneNull = scanner.hasNext();
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+            if (foundOneNull) {
+                throw new StatementExecutionException("Found a record in table " + table.name + " that contains a NULL value for column " + column + " ALTER command is not possible");
+            }
+        }
     }
 
     @Override

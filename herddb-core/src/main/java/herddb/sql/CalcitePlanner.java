@@ -174,6 +174,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
      * Time to wait for the requested tablespace to be up
      */
     private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
+    private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
 
     private static final Pattern USE_DDL_PARSER = Pattern.compile("^[\\s]*(EXECUTE|CREATE|DROP|ALTER|TRUNCATE|BEGIN|COMMIT|ROLLBACK).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
@@ -290,8 +291,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                             .optimize());
-            if (LOG.isLoggable(Level.INFO)) {
-                LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
+            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
                         new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
             }
             if (!scan) {
@@ -339,7 +340,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } catch (RelConversionException | ValidationException | SqlParseException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             //TODO can this be done better ?
-            throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""));
+            throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""), ex);
         } catch (MetadataStorageManagerException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
@@ -497,8 +498,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode logicalPlan = planner.rel(n).project();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -519,8 +520,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.INFO)) {
-            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }

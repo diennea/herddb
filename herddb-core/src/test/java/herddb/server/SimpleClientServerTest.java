@@ -33,16 +33,21 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
+import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.network.Channel;
+import herddb.proto.Pdu;
 import herddb.utils.RawString;
+import herddb.utils.TestUtils;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
@@ -620,4 +625,65 @@ public class SimpleClientServerTest {
         }
     }
 
+    @Test
+    public void testTimeoutDuringAuth() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ServerConfiguration config = new ServerConfiguration(baseDir);
+        final AtomicBoolean suspendProcessing = new AtomicBoolean(false);
+        try (Server server = new Server(config) {
+            @Override
+            protected ServerSideConnectionPeer buildPeer(Channel channel) {
+                return new ServerSideConnectionPeer(channel, this) {
+                    @Override
+                    public void requestReceived(Pdu message, Channel channel) {
+                        if (suspendProcessing.get()) {
+                            LOG.log(Level.INFO, "dropping message type " + message.type + " id " + message.messageId);
+                            message.close();
+                            return;
+                        }
+                        super.requestReceived(message, channel);
+                    }
+
+                };
+            }
+
+        }) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, 2000);
+            clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
+
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                    HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                suspendProcessing.set(true);
+                try (HDBConnection connection2 = client.openConnection()) {
+                    // auth will timeout
+                    try {
+                        connection2.executeUpdate(TableSpace.DEFAULT,
+                                "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID,
+                                false, true, Arrays.asList(1, "test1"));
+                        fail("insertion should fail");
+                    } catch (Exception e) {
+                        TestUtils.assertExceptionPresentInChain(e, HDBOperationTimeoutException.class);
+                    }
+                    suspendProcessing.set(false);
+                    // new connection
+                    assertEquals(1, connection2.executeUpdate(TableSpace.DEFAULT,
+                            "INSERT INTO mytable (id,s1) values(?,?)", TransactionContext.NOTRANSACTION_ID,
+                            false, true, Arrays.asList(1, "test1")).updateCount);
+
+                }
+            }
+
+        }
+    }
 }

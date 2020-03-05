@@ -144,8 +144,8 @@ public class TruncateTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             } catch (TableDoesNotExistException ok) {}
-
-            execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList());
+            // truncate, table name non case sensitive
+            execute(manager, "TRUNCATE TABLE tblspace1.Tsql", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(0, scan.consume().size());

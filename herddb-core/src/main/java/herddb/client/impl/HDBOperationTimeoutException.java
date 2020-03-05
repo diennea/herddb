@@ -17,26 +17,16 @@
  under the License.
 
  */
-
 package herddb.client.impl;
 
 /**
- * a retry is needed. for instance in case of leadership change
- *
- * @author enrico.olivelli
+ * A specific timeout exception
+ * @author eolivelli
  */
-public class LeaderChangedException extends RetryRequestException {
+public class HDBOperationTimeoutException extends RetryRequestException {
 
-    public LeaderChangedException(String message) {
-        super(message);
-    }
-
-    public LeaderChangedException(Throwable cause) {
+    public HDBOperationTimeoutException(Throwable cause) {
         super(cause);
-    }
-
-    public LeaderChangedException(String message, Throwable cause) {
-        super(message, cause);
     }
 
     @Override
@@ -46,7 +36,8 @@ public class LeaderChangedException extends RetryRequestException {
 
     @Override
     public int getMaxRetry() {
-        return Integer.MAX_VALUE;
+        // One will be enough for refresh metadata
+        return 1;
     }
 
 }

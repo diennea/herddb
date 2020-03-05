@@ -26,7 +26,7 @@ import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledAddExpression extends CompiledBinarySQLExpression {
 
-    public CompiledAddExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledAddExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 

@@ -26,11 +26,8 @@ import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledMultiplyExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledMultiplyExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledMultiplyExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override

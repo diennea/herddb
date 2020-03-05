@@ -29,6 +29,8 @@ import herddb.client.HDBException;
  */
 public class RetryRequestException extends HDBException {
 
+    public static final int MAX_RETRY_NO_OVERRIDE = -1;
+
     public RetryRequestException(String message) {
         super(message);
     }
@@ -43,6 +45,10 @@ public class RetryRequestException extends HDBException {
 
     public boolean isRequireMetadataRefresh() {
         return false;
+    }
+
+    public int getMaxRetry() {
+        return MAX_RETRY_NO_OVERRIDE;
     }
 
 }

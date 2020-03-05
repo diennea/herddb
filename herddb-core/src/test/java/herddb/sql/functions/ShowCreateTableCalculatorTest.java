@@ -150,6 +150,10 @@ public class ShowCreateTableCalculatorTest {
         }
 
         @Override
+        public void validateAlterTable(Table table, StatementEvaluationContext context) {
+        }
+
+        @Override
         public void tableAltered(Table table, Transaction transaction) throws DDLException {
 
         }

@@ -424,9 +424,13 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
     }
 
+    protected ServerSideConnectionPeer buildPeer(Channel channel) {
+        return new ServerSideConnectionPeer(channel, this);
+    }
+
     @Override
     public ServerSideConnection createConnection(Channel channel) {
-        ServerSideConnectionPeer peer = new ServerSideConnectionPeer(channel, this);
+        ServerSideConnectionPeer peer = buildPeer(channel);
         connections.put(peer.getConnectionId(), peer);
         return peer;
     }

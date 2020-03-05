@@ -36,7 +36,7 @@ public class RestartPendingTransactionBookKeeperTest extends RestartPendingTrans
     @Before
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
-        testEnv.startBookie();
+        testEnv.startBookieAndInitCluster();
     }
 
     @After
