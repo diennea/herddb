@@ -85,7 +85,6 @@ public class NestedLoopJoinOp implements PlannerOp {
             TransactionContext transactionContext,
             StatementEvaluationContext context, boolean lockRequired, boolean forWrite
     ) throws StatementExecutionException {
-
             ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
                     context, lockRequired, forWrite);
 
@@ -129,10 +128,9 @@ public class NestedLoopJoinOp implements PlannerOp {
                             rightScanner.createEnumerable(),
                             predicate(resultProjection, context),
                             resultProjection, linq4jJoinType);
-            EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result);
+            EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result,
+                                                                resLeft.dataScanner, rightScanner);
             return new ScanResult(resTransactionId, joinedScanner);
-
-
     }
 
     private Predicate2<DataAccessor, DataAccessor> predicate(

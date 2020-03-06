@@ -136,7 +136,7 @@ public class JoinOp implements PlannerOp {
                         generateNullsOnRight,
                         predicate
                 );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result, resLeft.dataScanner, resRight.dataScanner);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }

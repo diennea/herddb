@@ -131,7 +131,7 @@ public abstract class DataScanner implements AutoCloseable {
     }
 
     private boolean enumeratorOpened = false;
-    public Enumerator<DataAccessor> asEnumerator() {
+    private Enumerator<DataAccessor> asEnumerator() {
         if (enumeratorOpened) {
             try {
                 rewind();
@@ -164,7 +164,6 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void reset() {
-                new Exception("reset!!").printStackTrace();
                 try {
                     rewind();
                 } catch (DataScannerException ex) {
@@ -174,10 +173,15 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void close() {
-                try {
-                    DataScanner.this.close();
-                } catch (DataScannerException ex) {
-                    throw new HerdDBInternalException(ex);
+                // close() is another flavour of "rewind", see org.apache.calcite.linq4j.EnumerableDefaults$11$1.closeInner(EnumerableDefaults.java:1953) in Calcite 1.22.0
+                if (isRewindSupported()) {    
+                    try {
+                        rewind();
+                    } catch (DataScannerException ex) {
+                        throw new HerdDBInternalException(ex);
+                    }
+                } else {
+                    throw new RuntimeException("No supported!");
                 }
             }
 
