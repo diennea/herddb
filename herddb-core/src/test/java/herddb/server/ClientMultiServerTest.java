@@ -21,6 +21,7 @@
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
@@ -46,6 +47,7 @@ import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -78,7 +80,177 @@ public class ClientMultiServerTest {
     }
 
     @Test
-    public void test_leader_switch() throws Exception {
+    public void testLeaderBecomesFollower() throws Exception {
+        testLeaderChanged(true);
+    }
+
+    @Test
+    public void testLeaderDoesNotBootTablespace() throws Exception {
+        testLeaderChanged(false);
+    }
+
+    private void testLeaderChanged(boolean becomesFollower) throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder("server1").toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder("server2").toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                server_2.getManager().setErrorIfNotLeader(false);
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+                assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false),
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                        TransactionContext.NO_TRANSACTION).found());
+
+                server_2.getManager().setErrorIfNotLeader(true);
+
+                ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
+                client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+                client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+                client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+                client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+                try (HDBClient client = new HDBClient(client_configuration);
+                     HDBConnection connection = client.openConnection()) {
+
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                        assertEquals(1, scan.consume().size());
+                    }
+
+                    Set<String> newReplicaList;
+                    if (becomesFollower) {
+                        newReplicaList = new HashSet<>(Arrays.asList("server1", "server2"));
+                    } else {
+                        newReplicaList = new HashSet<>(Arrays.asList("server2"));
+                    }
+
+                    // switch leader to server2
+                    server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                            newReplicaList, "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                    // wait that server_1 leaves leadership
+                    for (int i = 0; i < 100; i++) {
+                        TableSpaceManager tManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+                        if (becomesFollower) {
+                            // wait for server1 to become follower
+                            if (tManager != null && !tManager.isLeader() && !tManager.isFailed()) {
+                                break;
+                            }
+                        } else {
+                            // wait for server1 to become shutdown and lose the tablespace
+                            if (tManager == null) {
+                                break;
+                            }
+                        }
+                        Thread.sleep(100);
+                    }
+                    if (becomesFollower) {
+                        TableSpaceManager tManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+                        assertTrue(tManager != null && !tManager.isLeader());
+                    } else {
+                        TableSpaceManager tManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+                        assertNull(tManager);
+                    }
+
+                    // the client MUST automatically look for the new leader
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                        assertEquals(1, scan.consume().size());
+                    }
+
+                }
+
+                // assert  that server_1 is not accepting request any more
+                try (HDBClient client_to_1 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
+                     HDBConnection connection = client_to_1.openConnection()) {
+                    client_to_1.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_1) {
+                        @Override
+                        public void requestMetadataRefresh(Exception error) throws ClientSideMetadataProviderException {
+                            assertTrue(error instanceof LeaderChangedException);
+                            throw new ClientSideMetadataProviderException(error);
+                        }
+
+                    });
+                    // with prepare statement
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                        fail("server_1 MUST not accept queries");
+                    } catch (ClientSideMetadataProviderException ok) {
+                         assertTrue(ok.getCause() instanceof LeaderChangedException);
+                    }
+                    // without prepare statement
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", false, Collections.emptyList(), 0, 0, 10)) {
+                        fail("server_1 MUST not accept queries");
+                    } catch (ClientSideMetadataProviderException ok) {
+                         assertTrue(ok.getCause() instanceof LeaderChangedException);
+                    }
+                    // with prepare statement
+                    try {
+                        connection.executeUpdate(TableSpace.DEFAULT, "UPDATE t1 set d=2 WHERE c=1", 0, false, true, Collections.emptyList());
+                        fail("server_1 MUST not accept queries");
+                    } catch (ClientSideMetadataProviderException ok) {
+                         assertTrue(ok.getCause() instanceof LeaderChangedException);
+                    }
+                    // without prepare statement
+                    try {
+                        connection.executeUpdate(TableSpace.DEFAULT, "UPDATE t1 set d=2 WHERE c=1", 0, false, false, Collections.emptyList());
+                        fail("server_1 MUST not accept queries");
+                    } catch (ClientSideMetadataProviderException ok) {
+                         assertTrue(ok.getCause() instanceof LeaderChangedException);
+                    }
+
+                }
+
+                // assert that server_2 is accepting requests
+                try (HDBClient client_to_2 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
+                     HDBConnection connection = client_to_2.openConnection()) {
+                    client_to_2.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_2));
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                        assertEquals(1, scan.consume().size());
+                    }
+                }
+
+            }
+
+        }
+    }
+
+    @Test
+    public void testLeaderDetached() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder("server1").toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
