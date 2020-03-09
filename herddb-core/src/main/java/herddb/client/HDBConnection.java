@@ -428,7 +428,7 @@ public class HDBConnection implements AutoCloseable {
         }
         String leaderId = client.getClientSideMetadataProvider().getTableSpaceLeader(tableSpace);
         if (leaderId == null) {
-            throw new HDBException("no such tablespace " + tableSpace + " (no leader found)");
+            throw new HDBException("no leader found on metadata for tablespace "+tableSpace);
         }
         return getRouteToServer(leaderId);
     }

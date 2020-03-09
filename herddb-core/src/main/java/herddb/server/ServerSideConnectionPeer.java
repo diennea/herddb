@@ -800,7 +800,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             String tablespace = PduCodec.PrepareStatement.readTablespace(message);
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(tablespace);
             if (tableSpaceManager == null) {
-                ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "no such tablespace " + tablespace);
+                ByteBuf error = PduCodec.ErrorResponse.writeNotLeaderError(message.messageId, "no such tablespace " + tablespace+" (at "+server.getManager().getNodeId()+")");
                 channel.sendReplyMessage(message.messageId, error);
                 return;
             } else if (!tableSpaceManager.isLeader()) {
