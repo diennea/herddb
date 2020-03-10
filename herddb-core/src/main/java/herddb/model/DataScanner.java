@@ -121,17 +121,25 @@ public abstract class DataScanner implements AutoCloseable {
         throw new RuntimeException("not supported for " + this.getClass());
     }
 
-    public Enumerable<DataAccessor> createEnumerable() {
+    public Enumerable<DataAccessor> createRewindOnCloseEnumerable() {
+        return createEnumerable(true);
+    }
+
+    public Enumerable<DataAccessor> createNonRewindableEnumerable() {
+        return createEnumerable(false);
+    }
+
+    private Enumerable<DataAccessor> createEnumerable(boolean rewindOnClose) {
         return new AbstractEnumerable<DataAccessor>() {
             @Override
             public Enumerator<DataAccessor> enumerator() {
-                return asEnumerator();
+                return asEnumerator(rewindOnClose);
             }
         };
     }
 
     private boolean enumeratorOpened = false;
-    private Enumerator<DataAccessor> asEnumerator() {
+    private Enumerator<DataAccessor> asEnumerator(final boolean rewindOnClose) {
         if (enumeratorOpened) {
             try {
                 rewind();
@@ -140,6 +148,9 @@ public abstract class DataScanner implements AutoCloseable {
             }
         }
         enumeratorOpened = true;
+        if (rewindOnClose && !isRewindSupported()) {
+            throw new HerdDBInternalException("This datascanner is not rewindable");
+        }
         return new Enumerator<DataAccessor>() {
             private DataAccessor current;
 
@@ -173,15 +184,15 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void close() {
-                // close() is another flavour of "rewind", see org.apache.calcite.linq4j.EnumerableDefaults$11$1.closeInner(EnumerableDefaults.java:1953) in Calcite 1.22.0
-                if (isRewindSupported()) {    
-                    try {
-                        rewind();
-                    } catch (DataScannerException ex) {
-                        throw new HerdDBInternalException(ex);
+                if (rewindOnClose) {
+                    // close() is another flavour of "rewind", see org.apache.calcite.linq4j.EnumerableDefaults$11$1.closeInner(EnumerableDefaults.java:1953) in Calcite 1.22.0
+                    if (isRewindSupported()) {
+                        try {
+                            rewind();
+                        } catch (DataScannerException ex) {
+                            throw new HerdDBInternalException(ex);
+                        }
                     }
-                } else {
-                    throw new RuntimeException("No supported!");
                 }
             }
 

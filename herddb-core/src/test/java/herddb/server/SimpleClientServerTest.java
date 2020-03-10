@@ -43,7 +43,6 @@ import herddb.proto.Pdu;
 import herddb.utils.RawString;
 import herddb.utils.TestUtils;
 import java.nio.file.Path;
-import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -687,7 +686,7 @@ public class SimpleClientServerTest {
 
         }
     }
-    
+
     @Test
     public void testSimpleJoinFromNetwork() throws Exception {
         Path baseDir = folder.newFolder().toPath();
@@ -703,12 +702,12 @@ public class SimpleClientServerTest {
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
 
-               
+
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-              
+
                 for (int i = 0; i < 10; i++) {
                     assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
                             "INSERT INTO mytable (id,s1) values(?,?)", 0, false, true, Arrays.asList(i, "test1")).updateCount);
@@ -717,25 +716,25 @@ public class SimpleClientServerTest {
                 // test join with different
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(),0, 0, 100000);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 100000);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
-                
+
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(),0, 0, 1);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 1);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
-                
+
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(),0, 0, 10);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
-                
+
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
@@ -746,9 +745,9 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
             }
 
-          
+
 
         }
     }
-   
+
 }

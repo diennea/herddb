@@ -48,15 +48,12 @@ class FileRecordSet extends MaterializedRecordSet {
 
     private DiskArrayList<DataAccessor> buffer;
     private final Path tmpDirectory;
-    private final Throwable allocationStackTrace;
 
     public FileRecordSet(int expectedSize, int swapThreshold, Column[] columns, String[] fieldNames, FileRecordSetFactory factory) {
         super(expectedSize, fieldNames, columns, factory);
         this.tmpDirectory = factory.tmpDirectory;
         this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, new TupleSerializer(columns, fieldNames));
         this.buffer.enableCompression();
-        this.allocationStackTrace = new Throwable("FileRecordSet-"+System.identityHashCode(this)+"created").fillInStackTrace();
-
     }
 
     private static class TupleSerializer implements DiskArrayList.Serializer<DataAccessor> {
@@ -93,7 +90,6 @@ class FileRecordSet extends MaterializedRecordSet {
         try {
             return buffer.iterator();
         } catch (RuntimeException err) {
-            allocationStackTrace.printStackTrace();
             throw err;
         }
     }

@@ -37,7 +37,7 @@ public class EnumerableDataScanner extends DataScanner {
 
     private final Enumerator<DataAccessor> wrapped;
     private DataAccessor next;
-    
+
     private final DataScanner originalLeft;
     private final DataScanner originalRight;
 

@@ -20,8 +20,12 @@
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.core.MaterializedRecordSet;
+import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -90,10 +94,12 @@ public class JoinOp implements PlannerOp {
         ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext,
                 context, lockRequired, forWrite);
         final long resTransactionId = resRight.transactionId;
-        final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
+        DataScanner leftScanner = resLeft.dataScanner;
+        final String[] fieldNamesFromLeft = leftScanner.getFieldNames();
         final String[] fieldNamesFromRight = resRight.dataScanner.getFieldNames();
         Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
         final Predicate2 predicate;
+        DataScanner rightScanner = resRight.dataScanner;
         if (nonEquiConditions != null && !nonEquiConditions.isEmpty()) {
             if (mergeJoin) {
                 throw new IllegalStateException("Unspected nonEquiConditions " + nonEquiConditions + ""
@@ -115,19 +121,50 @@ public class JoinOp implements PlannerOp {
         } else {
             predicate = null;
         }
+        if (!mergeJoin && !leftScanner.isRewindSupported()) {
+            try {
+                MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(leftScanner.getFieldNames(),
+                                leftScanner.getSchema());
+                leftScanner.forEach(d -> {
+                    recordSet.add(d);
+                });
+                recordSet.writeFinished();
+                SimpleDataScanner materialized = new SimpleDataScanner(leftScanner.getTransaction(), recordSet);
+                leftScanner.close();
+                leftScanner = materialized;
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+        }
+        if (!mergeJoin && !rightScanner.isRewindSupported()) {
+            try {
+                MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(rightScanner.getFieldNames(),
+                                rightScanner.getSchema());
+                rightScanner.forEach(d -> {
+                    recordSet.add(d);
+                });
+                recordSet.writeFinished();
+                SimpleDataScanner materialized = new SimpleDataScanner(rightScanner.getTransaction(), recordSet);
+                rightScanner.close();
+                rightScanner = materialized;
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+        }
+
         Enumerable<DataAccessor> result = mergeJoin
-                ? EnumerableDefaults.mergeJoin(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
+                ? EnumerableDefaults.mergeJoin(leftScanner.createRewindOnCloseEnumerable(),
+                        rightScanner.createRewindOnCloseEnumerable(),
                         JoinKey.keyExtractor(leftKeys),
                         JoinKey.keyExtractor(rightKeys),
                         resultProjection,
                         generateNullsOnLeft,
                         generateNullsOnRight
                 )
-                : EnumerableDefaults.hashJoin(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
+                : EnumerableDefaults.hashJoin(leftScanner.createRewindOnCloseEnumerable(),
+                        rightScanner.createRewindOnCloseEnumerable(),
                         JoinKey.keyExtractor(leftKeys),
                         JoinKey.keyExtractor(rightKeys),
                         resultProjection,
@@ -136,7 +173,7 @@ public class JoinOp implements PlannerOp {
                         generateNullsOnRight,
                         predicate
                 );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result, resLeft.dataScanner, resRight.dataScanner);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result, leftScanner, rightScanner);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }

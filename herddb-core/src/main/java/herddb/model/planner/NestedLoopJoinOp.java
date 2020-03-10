@@ -88,6 +88,7 @@ public class NestedLoopJoinOp implements PlannerOp {
             ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext,
                     context, lockRequired, forWrite);
 
+            DataScanner leftScanner = resLeft.dataScanner;
             transactionContext = new TransactionContext(resLeft.transactionId);
             ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext,
                     context, lockRequired, forWrite);
@@ -120,16 +121,15 @@ public class NestedLoopJoinOp implements PlannerOp {
             }
 
             final long resTransactionId = resRight.transactionId;
-            final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
+            final String[] fieldNamesFromLeft = leftScanner.getFieldNames();
             final String[] fieldNamesFromRight = rightScanner.getFieldNames();
             final Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
             Enumerable<DataAccessor> result = EnumerableDefaults
-                    .nestedLoopJoin(resLeft.dataScanner.createEnumerable(),
-                            rightScanner.createEnumerable(),
+                    .nestedLoopJoin(leftScanner.createNonRewindableEnumerable(),
+                            rightScanner.createRewindOnCloseEnumerable(),
                             predicate(resultProjection, context),
                             resultProjection, linq4jJoinType);
-            EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result,
-                                                                resLeft.dataScanner, rightScanner);
+            EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result, leftScanner, rightScanner);
             return new ScanResult(resTransactionId, joinedScanner);
     }
 
