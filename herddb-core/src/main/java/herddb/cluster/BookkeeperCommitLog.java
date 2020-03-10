@@ -67,7 +67,7 @@ import org.apache.bookkeeper.versioning.Versioned;
 public class BookkeeperCommitLog extends CommitLog {
 
     private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
-    private static final int RECOVERY_BATCH_SIZE = SystemProperties.getIntSystemProperty("herddb.commitlog.recoverybatchsize", 100_000);
+    private static final int RECOVERY_BATCH_SIZE = SystemProperties.getIntSystemProperty("herddb.commitlog.recoverybatchsize", 1_000);
 
     // Max number for entry to read while tailing
     private static final int MAX_ENTRY_TO_TAIL = SystemProperties.getIntSystemProperty("herddb.commitlog.tailbatchsize", 10_000);
