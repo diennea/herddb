@@ -46,6 +46,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     private final int swapThreshold;
     private boolean compressionEnabled = false;
     private final Serializer<T> serializer;
+    private boolean closed;
 
     public interface Serializer<T> {
 
@@ -68,6 +69,9 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     @Override
     // lettura
     public Iterator<T> iterator() {
+        if (closed) {
+            throw new IllegalArgumentException("this DiskArrayList has been closed");
+        }
         if (!written) {
             throw new IllegalArgumentException("call finish() before read operations");
         }
@@ -128,7 +132,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     }
 
     @Override
-    public void close() {
+    public void close() {        
         closeWriter();
         closeReader();
         if (tmpFile != null) {
@@ -142,6 +146,8 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         }
         written = false;
         swapped = false;
+        closed = true;
+        new Exception("closing "+this).printStackTrace();
     }
 
     private void startWrite() throws IOException {

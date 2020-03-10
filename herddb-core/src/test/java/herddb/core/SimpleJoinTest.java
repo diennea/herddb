@@ -29,13 +29,17 @@ import static org.junit.Assume.assumeThat;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DataScanner;
+import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
@@ -835,7 +839,78 @@ public class SimpleJoinTest {
                                 "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4)));
 
             }
+            
+             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('a',1,'A')", Collections.emptyList());
+            
+            {
+
+                List<DataAccessor> tuples = scan(manager,
+                        "SELECT * FROM tblspace1.table1 t1, tblspace1.table2 t2 WHERE t1.k1=? and t2.k2=? and t1.k1=t2.k2", Arrays.asList("a", "a")).consumeAndClose();
+
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                }
+                assertEquals(1, tuples.size());
+
+            }
         }
     }
+    
+      @Test
+    public void testJoinUnsortedKey() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+            manager.start();
+            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
 
+            execute(manager,
+                    "CREATE TABLE customer (customer_id long primary key,contact_email string,contact_person string, creation long, deleted boolean, modification long, name string, vetting boolean)",
+                    Collections.emptyList());
+            execute(manager,
+                    "CREATE TABLE license (license_id long primary key,application string, creation long,data string, deleted boolean, modification long,signature string, customer_id long , license_key_id string)",
+                    Collections.emptyList());
+
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(1,1)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(2,1)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(3,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(4,4)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(5,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(6,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(7,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(8,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(9,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(10,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(11,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(12,5)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(13,6)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(14,7)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(15,3)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO customer (customer_id) values(1)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(2)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(3)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(4)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(5)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(6)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(7)", Collections.emptyList());
+
+            {
+                try (DataScanner scan1 = scan(manager,
+                        "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
+                        Arrays.asList(1, 1))) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    assertEquals(9, consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+
+                }
+            }
+        }
+    }
 }
+

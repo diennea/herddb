@@ -159,12 +159,12 @@ public class NestedLoopJoinOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return "ThetaJoinOp{" + "left=" + left
-                + ", right=" + right
-                + ", fieldNames=" + Arrays.toString(fieldNames)
-                + ", columns=" + Arrays.toString(columns)
-                + ", joinRelType=" + joinRelType
-                + ", condition=" + condition + '}';
+        return "NestedLoopJoinOp{" + "\nleft=" + left
+                + "\n, right=" + right
+                + "\n, fieldNames=" + Arrays.toString(fieldNames)
+                + "\n, columns=" + Arrays.toString(columns)
+                + "\n, joinRelType=" + joinRelType
+                + "\n, condition=" + condition + '}';
     }
 
 

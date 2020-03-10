@@ -89,6 +89,8 @@ public class EnumerableDataScanner extends DataScanner {
                     wrapped.close();
                 } catch (RuntimeException err) {
                     throw new DataScannerException(err);
+                } finally {
+                    super.close();
                 }
             }
         }

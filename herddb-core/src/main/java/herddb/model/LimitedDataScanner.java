@@ -70,6 +70,7 @@ public class LimitedDataScanner extends DataScanner {
     @Override
     public void close() throws DataScannerException {
         wrapped.close();
+        super.close();
     }
 
 }

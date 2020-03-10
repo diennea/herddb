@@ -41,6 +41,7 @@ public abstract class DataScanner implements AutoCloseable {
     private final Column[] schema;
     private final String[] fieldNames;
     public Transaction transaction; // no final
+    private boolean closed;
 
     public DataScanner(Transaction transaction, String[] fieldNames, Column[] schema) {
         this.schema = schema;
@@ -68,6 +69,10 @@ public abstract class DataScanner implements AutoCloseable {
 
     public abstract DataAccessor next() throws DataScannerException;
 
+    public boolean isClosed() {
+        return closed;
+    }
+
     /**
      * Consumers all the records in memory
      *
@@ -82,6 +87,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     @Override
     public void close() throws DataScannerException {
+//        closed = true;    
     }
 
     /**
@@ -184,7 +190,7 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void close() {
-                if (rewindOnClose) {
+                if (rewindOnClose && !closed) {
                     // close() is another flavour of "rewind", see org.apache.calcite.linq4j.EnumerableDefaults$11$1.closeInner(EnumerableDefaults.java:1953) in Calcite 1.22.0
                     if (isRewindSupported()) {
                         try {

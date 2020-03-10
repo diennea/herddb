@@ -354,6 +354,7 @@ public class ProjectOp implements PlannerOp {
         @Override
         public void close() throws DataScannerException {
             downstream.close();
+            super.close();
         }
 
     }
