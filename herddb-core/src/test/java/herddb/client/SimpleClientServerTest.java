@@ -54,7 +54,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import jdk.jfr.internal.test.WhiteBox;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
