@@ -137,7 +137,6 @@ public class FilterOp implements PlannerOp {
 
         @Override
         public void rewind() throws DataScannerException {
-            new Exception("rewind!!").printStackTrace();
             inputScanner.rewind();
             fetchNext();
         }

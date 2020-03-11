@@ -132,7 +132,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     }
 
     @Override
-    public void close() {        
+    public void close() {
         closeWriter();
         closeReader();
         if (tmpFile != null) {
@@ -147,7 +147,6 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         written = false;
         swapped = false;
         closed = true;
-        new Exception("closing "+this).printStackTrace();
     }
 
     private void startWrite() throws IOException {

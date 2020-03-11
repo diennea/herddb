@@ -87,7 +87,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     @Override
     public void close() throws DataScannerException {
-//        closed = true;    
+        closed = true;
     }
 
     /**

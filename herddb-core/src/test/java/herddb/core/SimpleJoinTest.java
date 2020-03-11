@@ -26,11 +26,13 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
+import herddb.file.FileCommitLogManager;
+import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
-import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
@@ -39,10 +41,13 @@ import herddb.sql.CalcitePlanner;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on basic JOIN queries
@@ -839,9 +844,9 @@ public class SimpleJoinTest {
                                 "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4)));
 
             }
-            
+
              execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('a',1,'A')", Collections.emptyList());
-            
+
             {
 
                 List<DataAccessor> tuples = scan(manager,
@@ -856,11 +861,25 @@ public class SimpleJoinTest {
             }
         }
     }
-    
-      @Test
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    @Test
     public void testJoinUnsortedKey() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        // this test is using FileDataStorageManager, because it sorts PK in a way that
+        // reproduces an error due to the order or elements returned during the scan
+        try (DBManager manager = new DBManager(nodeId,
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
             manager.start();
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
@@ -899,7 +918,7 @@ public class SimpleJoinTest {
             {
                 try (DataScanner scan1 = scan(manager,
                         "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
-                        Arrays.asList(1, 1))) {
+                        Collections.emptyList())) {
 
                     List<DataAccessor> consume = scan1.consume();
                     System.out.println("NUM " + consume.size());
@@ -909,6 +928,24 @@ public class SimpleJoinTest {
                     }
 
                 }
+            }
+
+            // joins during transactions must release transaction resources properly
+            {
+                long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);
+                try (DataScanner scan1 = scan(manager,
+                        "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
+                        Collections.emptyList(), new TransactionContext(tx))) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    assertEquals(9, consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+
+                }
+                TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
             }
         }
     }
