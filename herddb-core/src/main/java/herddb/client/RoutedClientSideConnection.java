@@ -263,6 +263,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
+    Channel getChannel() {
+        return channel;
+    }
+
     public void close() {
         LOGGER.log(Level.FINER, "{0} - close", this);
 
@@ -280,15 +284,19 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     private Channel ensureOpen() throws HDBException {
         connectionLock.readLock().lock();
         try {
-            if (this.channel != null) {
+            if (this.channel != null && channel.isValid()) {
                 return this.channel;
             }
             connectionLock.readLock().unlock();
 
             connectionLock.writeLock().lock();
             try {
-                if (this.channel != null) {
+                if (this.channel != null && channel.isValid()) {
                     return this.channel;
+                }
+                if (this.channel != null) {
+                    // channel is not valid, force close
+                    this.channel.close();
                 }
                 // clean up local cache, if the server restarted we would use old ids
                 preparedStatements.clear();
