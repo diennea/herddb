@@ -38,11 +38,11 @@
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
-            <artifactId>netty-transport-native-epoll</artifactId>            
+            <artifactId>netty-transport-native-epoll</artifactId>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
-            <artifactId>netty-transport-native-unix-common</artifactId>            
+            <artifactId>netty-transport-native-unix-common</artifactId>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
@@ -59,23 +59,31 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-buffer</artifactId>
-        </dependency> 
+        </dependency>
         <dependency>
             <groupId>io.netty</groupId>
-            <artifactId>netty-tcnative-boringssl-static</artifactId>            
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-utils</artifactId>
             <version>${project.version}</version>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.apache.bookkeeper</groupId>
             <artifactId>bookkeeper-server</artifactId>
         </dependency>
-    </dependencies>    
+    </dependencies>
 </project>
