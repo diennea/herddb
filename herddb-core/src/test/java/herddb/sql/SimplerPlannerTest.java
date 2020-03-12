@@ -272,7 +272,7 @@ public class SimplerPlannerTest {
                     List<DataAccessor> results = scan.consume();
                     assertEquals(1, results.size());
                     assertEquals(3, results.get(0).getFieldNames().length);
-                    assertEquals(1234L, results.get(0).get(0));
+                    assertEquals(1234, results.get(0).get(0));
                     assertEquals(1L, results.get(0).get(1));
                     assertEquals(RawString.of("mykey"), results.get(0).get(2));
                 }

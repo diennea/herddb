@@ -9,6 +9,11 @@
 **/.project
 **/.settings
 
+# idea
+.idea
+**/*.iml
+*.iml
+
 # Release
 pom.xml.tag
 pom.xml.releaseBackup

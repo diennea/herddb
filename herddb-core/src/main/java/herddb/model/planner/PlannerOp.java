@@ -75,6 +75,8 @@ public interface PlannerOp extends Wrapper {
             return CompletableFuture.completedFuture(execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite));
         } catch (StatementExecutionException err) {
             return FutureUtils.exception(err);
+        } catch (RuntimeException err) {
+            return FutureUtils.exception(new StatementExecutionException(err));
         }
     }
 

@@ -141,6 +141,12 @@ public class FilterOp implements PlannerOp {
             fetchNext();
         }
 
+        @Override
+        public boolean isRewindSupported() {
+            return inputScanner.isRewindSupported();
+        }
+
+
     }
 
     @Override

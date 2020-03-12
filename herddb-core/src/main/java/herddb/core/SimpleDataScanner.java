@@ -104,4 +104,10 @@ public class SimpleDataScanner extends DataScanner {
         this.next = null;
     }
 
+    @Override
+    public boolean isRewindSupported() {
+        return true;
+    }
+
+
 }

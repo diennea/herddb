@@ -128,6 +128,7 @@ public class UnionAllOp implements PlannerOp {
         @Override
         public void close() throws DataScannerException {
             current.close();
+            super.close();
         }
 
     }

@@ -2288,4 +2288,43 @@ public class RawSQLTest {
 
         }
     }
+
+    @Test
+    public void testDMLOutOfOrderThanCreateTable() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.IP (\n"
+                + "   field0             INT          NOT NULL PRIMARY KEY,\n"
+                + "   field1          VARCHAR(15)  NOT NULL,\n"
+                + "   field2         VARCHAR(255) NOT NULL,\n"
+                + "   field3           INT          NOT NULL,\n"
+                + "   field4           INT          NOT NULL,\n"
+                + "   field5            NCLOB        /* NOT NULL */\n"
+                + ")", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager,
+                    "INSERT INTO tblspace1.IP (field0,field1,field3,field4,field2,field5) values(?,?,?,?,?,?)",
+                    Arrays.asList(1, "1.2.3.4", 2, 5, "localhost", "aaa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager,
+                    "UPDATE tblspace1.IP set field3=?, field2=?, field4=?, field5=? WHERE field0=?",
+                    Arrays.asList(1, "localhost", 8, "aaa", 1)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager,
+                    "UPDATE tblspace1.IP set field3=?, field4=?, field2=?, field5=? WHERE field0=?",
+                    Arrays.asList(1, 8, "localhost", "aaa", 1)).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT field5,field4,field2,field3 FROM tblspace1.IP where field0=?", Arrays.asList(1));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertThat(next, instanceOf(RuntimeProjectedDataAccessor.class));
+                    assertArrayEquals(new String[] {"field5", "field4", "field2", "field3"}, next.getFieldNames());
+                    assertArrayEquals(new Object[] {RawString.of("aaa"), 8, RawString.of("localhost"), 1 }, next.getValues());
+                }
+            }
+
+        }
+    }
 }

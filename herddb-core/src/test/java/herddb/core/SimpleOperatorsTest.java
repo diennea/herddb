@@ -293,10 +293,10 @@ public class SimpleOperatorsTest {
             }
 
             // In expressions
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in (1,2,3)", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 in (1,2,3)", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in (1)", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in ('a','c')", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
 
