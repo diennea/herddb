@@ -87,11 +87,7 @@ class FileRecordSet extends MaterializedRecordSet {
         if (!writeFinished) {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
-        try {
-            return buffer.iterator();
-        } catch (RuntimeException err) {
-            throw err;
-        }
+        return buffer.iterator();
     }
 
     @Override
