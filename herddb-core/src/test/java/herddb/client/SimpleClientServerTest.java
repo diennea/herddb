@@ -18,30 +18,32 @@
 
  */
 
-package herddb.server;
+package herddb.client;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import herddb.client.ClientConfiguration;
-import herddb.client.DMLResult;
-import herddb.client.GetResult;
-import herddb.client.HDBClient;
-import herddb.client.HDBConnection;
-import herddb.client.HDBException;
-import herddb.client.RoutedClientSideConnection;
-import herddb.client.ScanResultSet;
 import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.network.Channel;
+import herddb.network.netty.NettyChannel;
 import herddb.proto.Pdu;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.ServerSideConnectionPeer;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 import herddb.utils.TestUtils;
+import io.netty.channel.socket.SocketChannel;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -702,11 +704,9 @@ public class SimpleClientServerTest {
 
                 assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
 
-
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
-
 
                 for (int i = 0; i < 10; i++) {
                     assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
@@ -747,6 +747,76 @@ public class SimpleClientServerTest {
 
 
 
+        }
+    }
+
+    @Test
+    public void testEnsureOpen() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        AtomicReference<RoutedClientSideConnection[]> connections = new AtomicReference<>();
+        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.getNetworkServer().setEnableJVMNetwork(false);
+            server.getNetworkServer().setEnableRealNetwork(true);
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
+            clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, 2000);
+            try (HDBClient client = new HDBClient(clientConfiguration) {
+                @Override
+                public HDBConnection openConnection() {
+                    HDBConnection con = new HDBConnection(this) {
+                        @Override
+                        protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+                            connections.set(all);
+                            return all[0];
+                        }
+
+                    };
+                    registerConnection(con);
+                    return con;
+                }
+
+            };
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id int primary key, s1 string)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,s1) values(?,?)", 0, false, true, Arrays.asList(1, "test1")).updateCount);
+
+                // assert we are using real network
+                assertNotEquals(NettyChannel.ADDRESS_JVM_LOCAL, connections.get()[0].getChannel().getRemoteAddress());
+                io.netty.channel.Channel socket = ((NettyChannel) connections.get()[0].getChannel()).getSocket();
+                assertThat(socket, instanceOf(SocketChannel.class));
+
+                // invalidate socket connection (simulate network error)
+                socket.close().await();
+
+                // ensure reconnection is performed (using prepared statement)
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", true, Collections.emptyList(), 0, 100, 1000).close();
+
+                // assert we are using real network
+                assertNotEquals(NettyChannel.ADDRESS_JVM_LOCAL, connections.get()[0].getChannel().getRemoteAddress());
+                io.netty.channel.Channel socket2 = ((NettyChannel) connections.get()[0].getChannel()).getSocket();
+                assertThat(socket2, instanceOf(SocketChannel.class));
+                assertNotSame(socket2, socket);
+
+                // invalidate socket connection (simulate network error)
+                socket2.close().await();
+
+                // ensure reconnection is performed (not using prepared statement)
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", false, Collections.emptyList(), 0, 100, 1000).close();
+
+
+            }
         }
     }
 

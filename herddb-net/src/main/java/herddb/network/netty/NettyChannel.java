@@ -49,6 +49,7 @@ public class NettyChannel extends Channel {
 
     volatile io.netty.channel.Channel socket;
     private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
+    public static final String ADDRESS_JVM_LOCAL = "jvm-local";
     private static final AtomicLong idGenerator = new AtomicLong();
 
     private final ConcurrentLongHashMap<PduCallback> callbacks = new ConcurrentLongHashMap<>();
@@ -74,7 +75,7 @@ public class NettyChannel extends Channel {
         if (socket instanceof SocketChannel) {
             this.remoteAddress = ((SocketChannel) socket).remoteAddress() + "";
         } else {
-            this.remoteAddress = "jvm-local";
+            this.remoteAddress = ADDRESS_JVM_LOCAL;
         }
     }
 
@@ -297,6 +298,11 @@ public class NettyChannel extends Channel {
     @Override
     public void setName(String name) {
         this.name = name;
+    }
+
+    // visible for testing only
+    public io.netty.channel.Channel getSocket() {
+        return socket;
     }
 
 }
