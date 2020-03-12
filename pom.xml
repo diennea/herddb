@@ -91,8 +91,8 @@
         <libs.netty4ssl>2.0.28.Final</libs.netty4ssl>
         <libs.calcite>1.19.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
-        <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-        <libs.zookeeper>3.5.6</libs.zookeeper>
+        <libs.jackson.mapper>2.10.3</libs.jackson.mapper>
+        <libs.zookeeper>3.5.7</libs.zookeeper>
         <libs.jsqlparser>3.1</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>
@@ -105,7 +105,7 @@
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
         <libs.spotbugsmaven>3.1.12.2</libs.spotbugsmaven>
         <fbs.version>1.9.0</fbs.version>
-        <checkstyle.version>8.23</checkstyle.version>
+        <checkstyle.version>8.30</checkstyle.version>
     </properties>
 
     <dependencies>
@@ -194,8 +194,18 @@
                 <version>${libs.calcite}</version>
             </dependency>
             <dependency>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${libs.jackson.mapper}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${libs.jackson.mapper}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
                 <version>${libs.jackson.mapper}</version>
             </dependency>
             <dependency>
@@ -435,7 +445,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.1.1</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
