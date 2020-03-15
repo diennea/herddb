@@ -590,8 +590,9 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.22.2</version>
+                        <version>3.0.0-SNAPSHOT</version>
                         <configuration>
+                            <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory"/>
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
@@ -667,7 +668,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.22.0</version>
+                        <version>3.0.0-SNAPSHOT</version>
                         <configuration>
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
