@@ -30,21 +30,24 @@ import herddb.model.RecordFunction;
  *
  * @author enrico.olivelli
  */
-public class InsertStatement extends DMLStatement {
+public final class InsertStatement extends DMLStatement {
 
     private final RecordFunction keyFunction;
     private final RecordFunction valuesFunction;
+    private final boolean upsert;
 
     public InsertStatement(String tableSpace, String table, Record record) {
         super(table, tableSpace);
         this.keyFunction = new ConstValueRecordFunction(record.key);
         this.valuesFunction = new ConstValueRecordFunction(record.value);
+        this.upsert = false;
     }
 
     public InsertStatement(String tableSpace, String table, RecordFunction keyFunction, RecordFunction function) {
         super(table, tableSpace);
         this.keyFunction = keyFunction;
         this.valuesFunction = function;
+        this.upsert = false;
     }
 
     public RecordFunction getKeyFunction() {
@@ -53,6 +56,10 @@ public class InsertStatement extends DMLStatement {
 
     public RecordFunction getValuesFunction() {
         return valuesFunction;
+    }
+
+    public boolean isUpsert() {
+        return upsert;
     }
 
 }
