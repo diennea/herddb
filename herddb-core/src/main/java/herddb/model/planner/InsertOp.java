@@ -59,12 +59,14 @@ public class InsertOp implements PlannerOp {
     private final String tableName;
     private final PlannerOp input;
     private final boolean returnValues;
+    private final boolean upsert;
 
-    public InsertOp(String tableSpace, String tableName, PlannerOp input, boolean returnValues) {
+    public InsertOp(String tableSpace, String tableName, PlannerOp input, boolean returnValues, boolean upsert) {
         this.tableSpace = tableSpace;
         this.tableName = tableName;
         this.input = input.optimize();
         this.returnValues = returnValues;
+        this.upsert = upsert;
     }
 
     @Override
@@ -126,7 +128,7 @@ public class InsertOp implements PlannerOp {
                 }
                 RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
-                DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
                 statements.add(insertStatement);
             }
             if (statements.isEmpty()) {
@@ -166,7 +168,6 @@ public class InsertOp implements PlannerOp {
                     }
                     long newTransactionId = res.transactionId;
                     if (current == statements.size()) {
-                        LOG.severe("multiinsert finished with tx " + newTransactionId + " and " + updateCounts + " recods");
                         DMLStatementExecutionResult finalDMLResult =
                                 new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
                                         lastKey.get(), lastNewValue.get());
@@ -175,7 +176,6 @@ public class InsertOp implements PlannerOp {
                     }
 
                     DMLStatement nextStatement = statements.get(current);
-                    LOG.log(Level.SEVERE, "executing # " + current + " newTx " + newTransactionId + " -" + nextStatement);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
                     CompletableFuture<StatementExecutionResult> nextPromise =
                             tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
@@ -184,7 +184,6 @@ public class InsertOp implements PlannerOp {
             }
 
             DMLStatement firstStatement = statements.get(0);
-            LOG.log(Level.SEVERE, "executing first " + firstStatement);
             tableSpaceManager.executeStatementAsync(firstStatement, context, transactionContext)
                     .whenComplete(new ComputeNext(1));
 

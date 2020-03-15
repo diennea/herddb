@@ -28,10 +28,8 @@ import herddb.core.stats.TableManagerStats;
 import herddb.index.PrimaryIndexSeek;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
-import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Predicate;
-import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -45,7 +43,6 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
@@ -66,11 +63,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     private final TableSpaceManager tableSpaceManager;
     private final TableManagerStats stats;
 
-    private final InsertStatement insert;
+    private final InsertStatement upsert;
     private final DeleteStatement delete;
-    private final UpdateStatement update;
     private final ScanStatement scan;
-    private final ScanStatement scanKeys;
 
     private static class PutStatementEvaluationContext<K, V> extends StatementEvaluationContext {
 
@@ -135,11 +130,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                 }
             }
         };
-        insert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction);
-        update = new UpdateStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction, null);
+        upsert = new InsertStatement(TableSpace.DEFAULT, tmpTableName, keyFunction, valuesFunction, true /*upsert*/);
         delete = new DeleteStatement(TableSpace.DEFAULT, tmpTableName, null, new PredicateDeleteImpl(keyFunction));
         scan = new ScanStatement(TableSpace.DEFAULT, table, null);
-        scanKeys = new ScanStatement(TableSpace.DEFAULT, table.name, Projection.PRIMARY_KEY(table), null, null, null);
         stats = tableSpaceManager
                 .getTableManager(tmpTableName)
                 .getStats();
@@ -155,14 +148,9 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void put(K key, V value) throws CollectionsException {
         StatementEvaluationContext context = new PutStatementEvaluationContext(key, value);
-        // no concurrent access, no need to be super conservative, keep row-level locks..
+        // since 0.15 we are using upsert, that is an atomic operation
         try {
-            try {
-                // our best guess it that the key is not already mapped
-                tableSpaceManager.executeStatement(insert, context, TransactionContext.NO_TRANSACTION);
-            } catch (DuplicatePrimaryKeyException alreadyExists) {
-                tableSpaceManager.executeStatement(update, context, TransactionContext.NO_TRANSACTION);
-            }
+            tableSpaceManager.executeStatement(upsert, context, TransactionContext.NO_TRANSACTION);
         } catch (HerdDBInternalException err) {
             throw new CollectionsException(err);
         }

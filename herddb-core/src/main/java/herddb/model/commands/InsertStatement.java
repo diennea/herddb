@@ -43,11 +43,11 @@ public final class InsertStatement extends DMLStatement {
         this.upsert = false;
     }
 
-    public InsertStatement(String tableSpace, String table, RecordFunction keyFunction, RecordFunction function) {
+    public InsertStatement(String tableSpace, String table, RecordFunction keyFunction, RecordFunction function, boolean upsert) {
         super(table, tableSpace);
         this.keyFunction = keyFunction;
         this.valuesFunction = function;
-        this.upsert = false;
+        this.upsert = upsert;
     }
 
     public RecordFunction getKeyFunction() {
