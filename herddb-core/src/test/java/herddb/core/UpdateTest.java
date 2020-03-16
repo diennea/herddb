@@ -27,6 +27,7 @@ import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -221,6 +222,34 @@ public class UpdateTest {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
                 assertEquals(1, recordSet.size());
                 assertEquals(1238, recordSet.get(0).get(0));
+            }
+
+            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList()).getUpdateCount());
+            execute(manager, "ALTER TABLE tblspace1.tsql MODIFY s1 string not null", Collections.emptyList());
+
+            // assert that UPSERT fails
+            StatementExecutionException error =
+                    herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () ->  {
+                        executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235)));
+                    });
+            assertEquals("From line 1, column 13 to line 1, column 26: Column 's1' has no default value and does not allow NULLs", error.getMessage());
+
+            // insert a value, n1 has a value
+            assertEquals(1, executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,'non-empty')", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT n1 from tblspace1.tsql where k1=?", Arrays.asList("mykey"))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(1, recordSet.size());
+                assertEquals(1235, recordSet.get(0).get(0));
+            }
+
+            // upsert, making n1 null now, because it has not been named in the INSERT clause
+            assertEquals(1, executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,s1) values(?,'non-empty')", Arrays.asList("mykey")).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT n1 from tblspace1.tsql where k1=?", Arrays.asList("mykey"))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(1, recordSet.size());
+                assertNull(recordSet.get(0).get(0));
             }
         }
     }
