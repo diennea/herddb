@@ -75,6 +75,18 @@ public class GeneratedKeysTest {
                     }
                     assertNotNull(key);
                     assertEquals(Integer.valueOf(1), key);
+
+                    // test with UPSERT
+                    assertEquals(1, statement.executeUpdate("UPSERT INTO mytable (name) values('name1')",
+                            Statement.RETURN_GENERATED_KEYS));
+                    key = null;
+                    try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                        if (generatedKeys.next()) {
+                            key = generatedKeys.getObject(1);
+                        }
+                    }
+                    assertNotNull(key);
+                    assertEquals(Integer.valueOf(2), key);
                 }
             }
         }
