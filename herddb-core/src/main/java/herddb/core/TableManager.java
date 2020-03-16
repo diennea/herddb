@@ -1082,6 +1082,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         LockHandle lock = lockForWrite(key, transaction);
         CompletableFuture<StatementExecutionResult> res = null;
+        boolean fallbackToUpsert = false;
         if (transaction != null) {
             if (transaction.recordDeleted(table.name, key)) {
                 // OK, INSERT on a DELETED record inside this transaction
@@ -1089,13 +1090,27 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 // ERROR, INSERT on a INSERTED record inside this transaction
                 res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                if (insert.isUpsert()) {
+                    fallbackToUpsert = true;
+                } else {
+                    res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                }
             }
         } else if (keyToPage.containsKey(key)) {
-            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
+            if (insert.isUpsert()) {
+                fallbackToUpsert = true;
+            } else {
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
+            }
         }
+
         if (res == null) {
-            LogEntry entry = LogEntryFactory.insert(table, key, Bytes.from_array(value), transaction);
+            LogEntry entry;
+            if (fallbackToUpsert) {
+                entry = LogEntryFactory.update(table, key, Bytes.from_array(value), transaction);
+            } else {
+                entry = LogEntryFactory.insert(table, key, Bytes.from_array(value), transaction);
+            }
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
                 apply(pos, entry, false);

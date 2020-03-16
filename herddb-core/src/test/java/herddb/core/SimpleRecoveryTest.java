@@ -790,7 +790,7 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.checkpoint();
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]), false);
             DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
@@ -815,7 +815,7 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]), false);
             DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
@@ -863,7 +863,7 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.checkpoint();
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]), false);
             DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
@@ -886,7 +886,7 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]), false);
             DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();

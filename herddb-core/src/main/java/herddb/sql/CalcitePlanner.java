@@ -250,7 +250,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (query.startsWith("EXPLAIN ")) {
                 query = query.substring("EXPLAIN ".length());
                 PlannerResult plan = runPlanner(defaultTableSpace, query);
-                PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                boolean upsert = detectUpsert(query);
+                PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                         .optimize();
                 ValuesOp values = new ValuesOp(manager.getNodeId(),
                         new String[]{"name", "value"},
@@ -288,8 +289,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             PlannerResult plan = runPlanner(defaultTableSpace, query);
+            boolean upsert = detectUpsert(query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
-                    convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                    convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                             .optimize());
             if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
                 LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
@@ -345,6 +347,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
         }
+    }
+
+    private static boolean detectUpsert(String query) {
+        // unfortunately Calcite does not retain the UPSERT flag in LogicalTableModify
+        boolean upsert = query.startsWith("UPSERT");
+        return upsert;
     }
 
 
@@ -549,13 +557,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp convertRelNode(
             RelNode plan,
-            RelDataType rowType, boolean returnValues
+            RelDataType rowType, boolean returnValues, boolean upsert
     ) throws StatementExecutionException {
         if (plan instanceof EnumerableTableModify) {
             EnumerableTableModify dml = (EnumerableTableModify) plan;
             switch (dml.getOperation()) {
                 case INSERT:
-                    return planInsert(dml, returnValues);
+                    return planInsert(dml, returnValues, upsert);
                 case DELETE:
                     return planDelete(dml);
                 case UPDATE:
@@ -612,7 +620,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planInsert(
             EnumerableTableModify dml,
-            boolean returnValues
+            boolean returnValues,
+            boolean upsert
     ) {
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -669,7 +678,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                             keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, table);
                         }
                         RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
-                        statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                        statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
                     }
                 }
             }
@@ -678,17 +687,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return new SimpleInsertOp(statement);
         }
         PlannerOp input = convertRelNode(dml.getInput(),
-                null, false);
+                null, false, false);
 
         try {
-            return new InsertOp(tableSpace, tableName, input, returnValues);
+            return new InsertOp(tableSpace, tableName, input, returnValues, upsert);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
     }
 
     private PlannerOp planDelete(EnumerableTableModify dml) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false, false);
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
@@ -721,7 +730,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false, false);
         List<String> updateColumnList = dml.getUpdateColumnList();
         List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -893,7 +902,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planProject(EnumerableProject op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), null, false);
+        PlannerOp input = convertRelNode(op.getInput(), null, false, false);
 
         final List<RexNode> projects = op.getProjects();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
@@ -903,8 +912,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableHashJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableSemiJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
         final JoinInfo analyzeCondition = op.analyzeCondition();
         int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
         int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
@@ -945,8 +954,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
         final JoinInfo analyzeCondition = op.analyzeCondition();
         int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
         int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
@@ -971,8 +980,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planEnumerableNestedLoopJoin(EnumerableNestedLoopJoin op, RelDataType rowType) {
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
@@ -991,8 +1000,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
         // please note that EnumerableMergeJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
         final JoinInfo analyzeCondition = op.analyzeCondition();
         int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
         int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
@@ -1094,7 +1103,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planSort(EnumerableSort op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, false);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, false, false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
         boolean[] directions = new boolean[fieldCollations.size()];
@@ -1113,11 +1122,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planInterpreter(EnumerableInterpreter op, RelDataType rowType, boolean returnValues) {
         // NOOP
-        return convertRelNode(op.getInput(), rowType, returnValues);
+        return convertRelNode(op.getInput(), rowType, returnValues, false);
     }
 
     private PlannerOp planLimit(EnumerableLimit op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, false);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, false, false);
         CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
         CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
         return new LimitOp(input, maxRows, offset);
@@ -1125,7 +1134,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planFilter(EnumerableFilter op, RelDataType rowType, boolean returnValues) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, returnValues);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, returnValues, false);
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
         return new FilterOp(input, condition);
 
@@ -1137,7 +1146,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         List<PlannerOp> inputs = new ArrayList<>(op.getInputs().size());
         for (RelNode input : op.getInputs()) {
-            PlannerOp inputOp = convertRelNode(input, rowType, false).optimize();
+            PlannerOp inputOp = convertRelNode(input, rowType, false, false).optimize();
             inputs.add(inputOp);
         }
         return new UnionAllOp(inputs);
@@ -1168,7 +1177,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             aggtypes[idaggcall++] = call.getAggregation().getName();
             argLists.add(call.getArgList());
         }
-        PlannerOp input = convertRelNode(op.getInput(), null, returnValues);
+        PlannerOp input = convertRelNode(op.getInput(), null, returnValues, false);
         return new AggregateOp(input, fieldnames, columns, aggtypes, argLists, groupedFiledsIndexes);
     }
 
