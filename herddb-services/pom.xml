@@ -26,7 +26,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Services</name>
-    <artifactId>herddb-services</artifactId>   
+    <artifactId>herddb-services</artifactId>
     <packaging>jar</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
@@ -34,7 +34,7 @@
         <libs.jaxws.jaxb-api>2.3.0</libs.jaxws.jaxb-api>
         <libs.jaxws.jaxb-impl>2.3.0</libs.jaxws.jaxb-impl>
         <libs.javaxactivation.api>1.2.0</libs.javaxactivation.api>
-    </properties>    
+    </properties>
     <dependencies>
         <dependency>
             <groupId>javax.xml.bind</groupId>
@@ -45,7 +45,7 @@
             <groupId>org.glassfish.jaxb</groupId>
             <artifactId>jaxb-runtime</artifactId>
             <version>${libs.jaxws.jaxb-impl}</version>
-        </dependency>    
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-core</artifactId>
@@ -62,13 +62,23 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>
             <version>${project.version}</version>
             <scope>runtime</scope>
             <classifier>uber</classifier>
+        </dependency>
+        <dependency>
+            <!-- needed for ZK server -->
+            <groupId>io.dropwizard.metrics</groupId>
+            <artifactId>metrics-core</artifactId>
+        </dependency>
+        <dependency>
+            <!-- needed for ZK server -->
+            <groupId>org.xerial.snappy</groupId>
+            <artifactId>snappy-java</artifactId>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
@@ -84,7 +94,7 @@
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-servlet</artifactId>
             <version>${jetty.version}</version>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-util</artifactId>
@@ -92,15 +102,15 @@
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>     
-        </dependency>   
+            <artifactId>commons-io</artifactId>
+        </dependency>
         <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.bookkeeper</groupId>
-            <artifactId>bookkeeper-server</artifactId>       
+            <artifactId>bookkeeper-server</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.bookkeeper.stats</groupId>
@@ -109,37 +119,37 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>
             <scope>test</scope>
-        </dependency>  
-        
-             
+        </dependency>
+
+
         <!-- web ui -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-ui</artifactId>
-            <version>${project.version}</version>            
+            <version>${project.version}</version>
             <scope>runtime</scope>
             <type>war</type>
             <classifier>war-no-libs</classifier>
-        </dependency> 
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>
-            <version>${project.version}</version>            
-            <scope>runtime</scope>            
+            <version>${project.version}</version>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-ui</artifactId>
-            <version>${project.version}</version>            
+            <version>${project.version}</version>
             <scope>runtime</scope>
             <type>jar</type>
             <classifier>classes</classifier>
-        </dependency>       
+        </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.containers</groupId>
             <artifactId>jersey-container-servlet</artifactId>
@@ -155,9 +165,9 @@
             <artifactId>jersey-media-json-jackson</artifactId>
             <version>${libs.jersey}</version>
         </dependency>
-                                                        
+
     </dependencies>
-    <build>        
+    <build>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -166,7 +176,7 @@
         </resources>
         <plugins>
             <plugin>
-                <artifactId>maven-deploy-plugin</artifactId>                
+                <artifactId>maven-deploy-plugin</artifactId>
                 <version>2.8.2</version>
                 <configuration>
                     <skip>true</skip>
@@ -184,8 +194,8 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>    
-             
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -193,13 +203,13 @@
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
-                        <descriptor>src/main/assemble/zip-assembly.xml</descriptor>                        
-                    </descriptors>                    
+                        <descriptor>src/main/assemble/zip-assembly.xml</descriptor>
+                    </descriptors>
                     <attach>true</attach>
                 </configuration>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>  
+                        <id>make-assembly</id>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
@@ -207,7 +217,7 @@
                     </execution>
                 </executions>
             </plugin>
-      
+
         </plugins>
     </build>
 </project>
