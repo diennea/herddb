@@ -151,7 +151,6 @@ import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlExplainFormat;
 import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlInsert;
-import org.apache.calcite.sql.SqlInsertKeyword;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
