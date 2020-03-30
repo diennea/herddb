@@ -256,11 +256,17 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
     @Override
     public void channelClosed(Channel channel) {
-        // clean up local cache, if the server restarted we would use old ids
-        preparedStatements.clear();
-        if (channel == this.channel) {
-            this.channel = null;
+        connectionLock.writeLock().lock();
+        try {
+            // clean up local cache, if the server restarted we would use old ids
+            preparedStatements.clear();
+            if (channel == this.channel) {
+                this.channel = null;
+            }
+        } finally {
+            connectionLock.writeLock().unlock();
         }
+
     }
 
     Channel getChannel() {
@@ -272,6 +278,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
         connectionLock.writeLock().lock();
         try {
+            // clean up local cache
+            preparedStatements.clear();
             if (channel != null) {
                 channel.close();
             }
@@ -284,28 +292,31 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     private Channel ensureOpen() throws HDBException {
         connectionLock.readLock().lock();
         try {
-            if (this.channel != null && channel.isValid()) {
-                return this.channel;
+            Channel channel = this.channel;
+            if (channel != null && channel.isValid()) {
+                return channel;
             }
             connectionLock.readLock().unlock();
 
             connectionLock.writeLock().lock();
             try {
-                if (this.channel != null && channel.isValid()) {
-                    return this.channel;
-                }
+                channel = this.channel;
                 if (this.channel != null) {
+                    if (channel.isValid()) {
+                        return channel;
+                    }
+
                     // channel is not valid, force close
-                    this.channel.close();
+                    channel.close();
                 }
                 // clean up local cache, if the server restarted we would use old ids
                 preparedStatements.clear();
                 LOGGER.log(Level.FINE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
-                Channel channel = this.connection.getClient().createChannelTo(server, this);
+                channel = this.connection.getClient().createChannelTo(server, this);
                 try {
                     performAuthentication(channel, server.getHost());
                     this.channel = channel;
-                    return this.channel;
+                    return channel;
                 } catch (TimeoutException err) {
                     LOGGER.log(Level.SEVERE, "Error", err);
                     if (channel != null) {
