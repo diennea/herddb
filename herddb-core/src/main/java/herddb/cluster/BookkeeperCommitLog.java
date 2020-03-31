@@ -257,7 +257,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 // we are "closed", no need to create a new writer
                 return _writer;
             }
-            if (!_writer.isWritable()) {
+            if (_writer == null || !_writer.isWritable()) {
                 lock.readLock().unlock();
                 lock.writeLock().lock();
                 if (closed) {
@@ -266,7 +266,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     _writer = writer;
-                    if (!_writer.isWritable()) {
+                    if (_writer == null || !_writer.isWritable()) {
                         return openNewLedger();
                     }
                 } finally {
@@ -298,12 +298,19 @@ public class BookkeeperCommitLog extends CommitLog {
                         }
                     }
             );
-            res.thenAccept((pos) -> {
+            // publish the lastSequenceNumber
+            // we must return a new CompletableFuture that completes only
+            // AFTER lastSequenceNumber is updated
+            // otherwise while doing a checkpoint we could observe
+            // an old value for lastSequenceNumber
+            // in case of a slow system
+            res = res.thenApply((pos) -> {
                         if (lastLedgerId == pos.ledgerId) {
                             lastSequenceNumber.accumulateAndGet(pos.offset,
                                     EnsureLongIncrementAccumulator.INSTANCE);
                         }
                         notifyListeners(pos, edit);
+                        return pos;
                     }
             );
         }
@@ -390,7 +397,8 @@ public class BookkeeperCommitLog extends CommitLog {
         for (long ledgerId : actualLedgersList.getActiveLedgers()) {
             try {
                 FutureUtils.result(bookKeeper.getLedgerManager().readLedgerMetadata(ledgerId));
-            } catch (BKException.BKNoSuchLedgerExistsException e) {
+            } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
                 throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
@@ -541,7 +549,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 actualLedgersList.removeLedger(ledgerId);
                 try {
                     bookKeeper.deleteLedger(ledgerId);
-                } catch (BKException.BKNoSuchLedgerExistsException error) {
+                } catch (BKException.BKNoSuchLedgerExistsException
+                    | BKException.BKNoSuchLedgerExistsOnMetadataServerException error) {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }

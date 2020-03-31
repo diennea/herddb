@@ -77,7 +77,11 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
     private void startEmbeddedServer() throws SQLException {
         if (!serverInitialized) {
             ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
-            serverConfiguration.readJdbcUrl(url);
+            try {
+                serverConfiguration.readJdbcUrl(url);
+            } catch (RuntimeException err) {
+                throw new SQLException(err);
+            }
             startServer = serverConfiguration.getBoolean("server.start", startServer);
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
             if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)

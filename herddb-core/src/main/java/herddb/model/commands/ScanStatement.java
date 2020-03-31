@@ -43,7 +43,11 @@ public class ScanStatement extends TableAwareStatement {
     private Table tableDef;
 
     public ScanStatement(String tableSpace, Table table, Predicate predicate) {
-        this(tableSpace, table.name, Projection.IDENTITY(table.columnNames, table.columns), predicate, null, null);
+        this(tableSpace, table, Projection.IDENTITY(table.columnNames, table.columns), predicate);
+    }
+
+    public ScanStatement(String tableSpace, Table table, final Projection projection, Predicate predicate) {
+        this(tableSpace, table.name, projection, predicate, null, null);
         this.tableDef = table;
     }
 

@@ -247,6 +247,8 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot)
             throws DataStorageManagerException;
 
+    public abstract void truncateIndex(String tableSpaceUUID, String name) throws DataStorageManagerException;
+
     public abstract void dropIndex(String tableSpaceUUID, String name) throws DataStorageManagerException;
 
     /* Map[tablespace_uuid,Map[pageid,pincounts] */

@@ -20,15 +20,11 @@
 
 package herddb.sql.expressions;
 
-import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.DataAccessor;
-import java.util.ArrayList;
 import java.util.List;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.Function;
 
 public class CompiledFunction implements CompiledSQLExpression {
 
@@ -65,57 +61,6 @@ public class CompiledFunction implements CompiledSQLExpression {
             roundMultiplier = 0;
             roundSign = 0;
         }
-    }
-
-    public static CompiledFunction create(Function f, String validatedTableAlias) {
-        String name = f.getName();
-        List<Expression> params = null;
-        if (f.getParameters() != null) {
-            params = f.getParameters().getExpressions();
-        }
-
-        switch (name) {
-            case BuiltinFunctions.COUNT:
-            case BuiltinFunctions.SUM:
-            case BuiltinFunctions.MIN:
-            case BuiltinFunctions.MAX:
-                // AGGREGATED FUNCTION
-                return new CompiledFunction(name, null);
-            case BuiltinFunctions.LOWER: {
-                if (params == null || params.size() != 1) {
-                    throw new StatementExecutionException("function " + name + " must have one parameter");
-                }
-                break;
-            }
-            case BuiltinFunctions.UPPER: {
-                if (params == null || params.size() != 1) {
-                    throw new StatementExecutionException("function " + name + " must have one parameter");
-                }
-                break;
-            }
-            case BuiltinFunctions.ABS: {
-                if (params == null || params.size() != 1) {
-                    throw new StatementExecutionException("function " + name + " must have one parameter");
-                }
-                break;
-            }
-            case BuiltinFunctions.ROUND: {
-                if (params == null || (params.size() != 1 && params.size() != 2)) {
-                    throw new StatementExecutionException("function " + name + " must have one or two parameters");
-                }
-                break;
-            }
-            default:
-                throw new StatementExecutionException("unhandled function " + name);
-        }
-
-        List<CompiledSQLExpression> compiledParams = new ArrayList<>();
-        for (Expression exp : f.getParameters().getExpressions()) {
-            compiledParams.add(compileExpression(validatedTableAlias, exp));
-        }
-
-        return new CompiledFunction(name, compiledParams);
-
     }
 
     @Override

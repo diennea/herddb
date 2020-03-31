@@ -30,8 +30,8 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
-import herddb.model.commands.TableIntegrityCheckStatement;
-import herddb.model.commands.TableSpaceIntegrityCheckStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 /**
  *
  * @author Hamado.Dene
@@ -56,9 +56,9 @@ public class TableDataCheckSumTest{
                 execute(manager, "INSERT INTO tblspace1.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));                
                 execute(manager, "INSERT INTO tblspace1.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            TableIntegrityCheckStatement statement = new TableIntegrityCheckStatement("tblspace1", "tsql");            
+            TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("tblspace1", "tsql");            
             manager.executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);            
-            TableSpaceIntegrityCheckStatement statement2  = new TableSpaceIntegrityCheckStatement("tblspace1");
+            TableSpaceConsistencyCheckStatement statement2  = new TableSpaceConsistencyCheckStatement("tblspace1");
             manager.executeStatement(statement2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
     }

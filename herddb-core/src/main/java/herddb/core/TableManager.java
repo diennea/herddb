@@ -483,11 +483,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
                     new FullTableScanConsumer() {
 
-                        Long currentPage;
-
                         @Override
                         public void acceptTableStatus(TableStatus tableStatus) {
-                            LOGGER.log(Level.INFO, "recovery table at " + tableStatus.sequenceNumber);
+                            LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
                             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
                             nextPageId = tableStatus.nextPageId;
                             bootSequenceNumber = tableStatus.sequenceNumber;
@@ -495,21 +493,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
 
                         @Override
-                        public void startPage(long pageId) {
-                            currentPage = pageId;
-                        }
-
-                        @Override
-                        public void acceptRecord(Record record) {
-                            if (currentPage < 0) {
-                                throw new IllegalStateException();
+                        public void acceptPage(long pageId, List<Record> records) {
+                            for (Record record : records) {
+                                keyToPage.put(record.key.nonShared(), pageId, null /* PK is empty */);
                             }
-                            keyToPage.put(record.key.nonShared(), currentPage, null /* PK is empty */);
-                        }
-
-                        @Override
-                        public void endPage() {
-                            currentPage = null;
                         }
 
                         @Override
@@ -1878,7 +1865,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, table.name + " received " + record.size() + " records");
+        LOGGER.log(Level.INFO, "{0} received {1} records", new Object[]{table.name, record.size()});
         checkpointLock.asReadLock().lock();
         try {
             for (Record r : record) {
@@ -2516,7 +2503,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         final long fillPageThreshold = (long) (fillThreshold * maxLogicalPageSize);
-        final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
+        final long dirtyPageThreshold = dirtyThreshold > 0 ? (long) (dirtyThreshold * maxLogicalPageSize) : -1;
 
         long start = System.currentTimeMillis();
         long end;

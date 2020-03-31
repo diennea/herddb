@@ -35,6 +35,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -140,7 +141,7 @@ public class SystemTablesTest {
                                 record.add(value);
                                 // Assert that name column has the appropriate data type and type names
                                 if (value != null && value.equalsIgnoreCase("name")) {
-                                    assertTrue(rs.getString("DATA_TYPE").equalsIgnoreCase("string"));
+                                    assertEquals(Types.VARCHAR, rs.getInt("DATA_TYPE"));
                                     assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
                                 }
                             }
@@ -151,11 +152,11 @@ public class SystemTablesTest {
                                 && s.contains("integer")
                         ).findAny().isPresent());
                         assertTrue(records.stream().filter(s
-                                -> s.contains("name") && s.contains("string")
+                                -> s.contains("name") && s.contains(Types.VARCHAR + "")
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
-                                -> s.contains("name") && s.contains("string")
+                                -> s.contains("name") && s.contains(Types.VARCHAR + "")
                                 && s.contains("string not null")
                         ).findAny().isPresent());
 
@@ -180,22 +181,22 @@ public class SystemTablesTest {
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
-                                -> s.contains("age") && s.contains("integer")
+                                -> s.contains("age") && s.contains(Types.INTEGER + "")
                                 && s.contains("integer not null")
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
-                                -> s.contains("phone") && s.contains("long")
+                                -> s.contains("phone") && s.contains(Types.BIGINT + "")
                                 && s.contains("long not null")
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
-                                -> s.contains("salary") && s.contains("double")
+                                -> s.contains("salary") && s.contains(Types.DOUBLE + "")
                                 && s.contains("double")
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
-                                -> s.contains("married") && s.contains("boolean")
+                                -> s.contains("married") && s.contains(Types.BOOLEAN + "")
                                 && s.contains("boolean")
                         ).findAny().isPresent());
                     }
@@ -212,6 +213,20 @@ public class SystemTablesTest {
                             records.add(record);
                         }
                         assertEquals(2, records.size()); // pk + secondary index
+                    }
+
+                    try (ResultSet rs = metaData.getPrimaryKeys(null, null, "mytable")) {
+
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertEquals(1, records.size());
                     }
 
                     try (ResultSet rs = metaData.getIndexInfo(null, null, "mytable", true, false)) {

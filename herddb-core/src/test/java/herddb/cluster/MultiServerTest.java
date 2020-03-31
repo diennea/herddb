@@ -32,6 +32,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.Index;
+import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
@@ -44,17 +45,22 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.sql.TranslatedQuery;
+import herddb.storage.FullTableScanConsumer;
+import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.TestUtils;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.After;
 import org.junit.Before;
@@ -863,6 +869,92 @@ public class MultiServerTest {
 
             }
 
+        }
+    }
+
+    @Test
+    public void test_leader_online_log_available_multiple_versions_active_pages() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 1000);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1); // delete ledgers soon
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+        /*
+         * Disable page compaction (avoid compaction of dirty page)
+         */
+        serverconfig_1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, true)
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+        Table table = Table.builder()
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .column("s", ColumnTypes.STRING)
+                .primaryKey("c")
+                .build();
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            TableSpaceManager tableSpaceManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+            AbstractTableManager tableManager = tableSpaceManager.getTableManager("t1");
+            // fill table
+            long tx = herddb.core.TestUtils.beginTransaction(server_1.getManager(), TableSpace.DEFAULT);
+            for (int i = 0; i < 1000; i++) {
+                server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", i, "s", "1")), StatementEvaluationContext.
+                        DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            }
+            herddb.core.TestUtils.commitTransaction(server_1.getManager(), TableSpace.DEFAULT, tx);
+
+
+            // we want to be in the case that the same key is present on more than one active datapage
+            // when we send the dump to the follower we must send only the latest version of the record
+            for (int i = 0; i < 10; i++) {
+                tableManager.flush();
+                server_1.getManager().executeUpdate(new UpdateStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1, "s", "2" + i), null), StatementEvaluationContext.
+                        DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            }
+
+            BooleanHolder foundDuplicate = new BooleanHolder(false);
+            server_1.getManager().getDataStorageManager().fullTableScan(tableSpaceManager.getTableSpaceUUID(), tableManager.getTable().uuid, new FullTableScanConsumer() {
+
+                Map<Bytes, Long> recordPage = new HashMap<>();
+
+                @Override
+                public void acceptPage(long pageId, List<Record> records) {
+                    for (Record record : records) {
+                        Long prev = recordPage.put(record.key, pageId);
+                        if (prev != null) {
+                            foundDuplicate.value = true;
+                        }
+                    }
+                }
+
+            });
+            assertTrue(foundDuplicate.value);
+
+
+            // data will be downloaded from the server_1 (PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT)
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+            }
         }
     }
 }

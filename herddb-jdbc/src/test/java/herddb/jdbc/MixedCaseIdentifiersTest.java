@@ -21,6 +21,7 @@
 package herddb.jdbc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
@@ -61,10 +62,10 @@ public class MixedCaseIdentifiersTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                     Connection con = dataSource.getConnection();
-                     Statement create = con.createStatement();
-                     PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
-                     PreparedStatement statement_update = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS = 2,lastbouncecategory=null WHERE MSG_ID = ? and (status=1 or status=5)")) {
+                        Connection con = dataSource.getConnection();
+                        Statement create = con.createStatement();
+                        PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
+                        PreparedStatement statement_update = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS = 2,lastbouncecategory=null WHERE MSG_ID = ? and (status=1 or status=5)")) {
                     create.execute(CREATE_TABLE);
 
                     long msg_id = 213;
@@ -97,7 +98,6 @@ public class MixedCaseIdentifiersTest {
 
                     }
 
-
                     try (ResultSet rs = create.executeQuery("SELECT M.MSG_ID FROM q1_MESSAGE M WHERE 1=1 AND status=6 and (M.RECIPIENT LIKE '%@localhost%')")) {
                         long _msg_id = -1;
                         int record_count = 0;
@@ -113,5 +113,63 @@ public class MixedCaseIdentifiersTest {
             }
         }
 
+    }
+
+    @Test
+    public void jdbcAliasList() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
+
+                    statement.executeUpdate("CREATE TABLE IF NOT EXISTS roles (\n"
+                            + "  role_id BIGINT PRIMARY KEY AUTO_INCREMENT,\n"
+                            + "  role_name varchar(256) NOT NULL,\n"
+                            + "  description varchar(128),\n"
+                            + "  resource_type varchar(48),\n"
+                            + "  resource_name varchar(48),\n"
+                            + "  resource_verbs varchar(256))");
+
+                    statement.executeUpdate("INSERT INTO roles(role_name,description, resource_type) values('theName', 'theDesc', 'theType')");
+
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM roles")) {
+                        assertTrue(rs.next());
+                        assertEquals(1, rs.getInt("role_id"));
+                        assertEquals("theName", rs.getString("role_name"));
+                        assertEquals("theDesc", rs.getString("description"));
+                        assertEquals("theType", rs.getString("resource_type"));
+                        assertNull(rs.getString("resource_name"));
+                        assertNull(rs.getString("resource_verbs"));
+                    }
+
+                    try (ResultSet rs = statement.executeQuery(
+                            "SELECT role_name AS roleName, role_id AS roleId, description, resource_type AS resourceType,resource_name AS resourceName, resource_verbs AS resourceVerbs FROM roles")) {
+                        assertTrue(rs.next());
+                        assertEquals(1, rs.getInt("roleId"));
+                        assertEquals("theName", rs.getString("roleName"));
+                        assertEquals("theDesc", rs.getString("description"));
+                        assertEquals("theType", rs.getString("resourceType"));
+                        assertNull(rs.getString("resourceName"));
+                        assertNull(rs.getString("resourceVerbs"));
+                    }
+
+                    try (ResultSet rs = statement.executeQuery(
+                            "SELECT role_name AS roleName, role_id AS roleId, description, resource_type AS resourceType,resource_name AS resourceName, resource_verbs AS resourceVerbs FROM roles")) {
+                        assertTrue(rs.next());
+                        assertEquals(1, rs.getInt("roleId"));
+                        assertEquals("theName", rs.getString("roleName"));
+                        assertEquals("theDesc", rs.getString("description"));
+                        assertEquals("theType", rs.getString("resourceType"));
+                        assertNull(rs.getString("resourceName"));
+                        assertNull(rs.getString("resourceVerbs"));
+                    }
+
+                }
+            }
+        }
     }
 }

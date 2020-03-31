@@ -44,9 +44,9 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
-import herddb.data.integrity.DigestNotAvailableException;
-import herddb.data.integrity.TableChecksum;
-import herddb.data.integrity.TableDataChecksum;
+import herddb.data.consistency.DigestNotAvailableException;
+import herddb.data.consistency.TableChecksum;
+import herddb.data.consistency.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.jmx.JMXUtils;
@@ -92,7 +92,7 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.commands.TableIntegrityCheckStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -276,7 +276,7 @@ public class TableSpaceManager {
         }
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
-            LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
+            LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot lsn {3}", new Object[]{nodeId, tableSpaceName, t.transactionId, t.lastSequenceNumber});
             try {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
@@ -299,12 +299,18 @@ public class TableSpaceManager {
             }
         });
 
-        try {
-            log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
-        } catch (FullRecoveryNeededException fullRecoveryNeeded) {
-            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
+        } else {
+            try {
+                log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
+            } catch (FullRecoveryNeededException fullRecoveryNeeded) {
+                LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+                downloadTableSpaceData();
+                log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
+            }
         }
         checkpoint(false, false, false);
 
@@ -867,7 +873,8 @@ public class TableSpaceManager {
             log.attachCommitLogListener(logDumpReceiver);
         }
 
-        checkpoint = checkpoint(true, true, true /* already locked */);
+        checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
+        LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
 
         /* Downgrade lock */
 //        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
@@ -877,12 +884,12 @@ public class TableSpaceManager {
         }
         try {
             final int timeout = 60000;
-            LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
+            LogSequenceNumber checkpointSequenceNumber = checkpoint.sequenceNumber;
 
             long id = channel.generateRequestId();
             LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, channel});
             try (Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
-                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout)) {
+                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), checkpointSequenceNumber.ledgerId, checkpointSequenceNumber.offset, null, null), timeout)) {
                 if (response_to_start.type != Pdu.TYPE_ACK) {
                     LOGGER.log(Level.SEVERE, "error response at start command");
                     return;
@@ -891,7 +898,7 @@ public class TableSpaceManager {
 
             if (includeLog) {
                 List<Transaction> transactionsSnapshot = new ArrayList<>();
-                dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, transactionsSnapshot::add);
+                dataStorageManager.loadTransactions(checkpointSequenceNumber, tableSpaceUUID, transactionsSnapshot::add);
                 List<Transaction> batch = new ArrayList<>();
                 for (Transaction t : transactionsSnapshot) {
                     batch.add(t);
@@ -909,6 +916,7 @@ public class TableSpaceManager {
                     continue;
                 }
                 try {
+                    LOGGER.log(Level.INFO, "Sending table checkpoint for {} took at sequence number {}", new Object[]{tableManager.getTable().name, sequenceNumber});
                     FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, channel, dumpId, timeout, fetchSize);
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
@@ -1194,8 +1202,8 @@ public class TableSpaceManager {
                 res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
-            } else if(statement instanceof TableIntegrityCheckStatement){
-                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableIntegrityCheckStatement) statement));
+            } else if(statement instanceof TableConsistencyCheckStatement){
+                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableConsistencyCheckStatement) statement));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -1733,7 +1741,14 @@ public class TableSpaceManager {
                     throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
                 }
                 // TODO: transactions checkpoint is not atomic
-                actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
+                Collection<Transaction> currentTransactions = new ArrayList<>(transactions.values());
+                for (Transaction t : currentTransactions) {
+                    LogSequenceNumber txLsn = t.lastSequenceNumber;
+                    if (txLsn != null && txLsn.after(logSequenceNumber)) {
+                        LOGGER.log(Level.SEVERE, "Found transaction {0} with LSN {1} in the future", new Object[]{t.transactionId, txLsn});
+                    }
+                }
+                actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, currentTransactions));
                 actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true), true));
 
                 // we checkpoint all data to disk and save the actual log sequence number

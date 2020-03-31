@@ -22,19 +22,13 @@ package herddb.model.commands;
 import herddb.model.Statement;
 
 /**
- * Table integrity check statement
- * @author Hamado.Dene
+ *
+ * @author hamado
  */
-public class TableIntegrityCheckStatement extends Statement{
+public class TableSpaceConsistencyCheckStatement extends Statement{
     
-    private final String table;
-    public TableIntegrityCheckStatement(String tableSpace, String table) {
+    public TableSpaceConsistencyCheckStatement(String tableSpace) {
         super(tableSpace);
-        this.table = table;
     }
     
-    public String getTable(){
-        return table;
-    }
 }
-

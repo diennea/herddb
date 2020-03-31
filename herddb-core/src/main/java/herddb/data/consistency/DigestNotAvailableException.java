@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.data.integrity;
+package herddb.data.consistency;
 
 import herddb.core.HerdDBInternalException;
 

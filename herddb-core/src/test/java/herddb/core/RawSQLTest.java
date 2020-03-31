@@ -25,13 +25,16 @@ import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
+import herddb.codec.DataAccessorForFullRecord;
 import herddb.codec.RecordSerializer;
 import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
@@ -57,6 +60,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
 import herddb.sql.TranslatedQuery;
@@ -2231,6 +2235,56 @@ public class RawSQLTest {
                     + "INDEX ix1 (n1,s1))", Collections.emptyList());
 
             execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
+
+        }
+    }
+
+    @Test
+    public void jdbcAliasList() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE IF NOT EXISTS tblspace1.roles (\n"
+                    + "  role_id BIGINT PRIMARY KEY AUTO_INCREMENT,\n"
+                    + "  role_name varchar(256) NOT NULL,\n"
+                    + "  description varchar(128),\n"
+                    + "  resource_type varchar(48),\n"
+                    + "  resource_name varchar(48),\n"
+                    + "  resource_verbs varchar(256)"
+                    + ");", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.roles(role_name,description, resource_type) values(?,?,?)", Arrays.asList("theName", "theDesc", "theType")).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.roles", Collections.emptyList());) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertThat(next, instanceOf(DataAccessorForFullRecord.class));
+                    assertArrayEquals(new String[] {"role_id", "role_name", "description", "resource_type", "resource_name", "resource_verbs" }, next.getFieldNames());
+                    assertArrayEquals(new Object[] {1L, RawString.of("theName"), RawString.of("theDesc"), RawString.of("theType"), null, null }, next.getValues());
+                }
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT role_name AS roleName, role_id AS roleId, description, resource_type AS resourceType,resource_name AS resourceName, resource_verbs AS resourceVerbs FROM tblspace1.roles", Collections.emptyList());) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertThat(next, instanceOf(RuntimeProjectedDataAccessor.class));
+                    assertArrayEquals(new String[] {"rolename", "roleid", "description", "resourcetype", "resourcename", "resourceverbs" }, next.getFieldNames());
+                    assertArrayEquals(new Object[] {RawString.of("theName"), 1L, RawString.of("theDesc"), RawString.of("theType"), null, null }, next.getValues());
+                }
+            }
+
+             try (DataScanner scan = scan(manager, "SELECT role_id AS roleId, role_name AS roleName, description, resource_type AS resourceType,resource_name AS resourceName, resource_verbs AS resourceVerbs FROM tblspace1.roles", Collections.emptyList());) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertThat(next, instanceOf(RuntimeProjectedDataAccessor.class));
+                    assertArrayEquals(new String[] {"roleid", "rolename", "description", "resourcetype", "resourcename", "resourceverbs" }, next.getFieldNames());
+                    assertArrayEquals(new Object[] {1L, RawString.of("theName"), RawString.of("theDesc"), RawString.of("theType"), null, null }, next.getValues());
+                }
+            }
 
         }
     }
