@@ -62,6 +62,10 @@ public class TableDataCheckSumTest{
             manager.executeStatement(statement2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
     }
+    
+    
+    
+    
 
 }
 
