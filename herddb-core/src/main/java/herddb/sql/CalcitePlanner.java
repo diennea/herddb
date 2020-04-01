@@ -150,6 +150,7 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlExplainFormat;
 import org.apache.calcite.sql.SqlExplainLevel;
+import org.apache.calcite.sql.SqlInsert;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
@@ -250,7 +251,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (query.startsWith("EXPLAIN ")) {
                 query = query.substring("EXPLAIN ".length());
                 PlannerResult plan = runPlanner(defaultTableSpace, query);
-                boolean upsert = detectUpsert(query);
+                boolean upsert = detectUpsert(plan);
                 PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                         .optimize();
                 ValuesOp values = new ValuesOp(manager.getNodeId(),
@@ -289,7 +290,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             PlannerResult plan = runPlanner(defaultTableSpace, query);
-            boolean upsert = detectUpsert(query);
+            boolean upsert = detectUpsert(plan);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                             .optimize());
@@ -349,10 +350,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private static boolean detectUpsert(String query) {
-        // unfortunately Calcite does not retain the UPSERT flag in LogicalTableModify
-        boolean upsert = query.startsWith("UPSERT");
-        return upsert;
+    private static boolean detectUpsert(PlannerResult res) {
+        if (res.sql instanceof SqlInsert) {
+            SqlInsert si = (SqlInsert) res.sql;
+            return si.isUpsert();
+        }
+        return false;
     }
 
 
@@ -470,11 +473,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         private final RelNode topNode;
         private final RelDataType originalRowType;
         private final RelNode logicalPlan;
+        private final SqlNode sql;
 
-        public PlannerResult(RelNode topNode, RelDataType originalRowType, RelNode logicalPlan) {
+        public PlannerResult(RelNode topNode, RelDataType originalRowType, RelNode logicalPlan, final SqlNode sql) {
             this.topNode = topNode;
             this.originalRowType = originalRowType;
             this.logicalPlan = logicalPlan;
+            this.sql = sql;
         }
 
     }
@@ -533,7 +538,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
-        return new PlannerResult(bestExp, originalRowType, logicalPlan);
+        return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
     }
 
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {

@@ -244,7 +244,8 @@ public class UpdateTest {
             }
 
             // upsert, making n1 null now, because it has not been named in the INSERT clause
-            assertEquals(1, executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,s1) values(?,'non-empty')", Arrays.asList("mykey")).getUpdateCount());
+            // use non uppercase casing in UPSERT keyword
+            assertEquals(1, executeUpdate(manager, "UPsert INTO tblspace1.tsql(k1,s1) values(?,'non-empty')", Arrays.asList("mykey")).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT n1 from tblspace1.tsql where k1=?", Arrays.asList("mykey"))) {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
