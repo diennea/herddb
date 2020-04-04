@@ -40,7 +40,7 @@ public class LogEntryType {
     public static final short DROP_INDEX = 11;
     public static final short TRUNCATE_TABLE = 12;
     public static final short NOOP = 13;
-    public static final short TABLE_INTEGRITY_CHECKSUM=14;
+    public static final short TABLE_CONSISTENCY_CHECK=14;
 
 }
 

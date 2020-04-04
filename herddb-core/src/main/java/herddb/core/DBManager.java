@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.core;
 
 import com.google.common.util.concurrent.MoreExecutors;
@@ -577,8 +576,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
             if (!availableOtherNodes.isEmpty()) {
                 int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
-                TableSpace.Builder newTableSpaceBuilder =
-                        TableSpace
+                TableSpace.Builder newTableSpaceBuilder
+                        = TableSpace
                                 .builder()
                                 .cloning(tableSpace);
                 while (!availableOtherNodes.isEmpty() && countMissing > 0) {
@@ -642,11 +641,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
-        if(statement instanceof TableSpaceConsistencyCheckStatement){
-            if(transactionContext.transactionId > 0){
+        if (statement instanceof TableSpaceConsistencyCheckStatement) {
+            if (transactionContext.transactionId > 0) {
                 return FutureUtils.exception(new StatementExecutionException("CHECKTABLESPACEINTEGRITY cannot be issue inside a transaction"));
             }
-            return CompletableFuture.completedFuture(createTableSpaceDigest ((TableSpaceConsistencyCheckStatement) statement));
+            return CompletableFuture.completedFuture(createTableSpaceCheksum((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -834,7 +833,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             man.checkpoint(false, false, false);
         }
     }
-    
+
     public void triggerActivator(ActivatorRunRequest type) {
         activatorJ.offer(type);
     }
@@ -914,47 +913,47 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "error on dump", error);
         }
     }
-      
-    public DataIntegrityStatementResult createTableDigest(TableConsistencyCheckStatement tableIntegrityCheckStatement ){    
-        TableSpaceManager manager= tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
+
+    public DataIntegrityStatementResult createTableCheksum(TableConsistencyCheckStatement tableIntegrityCheckStatement) {
+        TableSpaceManager manager = tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         try {
-            manager.createAndWriteTableDigest(manager,tableIntegrityCheckStatement.getTableSpace(), table);
+            manager.createAndWriteTableCheksum(manager, tableIntegrityCheckStatement.getTableSpace(), table);
         } catch (IOException | DataScannerException ex) {
             LOGGER.log(Level.SEVERE, null, ex);
         }
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);        
+        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
     }
-    
-    public DataIntegrityStatementResult createTableSpaceDigest(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement ){    
-        TableSpaceManager manager= tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
+
+    public DataIntegrityStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement) {
+        TableSpaceManager manager = tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
         String tableSpace = tableSpaceIntegrityCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
         long _start = System.currentTimeMillis();
-        for(Table table : tables){
+        for (Table table : tables) {
             AbstractTableManager tableManager = manager.getTableManager(table.name);
-            if(!tableManager.isSystemTable()){
-                try{
-                    manager.createAndWriteTableDigest(manager, tableSpace, tableManager.getTable().name);
-                }catch(IOException | DataScannerException ex){
+            if (!tableManager.isSystemTable()) {
+                try {
+                    manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name);
+                } catch (IOException | DataScannerException ex) {
                     LOGGER.log(Level.SEVERE, null, ex);
-                }           
-            }                   
+                }
+            }
         }
         long _stop = System.currentTimeMillis();
         long tableSpace_check_duration = (_stop - _start);
-        LOGGER.log(Level.INFO,"CHECK TABLESPACE {0} INTEGRITY DONE IN {1} ms", new Object[]{tableSpace,tableSpace_check_duration});
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);                
+        LOGGER.log(Level.INFO, "CHECK TABLESPACE {0} INTEGRITY DONE IN {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
+        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
     }
-    
+
     private String makeVirtualTableSpaceManagerId(String nodeId) {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
 
     private void tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
         LOGGER.log(Level.INFO, "node {0}, try to become leader of {1} (prev was {2})", new Object[]{nodeId, tableSpace.name, tableSpace.leaderId});
-        TableSpace.Builder newTableSpaceBuilder =
-                TableSpace
+        TableSpace.Builder newTableSpaceBuilder
+                = TableSpace
                         .builder()
                         .cloning(tableSpace)
                         .leader(nodeId);
@@ -1237,8 +1236,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             && !tableSpaceInfo.leaderId.equals(nodeId)
                             && tableSpaceInfo.maxLeaderInactivityTime > 0
                             && !tableSpaceManager.isFailed()) {
-                        List<TableSpaceReplicaState> allReplicas =
-                                metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
+                        List<TableSpaceReplicaState> allReplicas
+                                = metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
                         TableSpaceReplicaState leaderState = allReplicas
                                 .stream()
                                 .filter(t -> t.nodeId.equals(tableSpaceInfo.leaderId))
@@ -1360,6 +1359,3 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
 }
-
-
-

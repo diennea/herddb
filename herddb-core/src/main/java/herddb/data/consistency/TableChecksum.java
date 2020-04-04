@@ -18,13 +18,11 @@
 
  */
 package herddb.data.consistency;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * Table checksum info
  * @author hamado
  */
- @JsonPropertyOrder({"tableSpaceName","tableName","digest","digestType","numRecords", "nexAutoIncrementValue","query","scanDuration"})
 public class TableChecksum {
     
     private   String tableSpaceName;

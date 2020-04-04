@@ -54,8 +54,8 @@ public class LogEntryFactory {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, transactionId, null, null, null);
     }
     
-    public static LogEntry dataIntegrity(String table,long transactionID,Bytes value){
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.TABLE_INTEGRITY_CHECKSUM, transactionID,table, null, value);
+    public static LogEntry dataConsistency(String table,long transactionID,Bytes value){
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.TABLE_CONSISTENCY_CHECK, transactionID,table, null, value);
     }
     
     public static LogEntry commitTransaction(long transactionId) {

@@ -22,7 +22,7 @@ package herddb.model.commands;
 import herddb.model.Statement;
 
 /**
- * Table integrity check statement
+ * Table consistency check statement
  * @author Hamado.Dene
  */
 public class TableConsistencyCheckStatement extends Statement{

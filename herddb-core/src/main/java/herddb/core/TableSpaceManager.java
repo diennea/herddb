@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.core;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -144,6 +143,7 @@ import org.codehaus.jackson.map.ObjectMapper;
  * @author enrico.olivelli
  */
 public class TableSpaceManager {
+
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
@@ -171,7 +171,7 @@ public class TableSpaceManager {
     private volatile boolean closed;
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
-    
+
     // only for tests
     private Runnable afterTableCheckPointAction;
 
@@ -433,7 +433,7 @@ public class TableSpaceManager {
                     writeTablesOnDataStorageManager(position, false);
                 }
             }
-            
+
             break;
             case LogEntryType.CREATE_INDEX: {
                 Index index = Index.deserialize(entry.value.to_array());
@@ -503,47 +503,43 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
-            case LogEntryType.TABLE_INTEGRITY_CHECKSUM:    {
+            case LogEntryType.TABLE_CONSISTENCY_CHECK: {
                 try {
                     TableChecksum check = new ObjectMapper().readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
-                    
+                    String tableName = entry.tableName;
                     //In recovery mode the follower will have to run the query on the transaction log
-                    if(recovery){
-                        String tableNanme = entry.tableName;
-                        AbstractTableManager tablemanager = this.getTableManager(tableNanme);
+                    if (recovery && entry.transactionId <= 0) {
+                        AbstractTableManager tablemanager = this.getTableManager(tableName);
                         DBManager manager = this.getDbmanager();
-                        
+
                         if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                             throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
                         }
-                        TranslatedQuery translated = manager.getPlanner().translate(tableSpace,query, Collections.emptyList(), true, false, false, -1) ;
-                        
-                        TableChecksum scanResult = TableDataChecksum.createChecksum(manager,translated,this, tableSpace, tableNanme);
-                        
-                        long followerDigest =scanResult.getDigest();
+                        TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, Collections.emptyList(), true, false, false, -1);
+                        TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
+                        long followerDigest = scanResult.getDigest();
                         long masterDigest = check.getDigest();
-                        int  masterNumRecords = check.getNumRecords();
+                        int masterNumRecords = check.getNumRecords();
                         int follNumRecords = scanResult.getNumRecords();
                         long table_scan_duration = check.getScanDuration();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
-                        if(followerDigest == masterDigest && masterNumRecords == follNumRecords ){
-                            LOGGER.log(Level.INFO, "Data integrity check PASS for TABLE {0}  TABLESPACE {1} in {2} ms" , new Object[]{tableNanme,tableSpace,table_scan_duration});
-                        }else{
-                            LOGGER.log(Level.SEVERE, "Data integrity check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms" , new Object[]{tableNanme,tableSpace,table_scan_duration});
+                        if (followerDigest == masterDigest && masterNumRecords == follNumRecords) {
+                            LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} in {2} ms", new Object[]{tableName, tableSpace, table_scan_duration});
+                        } else {
+                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms ", new Object[]{tableName, tableSpace, table_scan_duration});
                         }
-                    }else{
+                    } else {
                         long digest = check.getDigest();
                         long table_scan_duration = check.getScanDuration();
-                        LOGGER.log(Level.INFO, "Create DIGEST {0}  for TABLE {1} in TABLESPACE {2} in {3} ms", new Object[]{digest,entry.tableName,tableSpace,table_scan_duration });
+                        LOGGER.log(Level.INFO, "Create CHECKSUM {0}  for TABLE {1} in TABLESPACE {2} in {3} ms on node {4}", new Object[]{digest, entry.tableName, tableSpace, table_scan_duration, this.getDbmanager().getNodeId()});
                     }
-                } catch (IOException  | DataScannerException ex  ) {
+                } catch (IOException | DataScannerException ex) {
                     LOGGER.log(Level.SEVERE, null, ex);
-                } 
+                }
             }
             break;
-
             default:
                 // other entry types are not important for the tablespacemanager
                 break;
@@ -554,7 +550,7 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.CREATE_INDEX
                 && entry.type != LogEntryType.ALTER_TABLE
                 && entry.type != LogEntryType.DROP_TABLE
-                && entry.type != LogEntryType.TABLE_INTEGRITY_CHECKSUM) {
+                && entry.type != LogEntryType.TABLE_CONSISTENCY_CHECK) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
@@ -648,7 +644,7 @@ public class TableSpaceManager {
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, dbmanager.getServerToServerPassword());
-        try (HDBClient client = new HDBClient(clientConfiguration)) {
+        try ( HDBClient client = new HDBClient(clientConfiguration)) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
                 public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
@@ -660,7 +656,7 @@ public class TableSpaceManager {
                     return new ServerHostData(nodeData.host, nodeData.port, "?", nodeData.ssl, Collections.emptyMap());
                 }
             });
-            try (HDBConnection con = client.openConnection()) {
+            try ( HDBConnection con = client.openConnection()) {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
@@ -776,11 +772,11 @@ public class TableSpaceManager {
         for (Transaction t : transactions.values()) {
             if (t.isAbandoned(abandonedTransactionTimeout)) {
                 LOGGER.log(Level.SEVERE, "forcing rollback of abandoned transaction {0},"
-                                + " created locally at {1},"
-                                + " last activity locally at {2}",
+                        + " created locally at {1},"
+                        + " last activity locally at {2}",
                         new Object[]{t.transactionId,
-                                new java.sql.Timestamp(t.localCreationTimestamp),
-                                new java.sql.Timestamp(t.lastActivityTs)});
+                            new java.sql.Timestamp(t.localCreationTimestamp),
+                            new java.sql.Timestamp(t.lastActivityTs)});
                 validateTransactionBeforeTxCommand(t.transactionId);
                 long lockStamp = acquireReadLock("forceRollback" + t.transactionId);
                 try {
@@ -888,7 +884,7 @@ public class TableSpaceManager {
 
             long id = channel.generateRequestId();
             LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, channel});
-            try (Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+            try ( Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), checkpointSequenceNumber.ledgerId, checkpointSequenceNumber.offset, null, null), timeout)) {
                 if (response_to_start.type != Pdu.TYPE_ACK) {
                     LOGGER.log(Level.SEVERE, "error response at start command");
@@ -922,7 +918,7 @@ public class TableSpaceManager {
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
                     long errorid = channel.generateRequestId();
-                    try (Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
+                    try ( Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
                             id, tableSpaceName, dumpId, "error", null, 0,
                             0, 0,
                             null, null),
@@ -940,7 +936,7 @@ public class TableSpaceManager {
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
             long requestId2 = channel.generateRequestId();
 
-            try (Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
+            try ( Pdu pdu = channel.sendMessageWithPduReply(requestId2, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "finish", null, 0,
                     finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
                     null, null), timeout)) {
@@ -977,7 +973,7 @@ public class TableSpaceManager {
                 })
                 .collect(Collectors.toList());
         long id = channel.generateRequestId();
-        try (Pdu response_to_transactionsData = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        try ( Pdu response_to_transactionsData = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "transactions", null, 0,
                 0, 0,
                 null, encodedTransactions), timeout)) {
@@ -995,7 +991,7 @@ public class TableSpaceManager {
                     Bytes.from_array(e.entryData)));
         }
         long id = channel.generateRequestId();
-        try (Pdu response_to_txlog = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        try ( Pdu response_to_txlog = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "txlog", null, 0,
                 0, 0,
                 null, batch), timeout)) {
@@ -1026,7 +1022,7 @@ public class TableSpaceManager {
 
         @Override
         public void run() {
-            try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
+            try ( CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
                     log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
                         try {
@@ -1114,7 +1110,7 @@ public class TableSpaceManager {
 
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID
                 && statement.supportsTransactionAutoCreate() // Do not autostart transaction on alter table statements
-        ) {
+                ) {
             AtomicLong capturedTx = new AtomicLong();
             boolean wasHoldingTableSpaceLock = context.getTableSpaceLock() != 0;
             CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync(context, false);
@@ -1202,8 +1198,8 @@ public class TableSpaceManager {
                 res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
-            } else if(statement instanceof TableConsistencyCheckStatement){
-                res = CompletableFuture.completedFuture(this.getDbmanager().createTableDigest((TableConsistencyCheckStatement) statement));
+            } else if (statement instanceof TableConsistencyCheckStatement) {
+                res = CompletableFuture.completedFuture(this.getDbmanager().createTableCheksum((TableConsistencyCheckStatement) statement));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -1252,8 +1248,8 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res =
-                planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        CompletableFuture<StatementExecutionResult> res
+                = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
 //        });
@@ -1474,7 +1470,7 @@ public class TableSpaceManager {
             }
         }
     }
-    
+
     private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         boolean lockAcquired = false;
         if (context.getTableSpaceLock() == 0) {
@@ -1550,7 +1546,7 @@ public class TableSpaceManager {
     AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild, boolean restore) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
-                new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+                new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
 
         AbstractIndexManager prevIndexManager = indexes.remove(index.name);
         if (prevIndexManager != null) {
@@ -1558,11 +1554,11 @@ public class TableSpaceManager {
                 // restoring an index already booted in a previous life
                 LOGGER.log(Level.INFO,
                         "bootIndex {0} {1}.{2}.{3} uuid {4} - {5} already exists on this tablespace. It will be truncated",
-                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+                        new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
                 prevIndexManager.dropIndexData();
             } else {
                 LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
-                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
+                        new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
                 if (indexes.containsKey(index.name)) {
                     throw new DataStorageManagerException(
                             "Index" + index.name + " already present in tableSpace " + tableSpaceName);
@@ -1605,7 +1601,7 @@ public class TableSpaceManager {
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
         LOGGER.log(Level.INFO, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
-                table.uuid});
+            table.uuid});
         AbstractTableManager tableManager = null;
         String oldTableName = null;
         for (AbstractTableManager tm : tables.values()) {
@@ -1664,54 +1660,54 @@ public class TableSpaceManager {
             this.tablesCheckpoints = tablesCheckpoints;
         }
     }
+
     //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
-    public TableChecksum createAndWriteTableDigest(TableSpaceManager tableSpaceManager, String tableSpace,String tableName ) throws IOException, DataScannerException{
+    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws IOException, DataScannerException {
         CommitLogResult pos;
-        boolean lockAcquired = false;   
-        StatementEvaluationContext context =  StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(); 
-        
+        boolean lockAcquired = false;
+        StatementEvaluationContext context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
+        LOGGER.log(Level.INFO, "Create and write table checksum");
         if (context.getTableSpaceLock() == 0) {
-            long lockStamp = acquireWriteLock("checkDataIntegrity_"+tableName);
+            long lockStamp = acquireWriteLock("checkDataIntegrity_" + tableName);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
-        }      
-        try{
+        }
+        try {
             AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
-            if(tableSpaceManager == null){
-               throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));  
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
             if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }
             DBManager manager = tableSpaceManager.getDbmanager();
-            final Table table = tableSpaceManager.getTableManager(tableName).getTable();            
+            final Table table = tableSpaceManager.getTableManager(tableName).getTable();
             String columns = TableDataChecksum.parseColumns(table);
             TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
-                    + columns 
-                    + " FROM "+ tableName 
-                    + " order by " 
-                    + TableDataChecksum.parsePrimaryKeys(table) , Collections.emptyList(), true, false, false, -1);
-                    
-            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(),translated,tableSpaceManager, tableSpace, tableName);
+                    + columns
+                    + " FROM " + tableName
+                    + " order by "
+                    + TableDataChecksum.parsePrimaryKeys(table), Collections.emptyList(), true, false, false, -1);
+
+            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), translated, tableSpaceManager, tableSpace, tableName);
 
             ObjectMapper mapper = new ObjectMapper();
             byte[] serialize = mapper.writeValueAsBytes(scanResult);
 
             Bytes value = Bytes.from_array(serialize);
-            LogEntry entry = LogEntryFactory.dataIntegrity(tableName,0, value);
-            pos=log.log(entry, false);
-            apply(pos, entry, false);         
-
+            LogEntry entry = LogEntryFactory.dataConsistency(tableName, 0, value);
+            pos = log.log(entry, entry.transactionId <= 0);
+            apply(pos, entry, false);
             return scanResult;
-            
-        }finally {
+
+        } finally {
             if (lockAcquired) {
                 releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");
                 context.setTableSpaceLock(0);
             }
-        }        
+        }
     }
-    
+
     TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
@@ -1758,7 +1754,7 @@ public class TableSpaceManager {
 
                     if (!tableManager.isSystemTable()) {
                         TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
-                                           
+
                         if (checkpoint != null) {
                             LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
                             actions.addAll(checkpoint.actions);
@@ -1801,7 +1797,7 @@ public class TableSpaceManager {
             checkpointTimeStats.registerSuccessfulEvent(_stop, TimeUnit.MILLISECONDS);
         }
     }
-    
+
     private CompletableFuture<StatementExecutionResult> beginTransactionAsync(StatementEvaluationContext context, boolean releaseLock) throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
@@ -1913,7 +1909,7 @@ public class TableSpaceManager {
             releaseReadLock(lockStamp, description);
         });
     }
-  
+
     private void releaseReadLock(long lockStamp, Object description) {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "RELEASED TS READLOCK " + lockStamp + " for " + description);

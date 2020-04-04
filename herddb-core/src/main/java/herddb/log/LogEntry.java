@@ -148,7 +148,7 @@ public class LogEntry {
                 break;
             case LogEntryType.NOOP:
                 break;
-            case LogEntryType.TABLE_INTEGRITY_CHECKSUM:
+            case LogEntryType.TABLE_CONSISTENCY_CHECK:
                 break;
             default:
                 throw new IllegalArgumentException("unsupported type " + type);
@@ -210,7 +210,7 @@ public class LogEntry {
                     break;
                 case LogEntryType.NOOP:
                     break;
-                case LogEntryType.TABLE_INTEGRITY_CHECKSUM:
+                case LogEntryType.TABLE_CONSISTENCY_CHECK:
                 break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);

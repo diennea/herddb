@@ -47,18 +47,19 @@ public abstract class TableDataChecksum{
          
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
     private static final XXHashFactory factory=XXHashFactory.fastestInstance();
-    private static final int SEED = 0x9747b28c;
+    //private static final int SEED = 0x9747b28c;
+    private static final int SEED = 0;
     public static final  boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE="StreamingXXHash64";
     public static int NUM_RECORD=0;
     public static long TABLE_SCAN_DURATION=0;
     private static TranslatedQuery translated;
     
-    //this method returns a TableChecksum object with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename )
-    //this data will be written to the transaction log so the follower nodes will do exactly what the master did
+    
     public static TableChecksum createChecksum(DBManager manager,TranslatedQuery query, TableSpaceManager tableSpaceManager,String tableSpace,String tableName) throws DataScannerException{
         
         AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
+        String nodeID = tableSpaceManager.getDbmanager().getNodeId();
         if(query == null){
             final Table table = tableSpaceManager.getTableManager(tableName).getTable();
             String columns = parseColumns(table);
@@ -70,7 +71,7 @@ public abstract class TableDataChecksum{
          }
         translated = query;        
         ScanStatement statement =  translated.plan.mainStatement.unwrap(ScanStatement.class);
-        LOGGER.log(Level.INFO,"creating digest for table {0}.{1} ", new Object[]{tableSpace,tableName});
+        LOGGER.log(Level.INFO,"creating checksum for table {0}.{1} on node {2}", new Object[]{tableSpace,tableName,nodeID});
         
         try ( DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);){
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
@@ -87,11 +88,11 @@ public abstract class TableDataChecksum{
                     hash64.update(serialize, 0, SEED);
                 }
             }
-            LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} = {2} ", new Object[]{tableSpace,tableName, NUM_RECORD});
+            LOGGER.log(Level.FINER,"Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace,tableName,nodeID, NUM_RECORD});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();  
             TABLE_SCAN_DURATION = (_stop - _start);
-             LOGGER.log(Level.INFO,"Creating digest for table {0}.{1} finished ", new Object[]{tableSpace,tableName});
+             LOGGER.log(Level.INFO,"Creating checksum for table {0}.{1} on node {2} finished", new Object[]{tableSpace,tableName,nodeID});
             
            return new TableChecksum ( tableSpace, tableName, hash64.getValue(), HASH_TYPE, NUM_RECORD,  nextAutoIncrementValue, translated.context.query,TABLE_SCAN_DURATION);
         } catch (DataScannerException ex) {

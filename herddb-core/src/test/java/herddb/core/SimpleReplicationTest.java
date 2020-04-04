@@ -77,6 +77,6 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
                 }
                 assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
             }
-        }
+        } 
     }
 }

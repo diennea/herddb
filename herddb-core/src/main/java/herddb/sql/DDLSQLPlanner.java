@@ -201,7 +201,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return query;    
                 
             default:
-                /*RETURN also CHECKTABLEINTEGRITY command */
+                /*RETURN also consistency command */
                 return query;
         }
     }
@@ -859,7 +859,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             
             return new TableConsistencyCheckStatement(tableSpace, tableName);
         }else {
-            throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
+            throw new StatementExecutionException(String.format("Incorrect Syntax for tableconsistencycheck"));
         }
         
     }
@@ -875,7 +875,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             return new TableSpaceConsistencyCheckStatement(tableSpace.trim());
         }else {
-            throw new StatementExecutionException(String.format("Incorrect Syntax for CHECKTABLEINTEGRITY tablespace.tablename"));
+            throw new StatementExecutionException(String.format("Incorrect Syntax for tablespaceconsistencycheck"));
         }
     }
                   
