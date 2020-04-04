@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
 import herddb.backup.DumpedTableMetadata;
+import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.client.impl.UnreachableServerException;
@@ -91,6 +92,14 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
+    }
+
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 
     private void performAuthentication(Channel channel, String serverHostname) throws Exception {
@@ -227,8 +236,10 @@ public class RoutedClientSideConnection implements ChannelEventListener {
                             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
                             channel.sendReplyMessage(message.messageId, res);
                         }
-                    } catch (DataStorageManagerException error) {
+                    } catch (RuntimeException error) {
                         LOGGER.log(Level.SEVERE, "error while handling dump data", error);
+                        receiver.onError(error);
+
                         if (channel != null) {
                             ByteBuf res = PduCodec.ErrorResponse.write(message.messageId, error);
                             channel.sendReplyMessage(message.messageId, res);
@@ -245,11 +256,21 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
     @Override
     public void channelClosed(Channel channel) {
-        // clean up local cache, if the server restarted we would use old ids
-        preparedStatements.clear();
-        if (channel == this.channel) {
-            this.channel = null;
+        connectionLock.writeLock().lock();
+        try {
+            // clean up local cache, if the server restarted we would use old ids
+            preparedStatements.clear();
+            if (channel == this.channel) {
+                this.channel = null;
+            }
+        } finally {
+            connectionLock.writeLock().unlock();
         }
+
+    }
+
+    Channel getChannel() {
+        return channel;
     }
 
     public void close() {
@@ -257,6 +278,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
         connectionLock.writeLock().lock();
         try {
+            // clean up local cache
+            preparedStatements.clear();
             if (channel != null) {
                 channel.close();
             }
@@ -269,24 +292,37 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     private Channel ensureOpen() throws HDBException {
         connectionLock.readLock().lock();
         try {
-            if (this.channel != null) {
-                return this.channel;
+            Channel channel = this.channel;
+            if (channel != null && channel.isValid()) {
+                return channel;
             }
             connectionLock.readLock().unlock();
 
             connectionLock.writeLock().lock();
             try {
+                channel = this.channel;
                 if (this.channel != null) {
-                    return this.channel;
+                    if (channel.isValid()) {
+                        return channel;
+                    }
+
+                    // channel is not valid, force close
+                    channel.close();
                 }
                 // clean up local cache, if the server restarted we would use old ids
                 preparedStatements.clear();
                 LOGGER.log(Level.FINE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
-                Channel channel = this.connection.getClient().createChannelTo(server, this);
+                channel = this.connection.getClient().createChannelTo(server, this);
                 try {
                     performAuthentication(channel, server.getHost());
                     this.channel = channel;
-                    return this.channel;
+                    return channel;
+                } catch (TimeoutException err) {
+                    LOGGER.log(Level.SEVERE, "Error", err);
+                    if (channel != null) {
+                        channel.close();
+                    }
+                    throw new HDBOperationTimeoutException(err);
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "Error", err);
                     if (channel != null) {
@@ -301,6 +337,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         } catch (java.net.ConnectException err) {
             // this error will be retryed by the client
             throw new UnreachableServerException(err);
+        } catch (HDBException err) {
+            throw err;
         } catch (Exception err) {
             throw new HDBException(err);
         } finally {

@@ -38,11 +38,17 @@ public class EnumerableDataScanner extends DataScanner {
     private final Enumerator<DataAccessor> wrapped;
     private DataAccessor next;
 
+    private final DataScanner originalLeft;
+    private final DataScanner originalRight;
+
     public EnumerableDataScanner(
             Transaction transaction, String[] fieldNames, Column[] schema,
-            Enumerable<DataAccessor> wrapped
+            Enumerable<DataAccessor> wrapped,
+            DataScanner originalLeft, DataScanner originalRight
     ) {
         super(transaction, fieldNames, schema);
+        this.originalLeft = originalLeft;
+        this.originalRight = originalRight;
         this.wrapped = wrapped.enumerator();
         fetchNext();
     }
@@ -70,9 +76,23 @@ public class EnumerableDataScanner extends DataScanner {
     @Override
     public void close() throws DataScannerException {
         try {
-            wrapped.close();
+            this.originalLeft.close();
         } catch (RuntimeException err) {
             throw new DataScannerException(err);
+        } finally {
+            try {
+                this.originalRight.close();
+            } catch (RuntimeException err) {
+                throw new DataScannerException(err);
+            } finally {
+                try {
+                    wrapped.close();
+                } catch (RuntimeException err) {
+                    throw new DataScannerException(err);
+                } finally {
+                    super.close();
+                }
+            }
         }
     }
 

@@ -50,6 +50,12 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
     }
 
     @Override
+    public boolean opNotEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object rightValue = right.evaluate(bean, context);
+        return bean.fieldNotEqualsTo(index, rightValue);
+    }
+
+    @Override
     public int opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
         return bean.fieldCompareTo(index, rightValue);

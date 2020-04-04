@@ -155,6 +155,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
+    public void validateAlterTable(Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        throw new StatementExecutionException("Cannot alter system table " + table.name);
+    }
+
+    @Override
     public void onTransactionRollback(Transaction transaction) throws DataStorageManagerException {
     }
 

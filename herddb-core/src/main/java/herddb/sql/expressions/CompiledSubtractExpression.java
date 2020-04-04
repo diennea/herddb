@@ -26,11 +26,8 @@ import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledSubtractExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledSubtractExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledSubtractExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override

@@ -109,7 +109,7 @@ public class TruncateTableSQLTest {
                 execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
                 fail();
             } catch (StatementExecutionException ok) {
-                assertEquals("TRUNCATE TABLE cannot be executed table tsql: at least one transaction is pending on it",
+                assertEquals("TRUNCATE TABLE cannot be executed table tblspace1.tsql: at least one transaction is pending on it",
                         ok.getCause().getMessage());
             }
             TestUtils.commitTransaction(manager, "tblspace1", txId);
@@ -144,8 +144,8 @@ public class TruncateTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             } catch (TableDoesNotExistException ok) {}
-
-            execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList());
+            // truncate, table name non case sensitive
+            execute(manager, "TRUNCATE TABLE tblspace1.Tsql", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 assertEquals(0, scan.consume().size());

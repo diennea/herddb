@@ -25,24 +25,13 @@ import herddb.model.StatementExecutionException;
 
 public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
 
-    private final boolean not;
-
-    public CompiledGreaterThenExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledGreaterThenExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
-        this.not = not;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-//        Object leftValue = left.evaluate(bean, context);
-//        Object rightValue = right.evaluate(bean, context);
-//        boolean res = SQLRecordPredicateFunctions.compare(leftValue, rightValue) > 0;
-        boolean res = left.opCompareTo(bean, context, right) > 0;
-        if (not) {
-            return !res;
-        } else {
-            return res;
-        }
+        return left.opCompareTo(bean, context, right) > 0;
     }
 
     @Override
@@ -52,8 +41,13 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledGreaterThenExpression(not,
+        return new CompiledGreaterThenExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
+    @Override
+    public String toString() {
+        return "CompiledGreaterThenExpression{left=" + left + ", right=" + right + "}";
     }
 }

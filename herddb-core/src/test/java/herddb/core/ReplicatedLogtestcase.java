@@ -47,7 +47,7 @@ public abstract class ReplicatedLogtestcase {
     @Before
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
-        testEnv.startBookie();
+        testEnv.startBookieAndInitCluster();
     }
 
     @After

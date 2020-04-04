@@ -29,6 +29,7 @@ import static org.junit.Assert.fail;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -58,7 +59,7 @@ public class AlterTableSQLTest {
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.TSQL (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
             assertEquals(0, table.getColumn("k1").serialPosition);
             assertEquals(1, table.getColumn("n1").serialPosition);
@@ -70,7 +71,8 @@ public class AlterTableSQLTest {
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
             execute(manager, "ALTER TABLE tblspace1.tsql add column k2 string", Collections.emptyList());
-            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1,k2) values('b',1,'b','c')", Collections.emptyList());
+            // uppercase table name !
+            execute(manager, "INSERT INTO tblspace1.TSQL (k1,n1,s1,k2) values('b',1,'b','c')", Collections.emptyList());
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql WHERE k2='c'", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
@@ -81,6 +83,25 @@ public class AlterTableSQLTest {
             assertEquals(1, table.getColumn("n1").serialPosition);
             assertEquals(2, table.getColumn("s1").serialPosition);
             assertEquals(3, table.getColumn("k2").serialPosition);
+
+            // check alter table is case non sensitive about table names
+            execute(manager, "ALTER TABLE tblspace1.TSQL add column k10 string", Collections.emptyList());
+            execute(manager, "ALTER TABLE tblspace1.tSql add column k11 string", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.STRING, table.getColumn("k11").type);
+
+            assertEquals("Found a record in table tsql that contains a NULL value for column k11 ALTER command is not possible",
+                    herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                execute(manager, "ALTER TABLE tblspace1.tSql modify column k11 string not null", Collections.emptyList());
+            }).getMessage());
+            // no effect
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.STRING, table.getColumn("k11").type);
+
+            execute(manager, "TRUNCATE  TABLE tblspace1.tSql", Collections.emptyList());
+            execute(manager, "ALTER TABLE tblspace1.tSql modify column k11 string not null", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(ColumnTypes.NOTNULL_STRING, table.getColumn("k11").type);
 
         }
     }
@@ -235,9 +256,22 @@ public class AlterTableSQLTest {
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }
-            execute(manager, "EXECUTE RENAMETABLE 'tblspace1','tsql','tsql2'", Collections.emptyList());
+            // rename to UPPERCASE
+            execute(manager, "EXECUTE RENAMETABLE 'tblspace1','tsql','TSQL2'", Collections.emptyList());
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql2 where k1=1", Collections.emptyList()).consumeAndClose();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.TSQL2 where k1=1", Collections.emptyList()).consumeAndClose();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            // rename using different case
+            execute(manager, "EXECUTE RENAMETABLE 'tblspace1','tsql2','tsql3'", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql3 where k1=1", Collections.emptyList()).consumeAndClose();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).getFieldNames().length);
             }

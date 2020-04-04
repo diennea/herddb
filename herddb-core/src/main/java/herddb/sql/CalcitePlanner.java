@@ -61,15 +61,14 @@ import herddb.model.planner.FilteredTableScanOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
+import herddb.model.planner.NestedLoopJoinOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
-import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
-import herddb.model.planner.ThetaJoinOp;
 import herddb.model.planner.UnionAllOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
@@ -99,16 +98,15 @@ import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableFilter;
+import org.apache.calcite.adapter.enumerable.EnumerableHashJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
-import org.apache.calcite.adapter.enumerable.EnumerableJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableMergeJoin;
+import org.apache.calcite.adapter.enumerable.EnumerableNestedLoopJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
-import org.apache.calcite.adapter.enumerable.EnumerableSemiJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
-import org.apache.calcite.adapter.enumerable.EnumerableThetaJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
@@ -130,6 +128,7 @@ import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
@@ -175,6 +174,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
      * Time to wait for the requested tablespace to be up
      */
     private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
+    private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
 
     private static final Pattern USE_DDL_PARSER = Pattern.compile("^[\\s]*(EXECUTE|CREATE|DROP|ALTER|TRUNCATE|BEGIN|COMMIT|ROLLBACK).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
@@ -261,7 +261,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (query.startsWith("EXPLAIN ")) {
                 query = query.substring("EXPLAIN ".length());
                 PlannerResult plan = runPlanner(defaultTableSpace, query);
-                PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                boolean upsert = detectUpsert(query);
+                PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                         .optimize();
                 ValuesOp values = new ValuesOp(manager.getNodeId(),
                         new String[]{"name", "value"},
@@ -299,11 +300,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             PlannerResult plan = runPlanner(defaultTableSpace, query);
+            boolean upsert = detectUpsert(query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
-                    convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                    convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                             .optimize());
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Query: {0} --HerdDB Plan {1}",
+            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
                         new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
             }
             if (!scan) {
@@ -351,11 +353,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } catch (RelConversionException | ValidationException | SqlParseException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             //TODO can this be done better ?
-            throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""));
+            throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""), ex);
         } catch (MetadataStorageManagerException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
         }
+    }
+
+    private static boolean detectUpsert(String query) {
+        // unfortunately Calcite does not retain the UPSERT flag in LogicalTableModify
+        boolean upsert = query.startsWith("UPSERT");
+        return upsert;
     }
 
 
@@ -509,8 +517,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode logicalPlan = planner.rel(n).project();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -531,8 +539,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                             SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -560,13 +568,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp convertRelNode(
             RelNode plan,
-            RelDataType rowType, boolean returnValues
+            RelDataType rowType, boolean returnValues, boolean upsert
     ) throws StatementExecutionException {
         if (plan instanceof EnumerableTableModify) {
             EnumerableTableModify dml = (EnumerableTableModify) plan;
             switch (dml.getOperation()) {
                 case INSERT:
-                    return planInsert(dml, returnValues);
+                    return planInsert(dml, returnValues, upsert);
                 case DELETE:
                     return planDelete(dml);
                 case UPDATE:
@@ -583,14 +591,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan, rowType);
-        } else if (plan instanceof EnumerableSemiJoin) {
-            EnumerableSemiJoin scan = (EnumerableSemiJoin) plan;
-            return planEnumerableSemiJoin(scan, rowType);
-        } else if (plan instanceof EnumerableThetaJoin) {
-            EnumerableThetaJoin scan = (EnumerableThetaJoin) plan;
-            return planEnumerableThetaJoin(scan, rowType);
-        } else if (plan instanceof EnumerableJoin) {
-            EnumerableJoin scan = (EnumerableJoin) plan;
+        } else if (plan instanceof EnumerableHashJoin) {
+            EnumerableHashJoin scan = (EnumerableHashJoin) plan;
+            return planEnumerableHashJoin(scan, rowType);
+        } else if (plan instanceof EnumerableNestedLoopJoin) {
+            EnumerableNestedLoopJoin scan = (EnumerableNestedLoopJoin) plan;
+            return planEnumerableNestedLoopJoin(scan, rowType);
+        } else if (plan instanceof EnumerableHashJoin) {
+            EnumerableHashJoin scan = (EnumerableHashJoin) plan;
             return planEnumerableJoin(scan, rowType);
         } else if (plan instanceof EnumerableMergeJoin) {
             EnumerableMergeJoin scan = (EnumerableMergeJoin) plan;
@@ -623,7 +631,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planInsert(
             EnumerableTableModify dml,
-            boolean returnValues
+            boolean returnValues,
+            boolean upsert
     ) {
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -680,7 +689,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                             keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, table);
                         }
                         RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
-                        statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                        statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
                     }
                 }
             }
@@ -689,17 +698,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return new SimpleInsertOp(statement);
         }
         PlannerOp input = convertRelNode(dml.getInput(),
-                null, false);
+                null, false, false);
 
         try {
-            return new InsertOp(tableSpace, tableName, input, returnValues);
+            return new InsertOp(tableSpace, tableName, input, returnValues, upsert);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
     }
 
     private PlannerOp planDelete(EnumerableTableModify dml) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false, false);
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
@@ -732,7 +741,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
-        PlannerOp input = convertRelNode(dml.getInput(), null, false);
+        PlannerOp input = convertRelNode(dml.getInput(), null, false, false);
         List<String> updateColumnList = dml.getUpdateColumnList();
         List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -904,7 +913,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planProject(EnumerableProject op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), null, false);
+        PlannerOp input = convertRelNode(op.getInput(), null, false, false);
 
         final List<RexNode> projects = op.getProjects();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
@@ -912,35 +921,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new ProjectOp(projection, input);
     }
 
-    private PlannerOp planEnumerableSemiJoin(EnumerableSemiJoin op, RelDataType rowType) {
+    private PlannerOp planEnumerableHashJoin(EnumerableHashJoin op, RelDataType rowType) {
         // please note that EnumerableSemiJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
-        final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
-        List<RelDataTypeField> fieldList = _rowType.getFieldList();
-        Column[] columns = new Column[fieldList.size()];
-        String[] fieldNames = new String[columns.length];
-        int i = 0;
-        for (RelDataTypeField field : fieldList) {
-            Column col = Column.column(field.getName().toLowerCase(),
-                    convertToHerdType(field.getType()));
-            fieldNames[i] = col.name;
-            columns[i++] = col;
-        }
-        return new SemiJoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right);
-    }
-
-    private PlannerOp planEnumerableJoin(EnumerableJoin op, RelDataType rowType) {
-        // please note that EnumerableJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
+
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -953,15 +944,35 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, false,
+                nonEquiConditions);
     }
 
-    private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
-        CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
+    private List<CompiledSQLExpression> convertJoinNonEquiConditions(final JoinInfo analyzeCondition) throws IllegalStateException {
+        List<CompiledSQLExpression> nonEquiConditions = new ArrayList<>();
+        if (!analyzeCondition.isEqui()) {
+            for (RexNode rexNode : analyzeCondition.nonEquiConditions) {
+                nonEquiConditions.add(SQLExpressionCompiler.compileExpression(rexNode));
+            }
+        } else {
+            if (!analyzeCondition.nonEquiConditions.isEmpty()) {
+                throw new IllegalStateException("Unexpected non equi with " + analyzeCondition.nonEquiConditions + " conditions");
+            }
+        }
+        return nonEquiConditions;
+    }
+
+    private PlannerOp planEnumerableJoin(EnumerableHashJoin op, RelDataType rowType) {
+        // please note that EnumerableJoin has a condition field which actually is not useful
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
@@ -973,19 +984,42 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new ThetaJoinOp(fieldNames, columns,
-                left, right, condition, generateNullsOnLeft, generateNullsOnRight, false);
+        return new JoinOp(fieldNames, columns,
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, false,
+                nonEquiConditions);
+    }
+
+    private PlannerOp planEnumerableNestedLoopJoin(EnumerableNestedLoopJoin op, RelDataType rowType) {
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
+        CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
+        final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
+        List<RelDataTypeField> fieldList = _rowType.getFieldList();
+        Column[] columns = new Column[fieldList.size()];
+        String[] fieldNames = new String[columns.length];
+        int i = 0;
+        for (RelDataTypeField field : fieldList) {
+            Column col = Column.column(field.getName().toLowerCase(),
+                    convertToHerdType(field.getType()));
+            fieldNames[i] = col.name;
+            columns[i++] = col;
+        }
+        return new NestedLoopJoinOp(fieldNames, columns,
+                left, right, condition, op.getJoinType(), false);
     }
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
         // please note that EnumerableMergeJoin has a condition field which actually is not useful
-        PlannerOp left = convertRelNode(op.getLeft(), null, false);
-        PlannerOp right = convertRelNode(op.getRight(), null, false);
-        int[] leftKeys = op.getLeftKeys().toIntArray();
-        int[] rightKeys = op.getRightKeys().toIntArray();
+        PlannerOp left = convertRelNode(op.getLeft(), null, false, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false, false);
+        final JoinInfo analyzeCondition = op.analyzeCondition();
+        int[] leftKeys = analyzeCondition.leftKeys.toIntArray();
+        int[] rightKeys = analyzeCondition.rightKeys.toIntArray();
         boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
         boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
+        List<CompiledSQLExpression> nonEquiConditions = convertJoinNonEquiConditions(analyzeCondition);
         List<RelDataTypeField> fieldList = _rowType.getFieldList();
         Column[] columns = new Column[fieldList.size()];
         String[] fieldNames = new String[columns.length];
@@ -997,7 +1031,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
+                leftKeys, left, rightKeys, right,
+                generateNullsOnLeft, generateNullsOnRight, true,
+                nonEquiConditions);
     }
 
     private Projection buildProjection(
@@ -1078,7 +1114,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planSort(EnumerableSort op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, false);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, false, false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
         boolean[] directions = new boolean[fieldCollations.size()];
@@ -1097,11 +1133,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planInterpreter(EnumerableInterpreter op, RelDataType rowType, boolean returnValues) {
         // NOOP
-        return convertRelNode(op.getInput(), rowType, returnValues);
+        return convertRelNode(op.getInput(), rowType, returnValues, false);
     }
 
     private PlannerOp planLimit(EnumerableLimit op, RelDataType rowType) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, false);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, false, false);
         CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
         CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
         return new LimitOp(input, maxRows, offset);
@@ -1109,7 +1145,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planFilter(EnumerableFilter op, RelDataType rowType, boolean returnValues) {
-        PlannerOp input = convertRelNode(op.getInput(), rowType, returnValues);
+        PlannerOp input = convertRelNode(op.getInput(), rowType, returnValues, false);
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
         return new FilterOp(input, condition);
 
@@ -1121,7 +1157,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         List<PlannerOp> inputs = new ArrayList<>(op.getInputs().size());
         for (RelNode input : op.getInputs()) {
-            PlannerOp inputOp = convertRelNode(input, rowType, false).optimize();
+            PlannerOp inputOp = convertRelNode(input, rowType, false, false).optimize();
             inputs.add(inputOp);
         }
         return new UnionAllOp(inputs);
@@ -1152,7 +1188,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             aggtypes[idaggcall++] = call.getAggregation().getName();
             argLists.add(call.getArgList());
         }
-        PlannerOp input = convertRelNode(op.getInput(), null, returnValues);
+        PlannerOp input = convertRelNode(op.getInput(), null, returnValues, false);
         return new AggregateOp(input, fieldnames, columns, aggtypes, argLists, groupedFiledsIndexes);
     }
 
@@ -1383,7 +1419,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         @Override
         public Expression getExpression(SchemaPlus schema, String tableName, Class clazz) {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return null;
         }
 
         @Override

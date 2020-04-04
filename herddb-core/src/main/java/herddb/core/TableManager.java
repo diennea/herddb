@@ -39,6 +39,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Index;
@@ -48,6 +49,7 @@ import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.RecordTooBigException;
 import herddb.model.ScanLimits;
+import herddb.model.ScanLimitsImpl;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -1080,6 +1082,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         LockHandle lock = lockForWrite(key, transaction);
         CompletableFuture<StatementExecutionResult> res = null;
+        boolean fallbackToUpsert = false;
         if (transaction != null) {
             if (transaction.recordDeleted(table.name, key)) {
                 // OK, INSERT on a DELETED record inside this transaction
@@ -1087,13 +1090,27 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 // ERROR, INSERT on a INSERTED record inside this transaction
                 res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                if (insert.isUpsert()) {
+                    fallbackToUpsert = true;
+                } else {
+                    res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                }
             }
         } else if (keyToPage.containsKey(key)) {
-            res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
+            if (insert.isUpsert()) {
+                fallbackToUpsert = true;
+            } else {
+                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
+            }
         }
+
         if (res == null) {
-            LogEntry entry = LogEntryFactory.insert(table, key, Bytes.from_array(value), transaction);
+            LogEntry entry;
+            if (fallbackToUpsert) {
+                entry = LogEntryFactory.update(table, key, Bytes.from_array(value), transaction);
+            } else {
+                entry = LogEntryFactory.insert(table, key, Bytes.from_array(value), transaction);
+            }
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
                 apply(pos, entry, false);
@@ -1224,7 +1241,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1244,9 +1261,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
@@ -1308,7 +1327,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending.lockHandle != null) {
+                            if (pending != null && pending.lockHandle != null) {
                                 locksManager.releaseLock(pending.lockHandle);
                             }
                         }
@@ -1328,9 +1347,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         } finally {
-                            for (PendingLogEntryWork pending : pendings) {
-                                if (pending.lockHandle != null) {
-                                    locksManager.releaseLock(pending.lockHandle);
+                            if (pendings != null) {
+                                for (PendingLogEntryWork pending : pendings) {
+                                    if (pending.lockHandle != null) {
+                                        locksManager.releaseLock(pending.lockHandle);
+                                    }
                                 }
                             }
                         }
@@ -1368,15 +1389,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed during a checkpoint");
         }
         if (tableSpaceManager.isTransactionRunningOnTable(table.name)) {
-            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.name
-                    + ": at least one transaction is pending on it");
+            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.tablespace + "."
+                    + table.name + ": at least one transaction is pending on it");
         }
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             for (AbstractIndexManager index : indexes.values()) {
                 if (!index.isAvailable()) {
                     throw new DataStorageManagerException("index " + index.getIndexName()
-                            + " in not full available. Cannot TRUNCATE table " + table.name);
+                            + " in not full available. Cannot TRUNCATE table " + table.tablespace + "." + table.name);
                 }
             }
         }
@@ -1601,12 +1622,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long pageId = keyToPage.remove(key);
         if (pageId == null) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table "
+                    + table.tablespace + "." + table.name);
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId);
+            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId + " from table " + table.tablespace
+                    + "." + table.name);
         }
 
 
@@ -1631,8 +1653,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 previous = page.get(key);
 
                 if (previous == null) {
-                    throw new IllegalStateException(
-                            "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
+                    throw new IllegalStateException("corrupted PK: old page " + pageId + " for deleted record at " + key
+                            + " was not found in table " + table.tablespace + "." + table.name);
                 }
             } else {
                 previous = null;
@@ -1643,8 +1665,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = page.get(key);
 
             if (previous == null) {
-                throw new IllegalStateException(
-                        "corrupted PK: old page " + pageId + " for deleted record at " + key + " was not found");
+                throw new IllegalStateException("corrupted PK: old page " + pageId + " for deleted record at " + key
+                        + " was not found in table " + table.tablespace + "." + table.name);
             }
         }
 
@@ -1692,8 +1714,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* This could be a normal or a temporary modifiable page */
         final Long prevPageId = keyToPage.get(key);
         if (prevPageId == null) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is not present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table "
+                    + table.tablespace + "." + table.name);
         }
 
         /*
@@ -1718,8 +1740,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 previous = prevPage.get(key);
 
                 if (previous == null) {
-                    throw new IllegalStateException(
-                            "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
+                    throw new IllegalStateException("corrupted PK: old page " + prevPageId + " for updated record at "
+                            + key + " was not found in table " + table.tablespace + "." + table.name);
                 }
             } else {
                 previous = null;
@@ -1731,8 +1753,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = prevPage.get(key);
 
             if (previous == null) {
-                throw new IllegalStateException(
-                        "corrupted PK: old page " + prevPageId + " for updated record at " + key + " was not found");
+                throw new IllegalStateException("corrupted PK: old page " + prevPageId + " for updated record at " + key
+                        + " was not found in table" + table.tablespace + "." + table.name);
             }
         }
 
@@ -1799,7 +1821,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId);
+            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId
+                    + " on table " + table.tablespace + "." + table.name);
         }
 
         if (indexes != null) {
@@ -1954,12 +1977,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         /* Insert  the value on keyToPage */
         if (!keyToPage.put(key, insertionPageId, null)) {
-            throw new IllegalStateException(
-                    "corrupted transaction log: key " + key + " is already present in table " + table.name);
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is already present in table "
+                            + table.tablespace + "." + table.name);
         }
 
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId);
+            LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId + " into table "
+                    + table.tablespace + "." + table.name);
         }
 
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
@@ -1986,7 +2010,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void close() {
+
+        // unload all pages
+        final List<DataPage> unload = pages.values().stream()
+                .collect(Collectors.toList());
+        pageReplacementPolicy.remove(unload);
+
+        // unload keyToPage
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.uuid, keyToPage);
+
     }
 
     private CompletableFuture<StatementExecutionResult> executeGetAsync(
@@ -2079,8 +2111,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         if (LOGGER.isLoggable(Level.FINE)) {
             long stop = System.currentTimeMillis();
-            LOGGER.log(Level.FINE, "table {0}, temporary loaded {1} records from page {2} in {3} ms, ({4} ms read)",
-                    new Object[]{result.size(), pageId, (stop - start), (ioStop - ioStart)});
+            LOGGER.log(Level.FINE, "table {0}.{1}, temporary loaded {2} records from page {4} in {5} ms, ({6} ms read)",
+                    new Object[] { table.tablespace, table.name, result.size(), pageId, (stop - start),
+                            (ioStop - ioStart) });
         }
 
         return result;
@@ -2140,9 +2173,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (computed.value && LOGGER.isLoggable(Level.FINE)) {
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.FINE,
-                    "table {0}, loaded {1} records from page {2} in {3} ms, ({4} ms read + plock, {5} ms unlock)",
-                    new Object[]{result.size(), pageId, (_stop - _start), (_ioAndLock - _start),
-                            (_stop - _ioAndLock)});
+                    "table {0}.{1}, loaded {2} records from page {3} in {4} ms, ({5} ms read + plock, {6} ms unlock)",
+                    new Object[] { table.tablespace, table.name, result.size(), pageId, (_stop - _start),
+                            (_ioAndLock - _start), (_stop - _ioAndLock) });
         }
         return result;
     }
@@ -2311,8 +2344,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
                     currentPageWasInMemory = false;
-                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records",
-                            new Object[]{page.pageId, records.size()});
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} for table {1}.{2} on tmp buffer: {3} records",
+                            new Object[] { page.pageId, table.tablespace, table.name, records.size() });
                 } else {
                     records = dataPage.getRecordsForFlush();
 
@@ -2415,7 +2448,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     "Data inconsistency! Found a clean page with dirty records based on PK data. "
                                             + "It could be a key to page inconsistency (broken PK) or a page metadata "
                                             + "inconsistency (failed to track dirty record on page metadata). "
-                                            + "Page: " + page + ", Record " + unshared);
+                                            + "Page: " + page + ", Record: " + unshared + ", Table: " + table.tablespace
+                                            + "." + table.name);
                             LOGGER.log(Level.SEVERE, ex.getMessage());
                             throw ex;
                         }
@@ -2452,7 +2486,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                     "Data inconsistency! Failed to remove the right page from page knowledge during "
                                             + "checkpoint. It could be an illegal concurrent write during checkpoint or "
                                             + "the reloaded page doesn't match in memory one. " + "Expected page "
-                                            + dataPage + ", found page " + removedDataPage);
+                                            + dataPage + ", found page " + removedDataPage + " on table "
+                                            + table.tablespace + "." + table.name);
                             LOGGER.log(Level.SEVERE, ex.getMessage());
                             throw ex;
                         }
@@ -3513,6 +3548,46 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isStarted() {
         return started;
+    }
+
+    @Override
+    public void validateAlterTable(Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        List<String> columnsChangedFromNullToNotNull = new ArrayList<>();
+        for (Column c : this.table.columns) {
+            Column newColumnSpecs = table.getColumn(c.name);
+            if (newColumnSpecs == null) {
+                // dropped column
+                LOGGER.log(Level.INFO, "Table {0}.{1} dropping column {2}", new Object[]{table.tablespace, table.name, c.name});
+            } else if (newColumnSpecs.type == c.type) {
+                // no data type change
+            } else if (ColumnTypes.isNotNullToNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NULLABLE", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+            } else if (ColumnTypes.isNullToNotNullConversion(c.type, newColumnSpecs.type)) {
+                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NOT NULL", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+                columnsChangedFromNullToNotNull.add(c.name);
+            }
+        }
+        for (final String column : columnsChangedFromNullToNotNull) {
+            LOGGER.log(Level.INFO, "Table {0}.{1} validating column {2}, check for NULL values", new Object[]{table.tablespace, table.name, column});
+            ScanStatement scan = new ScanStatement(this.table.tablespace,
+                    this.table, new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return record.getDataAccessor(table).get(column) == null;
+                }
+            });
+            // fast fail
+            scan.setLimits(new ScanLimitsImpl(1, 0));
+            boolean foundOneNull = false;
+            try (DataScanner scanner = this.scan(scan, context, null, false, false);) {
+                foundOneNull = scanner.hasNext();
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+            if (foundOneNull) {
+                throw new StatementExecutionException("Found a record in table " + table.name + " that contains a NULL value for column " + column + " ALTER command is not possible");
+            }
+        }
     }
 
     @Override

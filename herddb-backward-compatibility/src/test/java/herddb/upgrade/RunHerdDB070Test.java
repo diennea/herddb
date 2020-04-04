@@ -147,7 +147,7 @@ public class RunHerdDB070Test {
             {
                 TranslatedQuery translated = manager
                         .getPlanner().translate(tableSpace,
-                                "SELECT * FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id\n"
+                                "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id\n"
                                         + "            ",
                                 Collections.emptyList(),
                                 true, true, false, -1);

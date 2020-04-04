@@ -1,9 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.14.0-SNAPSHOT</version>
+    <version>0.16.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>
     <url>http://herddb.org</url>
@@ -57,20 +75,24 @@
             <name>Francesco Caliumi</name>
             <organization>Diennea</organization>
         </developer>
+        <developer>
+            <id>amitvc</id>
+            <name>Amit Chavan</name>
+        </developer>
     </developers>
     <issueManagement>
-        <url>https://dev.herddb.org/jira</url>
+        <url>https://github.com/diennea/herddb/issues</url>
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.36.Final</libs.netty4>
-        <libs.netty4ssl>2.0.25.Final</libs.netty4ssl>
-        <libs.calcite>1.19.0</libs.calcite>
+        <libs.netty4>4.1.45.Final</libs.netty4>
+        <libs.netty4ssl>2.0.28.Final</libs.netty4ssl>
+        <libs.calcite>1.22.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
-        <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-        <libs.zookeeper>3.5.6</libs.zookeeper>
+        <libs.jackson.mapper>2.10.3</libs.jackson.mapper>
+        <libs.zookeeper>3.5.7</libs.zookeeper>
         <libs.jsqlparser>3.1</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>
@@ -81,9 +103,9 @@
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
-        <libs.spotbugsmaven>3.1.8</libs.spotbugsmaven>
+        <libs.spotbugsmaven>3.1.12.2</libs.spotbugsmaven>
         <fbs.version>1.9.0</fbs.version>
-        <checkstyle.version>8.23</checkstyle.version>
+        <checkstyle.version>8.30</checkstyle.version>
     </properties>
 
     <dependencies>
@@ -172,8 +194,18 @@
                 <version>${libs.calcite}</version>
             </dependency>
             <dependency>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${libs.jackson.mapper}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${libs.jackson.mapper}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
                 <version>${libs.jackson.mapper}</version>
             </dependency>
             <dependency>
@@ -406,14 +438,13 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
     <build>
         <pluginManagement>
             <plugins>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.1.1</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
@@ -440,6 +471,74 @@
                             </goals>
                         </execution>
                     </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.rat</groupId>
+                    <artifactId>apache-rat-plugin</artifactId>
+                    <version>0.13</version>
+                    <configuration>
+                        <consoleOutput>true</consoleOutput>
+         		<licenses>
+            			<license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
+              			<licenseFamilyCategory>MIT</licenseFamilyCategory>
+              			<licenseFamilyName>MIT License</licenseFamilyName>
+              			<notes />
+              			<patterns>
+					<pattern>Licensed under the MIT license</pattern>
+                			<pattern>Released under the MIT license</pattern>
+                			<pattern>Licensed under MIT</pattern>
+					<pattern>MIT License</pattern>
+					<pattern>License: MIT</pattern>
+              			</patterns>
+            			</license>
+          		</licenses>
+			<licenseFamilies>
+				<licenseFamily implementation="org.apache.rat.license.SimpleLicenseFamily">
+				<familyName>MIT License</familyName>
+				</licenseFamily>
+			</licenseFamilies>
+                        <excludes>
+				<!-- Intellij -->
+				<exclude>**/.idea/**</exclude>
+
+				<!-- Git -->
+				<exclude>.git/**/*</exclude>
+				<exclude>.github/**/*</exclude>
+				<exclude>**/.gitignore</exclude>
+
+				<!-- Built directory -->
+				<exclude>**/target/**/*</exclude>
+
+				<!-- Project files -->
+				<exclude>**/README.md</exclude>
+				<exclude>**/docs/*.graphml</exclude>
+				<exclude>nbproject/**</exclude>
+				<exclude>**/nbactions.xml</exclude>
+				<exclude>**/nb-configuration.xml</exclude>
+				<exclude>**/dependency-reduced-pom.xml</exclude>
+
+				<!-- Website markdonw -->
+				<exclude>src/site/markdown/index.md</exclude>
+
+				<!-- java.sql.Driver -->
+				<exclude>src/main/resources/META-INF/services/java.sql.Driver</exclude>
+
+				<!-- IDE files (eclipse & intellij) -->
+				<exclude>**/.classpath</exclude>
+				<exclude>**/.project</exclude>
+				<exclude>**/.checkstyle</exclude>
+				<exclude>**/.settings/*</exclude>
+				<exclude>**/*.iml</exclude>
+				<exclude>**/*.iws</exclude>
+				<exclude>**/*.ipr</exclude>
+
+				<!-- Oracle BSD license -->
+				<exclude>jmh/**</exclude>
+
+				<!-- datatables MIT license -->
+				<exclude>src/main/webapp/js/jquery.dataTables.min.js</exclude>
+                        </excludes>
+                    </configuration>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -496,7 +595,7 @@
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
-                            <argLine>-Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
+                            <argLine>-Dzookeeper.forceSync=no -Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
                     </plugin>

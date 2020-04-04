@@ -17,10 +17,13 @@
  under the License.
 
  */
-
 package herddb.utils;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -31,14 +34,17 @@ import org.apache.zookeeper.ZooDefs;
 
 public class ZKTestEnv implements AutoCloseable {
 
+    private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
+
     static {
         System.setProperty("zookeeper.admin.enableServer", "false");
         System.setProperty("zookeeper.forceSync", "no");
     }
 
     TestingServer zkServer;
-    BookieServer bookie;
+    List<BookieServer> bookies = new ArrayList<>();
     Path path;
+    private int nextBookiePort = 5621;
 
     public ZKTestEnv(Path path) throws Exception {
         zkServer = new TestingServer(1282, path.toFile(), true);
@@ -46,7 +52,7 @@ public class ZKTestEnv implements AutoCloseable {
 
         try (ZooKeeperClient zkc = ZooKeeperClient
                 .newBuilder()
-                .connectString("localhost:1282")
+                .connectString(zkServer.getConnectString())
                 .sessionTimeoutMs(10000)
                 .build()) {
 
@@ -58,53 +64,123 @@ public class ZKTestEnv implements AutoCloseable {
         }
     }
 
-    public void startBookie() throws Exception {
+    public void startBookieAndInitCluster() throws Exception {
         startBookie(true);
     }
 
-    public void startBookie(boolean format) throws Exception {
-        if (bookie != null) {
-            throw new Exception("bookie already started");
+    public String startNewBookie() throws Exception {
+        return startBookie(false);
+    }
+
+    private String startBookie(boolean format) throws Exception {
+        if (format && !bookies.isEmpty()) {
+            throw new Exception("cannot format, you aleady have bookies");
         }
-        ServerConfiguration conf = new ServerConfiguration();
-        conf.setBookiePort(5621);
-        conf.setUseHostNameAsBookieID(true);
-
-        Path targetDir = path.resolve("bookie_data");
-        conf.setZkServers("localhost:1282");
-        conf.setZkLedgersRootPath(herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
-        conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
-        conf.setJournalDirName(targetDir.toAbsolutePath().toString());
-        conf.setFlushInterval(10000);
-        conf.setGcWaitTime(5);
-        conf.setJournalFlushWhenQueueEmpty(true);
-//        conf.setJournalBufferedEntriesThreshold(1);
-        conf.setAutoRecoveryDaemonEnabled(false);
-        conf.setEnableLocalTransport(true);
-        conf.setJournalSyncData(false);
-
-        conf.setAllowLoopback(true);
-        conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms
+        ServerConfiguration conf = createBookieConf(nextBookiePort++);
 
         if (format) {
             BookKeeperAdmin.initNewCluster(conf);
             BookKeeperAdmin.format(conf, false, true);
         }
 
-        this.bookie = new BookieServer(conf);
-        this.bookie.start();
+        BookieServer bookie = new BookieServer(conf);
+        bookies.add(bookie);
+        bookie.start();
+        return bookie.getLocalAddress().getSocketAddress().toString();
     }
 
-    public void stopBookie() throws Exception {
-        if (bookie != null) {
-            bookie.shutdown();
-            bookie.join();
-            bookie = null;
+    private ServerConfiguration createBookieConf(int port) {
+        ServerConfiguration conf = new ServerConfiguration();
+        conf.setBookiePort(port++);
+        LOG.log(Level.INFO, "STARTING BOOKIE at port {0}", String.valueOf(port));
+        conf.setUseHostNameAsBookieID(true);
+        // no need to preallocate journal and entrylog in tests
+        conf.setEntryLogFilePreAllocationEnabled(false);
+        conf.setProperty("journalPreAllocSizeMB", 1);
+        Path targetDir = path.resolve("bookie_data_" + conf.getBookiePort());
+        conf.setMetadataServiceUri("zk+null://" + zkServer.getConnectString() + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
+        conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
+        conf.setJournalDirName(targetDir.toAbsolutePath().toString());
+        conf.setFlushInterval(10000);
+        conf.setGcWaitTime(5);
+        conf.setJournalFlushWhenQueueEmpty(true);
+        //        conf.setJournalBufferedEntriesThreshold(1);
+        conf.setAutoRecoveryDaemonEnabled(false);
+        // no need for real network in tests
+        conf.setEnableLocalTransport(true);
+        conf.setDisableServerSocketBind(true);
+        // no need to fsync in tests
+        conf.setJournalSyncData(false);
+        conf.setAllowLoopback(true);
+        conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms
+        return conf;
+    }
+
+    public void startStoppedBookie(String addr) throws Exception {
+        int index = 0;
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                if (bookie.isRunning()) {
+                    throw new Exception("you did not stop bookie " + addr);
+                }
+                ServerConfiguration conf = createBookieConf(bookie.getLocalAddress().getPort());
+                BookieServer newBookie = new BookieServer(conf);
+                bookies.set(index, newBookie);
+                newBookie.start();
+                return;
+            }
+            index++;
         }
+        throw new Exception("Cannot find bookie " + addr);
+    }
+
+    public void pauseBookie() throws Exception {
+        bookies.get(0).suspendProcessing();
+    }
+
+    public void pauseBookie(String addr) throws Exception {
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                bookie.suspendProcessing();
+                return;
+            }
+        }
+        throw new Exception("Cannot find bookie " + addr);
+    }
+
+    public void resumeBookie() throws Exception {
+        bookies.get(0).resumeProcessing();
+    }
+
+    public void resumeBookie(String addr) throws Exception {
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                bookie.resumeProcessing();
+                return;
+            }
+        }
+        throw new Exception("Cannot find bookie " + addr);
+    }
+
+    public String stopBookie() throws Exception {
+        String addr = bookies.get(0).getLocalAddress().getSocketAddress().toString();
+        stopBookie(addr);
+        return addr;
+    }
+
+    public void stopBookie(String addr) throws Exception {
+        for (BookieServer bookie : bookies) {
+            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+                bookie.shutdown();
+                bookie.join();
+                return;
+            }
+        }
+        throw new Exception("Cannot find bookie " + addr);
     }
 
     public String getAddress() {
-        return "localhost:1282";
+        return zkServer.getConnectString();
     }
 
     public int getTimeout() {
@@ -117,15 +193,18 @@ public class ZKTestEnv implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        try {
-            if (bookie != null) {
+        for (BookieServer bookie : bookies) {
+            try {
                 bookie.shutdown();
+            } catch (Throwable t) {
             }
-        } catch (Throwable t) {
         }
+        bookies.clear();
+
         try {
             if (zkServer != null) {
                 zkServer.close();
+                zkServer = null;
             }
         } catch (Throwable t) {
         }

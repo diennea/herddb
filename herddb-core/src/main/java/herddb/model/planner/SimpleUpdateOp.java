@@ -70,4 +70,10 @@ public class SimpleUpdateOp implements PlannerOp {
     public boolean isSimpleStatementWrapper() {
         return true;
     }
+
+    @Override
+    public String toString() {
+        return "SimpleUpdateOp{" + "statement=" + statement + '}';
+    }
+
 }

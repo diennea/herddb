@@ -44,4 +44,9 @@ public class LeaderChangedException extends RetryRequestException {
         return true;
     }
 
+    @Override
+    public int getMaxRetry() {
+        return Integer.MAX_VALUE;
+    }
+
 }

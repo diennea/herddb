@@ -282,6 +282,11 @@ public class ProjectOp implements PlannerOp {
             }
 
             @Override
+            public boolean fieldNotEqualsTo(int index, Object value) {
+                return wrapped.fieldNotEqualsTo(zeroCopyProjections[index], value);
+            }
+
+            @Override
             public int fieldCompareTo(int index, Object value) {
                 return wrapped.fieldCompareTo(zeroCopyProjections[index], value);
             }
@@ -342,8 +347,14 @@ public class ProjectOp implements PlannerOp {
         }
 
         @Override
+        public boolean isRewindSupported() {
+            return downstream.isRewindSupported();
+        }
+
+        @Override
         public void close() throws DataScannerException {
             downstream.close();
+            super.close();
         }
 
     }

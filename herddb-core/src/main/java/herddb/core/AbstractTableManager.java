@@ -110,6 +110,8 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void tableAltered(Table table, Transaction transaction) throws DDLException;
 
+    void validateAlterTable(Table table, StatementEvaluationContext context) throws StatementExecutionException;
+
     void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
 
     void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;

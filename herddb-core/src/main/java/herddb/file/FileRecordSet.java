@@ -54,7 +54,6 @@ class FileRecordSet extends MaterializedRecordSet {
         this.tmpDirectory = factory.tmpDirectory;
         this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, new TupleSerializer(columns, fieldNames));
         this.buffer.enableCompression();
-
     }
 
     private static class TupleSerializer implements DiskArrayList.Serializer<DataAccessor> {

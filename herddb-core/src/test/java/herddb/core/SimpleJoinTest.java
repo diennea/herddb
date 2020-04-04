@@ -26,19 +26,28 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
+import herddb.file.FileCommitLogManager;
+import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests on basic JOIN queries
@@ -68,402 +77,402 @@ public class SimpleJoinTest {
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('c',3,'A')", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('d',4,'A')", Collections.emptyList());
 
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//                    System.out.println("t:" + t);
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
-//                    + " tblspace1.table1 t1 "
-//                    + " NATURAL JOIN tblspace1.table2 t2 "
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(2, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("k2", t.getFieldNames()[1]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a",
-//                    "k2", "c"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a",
-//                    "k2", "d"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b",
-//                    "k2", "c"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b",
-//                    "k2", "d"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
-//                    + " tblspace1.table1 t1 "
-//                    + " NATURAL JOIN tblspace1.table2 t2 "
-//                    + " WHERE t1.n1 >= 2"
-//                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(2, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("k2", t.getFieldNames()[1]);
-//                }
-//                assertEquals(1, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b",
-//                    "k2", "d"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t1.*,t2.* FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t1.* FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(3, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t2.* FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(3, t.getFieldNames().length);
-//                    assertEquals("k2", t.getFieldNames()[0]);
-//                    assertEquals("n2", t.getFieldNames()[1]);
-//                    assertEquals("s2", t.getFieldNames()[2]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t2.s2 FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(1, t.getFieldNames().length);
-//                    assertEquals("s2", t.getFieldNames()[0]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 > 0"
-//                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(2, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-//                    + " tblspace1.table1 t1"
-//                    + " NATURAL JOIN tblspace1.table2 t2"
-//                    + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(4, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "d", "n2", 4, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
-//                    + " tblspace1.table1 t1 "
-//                    + " NATURAL JOIN tblspace1.table2 t2 "
-//                    + " WHERE t1.n1 <= t2.n2 "
-//                    + "and t2.n2 <= 3", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(2, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//            }
-//
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
-//                    + " tblspace1.table1 t1 "
-//                    + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
-//                    + " and t2.n2 <= 3", Collections.emptyList()).consume();
-//                for (DataAccessor t : tuples) {
-//
-//                    assertEquals(6, t.getFieldNames().length);
-//                    assertEquals("k1", t.getFieldNames()[0]);
-//                    assertEquals("n1", t.getFieldNames()[1]);
-//                    assertEquals("s1", t.getFieldNames()[2]);
-//                    assertEquals("k2", t.getFieldNames()[3]);
-//                    assertEquals("n2", t.getFieldNames()[4]);
-//                    assertEquals("s2", t.getFieldNames()[5]);
-//                }
-//                assertEquals(2, tuples.size());
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "a", "n1", 1, "s1", "A",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//                assertTrue(
-//                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                    "k1", "b", "n1", 2, "s1", "B",
-//                    "k2", "c", "n2", 3, "s2", "A"
-//                ))));
-//
-//            }
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
+                    + " tblspace1.table1 t1 "
+                    + " NATURAL JOIN tblspace1.table2 t2 "
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("k2", t.getFieldNames()[1]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a",
+                    "k2", "c"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a",
+                    "k2", "d"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b",
+                    "k2", "c"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b",
+                    "k2", "d"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
+                    + " tblspace1.table1 t1 "
+                    + " NATURAL JOIN tblspace1.table2 t2 "
+                    + " WHERE t1.n1 >= 2"
+                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("k2", t.getFieldNames()[1]);
+                }
+                assertEquals(1, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b",
+                    "k2", "d"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t1.*,t2.* FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t1.* FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t2.* FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                    assertEquals("s2", t.getFieldNames()[2]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t2.s2 FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(1, t.getFieldNames().length);
+                    assertEquals("s2", t.getFieldNames()[0]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " NATURAL JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
+                    + " tblspace1.table1 t1 "
+                    + " NATURAL JOIN tblspace1.table2 t2 "
+                    + " WHERE t1.n1 <= t2.n2 "
+                    + "and t2.n2 <= 3", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
+                    + " tblspace1.table1 t1 "
+                    + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
+                    + " and t2.n2 <= 3", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "a", "n1", 1, "s1", "A",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "b", "n1", 2, "s1", "B",
+                    "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+            }
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
                         + " tblspace1.table1 t1 "
@@ -516,7 +525,6 @@ public class SimpleJoinTest {
                         + " ON  t1.n1 > 0"
                         + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
-
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("n2", t.getFieldNames()[0]);
                     assertEquals("s1", t.getFieldNames()[1]);
@@ -836,7 +844,110 @@ public class SimpleJoinTest {
                                 "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4)));
 
             }
+
+             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('a',1,'A')", Collections.emptyList());
+
+            {
+
+                List<DataAccessor> tuples = scan(manager,
+                        "SELECT * FROM tblspace1.table1 t1, tblspace1.table2 t2 WHERE t1.k1=? and t2.k2=? and t1.k1=t2.k2", Arrays.asList("a", "a")).consumeAndClose();
+
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                }
+                assertEquals(1, tuples.size());
+
+            }
         }
     }
 
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    @Test
+    public void testJoinUnsortedKey() throws Exception {
+        String nodeId = "localhost";
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        // this test is using FileDataStorageManager, because it sorts PK in a way that
+        // reproduces an error due to the order or elements returned during the scan
+        try (DBManager manager = new DBManager(nodeId,
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+            manager.start();
+            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+
+            execute(manager,
+                    "CREATE TABLE customer (customer_id long primary key,contact_email string,contact_person string, creation long, deleted boolean, modification long, name string, vetting boolean)",
+                    Collections.emptyList());
+            execute(manager,
+                    "CREATE TABLE license (license_id long primary key,application string, creation long,data string, deleted boolean, modification long,signature string, customer_id long , license_key_id string)",
+                    Collections.emptyList());
+
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(1,1)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(2,1)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(3,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(4,4)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(5,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(6,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(7,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(8,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(9,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(10,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(11,3)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(12,5)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(13,6)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(14,7)", Collections.emptyList());
+            execute(manager, "INSERT INTO license (license_id,customer_id) values(15,3)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO customer (customer_id) values(1)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(2)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(3)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(4)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(5)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(6)", Collections.emptyList());
+            execute(manager, "INSERT INTO customer (customer_id) values(7)", Collections.emptyList());
+
+            {
+                try (DataScanner scan1 = scan(manager,
+                        "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
+                        Collections.emptyList())) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    assertEquals(9, consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+
+                }
+            }
+
+            // joins during transactions must release transaction resources properly
+            {
+                long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);
+                try (DataScanner scan1 = scan(manager,
+                        "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
+                        Collections.emptyList(), new TransactionContext(tx))) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    assertEquals(9, consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+
+                }
+                TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
+            }
+        }
+    }
 }
+

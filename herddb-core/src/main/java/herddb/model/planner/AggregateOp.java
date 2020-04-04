@@ -269,6 +269,7 @@ public class AggregateOp implements PlannerOp {
             if (aggregatedScanner != null) {
                 aggregatedScanner.close();
             }
+            super.close();
         }
     }
 

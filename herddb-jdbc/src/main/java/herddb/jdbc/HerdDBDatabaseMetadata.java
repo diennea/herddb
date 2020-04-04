@@ -1062,6 +1062,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @exception SQLException if a database access error occurs
      */
     @Override
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
         String query = "SELECT * FROM SYSINDEXCOLUMNS WHERE index_type='pk' ";
         if (table != null && !table.isEmpty()) {

@@ -79,32 +79,32 @@ public class SQLExpressionCompiler {
             }
             switch (name) {
                 case "=":
-                    return new CompiledEqualsExpression(false, operands[0], operands[1]);
+                    return new CompiledEqualsExpression(operands[0], operands[1]);
                 case "<>":
-                    return new CompiledNotEqualsExpression(false, operands[0], operands[1]);
+                    return new CompiledNotEqualsExpression(operands[0], operands[1]);
                 case ">":
-                    return new CompiledGreaterThenExpression(false, operands[0], operands[1]);
+                    return new CompiledGreaterThenExpression(operands[0], operands[1]);
                 case ">=":
-                    return new CompiledGreaterThenEqualsExpression(false, operands[0], operands[1]);
+                    return new CompiledGreaterThenEqualsExpression(operands[0], operands[1]);
                 case "<":
-                    return new CompiledMinorThenExpression(false, operands[0], operands[1]);
+                    return new CompiledMinorThenExpression(operands[0], operands[1]);
                 case "<=":
-                    return new CompiledMinorThenEqualsExpression(false, operands[0], operands[1]);
+                    return new CompiledMinorThenEqualsExpression(operands[0], operands[1]);
                 case "+":
-                    return new CompiledAddExpression(false, operands[0], operands[1]);
+                    return new CompiledAddExpression(operands[0], operands[1]);
                 case "-":
                     if (operands.length == 1) {
                         return new CompiledSignedExpression('-', operands[0]);
                     } else if (operands.length == 2) {
-                        return new CompiledSubtractExpression(false, operands[0], operands[1]);
+                        return new CompiledSubtractExpression(operands[0], operands[1]);
                     }
                     break;
                 case "*":
-                    return new CompiledMultiplyExpression(false, operands[0], operands[1]);
+                    return new CompiledMultiplyExpression(operands[0], operands[1]);
                 case "/":
-                    return new CompiledDivideExpression(false, operands[0], operands[1]);
+                    return new CompiledDivideExpression(operands[0], operands[1]);
                 case "LIKE":
-                    return new CompiledLikeExpression(false, operands[0], operands[1]);
+                    return new CompiledLikeExpression(operands[0], operands[1]);
                 case "AND":
                     return new CompiledMultiAndExpression(operands);
                 case "OR":

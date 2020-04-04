@@ -20,7 +20,6 @@
 
 package herddb.cluster;
 
-import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
@@ -61,6 +60,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private final StatsLogger statsLogger;
     private final ClientConfiguration config;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxLedgerSizeBytes = 100 * 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
     private ConcurrentHashMap<String, BookkeeperCommitLog> activeLogs = new ConcurrentHashMap<>();
 
@@ -184,6 +184,14 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         this.ledgersRetentionPeriod = ledgersRetentionPeriod;
     }
 
+    public long getMaxLedgerSizeBytes() {
+        return maxLedgerSizeBytes;
+    }
+
+    public void setMaxLedgerSizeBytes(long maxLedgerSizeBytes) {
+        this.maxLedgerSizeBytes = maxLedgerSizeBytes;
+    }
+
     public long getMaxIdleTime() {
         return maxIdleTime;
     }
@@ -193,10 +201,11 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     }
 
     @Override
-    public CommitLog createCommitLog(String tableSpaceUUID, String tableSpaceName, String localNodeId) throws LogNotAvailableException {
+    public BookkeeperCommitLog createCommitLog(String tableSpaceUUID, String tableSpaceName, String localNodeId) throws LogNotAvailableException {
         BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpaceUUID, tableSpaceName, localNodeId, metadataStorageManager, bookKeeper, this);
         res.setAckQuorumSize(ackQuorumSize);
         res.setEnsemble(ensemble);
+        res.setMaxLedgerSizeBytes(maxLedgerSizeBytes);
         res.setLedgersRetentionPeriod(ledgersRetentionPeriod);
         res.setMaxIdleTime(maxIdleTime);
         res.setWriteQuorumSize(writeQuorumSize);

@@ -51,6 +51,7 @@ import herddb.utils.ODirectFileOutputStream;
 import herddb.utils.OpenFileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SystemInstrumentation;
 import herddb.utils.SystemProperties;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
@@ -164,6 +165,19 @@ public class FileDataStorageManager extends DataStorageManager {
             FileUtils.cleanDirectory(tmpDirectory);
         } catch (IOException err) {
             LOGGER.log(Level.SEVERE, "Cannot clean tmp directory", err);
+        }
+    }
+
+    @Override
+    public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
+        SystemInstrumentation.instrumentationPoint("eraseTablespaceData", tableSpace);
+        Path tablespaceDirectory = getTablespaceDirectory(tableSpace);
+        LOGGER.log(Level.INFO, "erasing tablespace " + tableSpace + " directory {0}", tablespaceDirectory.toAbsolutePath().toString());
+        try {
+            FileUtils.cleanDirectory(tablespaceDirectory);
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Cannot clean directory for tablespace " + tableSpace, err);
+            throw new DataStorageManagerException(err);
         }
     }
 

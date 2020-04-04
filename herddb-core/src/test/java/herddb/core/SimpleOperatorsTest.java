@@ -29,6 +29,7 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -292,10 +293,10 @@ public class SimpleOperatorsTest {
             }
 
             // In expressions
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in (1,2,3)", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 1 in (1,2,3)", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in (1)", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'b' in ('a','c')", Collections.emptyList())) {
                 assertEquals(0, scan1.consume().size());
             }
 
@@ -322,6 +323,75 @@ public class SimpleOperatorsTest {
                 assertEquals(5.0, scan1.consume().get(0).get(0));
             }
 
+        }
+    }
+
+
+    @Test
+    public void simpleNullComparisonsTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, nu2 string not null, b1 bool, d1 double)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(
+                    manager, "INSERT INTO tblspace1.tsql(k1,n1,l1,t1,nu,nu2, b1,d1) values(?,?,?,?,?,?,?,?)",
+                    Arrays.asList("mykey",
+                            Integer.valueOf(1),
+                            Long.valueOf(2),
+                            new java.sql.Timestamp(System.currentTimeMillis()),
+                            "mystringnullable",
+                            "mystringnotnull",
+                            Boolean.valueOf(true),
+                            Double.valueOf(1.5)))
+                    .getUpdateCount());
+
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 is not null", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 is not null and k1 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu is not null", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu is not null and nu <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 is not null", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 is not null and nu2 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 <> ''", 1);
+
+            execute(manager, "DELETE FROM  tblspace1.tsql", Collections.emptyList());
+
+
+             assertEquals(1, executeUpdate(
+                    manager, "INSERT INTO tblspace1.tsql(k1,n1,l1,t1,nu,nu2, b1,d1) values(?,?,?,?,?,?,?,?)",
+                    Arrays.asList("mykey",
+                            null,
+                            null,
+                            null,
+                            null,
+                            "mystringnotnull",
+                            null,
+                            null))
+                    .getUpdateCount());
+
+
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 is not null", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 is not null and k1 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where k1 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu is not null", 0);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu <> ''", 0);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu is not null and nu <> ''", 0);
+
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 is not null", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 is not null and nu2 <> ''", 1);
+            testScan(manager, "SELECT * FROM tblspace1.tsql where nu2 <> ''", 1);
+            }
+    }
+
+    private void testScan(final DBManager manager, String query, int expectedCount) throws DataScannerException {
+        try (DataScanner scan1 = scan(manager, query, Collections.emptyList())) {
+            assertEquals(expectedCount, scan1.consume().size());
         }
     }
 }

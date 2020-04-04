@@ -27,5 +27,5 @@ package herddb.metadata;
  */
 public interface MetadataChangeListener {
 
-    void metadataChanged();
+    void metadataChanged(String description);
 }

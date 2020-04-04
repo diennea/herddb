@@ -75,12 +75,12 @@ public class SemiJoinOp implements PlannerOp {
         ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         final long resTransactionId = resRight.transactionId;
         Enumerable<DataAccessor> result = EnumerableDefaults.semiJoin(
-                resLeft.dataScanner.createEnumerable(),
-                resRight.dataScanner.createEnumerable(),
+                resLeft.dataScanner.createRewindOnCloseEnumerable(),
+                resRight.dataScanner.createRewindOnCloseEnumerable(),
                 JoinKey.keyExtractor(leftKeys),
                 JoinKey.keyExtractor(rightKeys)
         );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result, resLeft.dataScanner, resRight.dataScanner);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }

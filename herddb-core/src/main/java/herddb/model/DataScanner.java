@@ -41,6 +41,7 @@ public abstract class DataScanner implements AutoCloseable {
     private final Column[] schema;
     private final String[] fieldNames;
     public Transaction transaction; // no final
+    private boolean closed;
 
     public DataScanner(Transaction transaction, String[] fieldNames, Column[] schema) {
         this.schema = schema;
@@ -68,6 +69,10 @@ public abstract class DataScanner implements AutoCloseable {
 
     public abstract DataAccessor next() throws DataScannerException;
 
+    public boolean isClosed() {
+        return closed;
+    }
+
     /**
      * Consumers all the records in memory
      *
@@ -82,6 +87,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     @Override
     public void close() throws DataScannerException {
+        closed = true;
     }
 
     /**
@@ -113,20 +119,44 @@ public abstract class DataScanner implements AutoCloseable {
         return !hasNext();
     }
 
-    public void rewind() throws DataScannerException {
-        throw new RuntimeException("not implemented for " + this.getClass());
+    public boolean isRewindSupported() {
+        return false;
     }
 
-    public Enumerable<DataAccessor> createEnumerable() {
+    public void rewind() throws DataScannerException {
+        throw new RuntimeException("not supported for " + this.getClass());
+    }
+
+    public Enumerable<DataAccessor> createRewindOnCloseEnumerable() {
+        return createEnumerable(true);
+    }
+
+    public Enumerable<DataAccessor> createNonRewindableEnumerable() {
+        return createEnumerable(false);
+    }
+
+    private Enumerable<DataAccessor> createEnumerable(boolean rewindOnClose) {
         return new AbstractEnumerable<DataAccessor>() {
             @Override
             public Enumerator<DataAccessor> enumerator() {
-                return asEnumerator();
+                return asEnumerator(rewindOnClose);
             }
         };
     }
 
-    public Enumerator<DataAccessor> asEnumerator() {
+    private boolean enumeratorOpened = false;
+    private Enumerator<DataAccessor> asEnumerator(final boolean rewindOnClose) {
+        if (enumeratorOpened) {
+            try {
+                rewind();
+            } catch (DataScannerException ex) {
+               throw new StatementExecutionException(ex);
+            }
+        }
+        enumeratorOpened = true;
+        if (rewindOnClose && !isRewindSupported()) {
+            throw new HerdDBInternalException("This datascanner is not rewindable");
+        }
         return new Enumerator<DataAccessor>() {
             private DataAccessor current;
 
@@ -160,10 +190,15 @@ public abstract class DataScanner implements AutoCloseable {
 
             @Override
             public void close() {
-                try {
-                    DataScanner.this.close();
-                } catch (DataScannerException ex) {
-                    throw new HerdDBInternalException(ex);
+                if (rewindOnClose && !closed) {
+                    // close() is another flavour of "rewind", see org.apache.calcite.linq4j.EnumerableDefaults$11$1.closeInner(EnumerableDefaults.java:1953) in Calcite 1.22.0
+                    if (isRewindSupported()) {
+                        try {
+                            rewind();
+                        } catch (DataScannerException ex) {
+                            throw new HerdDBInternalException(ex);
+                        }
+                    }
                 }
             }
 
