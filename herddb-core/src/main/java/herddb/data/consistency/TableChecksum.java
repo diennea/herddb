@@ -21,33 +21,34 @@ package herddb.data.consistency;
 
 /**
  * Table checksum info
+ *
  * @author hamado
  */
 public class TableChecksum {
-    
-    private   String tableSpaceName;
-    private   String tableName;
-    private   long digest;
-    private   String digestType;
-    private   int numRecords;
-    private   long nextAutoIncrementValue;
-    private   String query;
-    private   long scanDuration;
-    
-    public TableChecksum(){
+
+    private String tableSpaceName;
+    private String tableName;
+    private long digest;
+    private String digestType;
+    private int numRecords;
+    private long nextAutoIncrementValue;
+    private String query;
+    private long scanDuration;
+
+    public TableChecksum() {
     }
-    TableChecksum(String tableSpaceName,String tableName,long digest,String digestType,int numRecords, long nexAutoIncrementValue,String query,long scanDuration){
+
+    TableChecksum(String tableSpaceName, String tableName, long digest, String digestType, int numRecords, long nexAutoIncrementValue, String query, long scanDuration) {
         this.tableSpaceName = tableSpaceName;
         this.tableName = tableName;
         this.digest = digest;
         this.digestType = digestType;
-        this.numRecords = numRecords; 
+        this.numRecords = numRecords;
         this.nextAutoIncrementValue = nexAutoIncrementValue;
         this.query = query;
         this.scanDuration = scanDuration;
     }
 
-  
     public long getScanDuration() {
         return scanDuration;
     }
@@ -110,5 +111,5 @@ public class TableChecksum {
 
     public void setQuery(String query) {
         this.query = query;
-    }        
+    }
 }

@@ -524,20 +524,13 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK: {
-                try {               
-                    if(!isLeader()){
-                        System.out.println("Follower entry value = "  + entry.value);
-                        System.out.println("Follower entry is " + entry);
-                    }else{
-                        System.out.println("Leader entry value = "  + entry.value);
-                        System.out.println("Leader entry is " + entry);
-                    }
+                try {
                     TableChecksum check = new ObjectMapper().readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
                     String tableName = entry.tableName;
                     //In recovery mode the follower will have to run the query on the transaction log
-                    if (!isLeader()) {
+                    if (recovery) {
                         AbstractTableManager tablemanager = this.getTableManager(tableName);
                         DBManager manager = this.getDbmanager();
 
@@ -669,7 +662,6 @@ public class TableSpaceManager {
         }
 
         // ensure we do not have any data on disk and in memory
-
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
         LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
@@ -822,8 +814,8 @@ public class TableSpaceManager {
                         + " created locally at {1},"
                         + " last activity locally at {2}",
                         new Object[]{t.transactionId,
-                                new java.sql.Timestamp(t.localCreationTimestamp),
-                                new java.sql.Timestamp(t.lastActivityTs)});
+                            new java.sql.Timestamp(t.localCreationTimestamp),
+                            new java.sql.Timestamp(t.lastActivityTs)});
                 try {
                     if (!validateTransactionBeforeTxCommand(t.transactionId, false /* no wait */)) {
                         // Continue to check next transaction
@@ -831,11 +823,11 @@ public class TableSpaceManager {
                     }
                 } catch (StatementExecutionException e) {
                     LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}: {1}",
-                            new Object[] { t.transactionId, e.getMessage() });
+                            new Object[]{t.transactionId, e.getMessage()});
                     // Continue to check next transaction
                     continue;
                 } catch (RuntimeException e) {
-                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[] { t.transactionId, e });
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[]{t.transactionId, e});
                     // Continue to check next transaction
                     continue;
                 }
@@ -1007,7 +999,7 @@ public class TableSpaceManager {
                         } else {
                             LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
                         }
-            });
+                    });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {

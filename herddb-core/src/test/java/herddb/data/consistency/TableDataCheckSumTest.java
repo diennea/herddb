@@ -74,7 +74,6 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
         }
     }
 
-    
     @Test
     public void consistencyCheckSyntax() throws Exception {
 

@@ -198,8 +198,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (query.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
                     return "TRUNCATE" + query.substring(8);
                 }
-                return query;    
-                
+                return query;
+
             default:
                 /*RETURN also consistency command */
                 return query;
@@ -214,7 +214,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
-      
+
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
             query = query.substring(idx);
@@ -232,15 +232,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
-        if(query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())){
-            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryConsistencyCheckStatement(defaultTableSpace,query,parameters));
+        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())) {
+            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryConsistencyCheckStatement(defaultTableSpace, query, parameters));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
-        if(query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())){
+        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())) {
             ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.QueryConsistencyCheckStatement(query));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
-        
+
         net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
         if (!isCachable(stmt)) {
             allowCache = false;
@@ -252,7 +252,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
 
     }
-    
+
     private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
         net.sf.jsqlparser.statement.Statement stmt;
 
@@ -547,7 +547,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("bad type " + dataType);
         }
         if (String.join("_", columnSpecs).contains("NOT_NULL")) {
-             type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
+            type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
         }
         return type;
     }
@@ -691,28 +691,28 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             break;
                         case "expectedreplicacount":
                             try {
-                                expectedreplicacount = Integer.parseInt(value.trim());
-                                if (expectedreplicacount <= 0) {
-                                    throw new StatementExecutionException(
-                                            "invalid expectedreplicacount " + value + " must be positive");
-                                }
-                            } catch (NumberFormatException err) {
+                            expectedreplicacount = Integer.parseInt(value.trim());
+                            if (expectedreplicacount <= 0) {
                                 throw new StatementExecutionException(
-                                        "invalid expectedreplicacount " + value + ": " + err);
+                                        "invalid expectedreplicacount " + value + " must be positive");
                             }
-                            break;
+                        } catch (NumberFormatException err) {
+                            throw new StatementExecutionException(
+                                    "invalid expectedreplicacount " + value + ": " + err);
+                        }
+                        break;
                         case "maxleaderinactivitytime":
                             try {
-                                maxleaderinactivitytime = Long.parseLong(value.trim());
-                                if (maxleaderinactivitytime < 0) {
-                                    throw new StatementExecutionException(
-                                            "invalid maxleaderinactivitytime " + value + " must be positive or zero");
-                                }
-                            } catch (NumberFormatException err) {
+                            maxleaderinactivitytime = Long.parseLong(value.trim());
+                            if (maxleaderinactivitytime < 0) {
                                 throw new StatementExecutionException(
-                                        "invalid maxleaderinactivitytime " + value + ": " + err);
+                                        "invalid maxleaderinactivitytime " + value + " must be positive or zero");
                             }
-                            break;
+                        } catch (NumberFormatException err) {
+                            throw new StatementExecutionException(
+                                    "invalid maxleaderinactivitytime " + value + ": " + err);
+                        }
+                        break;
                         default:
                             throw new StatementExecutionException("bad property " + pName);
                     }
@@ -760,28 +760,28 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                                 break;
                             case "expectedreplicacount":
                                 try {
-                                    expectedreplicacount = Integer.parseInt(value.trim());
-                                    if (expectedreplicacount <= 0) {
-                                        throw new StatementExecutionException(
-                                                "invalid expectedreplicacount " + value + " must be positive");
-                                    }
-                                } catch (NumberFormatException err) {
+                                expectedreplicacount = Integer.parseInt(value.trim());
+                                if (expectedreplicacount <= 0) {
                                     throw new StatementExecutionException(
-                                            "invalid expectedreplicacount " + value + ": " + err);
+                                            "invalid expectedreplicacount " + value + " must be positive");
                                 }
-                                break;
+                            } catch (NumberFormatException err) {
+                                throw new StatementExecutionException(
+                                        "invalid expectedreplicacount " + value + ": " + err);
+                            }
+                            break;
                             case "maxleaderinactivitytime":
                                 try {
-                                    maxleaderinactivitytime = Long.parseLong(value.trim());
-                                    if (maxleaderinactivitytime < 0) {
-                                        throw new StatementExecutionException(
-                                                "invalid maxleaderinactivitytime " + value + " must be positive or zero");
-                                    }
-                                } catch (NumberFormatException err) {
+                                maxleaderinactivitytime = Long.parseLong(value.trim());
+                                if (maxleaderinactivitytime < 0) {
                                     throw new StatementExecutionException(
-                                            "invalid maxleaderinactivitytime " + value + ": " + err);
+                                            "invalid maxleaderinactivitytime " + value + " must be positive or zero");
                                 }
-                                break;
+                            } catch (NumberFormatException err) {
+                                throw new StatementExecutionException(
+                                        "invalid maxleaderinactivitytime " + value + ": " + err);
+                            }
+                            break;
                             default:
                                 throw new StatementExecutionException("bad property " + pName);
                         }
@@ -808,7 +808,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     throw new StatementExecutionException(err);
                 }
             }
-            
+
             case "RENAMETABLE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
                     throw new StatementExecutionException(
@@ -832,16 +832,16 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
-        
+
     }
 
-    public Statement QueryConsistencyCheckStatement(String defaultTablespace,String query,List<Object> parameters ){
+    public Statement QueryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
         if (query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())) {
-            query = query.substring(query.substring(0,21).length());
-            System.out.println(query);         
+            query = query.substring(query.substring(0, 21).length());
+            System.out.println(query);
             String tableSpace = defaultTablespace;
             String tableName;
-            
+
             if (query.contains(".")) {
                 String[] tokens = query.split("\\.");
                 tableSpace = tokens[0].trim().replaceAll("\'", "");
@@ -858,16 +858,17 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (tableManager == null || tableManager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
-            
+
             return new TableConsistencyCheckStatement(tableSpace, tableName);
-        }else {
+        } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for tableconsistencycheck"));
         }
-        
+
     }
-    public Statement QueryConsistencyCheckStatement(String query){
+
+    public Statement QueryConsistencyCheckStatement(String query) {
         if (query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())) {
-            String tableSpace = query.substring(query.substring(0,26).length()).replace("\'", "");           
+            String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
             System.out.println("tablespace " + tableSpace);
             System.out.println("tablespaceManager " + tableSpaceManager);
@@ -876,11 +877,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
             return new TableSpaceConsistencyCheckStatement(tableSpace.trim());
-        }else {
+        } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for tablespaceconsistencycheck"));
         }
     }
-                  
+
     private Statement buildAlterStatement(String defaultTableSpace, Alter alter) throws StatementExecutionException {
         if (alter.getTable() == null) {
             throw new StatementExecutionException("missing table name");
@@ -1100,6 +1101,3 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
 }
-
-
-

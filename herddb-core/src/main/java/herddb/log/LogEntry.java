@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.log;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -45,8 +44,8 @@ public class LogEntry {
     private static final byte[] EMPTY_STRING_SERIALIZED;
 
     static {
-        try (ByteArrayOutputStream oo = new ByteArrayOutputStream()) {
-            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
+        try ( ByteArrayOutputStream oo = new ByteArrayOutputStream()) {
+            try ( ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
                 doo.writeUTF("");
             }
             EMPTY_STRING_LEN = oo.size();
@@ -77,7 +76,7 @@ public class LogEntry {
 
     public byte[] serialize() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
+        try ( ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
             serialize(doo);
             return out.toByteArray();
         } catch (IOException err) {
@@ -89,8 +88,8 @@ public class LogEntry {
 
     public ByteBuf serializeAsByteBuf() {
         ByteBuf buffer = PooledByteBufAllocator.DEFAULT.directBuffer(DEFAULT_BUFFER_SIZE);
-        try (ExtendedDataOutputStream doo =
-                     new ExtendedDataOutputStream(new ByteBufOutputStream(buffer))) {
+        try ( ExtendedDataOutputStream doo
+                = new ExtendedDataOutputStream(new ByteBufOutputStream(buffer))) {
             serialize(doo);
             return buffer;
         } catch (IOException err) {
@@ -215,8 +214,8 @@ public class LogEntry {
                     break;
                 case LogEntryType.TABLE_CONSISTENCY_CHECK:
                     tableName = dis.readUTF();
-                    value=dis.readBytes();
-                break;
+                    value = dis.readBytes();
+                    break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);
             }
