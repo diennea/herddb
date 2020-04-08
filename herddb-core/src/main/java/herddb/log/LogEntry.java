@@ -149,6 +149,9 @@ public class LogEntry {
             case LogEntryType.NOOP:
                 break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK:
+                doo.writeUTF(tableName);
+                //value contains checksum and query
+                doo.writeArray(value);
                 break;
             default:
                 throw new IllegalArgumentException("unsupported type " + type);
@@ -211,6 +214,8 @@ public class LogEntry {
                 case LogEntryType.NOOP:
                     break;
                 case LogEntryType.TABLE_CONSISTENCY_CHECK:
+                    tableName = dis.readUTF();
+                    value=dis.readBytes();
                 break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);

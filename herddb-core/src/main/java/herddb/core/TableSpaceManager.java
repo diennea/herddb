@@ -524,13 +524,20 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK: {
-                try {
+                try {               
+                    if(!isLeader()){
+                        System.out.println("Follower entry value = "  + entry.value);
+                        System.out.println("Follower entry is " + entry);
+                    }else{
+                        System.out.println("Leader entry value = "  + entry.value);
+                        System.out.println("Leader entry is " + entry);
+                    }
                     TableChecksum check = new ObjectMapper().readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
                     String tableName = entry.tableName;
                     //In recovery mode the follower will have to run the query on the transaction log
-                    if (recovery && entry.transactionId <= 0) {
+                    if (!isLeader()) {
                         AbstractTableManager tablemanager = this.getTableManager(tableName);
                         DBManager manager = this.getDbmanager();
 

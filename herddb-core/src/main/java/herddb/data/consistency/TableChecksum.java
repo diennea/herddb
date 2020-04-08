@@ -34,6 +34,8 @@ public class TableChecksum {
     private   String query;
     private   long scanDuration;
     
+    public TableChecksum(){
+    }
     TableChecksum(String tableSpaceName,String tableName,long digest,String digestType,int numRecords, long nexAutoIncrementValue,String query,long scanDuration){
         this.tableSpaceName = tableSpaceName;
         this.tableName = tableName;
@@ -44,10 +46,8 @@ public class TableChecksum {
         this.query = query;
         this.scanDuration = scanDuration;
     }
-    public TableChecksum(){
-        super();
-    }
 
+  
     public long getScanDuration() {
         return scanDuration;
     }
