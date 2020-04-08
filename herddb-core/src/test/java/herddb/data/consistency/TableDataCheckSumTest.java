@@ -19,15 +19,15 @@
  */
 package herddb.data.consistency;
 
-import herddb.core.DBManager;
-import herddb.core.ReplicatedLogtestcase;
 import herddb.core.TestUtils;
 import static herddb.core.TestUtils.execute;
+import herddb.core.DBManager;
+import herddb.core.ReplicatedLogtestcase;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.ColumnTypes;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.DataScanner;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;

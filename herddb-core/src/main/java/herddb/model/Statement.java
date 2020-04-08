@@ -34,7 +34,7 @@ public abstract class Statement implements Wrapper {
     public Statement(String tableSpace) {
         this.tableSpace = tableSpace;
     }
-
+    
     public String getTableSpace() {
         return tableSpace;
     }

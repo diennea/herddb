@@ -39,7 +39,7 @@ import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
-import herddb.model.DataIntegrityStatementResult;
+import herddb.model.DataConsistencyStatementResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
@@ -917,7 +917,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public DataIntegrityStatementResult createTableCheksum(TableConsistencyCheckStatement tableIntegrityCheckStatement) {
+    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableIntegrityCheckStatement) {
         TableSpaceManager manager = tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
         try {
@@ -925,10 +925,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } catch (IOException | DataScannerException ex) {
             LOGGER.log(Level.SEVERE, null, ex);
         }
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
+        return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID);
     }
 
-    public DataIntegrityStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement) {
+    public DataConsistencyStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement) {
         TableSpaceManager manager = tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
         String tableSpace = tableSpaceIntegrityCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
@@ -946,7 +946,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         long _stop = System.currentTimeMillis();
         long tableSpace_check_duration = (_stop - _start);
         LOGGER.log(Level.INFO, "CHECK TABLESPACE {0} INTEGRITY DONE IN {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
-        return new DataIntegrityStatementResult(TransactionContext.NOTRANSACTION_ID);
+        return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID);
     }
 
     private String makeVirtualTableSpaceManagerId(String nodeId) {

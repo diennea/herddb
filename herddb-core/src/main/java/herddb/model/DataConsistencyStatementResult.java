@@ -23,12 +23,9 @@ package herddb.model;
  *
  * @author Hamado.Dene
  */
-public class DataIntegrityStatementResult extends StatementExecutionResult{
-    
-    public DataIntegrityStatementResult(long transactionId) {
+public class DataConsistencyStatementResult extends StatementExecutionResult {
+
+    public DataConsistencyStatementResult(long transactionId) {
         super(transactionId);
-    }   
+    }
 }
-
-
-

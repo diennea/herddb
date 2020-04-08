@@ -530,7 +530,7 @@ public class TableSpaceManager {
                     String query = check.getQuery();
                     String tableName = entry.tableName;
                     //In recovery mode the follower will have to run the query on the transaction log
-                    if (recovery) {
+                    if (!isLeader()) {
                         AbstractTableManager tablemanager = this.getTableManager(tableName);
                         DBManager manager = this.getDbmanager();
 
