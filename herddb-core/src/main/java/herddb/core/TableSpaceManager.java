@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
@@ -43,7 +44,6 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
-import herddb.data.consistency.DigestNotAvailableException;
 import herddb.data.consistency.TableChecksum;
 import herddb.data.consistency.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
@@ -137,7 +137,6 @@ import java.util.stream.Collectors;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * Manages a TableSet in memory
@@ -1771,7 +1770,7 @@ public class TableSpaceManager {
         StatementEvaluationContext context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
         LOGGER.log(Level.INFO, "Create and write table checksum");
         if (context.getTableSpaceLock() == 0) {
-            long lockStamp = acquireWriteLock("checkDataIntegrity_" + tableName);
+            long lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
@@ -1805,7 +1804,7 @@ public class TableSpaceManager {
 
         } finally {
             if (lockAcquired) {
-                releaseWriteLock(context.getTableSpaceLock(), "checkDataIntegrity");
+                releaseWriteLock(context.getTableSpaceLock(), "checkDataConsistency");
                 context.setTableSpaceLock(0);
             }
         }
