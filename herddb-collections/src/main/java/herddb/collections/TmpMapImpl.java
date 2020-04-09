@@ -43,6 +43,7 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TruncateTableStatement;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
@@ -57,7 +58,6 @@ import java.util.function.Function;
 class TmpMapImpl<K, V> implements TmpMap<K, V> {
 
     private final String tmpTableName;
-    private final Table table;
     private final Function<K, byte[]> keySerializer;
     private final ValueSerializer valuesSerializer;
     private final TableSpaceManager tableSpaceManager;
@@ -92,7 +92,6 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
             Function<K, byte[]> keySerializer, ValueSerializer valuesSerializer,
             final TableSpaceManager tableSpaceManager
     ) {
-        this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.tmpTableName = table.name;
         this.keySerializer = keySerializer;
@@ -120,9 +119,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
                     throws StatementExecutionException {
                 try {
                     V value = ((PutStatementEvaluationContext<K, V>) context).getValue();
-                    VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream(expectedValueSize);
-                    valuesSerializer.serialize(value, buffer);
-                    return buffer.toByteArray();
+                    return valuesSerializer.serialize(value);
                 } catch (StatementExecutionException err) {
                     throw err;
                 } catch (Exception err) {
@@ -226,6 +223,16 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
             throw new CollectionsException(err);
         }
 
+    }
+
+    @Override
+    public void clear() throws CollectionsException {
+        try {
+            tableSpaceManager.executeStatement(new TruncateTableStatement(tmpTableName, tmpTableName),
+                    new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION);
+        } catch (HerdDBInternalException err) {
+            throw new CollectionsException(err);
+        }
     }
 
     @Override

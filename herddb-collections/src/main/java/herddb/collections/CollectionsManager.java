@@ -66,24 +66,28 @@ public final class CollectionsManager implements AutoCloseable {
 
     private static final AtomicLong TABLE_NAME_GENERATOR = new AtomicLong();
 
-    private static final ValueSerializer DEFAULT_VALUE_SERIALIZER = new ValueSerializer() {
-        @Override
-        public void serialize(Object object, OutputStream oo) throws Exception {
-            try (ObjectOutputStream ooo = new ObjectOutputStream(oo)) {
-                ooo.writeUnshared(object);
+    private static ValueSerializer defaultValueSerializer(int expectedSize) {
+        return new ValueSerializer() {
+            @Override
+            public byte[] serialize(Object object) throws Exception {
+                try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(expectedSize);
+                        ObjectOutputStream ooo = new ObjectOutputStream(oo)) {
+                    ooo.writeUnshared(object);
+                    return oo.toByteArray();
+                }
             }
-        }
 
-        @Override
-        public Object deserialize(Bytes bytes) throws Exception {
-            SimpleByteArrayInputStream oo = new SimpleByteArrayInputStream(bytes.getBuffer(), bytes.getOffset(),
-                    bytes.getLength());
-            try (ObjectInputStream ooo = new ContextClassLoaderAwareObjectInputStream(oo)) {
-                return ooo.readUnshared();
+            @Override
+            public Object deserialize(Bytes bytes) throws Exception {
+                SimpleByteArrayInputStream oo = new SimpleByteArrayInputStream(bytes.getBuffer(), bytes.getOffset(),
+                        bytes.getLength());
+                try (ObjectInputStream ooo = new ContextClassLoaderAwareObjectInputStream(oo)) {
+                    return ooo.readUnshared();
+                }
             }
-        }
 
-    };
+        };
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -92,9 +96,7 @@ public final class CollectionsManager implements AutoCloseable {
     private static <K> Function<K, byte[]> defaultKeySerializer(ValueSerializer<K> serializer) {
         return (K key) -> {
             try {
-                VisibleByteArrayOutputStream serializedKey = new VisibleByteArrayOutputStream(32);
-                serializer.serialize(key, serializedKey);
-                return serializedKey.toByteArray();
+                return serializer.serialize(key);                
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
@@ -247,7 +249,7 @@ public final class CollectionsManager implements AutoCloseable {
 
     public class TmpMapBuilder<V1> {
 
-        private ValueSerializer<V1> valueSerializer = DEFAULT_VALUE_SERIALIZER;
+        private ValueSerializer<V1> valueSerializer;
         private int expectedValueSize = 64;
 
         public class IntTmpMapBuilder<V2 extends V1> {
@@ -261,7 +263,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::intToByteArray, valueSerializer, tableSpaceManager);
+                        Bytes::intToByteArray, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
         }
 
@@ -276,7 +278,7 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::longToByteArray, valueSerializer, tableSpaceManager);
+                        Bytes::longToByteArray, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
         }
 
@@ -291,14 +293,14 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        Bytes::string_to_array, valueSerializer, tableSpaceManager);
+                        Bytes::string_to_array, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
         }
 
         public class ObjectTmpMapBuilder<K, V2 extends V1> {
 
             @SuppressWarnings("unchecked")
-            private Function<K, byte[]> keySerializer = defaultKeySerializer(DEFAULT_VALUE_SERIALIZER);
+            private Function<K, byte[]> keySerializer;
 
             /**
              * Define a custom serializer for keys.
@@ -319,7 +321,8 @@ public final class CollectionsManager implements AutoCloseable {
                 String tmpTableName = generateTmpTableName();
                 Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY);
                 return new TmpMapImpl<>(table, expectedValueSize,
-                        keySerializer, valueSerializer, tableSpaceManager);
+                        keySerializer != null ? keySerializer :  defaultKeySerializer(defaultValueSerializer(4)),
+                        valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
         }
 

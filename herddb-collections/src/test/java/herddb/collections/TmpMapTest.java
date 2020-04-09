@@ -202,8 +202,8 @@ public class TmpMapTest {
                     .<MyPojo>newMap()
                     .withValueSerializer(new ValueSerializer<MyPojo>() {
                         @Override
-                        public void serialize(MyPojo object, OutputStream outputStream) throws Exception {
-                            outputStream.write(Bytes.intToByteArray(object.wrapped));
+                        public byte[] serialize(MyPojo object) throws Exception {
+                            return Bytes.intToByteArray(object.wrapped);
                         }
 
                         @Override
@@ -414,6 +414,33 @@ public class TmpMapTest {
                     fail();
             } catch (Exception err) {
                 assertTrue(TestUtils.isExceptionPresentInChain(err, ClassCastException.class));
+            }
+        }
+    }
+
+    @Test
+    public void testClearMap() throws Exception {
+        try (CollectionsManager manager = CollectionsManager
+                .builder()
+                .maxMemory(10 * 1024 * 1024)
+                .tmpDirectory(tmpDir.newFolder().toPath())
+                .build()) {
+            manager.start();
+            try (TmpMap<Integer, String> tmpMap = manager
+                    .newMap()
+                    .withIntKeys()
+                    .build()) {
+                for (int i = 0; i < 1000; i++) {
+                    tmpMap.put(i, "foo" + i);
+                }
+                for (int i = 0; i < 1000; i++) {
+                    assertTrue(tmpMap.containsKey(i));
+                }
+                tmpMap.clear();
+                for (int i = 0; i < 1000; i++) {
+                    assertFalse(tmpMap.containsKey(i));
+                }
+                assertEquals(0, tmpMap.size());
             }
         }
     }
