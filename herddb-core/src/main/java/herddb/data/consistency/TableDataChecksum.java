@@ -53,8 +53,8 @@ public abstract class TableDataChecksum {
     private static final int SEED = 0;
     public static final boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE = "StreamingXXHash64";
-    public static int NUMRECORD = 0;
-    public static long TABLESCANDURATION = 0;
+    public static int NRECORDS = 0;
+    public static long SCAN_DURATION = 0;
     private static TranslatedQuery translated;
 
     public static TableChecksum createChecksum(DBManager manager, TranslatedQuery query, TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws DataScannerException {
@@ -73,29 +73,30 @@ public abstract class TableDataChecksum {
         translated = query;
         ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
         LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{tableSpace, tableName, nodeID});
-
+        manager.setAllowExecutionFromFollower(true);
         try ( DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
             long _start = System.currentTimeMillis();
-
+            NRECORDS = 0; 
             while (scan.hasNext()) {
-                NUMRECORD++;
+                NRECORDS++;
                 DataAccessor data = scan.next();
                 Object[] obj = data.getValues();
+                System.out.println("record numero = " + NRECORDS  + "valore = " + Arrays.toString(data.getValues()));
                 Column[] schema = scan.getSchema();
                 for (int i = 0; i < schema.length; i++) {
                     serialize = RecordSerializer.serialize(obj[i], schema[i].type);
                     hash64.update(serialize, 0, SEED);
                 }
             }
-            LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, NUMRECORD});
+            LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, NRECORDS});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
-            TABLESCANDURATION = (_stop - _start);
+            SCAN_DURATION = (_stop - _start);
             LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished", new Object[]{tableSpace, tableName, nodeID});
-
-            return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, NUMRECORD, nextAutoIncrementValue, translated.context.query, TABLESCANDURATION);
+            
+            return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, NRECORDS, nextAutoIncrementValue, translated.context.query, SCAN_DURATION);
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE, "Scan failled", ex);
             throw new DataScannerException(ex);

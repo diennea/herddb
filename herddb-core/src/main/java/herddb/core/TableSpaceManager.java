@@ -540,12 +540,12 @@ public class TableSpaceManager {
                         TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, Collections.emptyList(), true, false, false, -1);
                         TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
                         long followerDigest = scanResult.getDigest();
-                        long masterDigest = check.getDigest();
-                        int masterNumRecords = check.getNumRecords();
+                        long LeaderDigest = check.getDigest();
+                        int LeaderNumRecords = check.getNumRecords();
                         int follNumRecords = scanResult.getNumRecords();
                         long table_scan_duration = check.getScanDuration();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
-                        if (followerDigest == masterDigest && masterNumRecords == follNumRecords) {
+                        if (followerDigest == LeaderDigest && LeaderNumRecords == follNumRecords) {
                             LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} in {2} ms", new Object[]{tableName, tableSpace, table_scan_duration});
                         } else {
                             LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms ", new Object[]{tableName, tableSpace, table_scan_duration});

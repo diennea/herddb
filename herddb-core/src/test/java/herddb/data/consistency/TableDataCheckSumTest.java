@@ -35,6 +35,7 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
 import java.util.Arrays;
@@ -62,14 +63,15 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 manager1.executeStatement(new CreateTableStatement(Table.builder().tablespace(tableSpaceName).name(tableName).primaryKey("key").column("key", ColumnTypes.STRING).build()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(manager1.waitForTable(tableSpaceName, tableName, 10000, true));
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                // write a second entry on the ledger, to speed up the ack from the bookie
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                manager2.waitForTable(tableSpaceName, tableName, 10000, false);
-                TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("t2", "table1");
-                manager1.createTableCheksum(statement);
-                assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("FF"), Bytes.from_string("FF"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
+                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                
+                manager2.waitForTable(tableSpaceName, tableName, 10000, false); 
+                
+                TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("t2", "table1");
+                manager1.createTableCheksum(statement);  
+                
+                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("kk"), Bytes.from_string("kk"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             }
         }
     }

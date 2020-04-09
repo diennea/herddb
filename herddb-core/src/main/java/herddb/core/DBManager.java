@@ -139,6 +139,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
+    private boolean allowExecutionFromFollower = true;
     private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
@@ -266,11 +267,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public boolean isErrorIfNotLeader() {
         return errorIfNotLeader;
     }
+    public boolean getAllowExecutionFromFollower(){
+        return allowExecutionFromFollower;
+    }
 
     public void setErrorIfNotLeader(boolean errorIfNotLeader) {
         this.errorIfNotLeader = errorIfNotLeader;
     }
-
+    public void setAllowExecutionFromFollower(boolean allowExecutionFromFollower){
+        this.allowExecutionFromFollower = allowExecutionFromFollower;
+    }
+    
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
     }
@@ -646,7 +653,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         if (statement instanceof TableSpaceConsistencyCheckStatement) {
             if (transactionContext.transactionId > 0) {
-                return FutureUtils.exception(new StatementExecutionException("CHECKTABLESPACEINTEGRITY cannot be issue inside a transaction"));
+                return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
             }
             return CompletableFuture.completedFuture(createTableSpaceCheksum((TableSpaceConsistencyCheckStatement) statement));
         }
@@ -655,7 +662,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return FutureUtils.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
                     + "Maybe the server is starting "));
         }
-        if (errorIfNotLeader && !manager.isLeader()) {
+        if (errorIfNotLeader && !manager.isLeader() && !allowExecutionFromFollower) {
             return FutureUtils.exception(new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace));
         }
         CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, context, transactionContext);
@@ -739,7 +746,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new NotLeaderException("No such tableSpace " + tableSpace + " here (at " + nodeId + "). "
                     + "Maybe the server is starting ");
         }
-        if (errorIfNotLeader && !manager.isLeader()) {
+        if (errorIfNotLeader && !manager.isLeader() && !allowExecutionFromFollower) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
         }
         return manager.scan(statement, context, transactionContext, false, false);
