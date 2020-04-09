@@ -409,7 +409,7 @@ public class HerdDBCLI {
                         createTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, newschema, leader);
                     } else if (alterTablespace) {
                         alterTablespace(metadataStorageManager, schema, param, values);
-                    }else {
+                    } else {
                         failAndPrintHelp(options);
                         return;
                     }
@@ -964,8 +964,7 @@ public class HerdDBCLI {
         println("");
         println(" Columns: ");
         executeStatement(verbose, ignoreerrors, false, false,
-                "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
-
+                "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);  
         
     }
 
@@ -1843,5 +1842,3 @@ public class HerdDBCLI {
         }
     }
 }
-
-

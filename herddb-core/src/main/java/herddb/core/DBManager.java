@@ -277,7 +277,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void setAllowExecutionFromFollower(boolean allowExecutionFromFollower){
         this.allowExecutionFromFollower = allowExecutionFromFollower;
     }
-    
+
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
     }
@@ -585,8 +585,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
             if (!availableOtherNodes.isEmpty()) {
                 int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
-                TableSpace.Builder newTableSpaceBuilder
-                        = TableSpace
+                TableSpace.Builder newTableSpaceBuilder = TableSpace
                                 .builder()
                                 .cloning(tableSpace);
                 while (!availableOtherNodes.isEmpty() && countMissing > 0) {
@@ -927,6 +926,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableIntegrityCheckStatement) {
         TableSpaceManager manager = tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
         String table = tableIntegrityCheckStatement.getTable();
+        if (manager == null) {
+            return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID, "No such tablespace");
+        }
         try {
             manager.createAndWriteTableCheksum(manager, tableIntegrityCheckStatement.getTableSpace(), table);
         } catch (IOException | DataScannerException ex) {
@@ -976,8 +978,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return false;
         }
         LOGGER.log(Level.INFO, "node {0}, try to become leader of {1} (prev was {2})", new Object[]{nodeId, tableSpace.name, tableSpace.leaderId});
-        TableSpace.Builder newTableSpaceBuilder
-                = TableSpace
+        TableSpace.Builder newTableSpaceBuilder = TableSpace
                         .builder()
                         .cloning(tableSpace)
                         .leader(nodeId);
@@ -1262,8 +1263,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             && !tableSpaceInfo.leaderId.equals(nodeId)
                             && tableSpaceInfo.maxLeaderInactivityTime > 0
                             && !tableSpaceManager.isFailed()) {
-                        List<TableSpaceReplicaState> allReplicas
-                                = metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
+                        List<TableSpaceReplicaState> allReplicas = metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
                         TableSpaceReplicaState leaderState = allReplicas
                                 .stream()
                                 .filter(t -> t.nodeId.equals(tableSpaceInfo.leaderId))

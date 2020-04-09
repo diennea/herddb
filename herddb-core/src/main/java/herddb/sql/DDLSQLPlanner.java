@@ -232,12 +232,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
-        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(QueryConsistencyCheckStatement(defaultTableSpace, query, parameters));
+        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
-        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.QueryConsistencyCheckStatement(query));
+        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         }
 
@@ -835,8 +835,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     }
 
-    public Statement QueryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
-        if (query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLE_CONSISTENCY_COMMAND.toLowerCase())) {
+    public Statement queryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
+        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
             query = query.substring(query.substring(0, 21).length());
             System.out.println(query);
             String tableSpace = defaultTablespace;
@@ -866,8 +866,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     }
 
-    public Statement QueryConsistencyCheckStatement(String query) {
-        if (query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND) || query.contains(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND.toLowerCase())) {
+    public Statement queryConsistencyCheckStatement(String query) {
+        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
             String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
             System.out.println("tablespace " + tableSpace);

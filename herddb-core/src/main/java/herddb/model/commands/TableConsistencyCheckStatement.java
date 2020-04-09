@@ -26,13 +26,13 @@ import herddb.model.Statement;
  * @author Hamado.Dene
  */
 public class TableConsistencyCheckStatement extends Statement{
-    
+
     private final String table;
     public TableConsistencyCheckStatement(String tableSpace, String table) {
         super(tableSpace);
         this.table = table;
     }
-    
+
     public String getTable(){
         return table;
     }

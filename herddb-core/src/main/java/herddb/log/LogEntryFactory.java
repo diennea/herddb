@@ -53,11 +53,11 @@ public class LogEntryFactory {
     public static LogEntry beginTransaction(long transactionId) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, transactionId, null, null, null);
     }
-    
-    public static LogEntry dataConsistency(String table,long transactionID,Bytes value){
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.TABLE_CONSISTENCY_CHECK, transactionID,table, null, value);
+
+    public static LogEntry dataConsistency(String table, long transactionID, Bytes value){
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.TABLE_CONSISTENCY_CHECK, transactionID, table, null, value);
     }
-    
+
     public static LogEntry commitTransaction(long transactionId) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, transactionId, null, null, null);
     }

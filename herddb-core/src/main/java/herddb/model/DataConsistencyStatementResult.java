@@ -25,7 +25,14 @@ package herddb.model;
  */
 public class DataConsistencyStatementResult extends StatementExecutionResult {
 
+    private String value;
+
     public DataConsistencyStatementResult(long transactionId) {
         super(transactionId);
+    }
+
+    public DataConsistencyStatementResult(long transactionId, String value) {
+        super(transactionId);
+        this.value = value;
     }
 }

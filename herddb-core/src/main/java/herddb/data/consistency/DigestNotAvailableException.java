@@ -26,7 +26,7 @@ import herddb.core.HerdDBInternalException;
  * @author hamado
  */
 public class DigestNotAvailableException extends HerdDBInternalException{
-    
+
     public DigestNotAvailableException(String message){
         super(message);
     }

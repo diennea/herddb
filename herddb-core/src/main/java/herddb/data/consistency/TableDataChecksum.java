@@ -20,25 +20,27 @@
 package herddb.data.consistency;
 
 import herddb.codec.RecordSerializer;
-import herddb.core.TableSpaceManager;
-import herddb.model.TransactionContext;
-import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import herddb.model.commands.ScanStatement;
-import herddb.utils.DataAccessor;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
+import herddb.core.TableSpaceManager;
 import herddb.model.Column;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.Table;
+import herddb.model.TransactionContext;
+import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
+
+
 
 /**
  * digest creation by scanning the table
@@ -53,8 +55,8 @@ public abstract class TableDataChecksum {
     private static final int SEED = 0;
     public static final boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE = "StreamingXXHash64";
-    public static int NRECORDS = 0;
-    public static long SCAN_DURATION = 0;
+    public static int nrecords = 0;
+    public static long scanduration = 0;
     private static TranslatedQuery translated;
 
     public static TableChecksum createChecksum(DBManager manager, TranslatedQuery query, TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws DataScannerException {
@@ -74,29 +76,29 @@ public abstract class TableDataChecksum {
         ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
         LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{tableSpace, tableName, nodeID});
         manager.setAllowExecutionFromFollower(true);
-        try ( DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
+        try (DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
             long _start = System.currentTimeMillis();
-            NRECORDS = 0; 
+            nrecords = 0;
             while (scan.hasNext()) {
-                NRECORDS++;
+                nrecords++;
                 DataAccessor data = scan.next();
                 Object[] obj = data.getValues();
-                System.out.println("record numero = " + NRECORDS  + "valore = " + Arrays.toString(data.getValues()));
+                System.out.println("record numero = " + nrecords  + "valore = " + Arrays.toString(data.getValues()));
                 Column[] schema = scan.getSchema();
                 for (int i = 0; i < schema.length; i++) {
                     serialize = RecordSerializer.serialize(obj[i], schema[i].type);
                     hash64.update(serialize, 0, SEED);
                 }
             }
-            LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, NRECORDS});
+            LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
-            SCAN_DURATION = (_stop - _start);
+            scanduration = (_stop - _start);
             LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished", new Object[]{tableSpace, tableName, nodeID});
-            
-            return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, NRECORDS, nextAutoIncrementValue, translated.context.query, SCAN_DURATION);
+
+            return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, nrecords, nextAutoIncrementValue, translated.context.query, scanduration);
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE, "Scan failled", ex);
             throw new DataScannerException(ex);

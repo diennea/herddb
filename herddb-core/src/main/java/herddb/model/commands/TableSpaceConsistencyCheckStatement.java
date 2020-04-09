@@ -26,9 +26,9 @@ import herddb.model.Statement;
  * @author hamado
  */
 public class TableSpaceConsistencyCheckStatement extends Statement{
-    
+
     public TableSpaceConsistencyCheckStatement(String tableSpace) {
         super(tableSpace);
     }
-    
+
 }

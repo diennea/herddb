@@ -440,8 +440,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private static final SqlParser.Config SQL_PARSER_CONFIG
-            = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
+    private static final SqlParser.Config SQL_PARSER_CONFIG = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
                     .setCaseSensitive(false)
                     .setConformance(SqlConformanceEnum.MYSQL_5)
                     .setQuoting(Quoting.BACK_TICK)
@@ -524,11 +523,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelOptCluster cluster = logicalPlan.getCluster();
         final RelOptPlanner optPlanner = cluster.getPlanner();
         optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
-        RelTraitSet desiredTraits
-                = cluster.traitSet()
+        RelTraitSet desiredTraits = cluster.traitSet()
                         .replace(EnumerableConvention.INSTANCE);
-        final RelCollation collation
-                = logicalPlan instanceof Sort
+        final RelCollation collation = logicalPlan instanceof Sort
                         ? ((Sort) logicalPlan).collation
                         : null;
         if (collation != null) {
@@ -642,8 +639,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (project.getInput() instanceof EnumerableValues) {
                 EnumerableValues values = (EnumerableValues) project.getInput();
                 if (values.getTuples().size() == 1) {
-                    final TableImpl tableImpl
-                            = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
+                    final TableImpl tableImpl = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
                             );
                     Table table = tableImpl.tableManager.getTable();
                     int index = 0;
@@ -654,8 +650,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     List<String> valuesColumns = new ArrayList<>();
                     boolean invalid = false;
                     for (Column column : table.getColumns()) {
-                        CompiledSQLExpression exp
-                                = SQLExpressionCompiler.compileExpression(projects.get(index));
+                        CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(projects.get(index));
                         if (exp instanceof ConstantExpression
                                 || exp instanceof JdbcParameterExpression
                                 || exp instanceof TypedJdbcParameterExpression) {
@@ -710,8 +705,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
-        final TableImpl tableImpl
-                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
+        final TableImpl tableImpl = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
         DeleteStatement delete = null;
@@ -744,8 +738,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
-        final TableImpl tableImpl
-                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
+        final TableImpl tableImpl = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
         List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
@@ -798,8 +791,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
-        final TableImpl tableImpl
-                = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
+        final TableImpl tableImpl = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
         Column[] columns = table.getColumns();
@@ -843,8 +835,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             rowType = scan.getRowType();
         }
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
-        final TableImpl tableImpl
-                = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
+        final TableImpl tableImpl = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
         SQLRecordPredicate predicate = null;
@@ -893,8 +884,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         List<CompiledSQLExpression> expressions = new ArrayList<>();
 
         for (String pk : table.primaryKey) {
-            List<CompiledSQLExpression> conditions
-                    = where.scanForConstraintsOnColumn(pk, table);
+            List<CompiledSQLExpression> conditions = where.scanForConstraintsOnColumn(pk, table);
             if (conditions.isEmpty()) {
                 break;
             }

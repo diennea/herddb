@@ -540,12 +540,12 @@ public class TableSpaceManager {
                         TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, Collections.emptyList(), true, false, false, -1);
                         TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
                         long followerDigest = scanResult.getDigest();
-                        long LeaderDigest = check.getDigest();
-                        int LeaderNumRecords = check.getNumRecords();
+                        long leaderDigest = check.getDigest();
+                        int leaderNumRecords = check.getNumRecords();
                         int follNumRecords = scanResult.getNumRecords();
                         long table_scan_duration = check.getScanDuration();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
-                        if (followerDigest == LeaderDigest && LeaderNumRecords == follNumRecords) {
+                        if (followerDigest == leaderDigest && leaderNumRecords == follNumRecords) {
                             LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} in {2} ms", new Object[]{tableName, tableSpace, table_scan_duration});
                         } else {
                             LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms ", new Object[]{tableName, tableSpace, table_scan_duration});
@@ -689,7 +689,7 @@ public class TableSpaceManager {
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, dbmanager.getServerToServerPassword());
-        try ( HDBClient client = new HDBClient(clientConfiguration)) {
+        try (HDBClient client = new HDBClient(clientConfiguration)) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
                 public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
@@ -701,7 +701,7 @@ public class TableSpaceManager {
                     return new ServerHostData(nodeData.host, nodeData.port, "?", nodeData.ssl, Collections.emptyMap());
                 }
             });
-            try ( HDBConnection con = client.openConnection()) {
+            try (HDBConnection con = client.openConnection()) {
                 ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
@@ -940,7 +940,7 @@ public class TableSpaceManager {
 
             long id = channel.generateRequestId();
             LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, channel});
-            try ( Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+            try (Pdu response_to_start = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                     id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), checkpointSequenceNumber.ledgerId, checkpointSequenceNumber.offset, null, null), timeout)) {
                 if (response_to_start.type != Pdu.TYPE_ACK) {
                     LOGGER.log(Level.SEVERE, "error response at start command");
@@ -974,7 +974,7 @@ public class TableSpaceManager {
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
                     long errorid = channel.generateRequestId();
-                    try ( Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
+                    try (Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
                             id, tableSpaceName, dumpId, "error", null, 0,
                             0, 0,
                             null, null),
@@ -1032,7 +1032,7 @@ public class TableSpaceManager {
                 })
                 .collect(Collectors.toList());
         long id = channel.generateRequestId();
-        try ( Pdu response_to_transactionsData = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        try (Pdu response_to_transactionsData = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "transactions", null, 0,
                 0, 0,
                 null, encodedTransactions), timeout)) {
@@ -1050,7 +1050,7 @@ public class TableSpaceManager {
                     Bytes.from_array(e.entryData)));
         }
         long id = channel.generateRequestId();
-        try ( Pdu response_to_txlog = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
+        try (Pdu response_to_txlog = channel.sendMessageWithPduReply(id, PduCodec.TablespaceDumpData.write(
                 id, tableSpaceName, dumpId, "txlog", null, 0,
                 0, 0,
                 null, batch), timeout)) {
@@ -1083,7 +1083,7 @@ public class TableSpaceManager {
 
         @Override
         public void run() {
-            try ( CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
+            try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
                 while (!isLeader() && !closed) {
                     long readLock = acquireReadLock("follow");
                     try {
@@ -1323,8 +1323,7 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res
-                = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        CompletableFuture<StatementExecutionResult> res = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
 //        });

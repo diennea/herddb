@@ -19,15 +19,14 @@
  */
 package herddb.data.consistency;
 
-import herddb.core.TestUtils;
 import static herddb.core.TestUtils.execute;
 import herddb.core.DBManager;
 import herddb.core.ReplicatedLogtestcase;
+import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
-import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.DataScanner;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -35,14 +34,14 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
-import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+
 
 /**
  *
@@ -54,23 +53,23 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
     public void consistencyCheckReplicaTest() throws Exception {
         final String tableName = "table1";
         final String tableSpaceName = "t2";
-        try ( DBManager manager1 = startDBManager("node1")) {
+        try (DBManager manager1 = startDBManager("node1")) {
 
             manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2, 0, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
-            try ( DBManager manager2 = startDBManager("node2")) {
-                assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
+            manager1.waitForTablespace(tableSpaceName, 10000, true);
+            try (DBManager manager2 = startDBManager("node2")) {
+                manager2.waitForTablespace(tableSpaceName, 10000, false);
                 manager1.executeStatement(new CreateTableStatement(Table.builder().tablespace(tableSpaceName).name(tableName).primaryKey("key").column("key", ColumnTypes.STRING).build()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                assertTrue(manager1.waitForTable(tableSpaceName, tableName, 10000, true));
+                manager1.waitForTable(tableSpaceName, tableName, 10000, true);
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                
-                manager2.waitForTable(tableSpaceName, tableName, 10000, false); 
-                
+
+                manager2.waitForTable(tableSpaceName, tableName, 10000, false);
+
                 TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("t2", "table1");
-                manager1.createTableCheksum(statement);  
-                
+                manager1.createTableCheksum(statement);
+
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("kk"), Bytes.from_string("kk"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             }
         }
@@ -79,7 +78,7 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
     @Test
     public void consistencyCheckSyntax() throws Exception {
 
-        try ( DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             execute(manager, "CREATE TABLESPACE 'consistence'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
@@ -93,13 +92,13 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 execute(manager, "INSERT INTO consistence.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
                 execute(manager, "INSERT INTO consistence.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            try ( DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql", Collections.emptyList())) {
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql", Collections.emptyList())) {
             }
             //execute(manager, "TABLECONSISTENCYCHECK consistence.tsql", Collections.emptyList());
-            execute(manager, "TABLECONSISTENCYCHECK consistence.tsql1", Collections.emptyList());
-            execute(manager, "TABLECONSISTENCYCHECK consistence.tsql2", Collections.emptyList());
-            execute(manager, "TABLESPACECONSISTENCYCHECK consistence", Collections.emptyList());
-            execute(manager, "TABLESPACECONSISTENCYCHECK 'consistence'", Collections.emptyList());
+            execute(manager, "tableconsistencycheck consistence.tsql1", Collections.emptyList());
+            execute(manager, "tableconsistencycheck consistence.tsql2", Collections.emptyList());
+            execute(manager, "tablespaceconsistencycheck consistence", Collections.emptyList());
+            execute(manager, "tablespaceconsistencycheck 'consistence'", Collections.emptyList());
 
         }
     }
