@@ -28,7 +28,6 @@ import static org.junit.Assert.fail;
 import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;

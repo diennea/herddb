@@ -40,7 +40,6 @@ import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Properties;
@@ -96,7 +95,7 @@ public final class CollectionsManager implements AutoCloseable {
     private static <K> Function<K, byte[]> defaultKeySerializer(ValueSerializer<K> serializer) {
         return (K key) -> {
             try {
-                return serializer.serialize(key);                
+                return serializer.serialize(key);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }

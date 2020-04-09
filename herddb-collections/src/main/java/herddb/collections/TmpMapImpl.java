@@ -47,7 +47,6 @@ import herddb.model.commands.TruncateTableStatement;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
-import herddb.utils.VisibleByteArrayOutputStream;
 import java.util.function.Function;
 
 /**
