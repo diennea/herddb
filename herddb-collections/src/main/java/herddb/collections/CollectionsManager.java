@@ -73,7 +73,7 @@ public final class CollectionsManager implements AutoCloseable {
                 try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(expectedSize);
                         ObjectOutputStream ooo = new ObjectOutputStream(oo)) {
                     ooo.writeUnshared(object);
-                    return oo.toByteArray();
+                    return oo.toByteArrayNoCopy();
                 }
             }
 
