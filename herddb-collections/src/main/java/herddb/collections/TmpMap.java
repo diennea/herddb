@@ -118,6 +118,12 @@ public interface TmpMap<K, V> extends AutoCloseable {
      */
     void forEachKey(Sink<K> sink) throws CollectionsException, SinkException;
 
+    /**
+     * Clear the contents. It is internally mapped to a TRUNCATE table.
+     * @throws CollectionsException
+     */
+    void clear() throws CollectionsException;
+
     @Override
     void close();
 }

@@ -21,6 +21,8 @@
 package herddb.utils;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.junit.Test;
@@ -45,6 +47,25 @@ public class VisibleByteArrayOutputStreamTest {
         byte[] expected = XXHash64Utils.digest(content, 0, content.length);
         System.out.println("expected:" + Arrays.toString(expected));
         assertArrayEquals(expected, md5);
+    }
+
+    @Test
+    public void testToByteArrayNoCopy() throws Exception {
+        byte[] content = "foo".getBytes(StandardCharsets.UTF_8);
+        byte[] content2 = "fooa".getBytes(StandardCharsets.UTF_8);
+        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(3)) {
+            oo.write(content);
+            assertArrayEquals(content, oo.toByteArray());
+            assertNotSame(content, oo.toByteArray());
+            // accessing directly the buffer
+            assertSame(oo.getBuffer(), oo.toByteArrayNoCopy());
+
+            oo.write('a');
+            assertArrayEquals(content2, oo.toByteArray());
+            assertNotSame(content, oo.toByteArray());
+            assertNotSame(oo.getBuffer(), oo.toByteArrayNoCopy());
+
+        }
     }
 
 }
