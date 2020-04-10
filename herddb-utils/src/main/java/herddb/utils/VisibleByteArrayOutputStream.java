@@ -122,6 +122,17 @@ public class VisibleByteArrayOutputStream extends OutputStream {
         return Arrays.copyOf(buf, count);
     }
 
+    /**
+     * Return the internal buffer or perform a copy
+     * @return the internal buffer or a copy
+     */
+    public byte[] toByteArrayNoCopy() {
+        if (count == buf.length) {
+            return buf;
+        }
+        return Arrays.copyOf(buf, count);
+    }
+
     public int size() {
         return count;
     }

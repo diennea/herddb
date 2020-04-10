@@ -21,7 +21,6 @@
 package herddb.collections;
 
 import herddb.utils.Bytes;
-import java.io.OutputStream;
 
 /**
  * Generic serializer abstraction.
@@ -30,7 +29,7 @@ import java.io.OutputStream;
  */
 public interface ValueSerializer<K> {
 
-    void serialize(K object, OutputStream outputStream) throws Exception;
+    byte[] serialize(K object) throws Exception;
 
     K deserialize(Bytes bytes) throws Exception;
 
