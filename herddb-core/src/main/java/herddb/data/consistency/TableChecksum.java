@@ -24,7 +24,7 @@ package herddb.data.consistency;
  *
  * @author hamado
  */
-public class TableChecksum {
+public final class TableChecksum {
 
     private String tableSpaceName;
     private String tableName;
@@ -35,6 +35,7 @@ public class TableChecksum {
     private String query;
     private long scanDuration;
 
+    //This is for JSON deserialization
     public TableChecksum() {
     }
 

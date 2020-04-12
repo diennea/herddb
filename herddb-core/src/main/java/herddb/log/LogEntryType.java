@@ -43,5 +43,3 @@ public class LogEntryType {
     public static final short TABLE_CONSISTENCY_CHECK = 14;
 
 }
-
-

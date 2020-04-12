@@ -55,37 +55,43 @@ public abstract class TableDataChecksum {
     private static final int SEED = 0;
     public static final boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE = "StreamingXXHash64";
-    public static int nrecords = 0;
     public static long scanduration = 0;
-    private static TranslatedQuery translated;
 
     public static TableChecksum createChecksum(DBManager manager, TranslatedQuery query, TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws DataScannerException {
 
         AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
         String nodeID = tableSpaceManager.getDbmanager().getNodeId();
-        if (query == null) {
+        TranslatedQuery translated = query;
+        //Number of records
+        int nrecords = 0;
+        //If null value is passed as a query
+        //For example, in leader node we may not know the query
+        if (translated == null) {
             final Table table = tableSpaceManager.getTableManager(tableName).getTable();
-            String columns = parseColumns(table);
+            String columns = formatColumns(table);
+            /*
+                scan = true
+                allowCache = false
+                returnValues = false
+                maxRows = -1
+            */
             translated = manager.getPlanner().translate(tableSpace, "SELECT  "
                     + columns
                     + " FROM " + tableName
                     + " order by "
-                    + parsePrimaryKeys(table), Collections.emptyList(), true, false, false, -1);
+                    + formatPrimaryKeys(table), Collections.emptyList(), true, false, false, -1);
         }
-        translated = query;
         ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
+        statement.setAllowExecutionFromFollower(true);
         LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{tableSpace, tableName, nodeID});
-        manager.setAllowExecutionFromFollower(true);
         try (DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
             long _start = System.currentTimeMillis();
-            nrecords = 0;
             while (scan.hasNext()) {
                 nrecords++;
                 DataAccessor data = scan.next();
                 Object[] obj = data.getValues();
-                System.out.println("record numero = " + nrecords  + "valore = " + Arrays.toString(data.getValues()));
                 Column[] schema = scan.getSchema();
                 for (int i = 0; i < schema.length; i++) {
                     serialize = RecordSerializer.serialize(obj[i], schema[i].type);
@@ -105,11 +111,11 @@ public abstract class TableDataChecksum {
         }
     }
 
-    public static String parsePrimaryKeys(Table table) {
+    private static String formatPrimaryKeys(Table table) {
         return Arrays.asList(table.getPrimaryKey()).stream().collect(Collectors.joining(","));
     }
 
-    public static String parseColumns(Table table) {
+    private static String formatColumns(Table table) {
         return Stream.of(table.getColumns()).map(Column::getName).collect(Collectors.joining(","));
     }
 }

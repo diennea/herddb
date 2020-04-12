@@ -139,7 +139,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
-    private boolean allowExecutionFromFollower = true;
     private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
@@ -267,15 +266,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public boolean isErrorIfNotLeader() {
         return errorIfNotLeader;
     }
-    public boolean getAllowExecutionFromFollower(){
-        return allowExecutionFromFollower;
-    }
 
     public void setErrorIfNotLeader(boolean errorIfNotLeader) {
         this.errorIfNotLeader = errorIfNotLeader;
-    }
-    public void setAllowExecutionFromFollower(boolean allowExecutionFromFollower){
-        this.allowExecutionFromFollower = allowExecutionFromFollower;
     }
 
     public MetadataStorageManager getMetadataStorageManager() {
@@ -654,14 +647,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (transactionContext.transactionId > 0) {
                 return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
             }
-            return CompletableFuture.completedFuture(createTableSpaceCheksum((TableSpaceConsistencyCheckStatement) statement));
+            return  CompletableFuture.completedFuture(createTableSpaceCheksum((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             return FutureUtils.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
                     + "Maybe the server is starting "));
         }
-        if (errorIfNotLeader && !manager.isLeader() && !allowExecutionFromFollower) {
+        if (errorIfNotLeader && !manager.isLeader()) {
             return FutureUtils.exception(new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace));
         }
         CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, context, transactionContext);
@@ -737,6 +730,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         context.setManager(this);
         context.setTransactionContext(transactionContext);
         String tableSpace = statement.getTableSpace();
+        boolean allowExecutionFromFollower = statement.getAllowExecutionFromFollower();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid null tableSpace");
         }
@@ -923,23 +917,24 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableIntegrityCheckStatement) {
-        TableSpaceManager manager = tablesSpaces.get(tableIntegrityCheckStatement.getTableSpace());
-        String table = tableIntegrityCheckStatement.getTable();
+    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableConsistencyCheckStatement) {
+        TableSpaceManager manager = tablesSpaces.get(tableConsistencyCheckStatement.getTableSpace());
+        String tableName = tableConsistencyCheckStatement.getTable();
+        String tableSpaceName = tableConsistencyCheckStatement.getTableSpace();
         if (manager == null) {
-            return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID, "No such tablespace");
+            return new DataConsistencyStatementResult(false, "No such tablespace");
         }
         try {
-            manager.createAndWriteTableCheksum(manager, tableIntegrityCheckStatement.getTableSpace(), table);
+            manager.createAndWriteTableCheksum(manager, tableSpaceName, tableName);
         } catch (IOException | DataScannerException ex) {
-            LOGGER.log(Level.SEVERE, null, ex);
+            return new DataConsistencyStatementResult(false, ex.getMessage());
         }
-        return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID);
+        return new DataConsistencyStatementResult(true, "Table consistency check done");
     }
 
-    public DataConsistencyStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceIntegrityCheckStatement) {
-        TableSpaceManager manager = tablesSpaces.get(tableSpaceIntegrityCheckStatement.getTableSpace());
-        String tableSpace = tableSpaceIntegrityCheckStatement.getTableSpace();
+    public DataConsistencyStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
+        TableSpaceManager manager = tablesSpaces.get(tableSpaceConsistencyCheckStatement.getTableSpace());
+        String tableSpace = tableSpaceConsistencyCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
         long _start = System.currentTimeMillis();
         for (Table table : tables) {
@@ -948,14 +943,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 try {
                     manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name);
                 } catch (IOException | DataScannerException ex) {
-                    LOGGER.log(Level.SEVERE, null, ex);
+                   return new DataConsistencyStatementResult(false, ex.getMessage());
                 }
             }
         }
         long _stop = System.currentTimeMillis();
         long tableSpace_check_duration = (_stop - _start);
-        LOGGER.log(Level.INFO, "CHECK TABLESPACE {0} INTEGRITY DONE IN {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
-        return new DataConsistencyStatementResult(TransactionContext.NOTRANSACTION_ID);
+        LOGGER.log(Level.INFO, "CHECK TABLESPACE {0} CONSISTENCY DONE IN {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
+        return new DataConsistencyStatementResult(true, "TableSpace consisntency check done");
     }
 
     private String makeVirtualTableSpaceManagerId(String nodeId) {

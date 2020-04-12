@@ -529,7 +529,7 @@ public class TableSpaceManager {
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
                     String tableName = entry.tableName;
-                    //In recovery mode the follower will have to run the query on the transaction log
+                    //In the entry type = 14, the follower will have to run the query on the transaction log
                     if (!isLeader()) {
                         AbstractTableManager tablemanager = this.getTableManager(tableName);
                         DBManager manager = this.getDbmanager();
@@ -537,6 +537,12 @@ public class TableSpaceManager {
                         if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                             throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
                         }
+                        /*
+                            scan = true
+                            allowCache = false
+                            returnValues = false
+                            maxRows = -1
+                        */
                         TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, Collections.emptyList(), true, false, false, -1);
                         TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
                         long followerDigest = scanResult.getDigest();
@@ -1780,23 +1786,13 @@ public class TableSpaceManager {
             if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }
-            DBManager manager = tableSpaceManager.getDbmanager();
-            final Table table = tableSpaceManager.getTableManager(tableName).getTable();
-            String columns = TableDataChecksum.parseColumns(table);
-            TranslatedQuery translated = manager.getPlanner().translate(tableSpace, "SELECT  "
-                    + columns
-                    + " FROM " + tableName
-                    + " order by "
-                    + TableDataChecksum.parsePrimaryKeys(table), Collections.emptyList(), true, false, false, -1);
-
-            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), translated, tableSpaceManager, tableSpace, tableName);
-
+            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), null, tableSpaceManager, tableSpace, tableName);
             ObjectMapper mapper = new ObjectMapper();
             byte[] serialize = mapper.writeValueAsBytes(scanResult);
 
             Bytes value = Bytes.from_array(serialize);
-            LogEntry entry = LogEntryFactory.dataConsistency(tableName, 0, value);
-            pos = log.log(entry, entry.transactionId <= 0);
+            LogEntry entry = LogEntryFactory.dataConsistency(tableName, value);
+            pos = log.log(entry, false);
             apply(pos, entry, false);
             return scanResult;
 

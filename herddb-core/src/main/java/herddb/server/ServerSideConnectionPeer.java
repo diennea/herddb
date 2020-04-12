@@ -781,10 +781,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             PduCodec.ExecuteStatementResult.write(
                                     message.messageId, 1, ddl.transactionId, null));
                 } else if (result instanceof DataConsistencyStatementResult) {
-                    DataConsistencyStatementResult disr = (DataConsistencyStatementResult) result;
                     channel.sendReplyMessage(message.messageId,
                             PduCodec.ExecuteStatementResult.write(
-                                    message.messageId, 1, disr.transactionId, null));
+                                    message.messageId, 0, 0, null));
                 } else {
                     ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "unknown result type:" + result);
                     channel.sendReplyMessage(message.messageId, error);

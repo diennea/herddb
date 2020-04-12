@@ -94,7 +94,6 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
             }
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql", Collections.emptyList())) {
             }
-            //execute(manager, "TABLECONSISTENCYCHECK consistence.tsql", Collections.emptyList());
             execute(manager, "tableconsistencycheck consistence.tsql1", Collections.emptyList());
             execute(manager, "tableconsistencycheck consistence.tsql2", Collections.emptyList());
             execute(manager, "tablespaceconsistencycheck consistence", Collections.emptyList());

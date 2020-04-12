@@ -20,19 +20,23 @@
 package herddb.model;
 
 /**
- *
+ * Result of statement of a data consistency check
+ * No transactionID needed
  * @author Hamado.Dene
  */
-public class DataConsistencyStatementResult extends StatementExecutionResult {
+public class DataConsistencyStatementResult extends StatementExecutionResult{
 
     private String value;
+    private boolean ok;
 
-    public DataConsistencyStatementResult(long transactionId) {
-        super(transactionId);
+    public DataConsistencyStatementResult(boolean ok) {
+        super(0);
+        this.ok = ok;
     }
 
-    public DataConsistencyStatementResult(long transactionId, String value) {
-        super(transactionId);
+    public DataConsistencyStatementResult(boolean ok, String value) {
+        super(0);
+        this.ok = ok;
         this.value = value;
     }
 }
