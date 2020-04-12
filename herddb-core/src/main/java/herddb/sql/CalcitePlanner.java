@@ -180,7 +180,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
-    public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistency";
+    public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
 
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
