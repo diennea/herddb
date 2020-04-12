@@ -24,7 +24,7 @@ package herddb.model;
  * No transactionID needed
  * @author Hamado.Dene
  */
-public class DataConsistencyStatementResult extends StatementExecutionResult{
+public class DataConsistencyStatementResult extends StatementExecutionResult {
 
     private String value;
     private boolean ok;

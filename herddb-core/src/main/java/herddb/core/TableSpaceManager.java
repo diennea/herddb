@@ -817,11 +817,11 @@ public class TableSpaceManager {
         for (Transaction t : transactions.values()) {
             if (t.isAbandoned(abandonedTransactionTimeout)) {
                 LOGGER.log(Level.SEVERE, "forcing rollback of abandoned transaction {0},"
-                        + " created locally at {1},"
-                        + " last activity locally at {2}",
+                              + " created locally at {1},"
+                              + " last activity locally at {2}",
                         new Object[]{t.transactionId,
-                            new java.sql.Timestamp(t.localCreationTimestamp),
-                            new java.sql.Timestamp(t.lastActivityTs)});
+                              new java.sql.Timestamp(t.localCreationTimestamp),
+                              new java.sql.Timestamp(t.lastActivityTs)});
                 try {
                     if (!validateTransactionBeforeTxCommand(t.transactionId, false /* no wait */)) {
                         // Continue to check next transaction
@@ -829,11 +829,11 @@ public class TableSpaceManager {
                     }
                 } catch (StatementExecutionException e) {
                     LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}: {1}",
-                            new Object[]{t.transactionId, e.getMessage()});
+                            new Object[] { t.transactionId, e.getMessage() });
                     // Continue to check next transaction
                     continue;
                 } catch (RuntimeException e) {
-                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[]{t.transactionId, e});
+                    LOGGER.log(Level.SEVERE, "Failed to validate transaction {0}", new Object[] { t.transactionId, e });
                     // Continue to check next transaction
                     continue;
                 }
@@ -1005,7 +1005,7 @@ public class TableSpaceManager {
                         } else {
                             LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
                         }
-                    });
+            });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
@@ -1329,7 +1329,8 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        CompletableFuture<StatementExecutionResult> res = 
+                planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
 //        });
@@ -1620,7 +1621,7 @@ public class TableSpaceManager {
         }
         tables.put(table.name, tableManager);
         tableManager.start();
-        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
+        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[] { nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + "" });
         dbmanager.getPlanner().clearCache();
         return tableManager;
     }
@@ -1628,7 +1629,7 @@ public class TableSpaceManager {
     AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild, boolean restore) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
-                new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
+                new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
 
         AbstractIndexManager prevIndexManager = indexes.remove(index.name);
         if (prevIndexManager != null) {
@@ -1636,11 +1637,11 @@ public class TableSpaceManager {
                 // restoring an index already booted in a previous life
                 LOGGER.log(Level.INFO,
                         "bootIndex {0} {1}.{2}.{3} uuid {4} - {5} already exists on this tablespace. It will be truncated",
-                        new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
+                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
                 prevIndexManager.dropIndexData();
             } else {
                 LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
-                        new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type});
+                        new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
                 if (indexes.containsKey(index.name)) {
                     throw new DataStorageManagerException(
                             "Index" + index.name + " already present in tableSpace " + tableSpaceName);
