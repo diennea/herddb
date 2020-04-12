@@ -964,8 +964,8 @@ public class HerdDBCLI {
         println("");
         println(" Columns: ");
         executeStatement(verbose, ignoreerrors, false, false,
-                "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);  
-        
+                "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
+
     }
 
     private static void executeScript(final Connection connection, final HerdDBDataSource datasource,
