@@ -1329,7 +1329,7 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res = 
+        CompletableFuture<StatementExecutionResult> res =
                 planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
