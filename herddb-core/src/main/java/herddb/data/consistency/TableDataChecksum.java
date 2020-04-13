@@ -50,8 +50,7 @@ import net.jpountz.xxhash.XXHashFactory;
 public abstract class TableDataChecksum {
 
     private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
-    private static final XXHashFactory factory = XXHashFactory.fastestInstance();
-    //private static final int SEED = 0x9747b28c;
+    private static final XXHashFactory FACTORY = XXHashFactory.fastestInstance();
     private static final int SEED = 0;
     public static final String HASH_TYPE = "StreamingXXHash64";
 
@@ -83,7 +82,7 @@ public abstract class TableDataChecksum {
         statement.setAllowExecutionFromFollower(true);
         LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{ tableSpace, tableName, nodeID});
         try (DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
-            StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
+            StreamingXXHash64 hash64 = FACTORY.newStreamingHash64(SEED);
             byte[] serialize;
             long _start = System.currentTimeMillis();
             while (scan.hasNext()) {
@@ -93,7 +92,14 @@ public abstract class TableDataChecksum {
                 Column[] schema = scan.getSchema();
                 for (int i = 0; i < schema.length; i++) {
                     serialize = RecordSerializer.serialize(obj[i], schema[i].type);
-                    hash64.update(serialize, 0, SEED);
+                    /*
+                        Update need three parameters
+                        update(byte[]buff, int off, int len)
+                            buff is the input data
+                            off is the start offset in buff
+                            len is the number of bytes to hash
+                     */
+                    hash64.update(serialize, 0, serialize.length);
                 }
             }
             LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
