@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -144,7 +145,6 @@ import org.apache.bookkeeper.stats.StatsLogger;
  * @author enrico.olivelli
  */
 public class TableSpaceManager {
-
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
@@ -454,7 +454,6 @@ public class TableSpaceManager {
                     writeTablesOnDataStorageManager(position, false);
                 }
             }
-
             break;
             case LogEntryType.CREATE_INDEX: {
                 Index index = Index.deserialize(entry.value.to_array());
@@ -669,6 +668,7 @@ public class TableSpaceManager {
         }
 
         // ensure we do not have any data on disk and in memory
+
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
         LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
@@ -1622,7 +1622,7 @@ public class TableSpaceManager {
         }
         tables.put(table.name, tableManager);
         tableManager.start();
-        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[] { nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + "" });
+        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
         dbmanager.getPlanner().clearCache();
         return tableManager;
     }

@@ -95,13 +95,3 @@ public class LogEntryFactory {
     }
 
 }
-
-
-
-
-
-
-
-
-
-

@@ -67,6 +67,3 @@ public class Column {
     }
 
 }
-
-
-

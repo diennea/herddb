@@ -215,6 +215,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             parameters = Collections.emptyList();
         }
 
+        /*
+         * Strips out leading comments
+         */
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
             query = query.substring(idx);
@@ -691,28 +694,28 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             break;
                         case "expectedreplicacount":
                             try {
-                            expectedreplicacount = Integer.parseInt(value.trim());
-                            if (expectedreplicacount <= 0) {
+                                expectedreplicacount = Integer.parseInt(value.trim());
+                                if (expectedreplicacount <= 0) {
+                                    throw new StatementExecutionException(
+                                            "invalid expectedreplicacount " + value + " must be positive");
+                                }
+                            } catch (NumberFormatException err) {
                                 throw new StatementExecutionException(
-                                        "invalid expectedreplicacount " + value + " must be positive");
+                                        "invalid expectedreplicacount " + value + ": " + err);
                             }
-                        } catch (NumberFormatException err) {
-                            throw new StatementExecutionException(
-                                    "invalid expectedreplicacount " + value + ": " + err);
-                        }
-                        break;
+                            break;
                         case "maxleaderinactivitytime":
                             try {
-                            maxleaderinactivitytime = Long.parseLong(value.trim());
-                            if (maxleaderinactivitytime < 0) {
+                                maxleaderinactivitytime = Long.parseLong(value.trim());
+                                if (maxleaderinactivitytime < 0) {
+                                    throw new StatementExecutionException(
+                                            "invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                }
+                            } catch (NumberFormatException err) {
                                 throw new StatementExecutionException(
-                                        "invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                        "invalid maxleaderinactivitytime " + value + ": " + err);
                             }
-                        } catch (NumberFormatException err) {
-                            throw new StatementExecutionException(
-                                    "invalid maxleaderinactivitytime " + value + ": " + err);
-                        }
-                        break;
+                            break;
                         default:
                             throw new StatementExecutionException("bad property " + pName);
                     }
@@ -760,28 +763,28 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                                 break;
                             case "expectedreplicacount":
                                 try {
-                                expectedreplicacount = Integer.parseInt(value.trim());
-                                if (expectedreplicacount <= 0) {
+                                    expectedreplicacount = Integer.parseInt(value.trim());
+                                    if (expectedreplicacount <= 0) {
+                                        throw new StatementExecutionException(
+                                                "invalid expectedreplicacount " + value + " must be positive");
+                                    }
+                                } catch (NumberFormatException err) {
                                     throw new StatementExecutionException(
-                                            "invalid expectedreplicacount " + value + " must be positive");
+                                            "invalid expectedreplicacount " + value + ": " + err);
                                 }
-                            } catch (NumberFormatException err) {
-                                throw new StatementExecutionException(
-                                        "invalid expectedreplicacount " + value + ": " + err);
-                            }
-                            break;
+                                break;
                             case "maxleaderinactivitytime":
                                 try {
-                                maxleaderinactivitytime = Long.parseLong(value.trim());
-                                if (maxleaderinactivitytime < 0) {
+                                    maxleaderinactivitytime = Long.parseLong(value.trim());
+                                    if (maxleaderinactivitytime < 0) {
+                                        throw new StatementExecutionException(
+                                                "invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                    }
+                                } catch (NumberFormatException err) {
                                     throw new StatementExecutionException(
-                                            "invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                            "invalid maxleaderinactivitytime " + value + ": " + err);
                                 }
-                            } catch (NumberFormatException err) {
-                                throw new StatementExecutionException(
-                                        "invalid maxleaderinactivitytime " + value + ": " + err);
-                            }
-                            break;
+                                break;
                             default:
                                 throw new StatementExecutionException("bad property " + pName);
                         }
@@ -808,7 +811,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     throw new StatementExecutionException(err);
                 }
             }
-
             case "RENAMETABLE": {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
                     throw new StatementExecutionException(
@@ -832,13 +834,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
-
     }
 
     public Statement queryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
         if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
             query = query.substring(query.substring(0, 21).length());
-            System.out.println(query);
             String tableSpace = defaultTablespace;
             String tableName;
 
@@ -870,8 +870,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
             String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
-            System.out.println("tablespace " + tableSpace);
-            System.out.println("tablespaceManager " + tableSpaceManager);
 
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));

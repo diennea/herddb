@@ -22,7 +22,7 @@ package herddb.model.commands;
 import herddb.model.Statement;
 
 /**
- *
+ * TableSpace consistency check statement
  * @author hamado
  */
 public class TableSpaceConsistencyCheckStatement extends Statement{

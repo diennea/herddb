@@ -17,6 +17,7 @@
  under the License.
 
  */
+
 package herddb.server;
 
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
@@ -411,7 +412,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
         String tableSpace = PduCodec.OpenScanner.readTablespace(message);
         long statementId = PduCodec.OpenScanner.readStatementId(message);
-        String query = statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
+        String query =
+                statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
                         : PduCodec.OpenScanner.readQuery(message);
         if (query == null) {
             ByteBuf error = PduCodec.ErrorResponse.writeMissingPreparedStatementError(message.messageId, "bad statement id: " + statementId);
@@ -555,7 +557,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         long transactionId = PduCodec.ExecuteStatements.readTx(message);
         String tableSpace = PduCodec.ExecuteStatements.readTablespace(message);
         long statementId = PduCodec.ExecuteStatements.readStatementId(message);
-        String query = statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
+        String query =
+                statementId > 0 ? preparedStatements.resolveQuery(tableSpace, statementId)
                         : PduCodec.ExecuteStatements.readQuery(message);
         if (query == null) {
             ByteBuf error = PduCodec.ErrorResponse.writeMissingPreparedStatementError(message.messageId, "bad statement id: " + statementId);
@@ -654,7 +657,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                     TranslatedQuery nextPlannedQuery = queries.get(current);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
-                    CompletableFuture<StatementExecutionResult> nextPromise = server.getManager().executePlanAsync(nextPlannedQuery.plan, nextPlannedQuery.context, transactionContext);
+                    CompletableFuture<StatementExecutionResult> nextPromise =
+                            server.getManager().executePlanAsync(nextPlannedQuery.plan, nextPlannedQuery.context, transactionContext);
                     nextPromise.whenComplete(new ComputeNext(current + 1));
                 }
             }
@@ -676,7 +680,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         long txId = PduCodec.ExecuteStatement.readTx(message);
         String tablespace = PduCodec.ExecuteStatement.readTablespace(message);
         long statementId = PduCodec.ExecuteStatement.readStatementId(message);
-        String query = statementId > 0 ? preparedStatements.resolveQuery(tablespace, statementId)
+        String query =
+                statementId > 0 ? preparedStatements.resolveQuery(tablespace, statementId)
                         : PduCodec.ExecuteStatement.readQuery(message);
         if (query == null) {
             ByteBuf error = PduCodec.ErrorResponse.writeMissingPreparedStatementError(message.messageId, "bad statement id: " + statementId);
