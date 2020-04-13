@@ -541,8 +541,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelNode bestExp = optPlanner.findBestExp();
         if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
             LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
-                RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
-                SqlExplainLevel.ALL_ATTRIBUTES)});
+                    RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
+                            SqlExplainLevel.ALL_ATTRIBUTES)});
         }
         return new PlannerResult(bestExp, originalRowType, logicalPlan);
     }
@@ -832,7 +832,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     fieldNames,
                     columns,
                     projections);
-            ScanStatement scanStatement = new ScanStatement(tableSpace, table, zeroCopy, null);
+             ScanStatement scanStatement = new ScanStatement(tableSpace, table, zeroCopy, null);
             return new TableScanOp(scanStatement);
         } else {
             ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);

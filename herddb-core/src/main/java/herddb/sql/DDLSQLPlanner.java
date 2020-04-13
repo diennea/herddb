@@ -550,7 +550,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new StatementExecutionException("bad type " + dataType);
         }
         if (String.join("_", columnSpecs).contains("NOT_NULL")) {
-            type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
+             type = ColumnTypes.getNonNullTypeForPrimitiveType(type);
         }
         return type;
     }

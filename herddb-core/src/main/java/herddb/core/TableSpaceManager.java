@@ -818,11 +818,11 @@ public class TableSpaceManager {
         for (Transaction t : transactions.values()) {
             if (t.isAbandoned(abandonedTransactionTimeout)) {
                 LOGGER.log(Level.SEVERE, "forcing rollback of abandoned transaction {0},"
-                              + " created locally at {1},"
-                              + " last activity locally at {2}",
+                                + " created locally at {1},"
+                                + " last activity locally at {2}",
                         new Object[]{t.transactionId,
-                              new java.sql.Timestamp(t.localCreationTimestamp),
-                              new java.sql.Timestamp(t.lastActivityTs)});
+                                new java.sql.Timestamp(t.localCreationTimestamp),
+                                new java.sql.Timestamp(t.lastActivityTs)});
                 try {
                     if (!validateTransactionBeforeTxCommand(t.transactionId, false /* no wait */)) {
                         // Continue to check next transaction
@@ -1192,7 +1192,7 @@ public class TableSpaceManager {
 
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID
                 && statement.supportsTransactionAutoCreate() // Do not autostart transaction on alter table statements
-                ) {
+        ) {
             AtomicLong capturedTx = new AtomicLong();
             boolean wasHoldingTableSpaceLock = context.getTableSpaceLock() != 0;
             CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync(context, false);
@@ -1700,7 +1700,7 @@ public class TableSpaceManager {
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
         LOGGER.log(Level.INFO, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
-            table.uuid});
+                table.uuid});
         AbstractTableManager tableManager = null;
         String oldTableName = null;
         for (AbstractTableManager tm : tables.values()) {
