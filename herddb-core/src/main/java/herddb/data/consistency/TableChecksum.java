@@ -30,7 +30,7 @@ public final class TableChecksum {
     private String tableName;
     private long digest;
     private String digestType;
-    private int numRecords;
+    private long numRecords;
     private long nextAutoIncrementValue;
     private String query;
     private long scanDuration;
@@ -39,7 +39,7 @@ public final class TableChecksum {
     public TableChecksum() {
     }
 
-    TableChecksum(String tableSpaceName, String tableName, long digest, String digestType, int numRecords, long nexAutoIncrementValue, String query, long scanDuration) {
+    TableChecksum(String tableSpaceName, String tableName, long digest, String digestType, long numRecords, long nexAutoIncrementValue, String query, long scanDuration) {
         this.tableSpaceName = tableSpaceName;
         this.tableName = tableName;
         this.digest = digest;
@@ -90,7 +90,7 @@ public final class TableChecksum {
         this.digestType = digestType;
     }
 
-    public int getNumRecords() {
+    public long getNumRecords() {
         return numRecords;
     }
 

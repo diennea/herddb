@@ -730,7 +730,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         context.setManager(this);
         context.setTransactionContext(transactionContext);
         String tableSpace = statement.getTableSpace();
-        boolean allowExecutionFromFollower = statement.getAllowExecutionFromFollower();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid null tableSpace");
         }
@@ -739,6 +738,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new NotLeaderException("No such tableSpace " + tableSpace + " here (at " + nodeId + "). "
                     + "Maybe the server is starting ");
         }
+        boolean allowExecutionFromFollower = statement.getAllowExecutionFromFollower();
         if (errorIfNotLeader && !manager.isLeader() && !allowExecutionFromFollower) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
         }

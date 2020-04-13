@@ -168,6 +168,7 @@ public class TableSpaceManager {
     private volatile FollowerThread followerThread;
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     private volatile boolean recoveryInProgress;
     private volatile boolean leader;
@@ -547,8 +548,8 @@ public class TableSpaceManager {
                         TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
                         long followerDigest = scanResult.getDigest();
                         long leaderDigest = check.getDigest();
-                        int leaderNumRecords = check.getNumRecords();
-                        int follNumRecords = scanResult.getNumRecords();
+                        long leaderNumRecords = check.getNumRecords();
+                        long follNumRecords = scanResult.getNumRecords();
                         long table_scan_duration = check.getScanDuration();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
                         if (followerDigest == leaderDigest && leaderNumRecords == follNumRecords) {
@@ -1788,7 +1789,6 @@ public class TableSpaceManager {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }
             TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), null, tableSpaceManager, tableSpace, tableName);
-            ObjectMapper mapper = new ObjectMapper();
             byte[] serialize = mapper.writeValueAsBytes(scanResult);
 
             Bytes value = Bytes.from_array(serialize);

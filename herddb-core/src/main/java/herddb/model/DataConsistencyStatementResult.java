@@ -26,12 +26,13 @@ package herddb.model;
  */
 public class DataConsistencyStatementResult extends StatementExecutionResult {
 
-    private String value;
-    private boolean ok;
+    private final String value;
+    private final boolean ok;
 
     public DataConsistencyStatementResult(boolean ok) {
         super(0);
         this.ok = ok;
+        this.value = null;
     }
 
     public DataConsistencyStatementResult(boolean ok, String value) {

@@ -53,9 +53,7 @@ public abstract class TableDataChecksum {
     private static final XXHashFactory factory = XXHashFactory.fastestInstance();
     //private static final int SEED = 0x9747b28c;
     private static final int SEED = 0;
-    public static final boolean DIGEST_NOT_AVAILABLE = true;
     public static final String HASH_TYPE = "StreamingXXHash64";
-    public static long scanduration = 0;
 
     public static TableChecksum createChecksum(DBManager manager, TranslatedQuery query, TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws DataScannerException {
 
@@ -63,7 +61,7 @@ public abstract class TableDataChecksum {
         String nodeID = tableSpaceManager.getDbmanager().getNodeId();
         TranslatedQuery translated = query;
         //Number of records
-        int nrecords = 0;
+        long nrecords = 0;
         //If null value is passed as a query
         //For example, in leader node we may not know the query
         if (translated == null) {
@@ -83,7 +81,7 @@ public abstract class TableDataChecksum {
         }
         ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
         statement.setAllowExecutionFromFollower(true);
-        LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{tableSpace, tableName, nodeID});
+        LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{ tableSpace, tableName, nodeID});
         try (DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
             StreamingXXHash64 hash64 = factory.newStreamingHash64(SEED);
             byte[] serialize;
@@ -101,7 +99,7 @@ public abstract class TableDataChecksum {
             LOGGER.log(Level.FINER, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
-            scanduration = (_stop - _start);
+            long scanduration = (_stop - _start);
             LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished", new Object[]{tableSpace, tableName, nodeID});
 
             return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, nrecords, nextAutoIncrementValue, translated.context.query, scanduration);
