@@ -919,7 +919,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableConsistencyCheckStatement) {
+    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
         TableSpaceManager manager = tablesSpaces.get(tableConsistencyCheckStatement.getTableSpace());
         String tableName = tableConsistencyCheckStatement.getTable();
         String tableSpaceName = tableConsistencyCheckStatement.getTableSpace();
@@ -927,7 +927,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return new DataConsistencyStatementResult(false, "No such tablespace");
         }
         try {
-            manager.createAndWriteTableCheksum(manager, tableSpaceName, tableName);
+            manager.createAndWriteTableCheksum(manager, tableSpaceName, tableName, context);
         } catch (IOException | DataScannerException ex) {
             return new DataConsistencyStatementResult(false, ex.getMessage());
         }
@@ -943,7 +943,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             AbstractTableManager tableManager = manager.getTableManager(table.name);
             if (!tableManager.isSystemTable()) {
                 try {
-                    manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name);
+                    manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name, null);
                 } catch (IOException | DataScannerException ex) {
                    return new DataConsistencyStatementResult(false, ex.getMessage());
                 }

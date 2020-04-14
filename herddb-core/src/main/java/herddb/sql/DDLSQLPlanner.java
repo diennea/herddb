@@ -859,7 +859,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
 
-            return new TableConsistencyCheckStatement(tableSpace, tableName);
+            return new TableConsistencyCheckStatement(tableName, tableSpace);
         } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for tableconsistencycheck"));
         }

@@ -19,22 +19,17 @@
  */
 package herddb.model.commands;
 
-import herddb.model.Statement;
+import herddb.model.TableAwareStatement;
 
 /**
  * Table consistency check statement
  * @author Hamado.Dene
  */
-public class TableConsistencyCheckStatement extends Statement{
+public class TableConsistencyCheckStatement extends TableAwareStatement {
 
-    private final String table;
-    public TableConsistencyCheckStatement(String tableSpace, String table) {
-        super(tableSpace);
-        this.table = table;
+    public TableConsistencyCheckStatement(String table, String tableSpace) {
+        super(table, tableSpace);
     }
 
-    public String getTable(){
-        return table;
-    }
 }
 

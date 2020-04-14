@@ -38,6 +38,7 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataConsistencyStatementResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
@@ -62,6 +63,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.server.ServerConfiguration;
@@ -81,6 +83,7 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -554,6 +557,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LOGGER.log(Level.SEVERE, "Truncate table failed", err);
                 res = FutureUtils.exception(err);
             }
+        } else if (statement instanceof TableConsistencyCheckStatement) {
+            DBManager manager = this.tableSpaceManager.getDbmanager();
+            res = CompletableFuture.completedFuture(manager.createTableCheksum((TableConsistencyCheckStatement) statement, context));
         } else {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }

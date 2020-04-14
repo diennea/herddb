@@ -1280,8 +1280,6 @@ public class TableSpaceManager {
                 res = CompletableFuture.completedFuture(dropIndex((DropIndexStatement) statement, transaction, context));
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
-            } else if (statement instanceof TableConsistencyCheckStatement) {
-                res = CompletableFuture.completedFuture(this.getDbmanager().createTableCheksum((TableConsistencyCheckStatement) statement));
             } else {
                 res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
@@ -1770,13 +1768,16 @@ public class TableSpaceManager {
     }
 
     //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
-    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName) throws IOException, DataScannerException {
+    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
         CommitLogResult pos;
         boolean lockAcquired = false;
-        StatementEvaluationContext context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
+        if(context == null){
+           context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
+        }
+        long lockStamp = context.getTableSpaceLock();
         LOGGER.log(Level.INFO, "Create and write table checksum");
-        if (context.getTableSpaceLock() == 0) {
-            long lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
+        if (lockStamp == 0 ) {
+            lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
