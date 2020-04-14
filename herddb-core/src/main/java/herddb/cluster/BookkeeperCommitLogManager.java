@@ -107,6 +107,10 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         });
     }
 
+    public BookKeeper getBookKeeper() {
+        return bookKeeper;
+    }
+
     private void forceLastAddConfirmed() {
         activeLogs.values().forEach(l -> {
             l.forceLastAddConfirmed();
