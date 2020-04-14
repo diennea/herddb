@@ -1770,12 +1770,12 @@ public class TableSpaceManager {
     public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
         CommitLogResult pos;
         boolean lockAcquired = false;
-        if(context == null) {
+        if (context == null) {
            context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
         }
         long lockStamp = context.getTableSpaceLock();
         LOGGER.log(Level.INFO, "Create and write table checksum");
-        if(lockStamp == 0 ) {
+        if (lockStamp == 0) {
             lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
