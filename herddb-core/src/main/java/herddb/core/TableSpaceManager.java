@@ -524,7 +524,7 @@ public class TableSpaceManager {
             break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK: {
                 try {
-                    TableChecksum check = new ObjectMapper().readValue(entry.value.to_array(), TableChecksum.class);
+                    TableChecksum check = mapper.readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
                     String tableName = entry.tableName;
@@ -547,21 +547,19 @@ public class TableSpaceManager {
                         long followerDigest = scanResult.getDigest();
                         long leaderDigest = check.getDigest();
                         long leaderNumRecords = check.getNumRecords();
-                        long follNumRecords = scanResult.getNumRecords();
-                        long table_scan_duration = check.getScanDuration();
+                        long followerNumRecords = scanResult.getNumRecords();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
-                        if (followerDigest == leaderDigest && leaderNumRecords == follNumRecords) {
-                            LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} in {2} ms", new Object[]{tableName, tableSpace, table_scan_duration});
+                        if (followerDigest == leaderDigest && leaderNumRecords == followerNumRecords) {
+                            LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} ", new Object[]{tableName, tableSpace});
                         } else {
-                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} after {2} ms ", new Object[]{tableName, tableSpace, table_scan_duration});
+                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} ", new Object[]{tableName, tableSpace});
                         }
                     } else {
                         long digest = check.getDigest();
-                        long table_scan_duration = check.getScanDuration();
-                        LOGGER.log(Level.INFO, "Create CHECKSUM {0}  for TABLE {1} in TABLESPACE {2} in {3} ms on node {4}", new Object[]{digest, entry.tableName, tableSpace, table_scan_duration, this.getDbmanager().getNodeId()});
+                        LOGGER.log(Level.INFO, "Create CHECKSUM {0}  for TABLE {1} in TABLESPACE {2} on node {3}", new Object[]{digest, entry.tableName, tableSpace, this.getDbmanager().getNodeId()});
                     }
                 } catch (IOException | DataScannerException ex) {
-                    LOGGER.log(Level.SEVERE, null, ex);
+                    LOGGER.log(Level.SEVERE, ex.getMessage());
                 }
             }
             break;
@@ -1766,7 +1764,7 @@ public class TableSpaceManager {
         }
     }
 
-    //this method returns a map with all scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
+    //this method return a tableCheckSum object contain scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
     public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
         CommitLogResult pos;
         boolean lockAcquired = false;

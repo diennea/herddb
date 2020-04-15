@@ -20,6 +20,7 @@
 package herddb.data.consistency;
 
 import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertEquals;
 import herddb.core.DBManager;
 import herddb.core.ReplicatedLogtestcase;
 import herddb.core.TestUtils;
@@ -37,6 +38,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -68,7 +70,7 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 manager2.waitForTable(tableSpaceName, tableName, 10000, false);
 
                 TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("table1", "t2");
-                manager1.createTableCheksum(statement, null);
+                manager1.createTableChekSum(statement, null);
 
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("kk"), Bytes.from_string("kk"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             }
@@ -87,12 +89,24 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
             execute(manager, "CREATE TABLE consistence.tsql2 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
 
             for (int i = 0; i < 10; i++) {
-                System.out.println("insert number " + i);
                 execute(manager, "INSERT INTO consistence.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
                 execute(manager, "INSERT INTO consistence.tsql1 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
                 execute(manager, "INSERT INTO consistence.tsql2 (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql", Collections.emptyList())) {
+                DataAccessor first = scan.consume().get(0);
+                Number count = (Number) first.get(first.getFieldNames()[0]);
+                assertEquals(10, count.intValue());
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql1", Collections.emptyList())) {
+                DataAccessor first = scan.consume().get(0);
+                Number count = (Number) first.get(first.getFieldNames()[0]);
+                assertEquals(10, count.intValue());
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM consistence.tsql2", Collections.emptyList())) {
+                DataAccessor first = scan.consume().get(0);
+                Number count = (Number) first.get(first.getFieldNames()[0]);
+                assertEquals(10, count.intValue());
             }
             execute(manager, "tableconsistencycheck consistence.tsql1", Collections.emptyList());
             execute(manager, "tableconsistencycheck consistence.tsql2", Collections.emptyList());

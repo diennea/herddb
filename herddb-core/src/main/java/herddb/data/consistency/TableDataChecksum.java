@@ -106,7 +106,7 @@ public abstract class TableDataChecksum {
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
             long scanduration = (_stop - _start);
-            LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished", new Object[]{tableSpace, tableName, nodeID});
+            LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished in {3} ms", new Object[]{tableSpace, tableName, nodeID, scanduration});
 
             return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, nrecords, nextAutoIncrementValue, translated.context.query, scanduration);
         } catch (DataScannerException ex) {

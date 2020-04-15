@@ -649,7 +649,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (transactionContext.transactionId > 0) {
                 return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
             }
-            return  CompletableFuture.completedFuture(createTableSpaceCheksum((TableSpaceConsistencyCheckStatement) statement));
+            return  CompletableFuture.completedFuture(createTableSpaceChekSum((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -919,7 +919,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public DataConsistencyStatementResult createTableCheksum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
+    public DataConsistencyStatementResult createTableChekSum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
         TableSpaceManager manager = tablesSpaces.get(tableConsistencyCheckStatement.getTableSpace());
         String tableName = tableConsistencyCheckStatement.getTable();
         String tableSpaceName = tableConsistencyCheckStatement.getTableSpace();
@@ -934,7 +934,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return new DataConsistencyStatementResult(true, "Table consistency check done");
     }
 
-    public DataConsistencyStatementResult createTableSpaceCheksum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
+    public DataConsistencyStatementResult createTableSpaceChekSum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
         TableSpaceManager manager = tablesSpaces.get(tableSpaceConsistencyCheckStatement.getTableSpace());
         String tableSpace = tableSpaceConsistencyCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
