@@ -107,7 +107,7 @@ start() {
   echo "Starting service..."
 
   if [ "$PROCESS_PID" != 'X' ]; then
-    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+    if ps -p $PROCESS_PID > /dev/null; then
       echo "Process $PROCESS_PID already running"
       RETVAL=1
       return
@@ -126,7 +126,7 @@ console() {
   echo "Starting service..."
 
   if [ "$PROCESS_PID" != 'X' ]; then
-    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+    if ps -p $PROCESS_PID > /dev/null; then
       echo "Process $PROCESS_PID already running"
       RETVAL=1
       return
@@ -145,18 +145,18 @@ stop() {
   if [ "$PROCESS_PID" != 'X' ]; then
     echo "Stopping service, pid $PROCESS_PID..."
 
-    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+    if ps -p $PROCESS_PID > /dev/null; then
       command kill -SIGTERM $PROCESS_PID
       RETVAL=$?
       i=$KILL_GRACE_TIME
-      while [ -n "`ps h -p $PROCESS_PID`" -a "$i" -gt "0" ]; do
+      while ps -p 1 > /dev/null && [ "$i" -gt "0" ]; do
         echo "Waiting for $PROCESS_PID to die..."
         i=$[$i-1]
         sleep 1
       done
 
-      if [ -n "`ps h -p $PROCESS_PID`" ]; then
-        echo "Process $PROCESS_PID did not exist on request. Killing"
+      if ps -p $PROCESS_PID > /dev/null; then
+        echo "Process $PROCESS_PID did not exit on request. Killing"
         command kill -SIGKILL $PROCESS_PID
         RETVAL=$?
         sleep 1
@@ -209,7 +209,7 @@ stacktrace() {
 status() {
   if [ "$PROCESS_PID" != 'X' ]; then
 
-    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+    if ps -p $PROCESS_PID > /dev/null; then
       echo "Service is running, pid $PROCESS_PID"
     else
       echo "Pidfile $BASE_DIR/$PIDFILENAME does exist, but process is not running"
