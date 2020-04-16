@@ -57,6 +57,7 @@ import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import io.netty.util.Recycler;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
@@ -389,13 +390,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     @Override
     public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader) throws DataStorageManagerException {
         String tableDir = getIndexDirectory(tableSpace, indexName);
-        String pageFile = getPageFile(tableDir, pageId);
         long _start = System.currentTimeMillis();
         
         TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
         Long ledgerId = tableSpacePagesMapping.getLedgerIdForindexpage(pageId);
         if (ledgerId == null) {
-            throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId);
+            throw new DataPageDoesNotExistException("No such page for index : " + tableSpace + "_" + indexName + "." + pageId);
         }
         byte[] data;
         try (ReadHandle read =
@@ -492,6 +492,34 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
     
+    private byte[] readZNode(String checkpointFile) throws DataStorageManagerException {
+        try {
+            return zk.ensureZooKeeper().getData(checkpointFile, false, new Stat());            
+        } catch (KeeperException.NoNodeException err) {
+            return null;
+        } catch (IOException | KeeperException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new DataStorageManagerException(err);
+        }
+    }
+    
+    private void writeZNode(String checkpointFile, byte[] content) throws DataStorageManagerException {
+        try {
+            try {
+                zk.ensureZooKeeper().create(checkpointFile, content, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            } catch (KeeperException.NodeExistsException err) {
+                zk.ensureZooKeeper().setData(checkpointFile, content, -1);            
+            } 
+        } catch (IOException | KeeperException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new DataStorageManagerException(err);
+        }
+    }
+    
     private List<String> ensureZNodeDirectoryAndReturnChildren(String znode) throws DataStorageManagerException {
         try {
             if (zk.ensureZooKeeper().exists(znode, false) == null) {
@@ -508,9 +536,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
     
-    private byte[] readZNode(String checkpointFile) throws DataStorageManagerException {
+    private List<String> zkGetChildren(String znode) throws DataStorageManagerException {
         try {
-            return zk.ensureZooKeeper().getData(checkpointFile, false, new Stat());
+            return zk.ensureZooKeeper().getChildren(znode, false);            
+        } catch (KeeperException.NoNodeException err) {
+            return Collections.emptyList();
         } catch (IOException | KeeperException err) {
             throw new DataStorageManagerException(err);
         } catch (InterruptedException err) {
@@ -518,7 +548,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
     }
-
+        
     @Override
     public TableStatus getTableStatus(String tableSpace, String tableUuid, LogSequenceNumber sequenceNumber)
             throws DataStorageManagerException {
@@ -548,32 +578,42 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
             return latestStatus;
-        } catch (IOException err) {
+        } catch (IOException | KeeperException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
             throw new DataStorageManagerException(err);
         }
     }
 
     public TableStatus readTableStatusFromFile(String checkpointsFile) throws IOException {
         byte[] fileContent = readZNode(checkpointsFile);
+        return readTableStatusFromFile(fileContent, checkpointsFile);        
+    }
+    
+    public TableStatus readTableStatusFromFile(byte[] fileContent, String znode) throws IOException {
+        if (fileContent == null) {
+            throw new IOException("Missing ZNode for TableStatus at "+znode);
+        }
         XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
         try (InputStream input = new SimpleByteArrayInputStream(fileContent);
              ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
-                throw new DataStorageManagerException("corrupted table status file " + checkpointsFile);
+                throw new DataStorageManagerException("corrupted table status file " + znode);
             }
             return TableStatus.deserialize(dataIn);
         }
     }
 
-    private String getLastTableCheckpointFile(String tableSpace, String tableName) throws IOException {
+    private String getLastTableCheckpointFile(String tableSpace, String tableName) throws IOException, KeeperException, InterruptedException {
         String dir = getTableDirectory(tableSpace, tableName);
         String result = getMostRecentCheckPointFile(dir);
         return result;
     }
 
-    private String getMostRecentCheckPointFile(String dir) throws IOException {
+    private String getMostRecentCheckPointFile(String dir) throws IOException, KeeperException, InterruptedException {
         String result = null;
         long lastMod = -1;
         List<String> children = ensureZNodeDirectoryAndReturnChildren(dir);
@@ -601,6 +641,9 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     public IndexStatus readIndexStatusFromFile(String checkpointsFile) throws DataStorageManagerException {
         try {
             byte[] fileContent = readZNode(checkpointsFile);
+            if (fileContent == null) {
+                throw new DataStorageManagerException("Missing znode for " + checkpointsFile + " IndexStatusFile");
+            }
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
             try (InputStream input = new SimpleByteArrayInputStream(fileContent);
                  ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
@@ -622,7 +665,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         String dir = getTableDirectory(tableSpace, tableName);
         String checkpointFile = getTableCheckPointsFile(dir, logPosition);
         try {
-            if (Files.isRegularFile(checkpointFile)) {
+            byte[] exists = readZNode(checkpointFile);
+            if (exists != null) {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
                     LOGGER.log(Level.FINE,
@@ -634,12 +678,10 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
-        Path parent = getParent(checkpointFile);
-        Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
+        
         LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") to file " + checkpointFile);
-
-        try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
-             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+        byte[] content;
+        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream();
              XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
              ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
 
@@ -649,17 +691,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
             dataOutputKeys.writeLong(oo.hash());
             dataOutputKeys.flush();
-            file.sync();
+            content = buffer.toByteArray();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-
-        try {
-            Files.move(checkpointFileTemp, checkpointFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-
+        
+        writeZNode(checkpointFile, content);
 
         /* Checkpoint pinning */
         final Map<Long, Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
@@ -667,27 +704,29 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
         long maxPageId = tableStatus.activePages.keySet().stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
-        // we can drop old page files now
-        List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
-        for (Path p : pageFiles) {
-            long pageId = getPageId(p);
-            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
+        TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
+        // we can drop old page files now        
+        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pageIdToLedgerId.entrySet()) {
+            long pageId = pages.getKey();
+            long ledgerId = pages.getValue();
+            LOGGER.log(Level.FINEST, "checkpoint pageId {0} ledgerId {1}", new Object[]{pageId, ledgerId});
             if (pageId > 0
                     && !pins.containsKey(pageId)
                     && !tableStatus.activePages.containsKey(pageId)
                     && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new DeleteFileAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
+                result.add(new DropLedgerAction(tableName, "delete page " + pageId + " ledgerId " + ledgerId, ledgerId));
             }
         }
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-            for (Path p : stream) {
+        List<String> children = zkGetChildren(dir);
+        try {
+            for (String p : children) {
                 if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
-                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                        result.add(new DeleteFileAction(tableName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
+                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p + ". will be deleted after checkpoint end");
+                        result.add(new DeleteZNodeAction(tableName, "delete checkpoint metadata file " + p, p));
                     }
                 }
             }
@@ -776,28 +815,13 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    private static String getParent(String file) throws DataStorageManagerException {
-
-        final Path path = file.getParent();
-
-        if (path != null) {
-            return path;
-        }
-
-        if (file.isAbsolute()) {
-            throw new DataStorageManagerException("Invalid path " + file);
-        }
-
-        try {
-
-            return getParent(file.toAbsolutePath());
-
-        } catch (IOError | SecurityException e) {
-
-            throw new DataStorageManagerException("Invalid path " + file);
-        }
-
-    }
+//    private static String getParent(String file) throws DataStorageManagerException {
+//        int last = file.lastIndexOf("/");
+//        if (last >= 0) {
+//            return file.substring(0, last - 1);
+//        }
+//        return "";
+//    }
 
     private static String getFilename(String s) {
         int last = s.lastIndexOf("/");
@@ -1557,22 +1581,49 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    private static class DeleteFileAction extends PostCheckpointAction {
+        
+    private class DeleteZNodeAction extends PostCheckpointAction {
 
-        private final Path p;
+        private final String znode;
 
-        public DeleteFileAction(String tableName, String description, Path p) {
+        public DeleteZNodeAction(String tableName, String description, String znode) {
             super(tableName, description);
-            this.p = p;
+            this.znode = znode;
         }
 
         @Override
         public void run() {
             try {
                 LOGGER.log(Level.FINE, description);
-                Files.deleteIfExists(p);
-            } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                zk.ensureZooKeeper().delete(znode, -1);
+            } catch (InterruptedException err) {
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.SEVERE, "Could not delete znode " + znode + ":" + err, err);
+            } catch (IOException | KeeperException err) {
+                LOGGER.log(Level.SEVERE, "Could not delete znode " + znode + ":" + err, err);
+            }
+        }
+    }
+        
+    private class DropLedgerAction extends PostCheckpointAction {
+
+        private final long ledgerId;
+
+        public DropLedgerAction(String tableName, String description, long ledgerId) {
+            super(tableName, description);
+            this.ledgerId = ledgerId;
+        }
+
+        @Override
+        public void run() {
+            try {
+                LOGGER.log(Level.FINE, description);
+                FutureUtils.result(bk.getBookKeeper()
+                        .newDeleteLedgerOp()
+                        .withLedgerId(ledgerId)
+                        .execute(), BKException.HANDLER);
+            } catch (BKException err) {
+                LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);
             }
         }
     }
