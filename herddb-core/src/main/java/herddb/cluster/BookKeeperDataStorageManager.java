@@ -57,8 +57,8 @@ import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import io.netty.util.Recycler;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -68,11 +68,11 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,8 +82,10 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BKException.BKNoSuchLedgerExistsOnMetadataServerException;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.OpStatsLogger;
@@ -122,20 +124,39 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     public static final String FILEEXTENSION_PAGE = ".page";
     
-    private static final class TableSpacePagesMapping {
+    private static final class PagesMapping {
         ConcurrentHashMap<Long, Long> pageIdToLedgerId = new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, Long> indexpageIdToLedgerId = new ConcurrentHashMap<>();
-
-        private Long getLedgerIdForDatapage(Long pageId) {
+       
+        private Long getLedgerIdForPage(Long pageId) {
             return pageIdToLedgerId.get(pageId);
+        }       
+
+        private void removePageId(long pageId) {
+            pageIdToLedgerId.remove(pageId);
         }
-        private Long getLedgerIdForindexpage(Long pageId) {
-            return indexpageIdToLedgerId.get(pageId);
+
+        private void writePageId(long pageId, long ledgerId) {
+            pageIdToLedgerId.put(pageId, ledgerId);
+        }
+    }
+    private static final class TableSpacePagesMapping {
+        ConcurrentHashMap<String, PagesMapping> tableMappings = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PagesMapping> indexMappings = new ConcurrentHashMap<>();
+        private PagesMapping getTablePagesMapping(String tableName) {
+            return tableMappings.computeIfAbsent(tableName, t -> new PagesMapping());
+        }
+        private PagesMapping getIndexPagesMapping(String indexName) {
+            return indexMappings.computeIfAbsent(indexName, t -> new PagesMapping());
         }
     }
     
     private TableSpacePagesMapping getTableSpacePagesMapping(String tableSpace) {
         return tableSpaceMappings.computeIfAbsent(tableSpace, s -> new TableSpacePagesMapping());
+    }
+    
+    private void persistTableSpaceMapping(String tableSpace) {
+        TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
+        throw new RuntimeException("not implemented");
     }
     
     private String getTableSpaceZNode(String tableSpaceUUID) {
@@ -306,7 +327,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();        
         TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
-        Long ledgerId = tableSpacePagesMapping.getLedgerIdForDatapage(pageId);
+        Long ledgerId = tableSpacePagesMapping.getTablePagesMapping(tableName).getLedgerIdForPage(pageId);
         if (ledgerId == null) {
             throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId);
         }
@@ -389,11 +410,10 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     @Override
     public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader) throws DataStorageManagerException {
-        String tableDir = getIndexDirectory(tableSpace, indexName);
         long _start = System.currentTimeMillis();
         
         TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
-        Long ledgerId = tableSpacePagesMapping.getLedgerIdForindexpage(pageId);
+        Long ledgerId = tableSpacePagesMapping.getIndexPagesMapping(indexName).getLedgerIdForPage(pageId);
         if (ledgerId == null) {
             throw new DataPageDoesNotExistException("No such page for index : " + tableSpace + "_" + indexName + "." + pageId);
         }
@@ -712,7 +732,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
         long maxPageId = tableStatus.activePages.keySet().stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
-        TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
+        PagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName);
         // we can drop old page files now        
         for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pageIdToLedgerId.entrySet()) {
             long pageId = pages.getKey();
@@ -723,7 +743,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                     && !tableStatus.activePages.containsKey(pageId)
                     && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new DropLedgerAction(tableName, "delete page " + pageId + " ledgerId " + ledgerId, ledgerId));
+                result.add(new DropLedgerForTableAction(tableSpace, tableName, "delete page " + pageId + " ledgerId " + ledgerId, pageId, ledgerId));
             }
         }
 
@@ -753,7 +773,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         Stat stat = new Stat();
         byte[] exists = readZNode(checkpointFile, stat);
         if (exists != null) {
-            IndexStatus actualStatus = readIndexStatusFromFile(exists);
+            IndexStatus actualStatus = readIndexStatusFromFile(exists, checkpointFile);
             if (actualStatus != null && actualStatus.equals(indexStatus)) {
                 LOGGER.log(Level.INFO,
                         "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
@@ -786,19 +806,18 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         long maxPageId = indexStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
-        TableSpacePagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace);
+        PagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName);
         // we can drop old page files now        
-        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.indexpageIdToLedgerId.entrySet()) {
+        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pageIdToLedgerId.entrySet()) {
             long pageId = pages.getKey();
             long ledgerId = pages.getValue();
-            LOGGER.log(Level.FINEST, "checkpoint pageId {0} ledgerId {1}", new Object[]{pageId, ledgerId});
-            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
+            LOGGER.log(Level.FINEST, "checkpoint pageId {0} ledgerId {1}", new Object[]{pageId, ledgerId});            
             if (pageId > 0
                     && !pins.containsKey(pageId)
                     && !indexStatus.activePages.contains(pageId)
                     && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new DropLedgerAction(indexName, "delete index page " + pageId + " ledgerId " + ledgerId, ledgerId));
+                result.add(new DropLedgerForIndexAction(tableSpace, indexName, "delete index page " + pageId + " ledgerId " + ledgerId, apgeId, ledgerId));
             }
         }
 
@@ -842,56 +861,20 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return getPageId(path) >= 0;
     }
 
-    public List<String> getTablePageFiles(String tableSpace, String tableName) throws DataStorageManagerException {
-        String tableDir = getTableDirectory(tableSpace, tableName);
-
-        try (DirectoryStream<Path> files = Files.newDirectoryStream(tableDir, new DirectoryStream.Filter<Path>() {
-            @Override
-            public boolean accept(Path entry) throws IOException {
-                return isPageFile(entry);
-            }
-
-        })) {
-            List<Path> result = new ArrayList<>();
-            files.forEach(result::add);
-            return result;
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-    }
-
-    public List<String> getIndexPageFiles(String tableSpace, String indexName) throws DataStorageManagerException {
-        String indexDir = getIndexDirectory(tableSpace, indexName);
-
-        try (DirectoryStream<Path> files = Files.newDirectoryStream(indexDir, new DirectoryStream.Filter<Path>() {
-            @Override
-            public boolean accept(Path entry) throws IOException {
-                return isPageFile(entry);
-            }
-
-        })) {
-            List<Path> result = new ArrayList<>();
-            files.forEach(result::add);
-            return result;
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-    }
-
     @Override
     public void cleanupAfterBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
         // we have to drop old page files or page files partially written by checkpoint interrupted at JVM crash/reboot
-        List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
-        for (Path p : pageFiles) {
-            long pageId = getPageId(p);
-            LOGGER.log(Level.FINER, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
+        PagesMapping tablePagesMapping = getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName);
+                
+        for (Iterator<Map.Entry<Long, Long>> entry = tablePagesMapping.pageIdToLedgerId.entrySet().iterator(); entry.hasNext(); ) {
+            Map.Entry<Long, Long> next = entry.next();
+            long pageId = next.getKey();
+            long ledgerId = next.getValue();
+            LOGGER.log(Level.FINER, "cleanupAfterBoot pageId " + pageId+" ledger id "+ledgerId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
-                LOGGER.log(Level.INFO, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
-                try {
-                    Files.deleteIfExists(p);
-                } catch (IOException err) {
-                    throw new DataStorageManagerException(err);
-                }
+                LOGGER.log(Level.INFO, "cleanupAfterBoot pageId " + pageId+" ledger id "+ledgerId + ". will be deleted");
+                // dropLedgerForTable will remove the entry from the map in case of successful deletion of the ledger
+                dropLedgerForTable(tableSpace, tableName, pageId, ledgerId, "cleanupAfterBoot " + tableSpace + "." + tableName + " pageId " + pageId);
             }
         }
     }
@@ -906,10 +889,9 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
      * @return
      * @throws IOException
      */
-    private static long writePage(Collection<Record> newPage, ManagedFile file, OutputStream stream) throws IOException {
+    private static long writePage(Collection<Record> newPage, VisibleByteArrayOutputStream oo) throws IOException {
 
-        try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
-             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+        try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
 
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
@@ -922,10 +904,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
             dataOutput.writeLong(hash);
             dataOutput.flush();
-            stream.write(oo.getBuffer(), 0, oo.size());
-            if (file != null) { // O_DIRECT does not need fsync
-                file.sync();
-            }
             return oo.size();
         }
 
@@ -935,29 +913,34 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
-        Path tableDir = getTableDirectory(tableSpace, tableName);
-        Path pageFile = getPageFile(tableDir, pageId);
+        
         long size;
-
-        try {
-            if (pageodirect) {
-                try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                    size = writePage(newPage, null, odirect);
+        long ledgerId;
+        try {        
+            try (VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream()) {
+                size = writePage(newPage, buffer);
+                
+                try (WriteHandle result =
+                        FutureUtils.result(bk.getBookKeeper()
+                                .newCreateLedgerOp()
+                                .withEnsembleSize(bk.getEnsemble())
+                                .withWriteQuorumSize(bk.getWriteQuorumSize())
+                                .withAckQuorumSize(bk.getAckQuorumSize())
+                                .withPassword(new byte[0]) 
+                                .execute(), BKException.HANDLER);) {
+                    result.append(buffer.getBuffer(), 0, buffer.size());
+                    ledgerId = result.getId();
                 }
-
-            } else {
-                try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE)) {
-
-                    size = writePage(newPage, file, buffer);
-                }
-
             }
-        } catch (IOException err) {
+        
+        } catch (IOException | org.apache.bookkeeper.client.api.BKException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
             throw new DataStorageManagerException(err);
         }
+        getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName).writePageId(pageId, ledgerId);
+        persistTableSpaceMapping(tableSpace);
 
         long now = System.currentTimeMillis();
         long delta = (now - _start);
@@ -968,21 +951,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         dataPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
 
-    private static long writeIndexPage(DataWriter writer, ManagedFile file, OutputStream stream) throws IOException {
-        try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
-             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+    private static long writeIndexPage(DataWriter writer, VisibleByteArrayOutputStream stream) throws IOException {
+        try (
+             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(stream)) {
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
             writer.write(dataOutput);
             dataOutput.flush();
-            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            long hash = XXHash64Utils.hash(stream.getBuffer(), 0, stream.size());
             dataOutput.writeLong(hash);
             dataOutput.flush();
-            stream.write(oo.getBuffer(), 0, oo.size());
-            if (file != null) { // O_DIRECT does not need fsync
-                file.sync();
-            }
-            return oo.size();
+            return stream.size();
         }
     }
 
@@ -996,44 +975,33 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
         String pageFile = getPageFile(tableDir, pageId);
         long size;
-        try {
-            if (indexodirect) {
-                try (ODirectFileOutputStream odirect = new ODirectFileOutputStream(pageFile, O_DIRECT_BLOCK_BATCH,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                    size = writeIndexPage(writer, null, odirect);
-                }
+        long ledgerId;
+        try {        
+            try (VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream()) {
 
-            } else {
-                try (ManagedFile file = ManagedFile.open(pageFile, requirefsync,
-                        StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                     SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE)) {
-
-                    size = writeIndexPage(writer, file, buffer);
+                size = writeIndexPage(writer, buffer);
+              
+                try (WriteHandle result =
+                        FutureUtils.result(bk.getBookKeeper()
+                                .newCreateLedgerOp()
+                                .withEnsembleSize(bk.getEnsemble())
+                                .withWriteQuorumSize(bk.getWriteQuorumSize())
+                                .withAckQuorumSize(bk.getAckQuorumSize())
+                                .withPassword(new byte[0]) 
+                                .execute(), BKException.HANDLER);) {
+                    result.append(buffer.getBuffer(), 0, buffer.size());
+                    ledgerId = result.getId();
                 }
             }
-
-        } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Failed to write on path: {0}", pageFile);
-            Path path = pageFile;
-            boolean exists;
-            do {
-                exists = Files.exists(path);
-
-                if (exists) {
-                    LOGGER.log(Level.INFO,
-                            "Path {0}: directory {1}, file {2}, link {3}, writable {4}, readable {5}, executable {6}",
-                            new Object[] { path, Files.isDirectory(path), Files.isRegularFile(path),
-                                    Files.isSymbolicLink(path), Files.isWritable(path), Files.isReadable(path),
-                                    Files.isExecutable(path) });
-                } else {
-                    LOGGER.log(Level.INFO, "Path {0} doesn't exists", path);
-                }
-
-                path = path.getParent();
-            } while (path != null && !exists);
-
+        
+        } catch (IOException | org.apache.bookkeeper.client.api.BKException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
             throw new DataStorageManagerException(err);
         }
+        getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName).writePageId(pageId, ledgerId);
+        persistTableSpaceMapping(tableSpace);
 
         long now = System.currentTimeMillis();
         long delta = (now - _start);
@@ -1043,17 +1011,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         indexPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
 
-    private static LogSequenceNumber readLogSequenceNumberFromTablesMetadataFile(String tableSpace, Path file) throws DataStorageManagerException {
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+    private static LogSequenceNumber readLogSequenceNumberFromTablesMetadataFile(String tableSpace, byte[] data, String znode) throws DataStorageManagerException {
+        try (InputStream input = new ByteArrayInputStream(data);
              ExtendedDataInputStream din = new ExtendedDataInputStream(input)) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
-                throw new DataStorageManagerException("corrupted table list file " + file.toAbsolutePath());
+                throw new DataStorageManagerException("corrupted table list znode" + znode);
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("znode " + znode + " is not for spablespace " + tableSpace);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1063,17 +1031,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
 
-    private static LogSequenceNumber readLogSequenceNumberFromIndexMetadataFile(String tableSpace, Path file) throws DataStorageManagerException {
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+    private static LogSequenceNumber readLogSequenceNumberFromIndexMetadataFile(String tableSpace, byte[] data, String znode) throws DataStorageManagerException {
+        try (InputStream input = new ByteArrayInputStream(data);
              ExtendedDataInputStream din = new ExtendedDataInputStream(input)) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
-                throw new DataStorageManagerException("corrupted index list file " + file.toAbsolutePath());
+                throw new DataStorageManagerException("corrupted index list znode " + znode);
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("znode " + znode + " is not for spablespace " + tableSpace);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1371,8 +1339,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
 
-    private static LogSequenceNumber readLogSequenceNumberFromCheckpointInfoFile(String tableSpace, Path checkPointFile) throws DataStorageManagerException, IOException {
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
+    private static LogSequenceNumber readLogSequenceNumberFromCheckpointInfoFile(String tableSpace, byte[] data, String checkPointFile) throws DataStorageManagerException, IOException {
+        try (InputStream input = new ByteArrayInputStream(data);
              ExtendedDataInputStream din = new ExtendedDataInputStream(input)) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
@@ -1381,7 +1349,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("zonde " + checkPointFile + " is not for spablespace " + tableSpace);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1419,24 +1387,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
 
-    public static void deleteDirectory(Path f) throws IOException {
-        deleteDirectoryContent(f, false);
-    }
-
-    public static void cleanDirectory(Path f) throws IOException {
-        deleteDirectoryContent(f, true);
-    }
-
-    private static void deleteDirectoryContent(Path f, boolean keepDirectory) throws IOException {
-        if (Files.isDirectory(f)) {
-            final SimpleFileVisitor<Path> visitor =
-                    keepDirectory ? new CleanDirectoryFileVisitor() : DeleteFileVisitor.INSTANCE;
-            Files.walkFileTree(f, visitor);
-        } else if (Files.isRegularFile(f)) {
-            throw new IOException("name " + f.toAbsolutePath() + " is not a directory");
-        }
-    }
-
     @Override
     public KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) throws DataStorageManagerException {
         return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
@@ -1454,17 +1404,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return new FileRecordSetFactory(tmpDirectory, swapThreshold);
     }
 
-    private static LogSequenceNumber readLogSequenceNumberFromTransactionsFile(String tableSpace, Path file) throws DataStorageManagerException {
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+    private static LogSequenceNumber readLogSequenceNumberFromTransactionsFile(String tableSpace, byte[] data, String file) throws DataStorageManagerException {
+        try (InputStream input = new ByteArrayInputStream(data);
              ExtendedDataInputStream din = new ExtendedDataInputStream(input)) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
-                throw new DataStorageManagerException("corrupted transaction list file " + file.toAbsolutePath());
+                throw new DataStorageManagerException("corrupted transaction list znode " + file);
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("znode " + file + " is not for spablespace " + tableSpace);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1601,27 +1551,78 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             }
         }
     }
-        
-    private class DropLedgerAction extends PostCheckpointAction {
+    
+    private void dropLedgerForTable(String tableSpace, String tableName, long pageId, long ledgerId, String description) {
+        try {            
+            LOGGER.log(Level.FINE, description);
+            try {
+                FutureUtils.result(bk.getBookKeeper()
+                    .newDeleteLedgerOp()
+                    .withLedgerId(ledgerId)
+                    .execute(), BKException.HANDLER);
+            } catch (BKNoSuchLedgerExistsOnMetadataServerException err) {
+                LOGGER.log(Level.SEVERE, "ledger " + ledgerId + " already dropped:" + err, err);            
+            } 
+            getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName).removePageId(pageId);
+            persistTableSpaceMapping(tableSpace);
+        } catch (BKException err) {
+            LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);            
+        }
+    }
+    
+    private void dropLedgerForIndex(String tableSpace, String indexName, long pageId, long ledgerId, String description) {
+        try {            
+            LOGGER.log(Level.FINE, description);
+            try {
+                FutureUtils.result(bk.getBookKeeper()
+                    .newDeleteLedgerOp()
+                    .withLedgerId(ledgerId)
+                    .execute(), BKException.HANDLER);
+            } catch (BKNoSuchLedgerExistsOnMetadataServerException err) {
+                LOGGER.log(Level.SEVERE, "ledger " + ledgerId + " already dropped:" + err, err);            
+            } 
+            getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName).removePageId(pageId);
+            persistTableSpaceMapping(tableSpace);
+        } catch (BKException err) {
+            LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);            
+        }
+    }
+    
+    private class DropLedgerForTableAction extends PostCheckpointAction {
 
+        private final String tableSpace;
         private final long ledgerId;
+        private final long pageId;
 
-        public DropLedgerAction(String tableName, String description, long ledgerId) {
+        public DropLedgerForTableAction(String tableSpace, String tableName, String description, long pageId, long ledgerId) {
             super(tableName, description);
+            this.tableSpace = tableSpace;
+            this.pageId = pageId;
             this.ledgerId = ledgerId;
         }
 
         @Override
         public void run() {
-            try {
-                LOGGER.log(Level.FINE, description);
-                FutureUtils.result(bk.getBookKeeper()
-                        .newDeleteLedgerOp()
-                        .withLedgerId(ledgerId)
-                        .execute(), BKException.HANDLER);
-            } catch (BKException err) {
-                LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);
-            }
+            dropLedgerForTable(tableSpace, tableName, pageId, ledgerId, description);
+        }
+    }
+    
+    private class DropLedgerForIndexAction extends PostCheckpointAction {
+
+        private final String tableSpace;
+        private final long ledgerId;
+        private final long pageId;
+
+        public DropLedgerForIndexAction(String tableSpace, String tableName, String description, long pageId, long ledgerId) {
+            super(tableName, description);
+            this.tableSpace = tableSpace;
+            this.pageId = pageId;
+            this.ledgerId = ledgerId;
+        }
+
+        @Override
+        public void run() {
+            dropLedgerForIndex(tableSpace, tableName, pageId, ledgerId, description);
         }
     }
 
