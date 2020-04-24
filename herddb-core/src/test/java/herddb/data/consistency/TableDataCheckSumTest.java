@@ -70,7 +70,7 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 manager2.waitForTable(tableSpaceName, tableName, 10000, false);
 
                 TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("table1", "t2");
-                manager1.createTableChekSum(statement, null);
+                manager1.createTableCheckSum(statement, null);
 
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("kk"), Bytes.from_string("kk"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             }

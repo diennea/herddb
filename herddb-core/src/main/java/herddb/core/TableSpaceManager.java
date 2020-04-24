@@ -147,6 +147,7 @@ public class TableSpaceManager {
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     final StatsLogger tablespaceStasLogger;
     final OpStatsLogger checkpointTimeStats;
@@ -167,7 +168,6 @@ public class TableSpaceManager {
     private volatile FollowerThread followerThread;
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     private volatile boolean recoveryInProgress;
     private volatile boolean leader;
@@ -524,7 +524,7 @@ public class TableSpaceManager {
             break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK: {
                 try {
-                    TableChecksum check = mapper.readValue(entry.value.to_array(), TableChecksum.class);
+                    TableChecksum check = MAPPER.readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
                     String query = check.getQuery();
                     String tableName = entry.tableName;
@@ -550,16 +550,16 @@ public class TableSpaceManager {
                         long followerNumRecords = scanResult.getNumRecords();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
                         if (followerDigest == leaderDigest && leaderNumRecords == followerNumRecords) {
-                            LOGGER.log(Level.INFO, "Data consistency check PASS for TABLE {0}  TABLESPACE {1} ", new Object[]{tableName, tableSpace});
+                            LOGGER.log(Level.INFO, "Data consistency check PASS for table {0}  tablespace {1} ", new Object[]{tableName, tableSpace});
                         } else {
-                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for TABLE {0} in TABLESPACE {1} ", new Object[]{tableName, tableSpace});
+                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for table {0} in tablespace {1} ", new Object[]{tableName, tableSpace});
                         }
                     } else {
                         long digest = check.getDigest();
-                        LOGGER.log(Level.INFO, "Create CHECKSUM {0}  for TABLE {1} in TABLESPACE {2} on node {3}", new Object[]{digest, entry.tableName, tableSpace, this.getDbmanager().getNodeId()});
+                        LOGGER.log(Level.INFO, "Created checksum {0}  for table {1} in tablespace {2} on node {3}", new Object[]{digest, entry.tableName, tableSpace, this.getDbmanager().getNodeId()});
                     }
                 } catch (IOException | DataScannerException ex) {
-                    LOGGER.log(Level.SEVERE, ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Error during table consistency check ", ex);
                 }
             }
             break;
@@ -1765,14 +1765,14 @@ public class TableSpaceManager {
     }
 
     //this method return a tableCheckSum object contain scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
-    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpace, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
+    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpaceName, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
         CommitLogResult pos;
         boolean lockAcquired = false;
         if (context == null) {
            context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
         }
         long lockStamp = context.getTableSpaceLock();
-        LOGGER.log(Level.INFO, "Create and write table checksum");
+        LOGGER.log(Level.INFO, "Create and write table {0} checksum in tablespace " , new Object[]{tableName, tableSpaceName});
         if (lockStamp == 0) {
             lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
             context.setTableSpaceLock(lockStamp);
@@ -1781,13 +1781,13 @@ public class TableSpaceManager {
         try {
             AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
             if (tableSpaceManager == null) {
-                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpaceName));
             }
             if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
             }
-            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), null, tableSpaceManager, tableSpace, tableName);
-            byte[] serialize = mapper.writeValueAsBytes(scanResult);
+            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), null, tableSpaceManager, tableSpaceName, tableName);
+            byte[] serialize = MAPPER.writeValueAsBytes(scanResult);
 
             Bytes value = Bytes.from_array(serialize);
             LogEntry entry = LogEntryFactory.dataConsistency(tableName, value);

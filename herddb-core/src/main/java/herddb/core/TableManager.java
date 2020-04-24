@@ -557,7 +557,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         } else if (statement instanceof TableConsistencyCheckStatement) {
             DBManager manager = this.tableSpaceManager.getDbmanager();
-            res = CompletableFuture.completedFuture(manager.createTableChekSum((TableConsistencyCheckStatement) statement, context));
+            res = CompletableFuture.completedFuture(manager.createTableCheckSum((TableConsistencyCheckStatement) statement, context));
         } else {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }

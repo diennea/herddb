@@ -649,7 +649,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (transactionContext.transactionId > 0) {
                 return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
             }
-            return  CompletableFuture.completedFuture(createTableSpaceChekSum((TableSpaceConsistencyCheckStatement) statement));
+            return  CompletableFuture.completedFuture(createTableSpaceCheckSum((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -919,22 +919,23 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public DataConsistencyStatementResult createTableChekSum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
+    public DataConsistencyStatementResult createTableCheckSum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
         TableSpaceManager manager = tablesSpaces.get(tableConsistencyCheckStatement.getTableSpace());
         String tableName = tableConsistencyCheckStatement.getTable();
         String tableSpaceName = tableConsistencyCheckStatement.getTableSpace();
         if (manager == null) {
-            return new DataConsistencyStatementResult(false, "No such tablespace");
+            return new DataConsistencyStatementResult(false, "No such tablespace " + tableSpaceName);
         }
         try {
             manager.createAndWriteTableCheksum(manager, tableSpaceName, tableName, context);
         } catch (IOException | DataScannerException ex) {
-            return new DataConsistencyStatementResult(false, ex.getMessage());
+            LOGGER.log(Level.SEVERE, "Error on check of tablespace " + tableSpaceName , ex);
+            return new DataConsistencyStatementResult(false, "Error on check of tablespace " + tableSpaceName + ":" + ex);
         }
-        return new DataConsistencyStatementResult(true, "Table consistency check done");
+        return new DataConsistencyStatementResult(true, "Check table consistency for " + tableName + "completed");
     }
 
-    public DataConsistencyStatementResult createTableSpaceChekSum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
+    public DataConsistencyStatementResult createTableSpaceCheckSum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
         TableSpaceManager manager = tablesSpaces.get(tableSpaceConsistencyCheckStatement.getTableSpace());
         String tableSpace = tableSpaceConsistencyCheckStatement.getTableSpace();
         List<Table> tables = manager.getAllCommittedTables();
@@ -945,14 +946,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 try {
                     manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name, null);
                 } catch (IOException | DataScannerException ex) {
-                   return new DataConsistencyStatementResult(false, ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Error on check of tablespace " + tableSpace , ex);
+                    return new DataConsistencyStatementResult(false, "Error on check  of tablespace " + tableSpace + ":" + ex);
                 }
             }
         }
         long _stop = System.currentTimeMillis();
         long tableSpace_check_duration = (_stop - _start);
-        LOGGER.log(Level.INFO, "CHECK TABLESPACE {0} CONSISTENCY DONE IN {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
-        return new DataConsistencyStatementResult(true, "TableSpace consisntency check done");
+        LOGGER.log(Level.INFO, "Check tablespace consistency for {0} Completed in {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
+        return new DataConsistencyStatementResult(true, "Check tablespace consistency for " + tableSpace + "completed in " + tableSpace_check_duration);
     }
 
     private String makeVirtualTableSpaceManagerId(String nodeId) {
