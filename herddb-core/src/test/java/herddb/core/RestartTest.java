@@ -57,6 +57,7 @@ import java.util.Collections;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.powermock.reflect.Whitebox;
 
 /**
  * Recovery from file
@@ -719,20 +720,24 @@ public class RestartTest {
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
         Path metadataPath = folder.newFolder("metadata").toPath();
-        Path tmoDir = folder.newFolder("tmpDir").toPath();
+        Path tmpDir = folder.newFolder("tmpDir").toPath();
 
         String nodeId = "localhost";
         Table table;
         Index index;
 
-        FileDataStorageManager.HASH_CHECKS_ENABLED = false;
-        FileDataStorageManager.HASH_WRITES_ENABLED = false;
+        boolean origHashChecksEnabled = FileDataStorageManager.HASH_CHECKS_ENABLED;
+        boolean origHashWritesEnabled = FileDataStorageManager.HASH_WRITES_ENABLED;
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
-                tmoDir, null)) {
+                tmpDir, null)) {
+
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", false);
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", false);
+
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -769,27 +774,23 @@ public class RestartTest {
                 assertEquals(1, scan1.consume().size());
             }
             manager.checkpoint();
+        } finally {
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", origHashChecksEnabled);
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", origHashWritesEnabled);
         }
 
         // Enabling hash-chacking: previous stored hashes (value 0) has not to fail the check.
-        FileDataStorageManager.HASH_CHECKS_ENABLED = true;
-        FileDataStorageManager.HASH_WRITES_ENABLED = true;
-
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
-                tmoDir, null)) {
+                tmpDir, null)) {
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", true);
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", true);
+
             manager.start();
 
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
-
-            /*
-             * Access through key to page
-             */
-            GetResult result = manager.get(new GetStatement("tblspace1", table.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                    TransactionContext.NO_TRANSACTION);
-            assertTrue(result.found());
 
             /*
              * Access through index
@@ -799,6 +800,9 @@ public class RestartTest {
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
+        } finally {
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", origHashChecksEnabled);
+            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", origHashWritesEnabled);
         }
     }
 

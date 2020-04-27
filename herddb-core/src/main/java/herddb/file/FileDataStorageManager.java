@@ -119,10 +119,11 @@ public class FileDataStorageManager extends DataStorageManager {
             SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
     // In case of HerdDB Collections the usage of XXHash64 might to be overkilling.
-    public static boolean HASH_WRITES_ENABLED =
+    public static final boolean HASH_WRITES_ENABLED =
             SystemProperties.getBooleanSystemProperty("herddb.filedatastoragemanager.writehash", true);
-    public static boolean HASH_CHECKS_ENABLED =
+    public static final boolean HASH_CHECKS_ENABLED =
             SystemProperties.getBooleanSystemProperty("herddb.filedatastoragemanager.checkhash", true);
+    private static final long NO_HASH_PRESENT = 0L;
 
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
@@ -332,9 +333,9 @@ public class FileDataStorageManager extends DataStorageManager {
                 Bytes value = dataIn.readBytesNoCopy();
                 result.add(new Record(key, value));
             }
+            int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            if (HASH_CHECKS_ENABLED && hashFromFile > 0) {
-                int pos = dataIn.getPosition();
+            if (HASH_CHECKS_ENABLED && hashFromFile != NO_HASH_PRESENT) {
                 // after the hash we will have zeroes or garbage
                 // the hash is not at the end of file, but after data
                 long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
@@ -369,7 +370,7 @@ public class FileDataStorageManager extends DataStorageManager {
             hashFromDigest = HASH_CHECKS_ENABLED ? hash.hash() : 0;
             hashFromFile = dataIn.readLong();
         }
-        if (HASH_CHECKS_ENABLED && hashFromFile > 0 && hashFromDigest != hashFromFile) {
+        if (HASH_CHECKS_ENABLED && hashFromFile != NO_HASH_PRESENT && hashFromDigest != hashFromFile) {
             throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
         }
         return result;
@@ -394,9 +395,9 @@ public class FileDataStorageManager extends DataStorageManager {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             X result = reader.read(dataIn);
+            int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            if (HASH_CHECKS_ENABLED && hashFromFile > 0) {
-                int pos = dataIn.getPosition();
+            if (HASH_CHECKS_ENABLED && hashFromFile != NO_HASH_PRESENT) {
                 // after the hash we will have zeroes or garbage
                 // the hash is not at the end of file, but after data
                 long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
