@@ -118,6 +118,12 @@ public class FileDataStorageManager extends DataStorageManager {
     public static final int O_DIRECT_BLOCK_BATCH =
             SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
+    // In case of HerdDB Collections the usage of XXHash64 might to be overkilling.
+    public static boolean HASH_WRITES_ENABLED =
+            SystemProperties.getBooleanSystemProperty("herddb.filedatastoragemanager.writehash", true);
+    public static boolean HASH_CHECKS_ENABLED =
+            SystemProperties.getBooleanSystemProperty("herddb.filedatastoragemanager.checkhash", true);
+
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
                 ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
@@ -326,13 +332,15 @@ public class FileDataStorageManager extends DataStorageManager {
                 Bytes value = dataIn.readBytesNoCopy();
                 result.add(new Record(key, value));
             }
-            int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            // after the hash we will have zeroes or garbage
-            // the hash is not at the end of file, but after data
-            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
-            if (hashFromDigest != hashFromFile) {
-                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            if (HASH_CHECKS_ENABLED && hashFromFile > 0) {
+                int pos = dataIn.getPosition();
+                // after the hash we will have zeroes or garbage
+                // the hash is not at the end of file, but after data
+                long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+                if (hashFromDigest != hashFromFile) {
+                    throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+                }
             }
             return result;
         }
@@ -358,10 +366,10 @@ public class FileDataStorageManager extends DataStorageManager {
                 Bytes value = dataIn.readBytes();
                 result.add(new Record(key, value));
             }
-            hashFromDigest = hash.hash();
+            hashFromDigest = HASH_CHECKS_ENABLED ? hash.hash() : 0;
             hashFromFile = dataIn.readLong();
         }
-        if (hashFromDigest != hashFromFile) {
+        if (HASH_CHECKS_ENABLED && hashFromFile > 0 && hashFromDigest != hashFromFile) {
             throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
         }
         return result;
@@ -386,13 +394,15 @@ public class FileDataStorageManager extends DataStorageManager {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             X result = reader.read(dataIn);
-            int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            // after the hash we will have zeroes or garbage
-            // the hash is not at the end of file, but after data
-            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
-            if (hashFromDigest != hashFromFile) {
-                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            if (HASH_CHECKS_ENABLED && hashFromFile > 0) {
+                int pos = dataIn.getPosition();
+                // after the hash we will have zeroes or garbage
+                // the hash is not at the end of file, but after data
+                long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+                if (hashFromDigest != hashFromFile) {
+                    throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+                }
             }
             return result;
         }
@@ -860,7 +870,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 dataOutput.writeArray(record.value);
             }
             dataOutput.flush();
-            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            long hash = HASH_WRITES_ENABLED ? XXHash64Utils.hash(oo.getBuffer(), 0, oo.size()) : 0;
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
@@ -916,7 +926,7 @@ public class FileDataStorageManager extends DataStorageManager {
             dataOutput.writeVLong(0); // flags for future implementations
             writer.write(dataOutput);
             dataOutput.flush();
-            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            long hash = HASH_WRITES_ENABLED ? XXHash64Utils.hash(oo.getBuffer(), 0, oo.size()) : 0;
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
