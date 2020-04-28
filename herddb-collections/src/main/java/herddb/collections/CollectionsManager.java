@@ -140,8 +140,9 @@ public final class CollectionsManager implements AutoCloseable {
             });
         }
 
-        boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT);
-        boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT);
+        // In case of HerdDB Collections the usage of XXHash64 might to be overkilling.
+        boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, false);
+        boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, false);
 
         server = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
