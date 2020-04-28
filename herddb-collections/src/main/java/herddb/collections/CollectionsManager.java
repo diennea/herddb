@@ -139,12 +139,16 @@ public final class CollectionsManager implements AutoCloseable {
                 configuration.set(k.toString(), v);
             });
         }
+        
+        boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT);
+        boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT);
 
         server = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
                 new FileDataStorageManager(tmpDirectory,
                         tmpDirectory, 0, false /* fsync */,
-                        false /* o_direct */, false /* o_direct */, NullStatsLogger.INSTANCE),
+                        false /* o_direct */, false /* o_direct */,
+                        hashChecksEnabled, hashWritesEnabled, NullStatsLogger.INSTANCE),
                 new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
                 configuration, NullStatsLogger.INSTANCE);

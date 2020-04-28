@@ -50,6 +50,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.server.ServerConfiguration;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import java.nio.file.Path;
@@ -726,17 +727,16 @@ public class RestartTest {
         Table table;
         Index index;
 
-        boolean origHashChecksEnabled = FileDataStorageManager.HASH_CHECKS_ENABLED;
-        boolean origHashWritesEnabled = FileDataStorageManager.HASH_WRITES_ENABLED;
+        boolean origHashChecksEnabled = ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT;
+        boolean origHashWritesEnabled = ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT;
+        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", false);
+        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", false);
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
                 tmpDir, null)) {
-
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", false);
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", false);
 
             manager.start();
 
@@ -775,18 +775,19 @@ public class RestartTest {
             }
             manager.checkpoint();
         } finally {
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", origHashChecksEnabled);
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", origHashWritesEnabled);
+            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", origHashChecksEnabled);
+            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", origHashWritesEnabled);
         }
 
         // Enabling hash-chacking: previous stored hashes (value 0) has not to fail the check.
+        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", true);
+        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", true);
+
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
                 tmpDir, null)) {
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", true);
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", true);
 
             manager.start();
 
@@ -801,8 +802,8 @@ public class RestartTest {
                 assertEquals(1, scan1.consume().size());
             }
         } finally {
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_CHECKS_ENABLED", origHashChecksEnabled);
-            Whitebox.setInternalState(FileDataStorageManager.class, "HASH_WRITES_ENABLED", origHashWritesEnabled);
+            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", origHashChecksEnabled);
+            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", origHashWritesEnabled);
         }
     }
 
