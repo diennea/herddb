@@ -120,7 +120,7 @@ public class FileDataStorageManager extends DataStorageManager {
     public static final int O_DIRECT_BLOCK_BATCH =
             SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
-    // With XXHash64 hashing disabled the stored is empty.
+    // With XXHash64 hashing disabled the stored value is empty.
     private static final long NO_HASH_PRESENT = 0L;
 
     public FileDataStorageManager(Path baseDirectory) {

@@ -55,10 +55,10 @@ import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import java.nio.file.Path;
 import java.util.Collections;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.powermock.reflect.Whitebox;
 
 /**
  * Recovery from file
@@ -727,16 +727,16 @@ public class RestartTest {
         Table table;
         Index index;
 
-        boolean origHashChecksEnabled = ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT;
-        boolean origHashWritesEnabled = ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT;
-        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", false);
-        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", false);
-
-        try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
-                tmpDir, null)) {
+        try (DBManager manager = new DBManager("localhost", new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(
+                        dataPath, dataPath.resolve("tmp"),
+                        ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
+                        ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                        ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT,
+                        ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT,
+                        false, false, new NullStatsLogger()
+                ),
+                new FileCommitLogManager(logsPath), tmpDir, null)) {
 
             manager.start();
 
@@ -774,20 +774,19 @@ public class RestartTest {
                 assertEquals(1, scan1.consume().size());
             }
             manager.checkpoint();
-        } finally {
-            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", origHashChecksEnabled);
-            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", origHashWritesEnabled);
         }
 
         // Enabling hash-chacking: previous stored hashes (value 0) has not to fail the check.
-        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", true);
-        Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", true);
-
-        try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
-                tmpDir, null)) {
+        try (DBManager manager = new DBManager("localhost", new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(
+                        dataPath, dataPath.resolve("tmp"),
+                        ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
+                        ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
+                        ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT,
+                        ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT,
+                        true, true, new NullStatsLogger()
+                ),
+                new FileCommitLogManager(logsPath), tmpDir, null)) {
 
             manager.start();
 
@@ -801,9 +800,6 @@ public class RestartTest {
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                 assertEquals(1, scan1.consume().size());
             }
-        } finally {
-            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_CHECKS_ENABLED_DEFAULT", origHashChecksEnabled);
-            Whitebox.setInternalState(ServerConfiguration.class, "PROPERTY_HASH_WRITES_ENABLED_DEFAULT", origHashWritesEnabled);
         }
     }
 

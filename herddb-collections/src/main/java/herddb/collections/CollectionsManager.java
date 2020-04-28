@@ -139,7 +139,7 @@ public final class CollectionsManager implements AutoCloseable {
                 configuration.set(k.toString(), v);
             });
         }
-        
+
         boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT);
         boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT);
 
