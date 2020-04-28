@@ -311,7 +311,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 boolean requirefsync = configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
                 boolean pageodirect = configuration.getBoolean(ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT, ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT);
                 boolean indexodirect = configuration.getBoolean(ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT, ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT);
-                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, pageodirect, indexodirect, statsLogger);
+                boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT);
+                boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT);
+                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, pageodirect, indexodirect, hashChecksEnabled, hashWritesEnabled, statsLogger);
             default:
                 throw new RuntimeException();
         }

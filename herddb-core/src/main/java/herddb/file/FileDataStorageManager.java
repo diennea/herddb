@@ -98,6 +98,8 @@ public class FileDataStorageManager extends DataStorageManager {
     private final boolean requirefsync;
     private final boolean pageodirect;
     private final boolean indexodirect;
+    private final boolean hashChecksEnabled;
+    private final boolean hashWritesEnabled;
     private final StatsLogger logger;
     private final OpStatsLogger dataPageReads;
     private final OpStatsLogger dataPageWrites;
@@ -118,18 +120,24 @@ public class FileDataStorageManager extends DataStorageManager {
     public static final int O_DIRECT_BLOCK_BATCH =
             SystemProperties.getIntSystemProperty("herddb.file.odirectblockbatch", 16);
 
+    // With XXHash64 hashing disabled the stored value is empty.
+    private static final long NO_HASH_PRESENT = 0L;
+
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"),
                 ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
                 ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT,
                 ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT,
                 ServerConfiguration.PROPERTY_INDEX_USE_ODIRECT_DEFAULT,
+                ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT,
+                ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT,
                 new NullStatsLogger());
     }
 
     public FileDataStorageManager(
             Path baseDirectory, Path tmpDirectory, int swapThreshold,
-            boolean requirefsync, boolean pageodirect, boolean indexodirect, StatsLogger logger
+            boolean requirefsync, boolean pageodirect, boolean indexodirect,
+            boolean hashChecksEnabled, boolean hashWritesEnabled, StatsLogger logger
     ) {
         this.baseDirectory = baseDirectory;
         this.tmpDirectory = tmpDirectory;
@@ -138,6 +146,8 @@ public class FileDataStorageManager extends DataStorageManager {
         this.requirefsync = requirefsync;
         this.pageodirect = pageodirect && OpenFileUtils.isO_DIRECT_Supported();
         this.indexodirect = indexodirect && OpenFileUtils.isO_DIRECT_Supported();
+        this.hashChecksEnabled = hashChecksEnabled;
+        this.hashWritesEnabled = hashWritesEnabled;
         StatsLogger scope = logger.scope("filedatastore");
         this.dataPageReads = scope.getOpStatsLogger("data_pagereads");
         this.dataPageWrites = scope.getOpStatsLogger("data_pagewrites");
@@ -306,7 +316,7 @@ public class FileDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    private static List<Record> rawReadDataPage(Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
+    private List<Record> rawReadDataPage(Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
         int size = (int) Files.size(pageFile);
         byte[] dataPage = new byte[size];
         int read = stream.read(dataPage);
@@ -328,11 +338,13 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            // after the hash we will have zeroes or garbage
-            // the hash is not at the end of file, but after data
-            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
-            if (hashFromDigest != hashFromFile) {
-                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            if (hashChecksEnabled && hashFromFile != NO_HASH_PRESENT) {
+                // after the hash we will have zeroes or garbage
+                // the hash is not at the end of file, but after data
+                long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+                if (hashFromDigest != hashFromFile) {
+                    throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+                }
             }
             return result;
         }
@@ -361,13 +373,13 @@ public class FileDataStorageManager extends DataStorageManager {
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
         }
-        if (hashFromDigest != hashFromFile) {
+        if (hashFromFile != NO_HASH_PRESENT && hashFromDigest != hashFromFile) {
             throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
         }
         return result;
     }
 
-    private static <X> X readIndexPage(DataReader<X> reader, Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
+    private <X> X readIndexPage(DataReader<X> reader, Path pageFile, InputStream stream) throws IOException, DataStorageManagerException {
         int size = (int) Files.size(pageFile);
         byte[] dataPage = new byte[size];
         int read = stream.read(dataPage);
@@ -388,11 +400,13 @@ public class FileDataStorageManager extends DataStorageManager {
             X result = reader.read(dataIn);
             int pos = dataIn.getPosition();
             long hashFromFile = dataIn.readLong();
-            // after the hash we will have zeroes or garbage
-            // the hash is not at the end of file, but after data
-            long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
-            if (hashFromDigest != hashFromFile) {
-                throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+            if (hashChecksEnabled && hashFromFile != NO_HASH_PRESENT) {
+                // after the hash we will have zeroes or garbage
+                // the hash is not at the end of file, but after data
+                long hashFromDigest = XXHash64Utils.hash(dataPage, 0, pos);
+                if (hashFromDigest != hashFromFile) {
+                    throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+                }
             }
             return result;
         }
@@ -847,7 +861,7 @@ public class FileDataStorageManager extends DataStorageManager {
      * @return
      * @throws IOException
      */
-    private static long writePage(Collection<Record> newPage, ManagedFile file, OutputStream stream) throws IOException {
+    private long writePage(Collection<Record> newPage, ManagedFile file, OutputStream stream) throws IOException {
 
         try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
              ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
@@ -860,7 +874,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 dataOutput.writeArray(record.value);
             }
             dataOutput.flush();
-            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            long hash = hashWritesEnabled ? XXHash64Utils.hash(oo.getBuffer(), 0, oo.size()) : NO_HASH_PRESENT;
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
@@ -909,14 +923,14 @@ public class FileDataStorageManager extends DataStorageManager {
         dataPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
 
-    private static long writeIndexPage(DataWriter writer, ManagedFile file, OutputStream stream) throws IOException {
+    private long writeIndexPage(DataWriter writer, ManagedFile file, OutputStream stream) throws IOException {
         try (RecyclableByteArrayOutputStream oo = getWriteBuffer();
              ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
             writer.write(dataOutput);
             dataOutput.flush();
-            long hash = XXHash64Utils.hash(oo.getBuffer(), 0, oo.size());
+            long hash = hashWritesEnabled ? XXHash64Utils.hash(oo.getBuffer(), 0, oo.size()) : NO_HASH_PRESENT;
             dataOutput.writeLong(hash);
             dataOutput.flush();
             stream.write(oo.getBuffer(), 0, oo.size());
