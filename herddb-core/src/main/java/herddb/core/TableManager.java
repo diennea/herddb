@@ -77,8 +77,8 @@ import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.Holder;
 import herddb.utils.ILocalLockManager;
-import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
+import herddb.utils.LocalNoLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
@@ -143,9 +143,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
             getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
 
-    private static final boolean USE_LEGACY_LOCK_MANAGER = SystemProperties
-            .getBooleanSystemProperty("herddb.tablemanager.legacylocks", false);
-
     /**
      * Ignores insert/update/delete failures due to missing transactions during recovery. The operation in
      * recovery will be ignored.
@@ -184,8 +181,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Local locks
      */
-    private final ILocalLockManager locksManager =
-            USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
+    private ILocalLockManager locksManager = new LocalLockManager();
 
     /**
      * Set to {@code true} when this {@link TableManager} is fully started
@@ -3632,6 +3628,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isKeyToPageSortedAscending() {
         return keyToPageSortedAscending;
+    }
+
+    public void forceNoLock() {
+        if (locksManager.getNumKeys() > 0) {
+            new IllegalStateException("Cannot switch to a no-lock access manager, current lock manager still in use.");
+        }
+        locksManager = new LocalNoLockManager();
     }
 
 }

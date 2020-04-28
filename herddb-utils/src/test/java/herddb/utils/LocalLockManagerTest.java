@@ -62,10 +62,10 @@ public class LocalLockManagerTest {
         });
     }
 
-    private final boolean legacy;
+    private final boolean nolock;
 
-    public LocalLockManagerTest(boolean legacy) {
-        this.legacy = legacy;
+    public LocalLockManagerTest(boolean nolock) {
+        this.nolock = nolock;
     }
 
     @Test
@@ -265,10 +265,8 @@ public class LocalLockManagerTest {
     }
 
     private ILocalLockManager makeLockManager() {
-        if (legacy) {
-            LegacyLocalLockManager res = new LegacyLocalLockManager();
-            res.setWriteLockTimeout(1);
-            res.setReadLockTimeout(1);
+        if (nolock) {
+            LocalNoLockManager res = new LocalNoLockManager();
             return res;
         } else {
             LocalLockManager res = new LocalLockManager();

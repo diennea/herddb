@@ -21,6 +21,7 @@
 package herddb.collections;
 
 import herddb.core.DBManager;
+import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.file.FileDataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
@@ -178,7 +179,7 @@ public final class CollectionsManager implements AutoCloseable {
         return server;
     }
 
-    private Table createTable(String tmpTableName, int pkType) throws StatementExecutionException {
+    private Table createTable(String tmpTableName, int pkType, boolean nolock) throws StatementExecutionException {
         Table table = Table
                 .builder()
                 .name(tmpTableName)
@@ -189,8 +190,11 @@ public final class CollectionsManager implements AutoCloseable {
                 .tablespace(TableSpace.DEFAULT)
                 .build();
         CreateTableStatement createTable = new CreateTableStatement(table);
-        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(),
-                TransactionContext.NO_TRANSACTION);
+        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION);
+        TableManager tableMan = (TableManager) tableSpaceManager.getTableManager(tmpTableName);
+        if (nolock) {
+            tableMan.forceNoLock();
+        }
         return table;
     }
 
@@ -250,6 +254,7 @@ public final class CollectionsManager implements AutoCloseable {
 
         private ValueSerializer<V1> valueSerializer;
         private int expectedValueSize = 64;
+        private boolean nolock = false;
 
         public class IntTmpMapBuilder<V2 extends V1> {
 
@@ -260,7 +265,7 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<Integer, V2> build() {
                 String tmpTableName = generateTmpTableName();
-                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER);
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_INTEGER, nolock);
                 return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::intToByteArray, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
@@ -275,7 +280,7 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<Long, V2> build() {
                 String tmpTableName = generateTmpTableName();
-                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG);
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_LONG, nolock);
                 return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::longToByteArray, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
@@ -290,7 +295,7 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<String, V2> build() {
                 String tmpTableName = generateTmpTableName();
-                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING);
+                Table table = createTable(tmpTableName, ColumnTypes.NOTNULL_STRING, nolock);
                 return new TmpMapImpl<>(table, expectedValueSize,
                         Bytes::string_to_array, valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
             }
@@ -318,7 +323,7 @@ public final class CollectionsManager implements AutoCloseable {
              */
             public TmpMap<K, V2> build() {
                 String tmpTableName = generateTmpTableName();
-                Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY);
+                Table table = createTable(tmpTableName, ColumnTypes.BYTEARRAY, nolock);
                 return new TmpMapImpl<>(table, expectedValueSize,
                         keySerializer != null ? keySerializer :  defaultKeySerializer(defaultValueSerializer(4)),
                         valueSerializer != null ? valueSerializer : defaultValueSerializer(expectedValueSize), tableSpaceManager);
@@ -345,6 +350,16 @@ public final class CollectionsManager implements AutoCloseable {
          */
         public TmpMapBuilder<V1> withExpectedValueSize(int expectedValueSize) {
             this.expectedValueSize = expectedValueSize;
+            return this;
+        }
+
+        /**
+         * Whether all tables access have performed by single thread concurrent access management may be
+         * useless and lead to bad performance. By noLock all operations will be performed in "thread-unsafe mode".
+         * @return the builder itself
+         */
+        public TmpMapBuilder<V1> withNoLock() {
+            nolock = true;
             return this;
         }
 
