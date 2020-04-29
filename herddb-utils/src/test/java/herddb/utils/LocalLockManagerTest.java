@@ -23,8 +23,6 @@ package herddb.utils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -38,35 +36,18 @@ import java.util.function.Consumer;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
 
 /**
  * Tests on LocalLocalManager
  *
  * @author eolivelli
  */
-@RunWith(Parameterized.class)
 public class LocalLockManagerTest {
 
     private static final Bytes KEY = Bytes.from_int(1);
 
     @Rule
     public Timeout timeout = new Timeout(10000);
-
-    @Parameters
-    public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
-                {true}, {false}
-        });
-    }
-
-    private final boolean nolock;
-
-    public LocalLockManagerTest(boolean nolock) {
-        this.nolock = nolock;
-    }
 
     @Test
     public void testSimple() {
@@ -265,15 +246,10 @@ public class LocalLockManagerTest {
     }
 
     private ILocalLockManager makeLockManager() {
-        if (nolock) {
-            LocalNoLockManager res = new LocalNoLockManager();
-            return res;
-        } else {
-            LocalLockManager res = new LocalLockManager();
-            res.setWriteLockTimeout(1);
-            res.setReadLockTimeout(1);
-            return res;
-        }
+        LocalLockManager res = new LocalLockManager();
+        res.setWriteLockTimeout(1);
+        res.setReadLockTimeout(1);
+        return res;
     }
 
 }

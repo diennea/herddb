@@ -78,8 +78,8 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.Holder;
 import herddb.utils.ILocalLockManager;
 import herddb.utils.LocalLockManager;
-import herddb.utils.LocalNoLockManager;
 import herddb.utils.LockHandle;
+import herddb.utils.NullLockManager;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -3634,7 +3634,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (locksManager.getNumKeys() > 0) {
             new IllegalStateException("Cannot switch to a no-lock access manager, current lock manager still in use.");
         }
-        locksManager = new LocalNoLockManager();
+        locksManager = new NullLockManager();
     }
 
 }
