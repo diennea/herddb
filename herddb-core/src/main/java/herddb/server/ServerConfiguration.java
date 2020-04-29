@@ -93,6 +93,14 @@ public final class ServerConfiguration {
     public static final String PROPERTY_INDEX_USE_ODIRECT = "index.use_o_direct";
     public static final boolean PROPERTY_INDEX_USE_ODIRECT_DEFAULT = USE_O_DIRECT_DEFAULT;
 
+    /**
+     * In some cases the usage of XXHash64 might to be overkilling
+     */
+    public static final String PROPERTY_HASH_CHECKS_ENABLED = "server.filedatastorage.checkhash";
+    public static final boolean PROPERTY_HASH_CHECKS_ENABLED_DEFAULT = true;
+    public static final String PROPERTY_HASH_WRITES_ENABLED = "server.filedatastorage.writehash";
+    public static final boolean PROPERTY_HASH_WRITES_ENABLED_DEFAULT = true;
+
     public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
     public static final String PROPERTY_METADATADIR = "server.metadata.dir";
