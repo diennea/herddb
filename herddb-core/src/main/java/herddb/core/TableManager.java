@@ -181,7 +181,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Local locks
      */
-    private ILocalLockManager locksManager = new LocalLockManager();
+    private final ILocalLockManager locksManager;
 
     /**
      * Set to {@code true} when this {@link TableManager} is fully started
@@ -396,6 +396,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pkTypes[i] = col.type;
         }
         this.keyToPageSortedAscending = keyToPage.isSortedAscending(pkTypes);
+
+        boolean concurrentAccess = tableSpaceManager.getDbmanager().getServerConfiguration().getBoolean(
+                ServerConfiguration.PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS,
+                ServerConfiguration.PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS_DEFAULT
+        );
+        locksManager = concurrentAccess ? new LocalLockManager() : new NullLockManager();
     }
 
     private TableContext buildTableContext() {
@@ -3628,13 +3634,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isKeyToPageSortedAscending() {
         return keyToPageSortedAscending;
-    }
-
-    public void forceNoLock() {
-        if (locksManager.getNumKeys() > 0) {
-            new IllegalStateException("Cannot switch to a no-lock access manager, current lock manager still in use.");
-        }
-        locksManager = new NullLockManager();
     }
 
 }

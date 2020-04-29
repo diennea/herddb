@@ -128,7 +128,7 @@ public class Transaction {
     }
 
     public void registerLockOnTable(String tableName, LockHandle handle) {
-        if (handle == null) {
+        if (handle.key == null) {
             return;
         }
         HashedMap ll = locks.get(tableName);

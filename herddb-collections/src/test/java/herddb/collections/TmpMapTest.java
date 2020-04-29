@@ -29,38 +29,19 @@ import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
 
 /**
  * Simple tests around TmpMaps
  */
-@RunWith(Parameterized.class)
 public class TmpMapTest {
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
-
-    @Parameters
-    public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
-                {true}, {false}
-        });
-    }
-
-    private final boolean concurrentAccess;
-
-    public TmpMapTest(boolean concurrentAccess) {
-        this.concurrentAccess = concurrentAccess;
-    }
 
     @Test
     public void testIntMap() throws Exception {
@@ -72,7 +53,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withIntKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
@@ -120,7 +100,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Long, String> tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withLongKeys()
                     .build()) {
                 for (long i = 0; i < 1000; i++) {
@@ -167,7 +146,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<String, String> tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withStringKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
@@ -221,7 +199,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Integer, MyPojo> tmpMap = manager
                     .<MyPojo>newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withValueSerializer(new ValueSerializer<MyPojo>() {
                         @Override
                         public byte[] serialize(MyPojo object) throws Exception {
@@ -312,7 +289,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<MyPojo, String> tmpMap = manager
                     .<String>newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withExpectedValueSize(8)
                     .withObjectKeys(MyPojo.class)
                     .withKeySerializer((MyPojo k) -> Bytes.intToByteArray(k.wrapped))
@@ -346,7 +322,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<MyPojo, String> tmpMap = manager
                     .<String>newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withExpectedValueSize(8)
                     .withObjectKeys(MyPojo.class)
                     .build()) {
@@ -377,7 +352,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withIntKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {
@@ -433,7 +407,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withIntKeys()
                     .build()) {
                     tmpMap.put("this-is-not-an-int", "foo");
@@ -454,7 +427,6 @@ public class TmpMapTest {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
                     .newMap()
-                    .allowConcurrentAccess(concurrentAccess)
                     .withIntKeys()
                     .build()) {
                 for (int i = 0; i < 1000; i++) {

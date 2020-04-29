@@ -27,9 +27,11 @@ package herddb.utils;
  */
 public class NullLockManager implements ILocalLockManager {
 
+    private static final LockHandle NULL_HANDLE = new LockHandle(0, null, true);
+
     @Override
     public LockHandle acquireWriteLockForKey(Bytes key) {
-        return null;
+        return NULL_HANDLE;
     }
 
     @Override
@@ -38,7 +40,7 @@ public class NullLockManager implements ILocalLockManager {
 
     @Override
     public LockHandle acquireReadLockForKey(Bytes key) {
-        return null;
+        return NULL_HANDLE;
     }
 
     @Override
