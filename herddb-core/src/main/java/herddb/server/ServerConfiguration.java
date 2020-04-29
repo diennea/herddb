@@ -217,8 +217,8 @@ public final class ServerConfiguration {
      * For HerdDB Collections users most of the time row-level locks are only a waste of CPU/memory
      * as most of the time one single table is accessed by the only single thread that created it.
      */
-    public static final String PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS = "server.tablemanager.concurrentaccess";
-    public static final boolean PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS_DEFAULT = true;
+    public static final String PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS = "server.tablemanager.disablerowlevellocks";
+    public static final boolean PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT = false;
 
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";

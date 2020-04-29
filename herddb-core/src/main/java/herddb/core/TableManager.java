@@ -397,11 +397,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         this.keyToPageSortedAscending = keyToPage.isSortedAscending(pkTypes);
 
-        boolean concurrentAccess = tableSpaceManager.getDbmanager().getServerConfiguration().getBoolean(
-                ServerConfiguration.PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS,
-                ServerConfiguration.PROPERTY_TABLEMANAGER_CONCURRENT_ACCESS_DEFAULT
+        boolean nolocks = tableSpaceManager.getDbmanager().getServerConfiguration().getBoolean(
+                ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS,
+                ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT
         );
-        locksManager = concurrentAccess ? new LocalLockManager() : new NullLockManager();
+        locksManager = nolocks ? new NullLockManager() : new LocalLockManager();
     }
 
     private TableContext buildTableContext() {
