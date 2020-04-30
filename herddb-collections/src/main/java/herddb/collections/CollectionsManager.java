@@ -221,7 +221,7 @@ public final class CollectionsManager implements AutoCloseable {
             this.statsLogger = statsLogger;
             return this;
         }
-        
+
         /**
          * Additional configuration for the internal HerdDB server.
          *
