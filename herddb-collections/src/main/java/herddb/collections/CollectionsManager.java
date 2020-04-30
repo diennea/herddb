@@ -46,6 +46,7 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Entry Point for HerdDB Collections. A Collections Manager manages a set of Collections, these Collections will share
@@ -109,7 +110,8 @@ public final class CollectionsManager implements AutoCloseable {
     private final DBManager server;
     private TableSpaceManager tableSpaceManager;
 
-    private CollectionsManager(long maxMemory, Path tmpDirectory, Properties additionalConfiguration, boolean threadsafe) {
+    private CollectionsManager(long maxMemory, Path tmpDirectory, Properties additionalConfiguration, boolean threadsafe,
+            StatsLogger statsLogger) {
         ServerConfiguration configuration = new ServerConfiguration();
 
         configuration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, maxMemory);
@@ -155,7 +157,7 @@ public final class CollectionsManager implements AutoCloseable {
                         hashChecksEnabled, hashWritesEnabled, NullStatsLogger.INSTANCE),
                 new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
-                configuration, NullStatsLogger.INSTANCE);
+                configuration, statsLogger);
 
         server.setCheckpointPeriod(configuration.getLong(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD,
                 ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD_DEFAULT));
@@ -207,7 +209,19 @@ public final class CollectionsManager implements AutoCloseable {
         private Path tmpDirectory;
         private Properties configuration;
         private boolean threadsafe = true;
+        private StatsLogger statsLogger = NullStatsLogger.INSTANCE;
 
+        /**
+         * Metrics.
+         *
+         * @param configuration a raw set of properties
+         * @return the build itself
+         */
+        public Builder configuration(StatsLogger statsLogger) {
+            this.statsLogger = statsLogger;
+            return this;
+        }
+        
         /**
          * Additional configuration for the internal HerdDB server.
          *
@@ -262,7 +276,7 @@ public final class CollectionsManager implements AutoCloseable {
          * @return the new not-yet-started CollectionsManager.
          */
         public CollectionsManager build() {
-            return new CollectionsManager(maxMemory, tmpDirectory, configuration, threadsafe);
+            return new CollectionsManager(maxMemory, tmpDirectory, configuration, threadsafe, statsLogger);
         }
 
     }
