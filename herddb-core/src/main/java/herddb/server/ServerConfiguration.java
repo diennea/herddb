@@ -221,6 +221,13 @@ public final class ServerConfiguration {
     public static final int PROPERTY_PORT_AUTODISCOVERY = 0;
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
+    /**
+     * For HerdDB Collections users most of the time row-level locks are only a waste of CPU/memory
+     * as most of the time one single table is accessed by the only single thread that created it.
+     */
+    public static final String PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS = "server.tablemanager.disablerowlevellocks";
+    public static final boolean PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT = false;
+
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
 
