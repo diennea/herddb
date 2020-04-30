@@ -214,7 +214,7 @@ public final class CollectionsManager implements AutoCloseable {
         /**
          * Metrics.
          *
-         * @param configuration a raw set of properties
+         * @param statsLogger a BookKeeper metrics logger
          * @return the build itself
          */
         public Builder configuration(StatsLogger statsLogger) {
