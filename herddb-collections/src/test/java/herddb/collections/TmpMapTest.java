@@ -29,19 +29,38 @@ import herddb.utils.Bytes;
 import herddb.utils.TestUtils;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 /**
  * Simple tests around TmpMaps
  */
+@RunWith(Parameterized.class)
 public class TmpMapTest {
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
+
+    @Parameters
+    public static Collection<Object[]> data() {
+        return Arrays.asList(new Object[][]{
+                {true}, {false}
+        });
+    }
+
+    private final boolean threadsafe;
+
+    public TmpMapTest(boolean threadsafe) {
+        this.threadsafe = threadsafe;
+    }
 
     @Test
     public void testIntMap() throws Exception {
@@ -49,6 +68,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
@@ -96,6 +116,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<Long, String> tmpMap = manager
@@ -142,6 +163,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<String, String> tmpMap = manager
@@ -195,6 +217,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<Integer, MyPojo> tmpMap = manager
@@ -285,6 +308,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<MyPojo, String> tmpMap = manager
@@ -318,6 +342,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<MyPojo, String> tmpMap = manager
@@ -348,6 +373,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager
@@ -403,6 +429,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap tmpMap = manager
@@ -423,6 +450,7 @@ public class TmpMapTest {
                 .builder()
                 .maxMemory(10 * 1024 * 1024)
                 .tmpDirectory(tmpDir.newFolder().toPath())
+                .threadsafe(threadsafe)
                 .build()) {
             manager.start();
             try (TmpMap<Integer, String> tmpMap = manager

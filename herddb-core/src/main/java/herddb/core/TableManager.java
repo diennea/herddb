@@ -77,9 +77,9 @@ import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.Holder;
 import herddb.utils.ILocalLockManager;
-import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import herddb.utils.NullLockManager;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -143,9 +143,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
             getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
 
-    private static final boolean USE_LEGACY_LOCK_MANAGER = SystemProperties
-            .getBooleanSystemProperty("herddb.tablemanager.legacylocks", false);
-
     /**
      * Ignores insert/update/delete failures due to missing transactions during recovery. The operation in
      * recovery will be ignored.
@@ -184,8 +181,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Local locks
      */
-    private final ILocalLockManager locksManager =
-            USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
+    private final ILocalLockManager locksManager;
 
     /**
      * Set to {@code true} when this {@link TableManager} is fully started
@@ -400,6 +396,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pkTypes[i] = col.type;
         }
         this.keyToPageSortedAscending = keyToPage.isSortedAscending(pkTypes);
+
+        boolean nolocks = tableSpaceManager.getDbmanager().getServerConfiguration().getBoolean(
+                ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS,
+                ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT
+        );
+        locksManager = nolocks ? new NullLockManager() : new LocalLockManager();
     }
 
     private TableContext buildTableContext() {

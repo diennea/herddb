@@ -109,7 +109,7 @@ public final class CollectionsManager implements AutoCloseable {
     private final DBManager server;
     private TableSpaceManager tableSpaceManager;
 
-    private CollectionsManager(long maxMemory, Path tmpDirectory, Properties additionalConfiguration) {
+    private CollectionsManager(long maxMemory, Path tmpDirectory, Properties additionalConfiguration, boolean threadsafe) {
         ServerConfiguration configuration = new ServerConfiguration();
 
         configuration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, maxMemory);
@@ -139,6 +139,9 @@ public final class CollectionsManager implements AutoCloseable {
                 configuration.set(k.toString(), v);
             });
         }
+
+
+        configuration.set(ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS,  !threadsafe);
 
         // In case of HerdDB Collections the usage of XXHash64 might to be overkilling.
         boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, false);
@@ -194,8 +197,7 @@ public final class CollectionsManager implements AutoCloseable {
                 .tablespace(TableSpace.DEFAULT)
                 .build();
         CreateTableStatement createTable = new CreateTableStatement(table);
-        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(),
-                TransactionContext.NO_TRANSACTION);
+        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION);
         return table;
     }
 
@@ -204,6 +206,7 @@ public final class CollectionsManager implements AutoCloseable {
         private long maxMemory = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
         private Path tmpDirectory;
         private Properties configuration;
+        private boolean threadsafe = true;
 
         /**
          * Additional configuration for the internal HerdDB server.
@@ -240,13 +243,26 @@ public final class CollectionsManager implements AutoCloseable {
         }
 
         /**
+         * To enable/disable concurrent-access management.
+         * This is usefull whether data access is performed by a single thread (that created the table),
+         * and row-level locks might be a waste of CPU/memory.
+         *
+         * @param threadsafe enables/disables concurrently access to db. Default true.
+         * @return the build itself
+         */
+        public Builder threadsafe(boolean threadsafe) {
+            this.threadsafe = threadsafe;
+            return this;
+        }
+
+        /**
          * Creates the CollectionsManager. You must call {@link CollectionsManager#start() }
          * in order to boot the system.
          *
          * @return the new not-yet-started CollectionsManager.
          */
         public CollectionsManager build() {
-            return new CollectionsManager(maxMemory, tmpDirectory, configuration);
+            return new CollectionsManager(maxMemory, tmpDirectory, configuration, threadsafe);
         }
 
     }
