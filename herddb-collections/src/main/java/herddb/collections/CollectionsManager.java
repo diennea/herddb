@@ -154,7 +154,7 @@ public final class CollectionsManager implements AutoCloseable {
                 new FileDataStorageManager(tmpDirectory,
                         tmpDirectory, 0, false /* fsync */,
                         false /* o_direct */, false /* o_direct */,
-                        hashChecksEnabled, hashWritesEnabled, NullStatsLogger.INSTANCE),
+                        hashChecksEnabled, hashWritesEnabled, statsLogger),
                 new MemoryCommitLogManager(false /*serialize*/), tmpDirectory,
                 new ServerHostData("localhost", 0, "", false, Collections.emptyMap()),
                 configuration, statsLogger);
