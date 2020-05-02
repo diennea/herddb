@@ -59,12 +59,12 @@ public abstract class TableDataChecksum {
         AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
         String nodeID = tableSpaceManager.getDbmanager().getNodeId();
         TranslatedQuery translated = query;
+        final Table table = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable();
         //Number of records
         long nrecords = 0;
         //If null value is passed as a query
         //For example, in leader node we may not know the query
         if (translated == null) {
-            final Table table = tableSpaceManager.getTableManager(tableName).getTable();
             String columns = formatColumns(table);
             /*
                 scan = true
@@ -87,19 +87,20 @@ public abstract class TableDataChecksum {
             while (scan.hasNext()) {
                 nrecords++;
                 DataAccessor data = scan.next();
-                Object[] obj = data.getValues();
-                Column[] schema = scan.getSchema();
-                for (int i = 0; i < schema.length; i++) {
-                    byte[] serialize = RecordSerializer.serialize(obj[i], schema[i].type);
+                data.forEach((String key, Object value) -> {
+                    int type = table.getColumn(key).type;
+                    byte[] serialize = RecordSerializer.serialize(value, type);
                     /*
                         Update need three parameters
                         update(byte[]buff, int off, int len)
-                            buff is the input data
-                            off is the start offset in buff
-                            len is the number of bytes to hash
+                        buff is the input data
+                        off is the start offset in buff
+                        len is the number of bytes to hash
                      */
-                    hash64.update(serialize, 0, serialize.length);
-                }
+                    if(serialize != null){
+                        hash64.update(serialize, 0, serialize.length);
+                    }
+                });
             }
             LOGGER.log(Level.INFO, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
             long _stop = System.currentTimeMillis();
@@ -111,7 +112,7 @@ public abstract class TableDataChecksum {
         } catch (DataScannerException ex) {
             LOGGER.log(Level.SEVERE, "Scan failled", ex);
             throw new DataScannerException(ex);
-        }
+    }
     }
 
     private static String formatPrimaryKeys(Table table) {
