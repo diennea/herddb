@@ -45,7 +45,6 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SystemInstrumentation;
-import herddb.utils.SystemProperties;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import io.netty.util.Recycler;
@@ -319,8 +318,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId);
         }
         byte[] data;
-        try (ReadHandle read
-                = FutureUtils.result(bk.getBookKeeper()
+        try (ReadHandle read =
+                FutureUtils.result(bk.getBookKeeper()
                         .newOpenLedgerOp()
                         .withLedgerId(ledgerId)
                         .withPassword(new byte[0])
@@ -405,8 +404,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataPageDoesNotExistException("No such page for index : " + tableSpace + "_" + indexName + "." + pageId);
         }
         byte[] data;
-        try (ReadHandle read
-                = FutureUtils.result(bk.getBookKeeper()
+        try (ReadHandle read =
+                FutureUtils.result(bk.getBookKeeper()
                         .newOpenLedgerOp()
                         .withLedgerId(ledgerId)
                         .withPassword(new byte[0])
@@ -916,8 +915,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             try (VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream()) {
                 size = writePage(newPage, buffer);
 
-                try (WriteHandle result
-                        = FutureUtils.result(bk.getBookKeeper()
+                try (WriteHandle result =
+                         FutureUtils.result(bk.getBookKeeper()
                                 .newCreateLedgerOp()
                                 .withEnsembleSize(bk.getEnsemble())
                                 .withWriteQuorumSize(bk.getWriteQuorumSize())
@@ -977,8 +976,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
                 size = writeIndexPage(writer, buffer);
 
-                try (WriteHandle result
-                        = FutureUtils.result(bk.getBookKeeper()
+                try (WriteHandle result =
+                        FutureUtils.result(bk.getBookKeeper()
                                 .newCreateLedgerOp()
                                 .withEnsembleSize(bk.getEnsemble())
                                 .withWriteQuorumSize(bk.getWriteQuorumSize())
