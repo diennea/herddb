@@ -28,6 +28,7 @@ import herddb.file.FileCommitLog;
 import herddb.file.FileDataStorageManager;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
+import herddb.metadata.MetadataStorageManager;
 import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -94,7 +95,7 @@ public class FlushFileTest extends BaseTestcase {
     }
 
     @Override
-    protected DataStorageManager makeDataStorageManager() {
+    protected DataStorageManager makeDataStorageManager(CommitLogManager commitLog, MetadataStorageManager metadata) {
         try {
             return new FileDataStorageManager(folder.newFolder("data").toPath());
         } catch (IOException err) {

@@ -22,6 +22,8 @@ package herddb.core;
 
 import static org.junit.Assert.assertEquals;
 import herddb.file.FileDataStorageManager;
+import herddb.log.CommitLogManager;
+import herddb.metadata.MetadataStorageManager;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
@@ -43,7 +45,7 @@ public class DropOldPagesTest extends BaseTestcase {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Override
-    protected DataStorageManager makeDataStorageManager() {
+    protected DataStorageManager makeDataStorageManager(CommitLogManager commitLog, MetadataStorageManager metadata) {
         try {
             return new FileDataStorageManager(folder.newFolder("data").toPath());
         } catch (IOException err) {

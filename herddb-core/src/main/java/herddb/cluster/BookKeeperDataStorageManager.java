@@ -19,6 +19,8 @@
  */
 package herddb.cluster;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import herddb.core.HerdDBInternalException;
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -67,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNoSuchLedgerExistsOnMetadataServerException;
 import org.apache.bookkeeper.client.api.LedgerEntries;
@@ -125,12 +128,22 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         private void writePageId(long pageId, long ledgerId) {
             pageIdToLedgerId.put(pageId, ledgerId);
         }
+
+        public ConcurrentHashMap<Long, Long> getPageIdToLedgerId() {
+            return pageIdToLedgerId;
+        }
+
+        public void setPageIdToLedgerId(ConcurrentHashMap<Long, Long> pageIdToLedgerId) {
+            this.pageIdToLedgerId = pageIdToLedgerId;
+        }
+
+
     }
 
-    private static final class TableSpacePagesMapping {
+    public static final class TableSpacePagesMapping {
 
-        ConcurrentHashMap<String, PagesMapping> tableMappings = new ConcurrentHashMap<>();
-        ConcurrentHashMap<String, PagesMapping> indexMappings = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<String, PagesMapping> tableMappings = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<String, PagesMapping> indexMappings = new ConcurrentHashMap<>();
 
         private PagesMapping getTablePagesMapping(String tableName) {
             return tableMappings.computeIfAbsent(tableName, t -> new PagesMapping());
@@ -139,6 +152,24 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         private PagesMapping getIndexPagesMapping(String indexName) {
             return indexMappings.computeIfAbsent(indexName, t -> new PagesMapping());
         }
+
+        public ConcurrentHashMap<String, PagesMapping> getTableMappings() {
+            return tableMappings;
+        }
+
+        public void setTableMappings(ConcurrentHashMap<String, PagesMapping> tableMappings) {
+            this.tableMappings = tableMappings;
+        }
+
+        public ConcurrentHashMap<String, PagesMapping> getIndexMappings() {
+            return indexMappings;
+        }
+
+        public void setIndexMappings(ConcurrentHashMap<String, PagesMapping> indexMappings) {
+            this.indexMappings = indexMappings;
+        }
+
+
     }
 
     private TableSpacePagesMapping getTableSpacePagesMapping(String tableSpace) {
@@ -146,8 +177,39 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     }
 
     private void persistTableSpaceMapping(String tableSpace) {
-        TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
-        throw new RuntimeException("not implemented");
+        try {
+            TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
+            LOGGER.log(Level.INFO, "persisteTableSpaceMapping " + tableSpace);
+            byte[] serialized = new ObjectMapper().writeValueAsBytes(mapping);
+            String znode = getTableSpaceMappingZNode(tableSpace);
+            writeZNode(znode, serialized, null);
+        } catch (JsonProcessingException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private void loadTableSpacesAtBoot() throws DataStorageManagerException {
+        List<String> list = zkGetChildren(baseZkNode, false);
+        for (String tablespace : list) {
+            loadTableSpaceMapping(tablespace);
+        }
+    }
+
+    private void loadTableSpaceMapping(String tableSpace) throws DataStorageManagerException {
+        String znode = getTableSpaceMappingZNode(tableSpace);
+        Stat stat = new Stat();
+        byte[] serialized = readZNode(znode, stat);
+        if (serialized == null) {
+            tableSpaceMappings.put(tableSpace, new TableSpacePagesMapping());
+        } else {
+            try {
+                TableSpacePagesMapping read = new ObjectMapper().readValue(serialized, TableSpacePagesMapping.class);
+                tableSpaceMappings.put(tableSpace, read);
+            } catch (IOException ex) {
+                throw new DataStorageManagerException(ex);
+            }
+        }
+
     }
 
     private String getTableSpaceZNode(String tableSpaceUUID) {
@@ -186,6 +248,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.INFO, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
             FileUtils.cleanDirectory(tmpDirectory);
             Files.createDirectories(tmpDirectory);
+            ensureZNodeDirectory(baseZkNode);
+            loadTableSpacesAtBoot();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -223,6 +287,10 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private static boolean isTablespaceCheckPointInfoFile(String name) {
         return (name.startsWith("checkpoint.") && name.endsWith(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE));
+    }
+
+    private String getTableSpaceMappingZNode(String tablespace) {
+        return getTableSpaceZNode(tablespace) + "/" + "pagemap";
     }
 
     private String getTablespaceCheckPointInfoFile(String tablespace, LogSequenceNumber sequenceNumber) {
@@ -529,7 +597,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     private List<String> ensureZNodeDirectoryAndReturnChildren(String znode) throws DataStorageManagerException {
         try {
             if (zk.ensureZooKeeper().exists(znode, false) != null) {
-                return zk.ensureZooKeeper().getChildren(znode, false);
+                return zkGetChildren(znode);
             } else {
                 zk.ensureZooKeeper().create(znode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                 return Collections.emptyList();
@@ -556,8 +624,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     }
 
     private List<String> zkGetChildren(String znode) throws DataStorageManagerException {
+        return zkGetChildren(znode, true);
+    }
+    private List<String> zkGetChildren(String znode, boolean appendParent) throws DataStorageManagerException {
         try {
-            return zk.ensureZooKeeper().getChildren(znode, false);
+            List<String> res = zk.ensureZooKeeper().getChildren(znode, false);
+            LOGGER.log(Level.INFO, "zkGetChildren " + znode + " -> " + res);
+            if (appendParent) {
+            return res.stream().map(s -> znode + "/" + s).collect(Collectors.toList());
+            } else {
+                return res;
+            }
         } catch (KeeperException.NoNodeException err) {
             return Collections.emptyList();
         } catch (IOException | KeeperException err) {
@@ -637,9 +714,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         long lastMod = -1;
         List<String> children = ensureZNodeDirectoryAndReturnChildren(dir);
 
-        for (String path : children) {
-            String fullpath = dir + "/" + path;
-            if (isTableOrIndexCheckpointsFile(path)) {
+        for (String fullpath : children) {
+            if (isTableOrIndexCheckpointsFile(fullpath)) {
                 LOGGER.log(Level.INFO, "getMostRecentCheckPointFile on " + dir + " -> ACCEPT " + fullpath);
                 Stat stat = new Stat();
                 zk.ensureZooKeeper().exists(fullpath, false, null, stat);
