@@ -40,12 +40,12 @@ public class DataConsistencyStatementResult extends StatementExecutionResult {
         this.ok = ok;
         this.message = message;
     }
-    
-    public String getMessage(){
+
+    public String getMessage() {
         return this.message;
     }
-    
-    public boolean getOk(){
+
+    public boolean getOk() {
         return this.ok;
     }
 }

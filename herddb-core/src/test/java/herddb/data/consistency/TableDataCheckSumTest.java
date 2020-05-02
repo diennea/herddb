@@ -21,6 +21,7 @@ package herddb.data.consistency;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.core.ReplicatedLogtestcase;
 import herddb.core.TestUtils;
@@ -42,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import org.junit.Test;
-import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -74,8 +74,8 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 manager1.executeStatement(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 manager1.waitForTable(tableSpaceName, tableName, 10000, true);
-                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("1",true));
-                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("2",false));
+                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("1", true));
+                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("2", false));
                 manager2.waitForTable(tableSpaceName, tableName, 10000, false);
 
                 TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("table1", "t2");
@@ -209,10 +209,10 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
             CreateTableStatement st2 = new CreateTableStatement(table2);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-            execute(manager, "INSERT INTO tblspace1.t1 (id,name) values (?,?)", Arrays.asList("1",true));
-            execute(manager, "INSERT INTO tblspace1.t1 (id,name) values (?,?)", Arrays.asList("2",false));
-            execute(manager, "INSERT INTO tblspace1.t2 (id,name) values (?,?)", Arrays.asList("1",true));
-            execute(manager, "INSERT INTO tblspace1.t2 (id,name) values (?,?)", Arrays.asList("2",false));
+            execute(manager, "INSERT INTO tblspace1.t1 (id,name) values (?,?)", Arrays.asList("1", true));
+            execute(manager, "INSERT INTO tblspace1.t1 (id,name) values (?,?)", Arrays.asList("2", false));
+            execute(manager, "INSERT INTO tblspace1.t2 (id,name) values (?,?)", Arrays.asList("1", true));
+            execute(manager, "INSERT INTO tblspace1.t2 (id,name) values (?,?)", Arrays.asList("2", false));
 
             TableSpaceConsistencyCheckStatement statement = new TableSpaceConsistencyCheckStatement(tableSpaceName);
             DataConsistencyStatementResult result = manager.createTableSpaceCheckSum(statement);
@@ -221,7 +221,7 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
     }
 
     @Test
-    public void TableWithNullValueConsistencyCheck() throws Exception {
+    public void tableWithNullValueConsistencyCheck() throws Exception {
         String tableSpaceName = "t1";
         String tableName = "nulltable";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {

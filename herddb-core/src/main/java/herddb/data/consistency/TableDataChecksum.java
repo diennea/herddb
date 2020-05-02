@@ -97,7 +97,7 @@ public abstract class TableDataChecksum {
                         off is the start offset in buff
                         len is the number of bytes to hash
                      */
-                    if(serialize != null){
+                    if (serialize != null) {
                         hash64.update(serialize, 0, serialize.length);
                     }
                 });
