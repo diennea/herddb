@@ -84,7 +84,7 @@ public class SimpleClusterDisklessTest extends BaseTestcase {
 
     @Override
     protected DataStorageManager makeDataStorageManager(CommitLogManager commitLog, MetadataStorageManager metadata) throws Exception {
-        return new BookKeeperDataStorageManager(folder.newFolder().toPath(), (ZookeeperMetadataStorageManager) metadata, (BookkeeperCommitLogManager) commitLog);
+        return new BookKeeperDataStorageManager("localhost", folder.newFolder().toPath(), (ZookeeperMetadataStorageManager) metadata, (BookkeeperCommitLogManager) commitLog);
     }
 
     @Test

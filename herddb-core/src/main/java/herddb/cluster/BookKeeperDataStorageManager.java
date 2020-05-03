@@ -54,12 +54,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -72,10 +74,12 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNoSuchLedgerExistsOnMetadataServerException;
+import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.LedgerEntries;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
@@ -97,18 +101,23 @@ import org.apache.zookeeper.data.Stat;
 public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private static final Logger LOGGER = Logger.getLogger(BookKeeperDataStorageManager.class.getName());
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private final Path tmpDirectory;
     private final int swapThreshold;
-    private final StatsLogger logger;
+    private final Counter zkWrites;
+    private final Counter zkReads;
+    private final Counter zkGetChildren;
     private final OpStatsLogger dataPageReads;
     private final OpStatsLogger dataPageWrites;
     private final OpStatsLogger indexPageReads;
     private final OpStatsLogger indexPageWrites;
     private final ZookeeperMetadataStorageManager zk;
     private final BookkeeperCommitLogManager bk;
+    private final String nodeId;
 
     private final ConcurrentHashMap<String, TableSpacePagesMapping> tableSpaceMappings = new ConcurrentHashMap<>();
 
+    private final String rootZkNode;
     private final String baseZkNode;
 
     public static final String FILEEXTENSION_PAGE = ".page";
@@ -180,7 +189,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         try {
             TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
             LOGGER.log(Level.INFO, "persisteTableSpaceMapping " + tableSpace);
-            byte[] serialized = new ObjectMapper().writeValueAsBytes(mapping);
+            byte[] serialized = MAPPER.writeValueAsBytes(mapping);
             String znode = getTableSpaceMappingZNode(tableSpace);
             writeZNode(znode, serialized, null);
         } catch (JsonProcessingException ex) {
@@ -203,7 +212,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             tableSpaceMappings.put(tableSpace, new TableSpacePagesMapping());
         } else {
             try {
-                TableSpacePagesMapping read = new ObjectMapper().readValue(serialized, TableSpacePagesMapping.class);
+                TableSpacePagesMapping read = MAPPER.readValue(serialized, TableSpacePagesMapping.class);
                 tableSpaceMappings.put(tableSpace, read);
             } catch (IOException ex) {
                 throw new DataStorageManagerException(ex);
@@ -216,8 +225,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return baseZkNode + "/" + tableSpaceUUID;
     }
 
-    public BookKeeperDataStorageManager(Path baseDirectory, ZookeeperMetadataStorageManager zk, BookkeeperCommitLogManager bk) {
-        this(baseDirectory.resolve("tmp"),
+    public BookKeeperDataStorageManager(String nodeId, Path baseDirectory, ZookeeperMetadataStorageManager zk, BookkeeperCommitLogManager bk) {
+        this(nodeId, baseDirectory.resolve("tmp"),
                 ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT,
                 zk,
                 bk,
@@ -225,19 +234,23 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     }
 
     public BookKeeperDataStorageManager(
-            Path tmpDirectory, int swapThreshold, ZookeeperMetadataStorageManager zk, BookkeeperCommitLogManager bk, StatsLogger logger
+            String nodeId, Path tmpDirectory, int swapThreshold, ZookeeperMetadataStorageManager zk, BookkeeperCommitLogManager bk, StatsLogger logger
     ) {
+        this.nodeId = nodeId;
         this.tmpDirectory = tmpDirectory;
         this.swapThreshold = swapThreshold;
-        this.logger = logger;
         StatsLogger scope = logger.scope("bkdatastore");
         this.dataPageReads = scope.getOpStatsLogger("data_pagereads");
         this.dataPageWrites = scope.getOpStatsLogger("data_pagewrites");
         this.indexPageReads = scope.getOpStatsLogger("index_pagereads");
         this.indexPageWrites = scope.getOpStatsLogger("index_pagewrites");
+        this.zkReads = scope.getCounter("zkReads");
+        this.zkWrites = scope.getCounter("zkWrites");
+        this.zkGetChildren = scope.getCounter("zkGetChildren");
         this.zk = zk;
         this.bk = bk;
-        this.baseZkNode = zk.getBasePath() + "/data";
+        this.rootZkNode = zk.getBasePath() + "/data";
+        this.baseZkNode = rootZkNode + "/" + nodeId;
     }
 
     @Override
@@ -248,6 +261,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.INFO, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
             FileUtils.cleanDirectory(tmpDirectory);
             Files.createDirectories(tmpDirectory);
+            LOGGER.log(Level.INFO, "preparing root znode " + baseZkNode);
+            ensureZNodeDirectory(rootZkNode);
             ensureZNodeDirectory(baseZkNode);
             loadTableSpacesAtBoot();
         } catch (IOException err) {
@@ -568,6 +583,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private byte[] readZNode(String checkpointFile, Stat stat) throws DataStorageManagerException {
         try {
+            zkReads.inc();
             return zk.ensureZooKeeper().getData(checkpointFile, false, stat);
         } catch (KeeperException.NoNodeException err) {
             return null;
@@ -581,6 +597,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private void writeZNode(String checkpointFile, byte[] content, Stat stat) throws DataStorageManagerException {
         try {
+            zkWrites.inc();
             try {
                 zk.ensureZooKeeper().create(checkpointFile, content, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
             } catch (KeeperException.NodeExistsException err) {
@@ -628,8 +645,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     }
     private List<String> zkGetChildren(String znode, boolean appendParent) throws DataStorageManagerException {
         try {
+            zkGetChildren.inc();
             List<String> res = zk.ensureZooKeeper().getChildren(znode, false);
-            LOGGER.log(Level.INFO, "zkGetChildren " + znode + " -> " + res);
             if (appendParent) {
             return res.stream().map(s -> znode + "/" + s).collect(Collectors.toList());
             } else {
@@ -990,7 +1007,13 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         try {
             try (VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream()) {
                 size = writePage(newPage, buffer);
-
+                Map<String, byte[]> metadata = new HashMap<>();
+                metadata.put("tablespaceuuid", tableSpace.getBytes(StandardCharsets.UTF_8));
+                metadata.put("node", nodeId.getBytes(StandardCharsets.UTF_8));
+                metadata.put("application", "herddb".getBytes(StandardCharsets.UTF_8));
+                metadata.put("component", "datastore".getBytes(StandardCharsets.UTF_8));
+                metadata.put("table", tableName.getBytes(StandardCharsets.UTF_8));
+                metadata.put("type", "datapage".getBytes(StandardCharsets.UTF_8));
                 try (WriteHandle result =
                          FutureUtils.result(bk.getBookKeeper()
                                 .newCreateLedgerOp()
@@ -998,6 +1021,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                                 .withWriteQuorumSize(bk.getWriteQuorumSize())
                                 .withAckQuorumSize(bk.getAckQuorumSize())
                                 .withPassword(new byte[0])
+                                .withDigestType(DigestType.CRC32C)
+                                .withCustomMetadata(metadata)
                                 .execute(), BKException.HANDLER);) {
                     result.append(buffer.getBuffer(), 0, buffer.size());
                     ledgerId = result.getId();
@@ -1050,7 +1075,13 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             try (VisibleByteArrayOutputStream buffer = new VisibleByteArrayOutputStream()) {
 
                 size = writeIndexPage(writer, buffer);
-
+                Map<String, byte[]> metadata = new HashMap<>();
+                metadata.put("tablespaceuuid", tableSpace.getBytes(StandardCharsets.UTF_8));
+                metadata.put("node", nodeId.getBytes(StandardCharsets.UTF_8));
+                metadata.put("application", "herddb".getBytes(StandardCharsets.UTF_8));
+                metadata.put("component", "datastore".getBytes(StandardCharsets.UTF_8));
+                metadata.put("index", indexName.getBytes(StandardCharsets.UTF_8));
+                metadata.put("type", "indexpage".getBytes(StandardCharsets.UTF_8));
                 try (WriteHandle result =
                         FutureUtils.result(bk.getBookKeeper()
                                 .newCreateLedgerOp()
@@ -1058,6 +1089,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                                 .withWriteQuorumSize(bk.getWriteQuorumSize())
                                 .withAckQuorumSize(bk.getAckQuorumSize())
                                 .withPassword(new byte[0])
+                                .withDigestType(DigestType.CRC32C)
+                                .withCustomMetadata(metadata)
                                 .execute(), BKException.HANDLER);) {
                     result.append(buffer.getBuffer(), 0, buffer.size());
                     ledgerId = result.getId();

@@ -209,7 +209,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.commitLogManager = buildCommitLogManager();
         this.manager = new DBManager(nodeId,
                 metadataStorageManager,
-                buildDataStorageManager(),
+                buildDataStorageManager(nodeId),
                 commitLogManager,
                 tmpDirectory, serverHostData, configuration, statsLogger
         );
@@ -306,7 +306,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
     }
 
-    private DataStorageManager buildDataStorageManager() {
+    private DataStorageManager buildDataStorageManager(String nodeId) {
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryDataStorageManager();
@@ -322,7 +322,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             }
             case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER: {
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
-                return new BookKeeperDataStorageManager(tmpDirectory, diskswapThreshold, (ZookeeperMetadataStorageManager) metadataStorageManager,
+                return new BookKeeperDataStorageManager(nodeId, tmpDirectory, diskswapThreshold, (ZookeeperMetadataStorageManager) metadataStorageManager,
                         (BookkeeperCommitLogManager) this.commitLogManager, this.statsLogger);
             }
             default:
@@ -348,6 +348,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                         statsLogger.scope("txlog")
                 );
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration, statsLogger);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));

@@ -54,7 +54,7 @@ public class BookKeeperDataStorageManagerRestartTest extends RestartTestBase {
                 testEnv.getTimeout(), testEnv.getPath());
         ServerConfiguration serverConfiguration = new ServerConfiguration();
         BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE);
-        BookKeeperDataStorageManager dataManager = new BookKeeperDataStorageManager(tmoDir, man, logManager);
+        BookKeeperDataStorageManager dataManager = new BookKeeperDataStorageManager(nodeId, tmoDir, man, logManager);
         return new DBManager(nodeId, man, dataManager, logManager, tmoDir, null);
     }
 
