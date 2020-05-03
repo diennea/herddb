@@ -350,7 +350,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return getTableSpaceZNode(tablespace) + "/" + (indexname + ".index");
     }
 
-    private static String getTableCheckPointsFile(String tableDirectory, LogSequenceNumber sequenceNumber) {
+    private static String getCheckPointsFile(String tableDirectory, LogSequenceNumber sequenceNumber) {
         return tableDirectory + "/" + sequenceNumber.ledgerId + "." + sequenceNumber.offset + EXTENSION_TABLEORINDExCHECKPOINTINFOFILE;
     }
 
@@ -561,7 +561,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throws DataStorageManagerException {
 
         String dir = getIndexDirectory(tableSpace, indexName);
-        String checkpointFile = getTableCheckPointsFile(dir, sequenceNumber);
+        String checkpointFile = getCheckPointsFile(dir, sequenceNumber);
 
         checkExistsZNode(checkpointFile, "no such index checkpoint: " + checkpointFile);
 
@@ -668,7 +668,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         try {
 
             String dir = getTableDirectory(tableSpace, tableUuid);
-            String checkpointFile = getTableCheckPointsFile(dir, sequenceNumber);
+            String checkpointFile = getCheckPointsFile(dir, sequenceNumber);
 
             checkExistsZNode(checkpointFile, "no such table checkpoint: " + checkpointFile);
 
@@ -782,7 +782,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         String dir = getTableDirectory(tableSpace, tableName);
-        String checkpointFile = getTableCheckPointsFile(dir, logPosition);
+        String checkpointFile = getCheckPointsFile(dir, logPosition);
         Stat stat = new Stat();
         try {
             byte[] exists = readZNode(checkpointFile, stat);
@@ -859,7 +859,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus, boolean pin) throws DataStorageManagerException {
         String dir = getIndexDirectory(tableSpace, indexName);
         LogSequenceNumber logPosition = indexStatus.sequenceNumber;
-        String checkpointFile = getTableCheckPointsFile(dir, logPosition);
+        String checkpointFile = getCheckPointsFile(dir, logPosition);
 
         Stat stat = new Stat();
         byte[] exists = readZNode(checkpointFile, stat);
@@ -1067,7 +1067,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             long pageId, DataWriter writer
     ) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        String tableDir = getIndexDirectory(tableSpace, indexName);
 
         long size;
         long ledgerId;
@@ -1182,17 +1181,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
-                throw new DataStorageManagerException("corrupted table list file " + file);
+                throw new DataStorageManagerException("corrupted table list file");
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file " + file + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("file is not for spablespace " + tableSpace+" but for "+readname);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
             if (sequenceNumber != null) {
                 if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
-                    throw new DataStorageManagerException("file " + file + " is not for sequence number " + sequenceNumber);
+                    throw new DataStorageManagerException("file is not for sequence number " + sequenceNumber);
                 }
             }
             int numTables = din.readInt();
@@ -1437,7 +1436,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("zonde " + checkPointFile + " is not for spablespace " + tableSpace);
+                throw new DataStorageManagerException("zonde "+checkPointFile+" is not for spablespace " + tableSpace+" but for "+readname);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
