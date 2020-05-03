@@ -23,7 +23,6 @@ import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
-import herddb.core.ReplicatedLogtestcase;
 import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -34,14 +33,12 @@ import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
-import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import org.junit.Test;
 
 
@@ -49,41 +46,7 @@ import org.junit.Test;
  * Consistency check test case
  * @author Hamado.Dene
  */
-public class TableDataCheckSumTest extends ReplicatedLogtestcase {
-
-    @Test
-    public void consistencyCheckReplicaTest() throws Exception {
-        final String tableName = "table1";
-        final String tableSpaceName = "t2";
-
-        try (DBManager manager1 = startDBManager("node1")) {
-            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2, 0, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager1.waitForTablespace(tableSpaceName, 10000, true);
-            try (DBManager manager2 = startDBManager("node2")) {
-                manager2.waitForTablespace(tableSpaceName, 10000, false);
-                Table table = Table
-                    .builder()
-                    .tablespace(tableSpaceName)
-                    .name(tableName)
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.BOOLEAN)
-                    .primaryKey("id")
-                    .build();
-
-                CreateTableStatement st = new CreateTableStatement(table);
-                manager1.executeStatement(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-
-                manager1.waitForTable(tableSpaceName, tableName, 10000, true);
-                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("1", true));
-                execute(manager1, "INSERT INTO t2.table1 (id,name) values (?,?)", Arrays.asList("2", false));
-                manager2.waitForTable(tableSpaceName, tableName, 10000, false);
-
-                TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement("table1", "t2");
-                DataConsistencyStatementResult result = manager1.createTableCheckSum(statement, null);
-                assertTrue("Consistency check replicated test ", result.getOk());
-            }
-        }
-    }
+public class DataConsistencyCheckTest {
 
     @Test
     public void consistencyCheckSyntax() throws Exception {
@@ -232,15 +195,19 @@ public class TableDataCheckSumTest extends ReplicatedLogtestcase {
                 .builder()
                 .tablespace(tableSpaceName)
                 .name(tableName)
-                .column("k1", ColumnTypes.STRING)
+                .column("k1", ColumnTypes.INTEGER)
                 .column("n1", ColumnTypes.INTEGER)
                 .column("s1", ColumnTypes.STRING)
-                .primaryKey("k1")
+                .primaryKey("k1", true)
                 .build();
 
             CreateTableStatement st = new CreateTableStatement(table);
             manager.executeStatement(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            execute(manager, "INSERT INTO " + tableSpaceName + "." + tableName + " (k1,n1 ,s1) values (?,?,?)", Arrays.asList("kk", null, null));
+            execute(manager, "INSERT INTO " + tableSpaceName + "." + tableName + " (n1 ,s1) values (?,?)", Arrays.asList(null, null));
+            execute(manager, "INSERT INTO " + tableSpaceName + "." + tableName + " (n1 ,s1) values (?,?)", Arrays.asList(null, null));
+            execute(manager, "INSERT INTO " + tableSpaceName + "." + tableName + " (n1 ,s1) values (?,?)", Arrays.asList(null, null));
+            execute(manager, "INSERT INTO " + tableSpaceName + "." + tableName + " (n1 ,s1) values (?,?)", Arrays.asList(null, null));
+
             TableConsistencyCheckStatement statement = new TableConsistencyCheckStatement(tableName, tableSpaceName);
             DataConsistencyStatementResult result = manager.createTableCheckSum(statement, null);
             assertTrue("Check table with null value ", result.getOk());

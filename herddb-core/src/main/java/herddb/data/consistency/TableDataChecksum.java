@@ -31,6 +31,7 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
+import herddb.utils.SystemInstrumentation;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.logging.Level;
@@ -107,6 +108,8 @@ public abstract class TableDataChecksum {
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
             long scanduration = (_stop - _start);
             LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished in {3} ms", new Object[]{tableSpace, tableName, nodeID, scanduration});
+
+            SystemInstrumentation.instrumentationPoint("createChecksum", tableSpace, tableName);
 
             return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, nrecords, nextAutoIncrementValue, translated.context.query, scanduration);
         } catch (DataScannerException ex) {

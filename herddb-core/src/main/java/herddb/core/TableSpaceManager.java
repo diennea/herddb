@@ -550,9 +550,9 @@ public class TableSpaceManager {
                         long followerNumRecords = scanResult.getNumRecords();
                         //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
                         if (followerDigest == leaderDigest && leaderNumRecords == followerNumRecords) {
-                            LOGGER.log(Level.INFO, "Data consistency check PASS for table {0}  tablespace {1} ", new Object[]{tableName, tableSpace});
+                            LOGGER.log(Level.INFO, "Data consistency check PASS for table {0}  tablespace {1} with  Checksum {2}", new Object[]{tableName, tableSpace, followerDigest});
                         } else {
-                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for table {0} in tablespace {1} ", new Object[]{tableName, tableSpace});
+                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for table {0} in tablespace {1} with Checksum {2}", new Object[]{tableName, tableSpace, followerDigest});
                         }
                     } else {
                         long digest = check.getDigest();

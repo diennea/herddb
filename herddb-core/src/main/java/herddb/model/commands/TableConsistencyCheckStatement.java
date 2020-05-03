@@ -25,7 +25,7 @@ import herddb.model.TableAwareStatement;
  * Table consistency check statement
  * @author Hamado.Dene
  */
-public class TableConsistencyCheckStatement extends TableAwareStatement {
+public final class TableConsistencyCheckStatement extends TableAwareStatement {
 
     public TableConsistencyCheckStatement(String table, String tableSpace) {
         super(table, tableSpace);
