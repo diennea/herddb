@@ -335,10 +335,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return getTableSpaceZNode(tablespace) + "/" + (indexname + ".index");
     }
 
-    private static String getPageFile(String tableDirectory, Long pageId) {
-        return tableDirectory + "/" + (pageId + FILEEXTENSION_PAGE);
-    }
-
     private static String getTableCheckPointsFile(String tableDirectory, LogSequenceNumber sequenceNumber) {
         return tableDirectory + "/" + sequenceNumber.ledgerId + "." + sequenceNumber.offset + EXTENSION_TABLEORINDExCHECKPOINTINFOFILE;
     }
@@ -355,6 +351,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
         try {
             zk.ensureZooKeeper().create(indexDir, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        } catch (KeeperException.NodeExistsException err) {
+            // good, index already booted once
         } catch (IOException | KeeperException err) {
             throw new DataStorageManagerException(err);
         } catch (InterruptedException err) {
@@ -369,6 +367,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         LOGGER.log(Level.FINE, "initTable {0} {1} at {2}", new Object[]{tableSpace, uuid, tableDir});
         try {
             zk.ensureZooKeeper().create(tableDir, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        } catch (KeeperException.NodeExistsException err) {
+            // good, table already booted once
         } catch (IOException | KeeperException err) {
             throw new DataStorageManagerException(err);
         } catch (InterruptedException err) {
@@ -1044,7 +1044,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         long _start = System.currentTimeMillis();
         String tableDir = getIndexDirectory(tableSpace, indexName);
 
-        String pageFile = getPageFile(tableDir, pageId);
         long size;
         long ledgerId;
         try {
@@ -1200,7 +1199,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 }
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
-                    throw new DataStorageManagerException("file " + file + " is not for spablespace " + tableSpace);
+                    throw new DataStorageManagerException("file " + file + " is not for tablespace " + tableSpace);
                 }
                 long ledgerId = din.readZLong();
                 long offset = din.readZLong();
