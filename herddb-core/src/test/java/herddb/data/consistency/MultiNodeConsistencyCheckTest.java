@@ -20,6 +20,7 @@
 package herddb.data.consistency;
 
 import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.core.ReplicatedLogtestcase;
