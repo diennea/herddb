@@ -86,7 +86,8 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
             if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
                     || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)
-                    || (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode) && startServer)) {
+                    || (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode) && startServer)
+                    || (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode) && startServer)) {
                 LOGGER.log(Level.INFO, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
                 server = new Server(serverConfiguration, statsLogger);
                 try {

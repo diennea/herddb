@@ -188,7 +188,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     private void persistTableSpaceMapping(String tableSpace) {
         try {
             TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
-            LOGGER.log(Level.INFO, "persisteTableSpaceMapping " + tableSpace);
+            LOGGER.log(Level.INFO, "persisteTableSpaceMapping {0}", tableSpace);
             byte[] serialized = MAPPER.writeValueAsBytes(mapping);
             String znode = getTableSpaceMappingZNode(tableSpace);
             writeZNode(znode, serialized, null);
@@ -965,6 +965,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 dropLedgerForTable(tableSpace, tableName, pageId, ledgerId, "cleanupAfterBoot " + tableSpace + "." + tableName + " pageId " + pageId);
             }
         }
+        persistTableSpaceMapping(tableSpace);
     }
 
     /**
@@ -1036,7 +1037,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName).writePageId(pageId, ledgerId);
-        persistTableSpaceMapping(tableSpace);
 
         long now = System.currentTimeMillis();
         long delta = (now - _start);
@@ -1103,7 +1103,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName).writePageId(pageId, ledgerId);
-        persistTableSpaceMapping(tableSpace);
 
         long now = System.currentTimeMillis();
         long delta = (now - _start);
@@ -1185,7 +1184,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("file is not for spablespace " + tableSpace+" but for "+readname);
+                throw new DataStorageManagerException("file is not for spablespace " + tableSpace + " but for " + readname);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1348,8 +1347,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         return result;
     }
 
+
     @Override
     public Collection<PostCheckpointAction> writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        // ensure that current page mappings are persisted on ZK
+        persistTableSpaceMapping(tableSpace);
+
         String checkPointFile = getTablespaceCheckPointInfoFile(tableSpace, sequenceNumber);
 
         LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile);
@@ -1436,7 +1439,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             }
             String readname = din.readUTF();
             if (!readname.equals(tableSpace)) {
-                throw new DataStorageManagerException("zonde "+checkPointFile+" is not for spablespace " + tableSpace+" but for "+readname);
+                throw new DataStorageManagerException("zonde " + checkPointFile + " is not for spablespace " + tableSpace + " but for " + readname);
             }
             long ledgerId = din.readZLong();
             long offset = din.readZLong();
@@ -1633,7 +1636,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 LOGGER.log(Level.SEVERE, "ledger " + ledgerId + " already dropped:" + err, err);
             }
             getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName).removePageId(pageId);
-            persistTableSpaceMapping(tableSpace);
+
         } catch (BKException err) {
             LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);
         }
@@ -1651,7 +1654,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 LOGGER.log(Level.SEVERE, "ledger " + ledgerId + " already dropped:" + err, err);
             }
             getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName).removePageId(pageId);
-            persistTableSpaceMapping(tableSpace);
+
         } catch (BKException err) {
             LOGGER.log(Level.SEVERE, "Could not delete ledger " + ledgerId + ":" + err, err);
         }
