@@ -89,7 +89,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <libs.netty4>4.1.45.Final</libs.netty4>
         <libs.netty4ssl>2.0.28.Final</libs.netty4ssl>
-        <libs.calcite>1.22.0</libs.calcite>
+        <libs.calcite>1.23.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>2.10.3</libs.jackson.mapper>
         <libs.zookeeper>3.6.1</libs.zookeeper>
@@ -871,4 +871,13 @@
             </modules>
         </profile>
     </profiles>
+    <repositories>
+        <repository>
+            <id>apache-snapshots</id>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <url>https://repository.apache.org/content/repositories/orgapachecalcite-1088</url>
+        </repository>
+    </repositories>
 </project>
