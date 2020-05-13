@@ -41,6 +41,7 @@ public class ScanStatement extends TableAwareStatement {
     private TupleComparator comparator;
     private ScanLimits limits;
     private Table tableDef;
+    private boolean allowExecutionFromFollower = false;
 
     public ScanStatement(String tableSpace, Table table, Predicate predicate) {
         this(tableSpace, table, Projection.IDENTITY(table.columnNames, table.columns), predicate);
@@ -77,6 +78,13 @@ public class ScanStatement extends TableAwareStatement {
 
     public Projection getProjection() {
         return projection;
+    }
+    public boolean getAllowExecutionFromFollower() {
+        return allowExecutionFromFollower;
+    }
+
+    public void setAllowExecutionFromFollower(boolean allowExecutionFromFollower) {
+        this.allowExecutionFromFollower = allowExecutionFromFollower;
     }
 
     public void setPredicate(Predicate predicate) {

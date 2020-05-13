@@ -20,6 +20,7 @@
 
 package herddb.core;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
@@ -44,6 +45,8 @@ import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
+import herddb.data.consistency.TableChecksum;
+import herddb.data.consistency.TableDataChecksum;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.jmx.JMXUtils;
@@ -61,6 +64,7 @@ import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
@@ -74,6 +78,7 @@ import herddb.model.TableAlreadyExistsException;
 import herddb.model.TableAwareStatement;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
@@ -92,6 +97,7 @@ import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import herddb.server.ServerConfiguration;
+import herddb.sql.TranslatedQuery;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -99,6 +105,7 @@ import herddb.utils.Bytes;
 import herddb.utils.KeyValue;
 import herddb.utils.SystemProperties;
 import java.io.EOFException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -140,6 +147,7 @@ public class TableSpaceManager {
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     final StatsLogger tablespaceStasLogger;
     final OpStatsLogger checkpointTimeStats;
@@ -514,6 +522,47 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position, false);
             }
             break;
+            case LogEntryType.TABLE_CONSISTENCY_CHECK: {
+                try {
+                    TableChecksum check = MAPPER.readValue(entry.value.to_array(), TableChecksum.class);
+                    String tableSpace = check.getTableSpaceName();
+                    String query = check.getQuery();
+                    String tableName = entry.tableName;
+                    //In the entry type = 14, the follower will have to run the query on the transaction log
+                    if (!isLeader()) {
+                        AbstractTableManager tablemanager = this.getTableManager(tableName);
+                        DBManager manager = this.getDbmanager();
+
+                        if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
+                            throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
+                        }
+                        /*
+                            scan = true
+                            allowCache = false
+                            returnValues = false
+                            maxRows = -1
+                        */
+                        TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, Collections.emptyList(), true, false, false, -1);
+                        TableChecksum scanResult = TableDataChecksum.createChecksum(manager, translated, this, tableSpace, tableName);
+                        long followerDigest = scanResult.getDigest();
+                        long leaderDigest = check.getDigest();
+                        long leaderNumRecords = check.getNumRecords();
+                        long followerNumRecords = scanResult.getNumRecords();
+                        //the necessary condition to pass the check is to have exactly the same digest and the number of records processed
+                        if (followerDigest == leaderDigest && leaderNumRecords == followerNumRecords) {
+                            LOGGER.log(Level.INFO, "Data consistency check PASS for table {0}  tablespace {1} with  Checksum {2}", new Object[]{tableName, tableSpace, followerDigest});
+                        } else {
+                            LOGGER.log(Level.SEVERE, "Data consistency check FAILED for table {0} in tablespace {1} with Checksum {2}", new Object[]{tableName, tableSpace, followerDigest});
+                        }
+                    } else {
+                        long digest = check.getDigest();
+                        LOGGER.log(Level.INFO, "Created checksum {0}  for table {1} in tablespace {2} on node {3}", new Object[]{digest, entry.tableName, tableSpace, this.getDbmanager().getNodeId()});
+                    }
+                } catch (IOException | DataScannerException ex) {
+                    LOGGER.log(Level.SEVERE, "Error during table consistency check ", ex);
+                }
+            }
+            break;
             default:
                 // other entry types are not important for the tablespacemanager
                 break;
@@ -523,7 +572,8 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.CREATE_TABLE
                 && entry.type != LogEntryType.CREATE_INDEX
                 && entry.type != LogEntryType.ALTER_TABLE
-                && entry.type != LogEntryType.DROP_TABLE) {
+                && entry.type != LogEntryType.DROP_TABLE
+                && entry.type != LogEntryType.TABLE_CONSISTENCY_CHECK) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
@@ -1711,6 +1761,45 @@ public class TableSpaceManager {
             super();
             this.sequenceNumber = sequenceNumber;
             this.tablesCheckpoints = tablesCheckpoints;
+        }
+    }
+
+    //this method return a tableCheckSum object contain scan values (record numbers , table digest,digestType, next autoincrement value, table name, tablespacename, query used for table scan )
+    public TableChecksum createAndWriteTableCheksum(TableSpaceManager tableSpaceManager, String tableSpaceName, String tableName, StatementEvaluationContext context) throws IOException, DataScannerException {
+        CommitLogResult pos;
+        boolean lockAcquired = false;
+        if (context == null) {
+           context = StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT();
+        }
+        long lockStamp = context.getTableSpaceLock();
+        LOGGER.log(Level.INFO, "Create and write table {0} checksum in tablespace " , new Object[]{tableName, tableSpaceName});
+        if (lockStamp == 0) {
+            lockStamp = acquireWriteLock("checkDataConsistency_" + tableName);
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
+        try {
+            AbstractTableManager tablemanager = tableSpaceManager.getTableManager(tableName);
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpaceName));
+            }
+            if (tablemanager == null || tablemanager.getCreatedInTransaction() > 0) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tablemanager));
+            }
+            TableChecksum scanResult = TableDataChecksum.createChecksum(tableSpaceManager.getDbmanager(), null, tableSpaceManager, tableSpaceName, tableName);
+            byte[] serialize = MAPPER.writeValueAsBytes(scanResult);
+
+            Bytes value = Bytes.from_array(serialize);
+            LogEntry entry = LogEntryFactory.dataConsistency(tableName, value);
+            pos = log.log(entry, false);
+            apply(pos, entry, false);
+            return scanResult;
+
+        } finally {
+            if (lockAcquired) {
+                releaseWriteLock(context.getTableSpaceLock(), "checkDataConsistency");
+                context.setTableSpaceLock(0);
+            }
         }
     }
 

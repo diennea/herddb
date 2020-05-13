@@ -44,6 +44,8 @@ import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.server.ServerConfiguration;
 import herddb.utils.SQLUtils;
@@ -197,7 +199,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     return "TRUNCATE" + query.substring(8);
                 }
                 return query;
+
             default:
+                /*RETURN also consistency command */
                 return query;
         }
     }
@@ -231,6 +235,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
+        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        }
+        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        }
+
         net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
         if (!isCachable(stmt)) {
             allowCache = false;
@@ -820,6 +833,50 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
+        }
+    }
+
+    public Statement queryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
+        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+            query = query.substring(query.substring(0, 21).length());
+            String tableSpace = defaultTablespace;
+            String tableName;
+
+            if (query.contains(".")) {
+                String[] tokens = query.split("\\.");
+                tableSpace = tokens[0].trim().replaceAll("\'", "");
+                tableName = tokens[1].trim().replaceAll("\'", "");
+            } else {
+                tableName = query.trim();
+            }
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+            }
+            AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+
+            if (tableManager == null || tableManager.getCreatedInTransaction() > 0) {
+                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
+            }
+
+            return new TableConsistencyCheckStatement(tableName, tableSpace);
+        } else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for tableconsistencycheck"));
+        }
+
+    }
+
+    public Statement queryConsistencyCheckStatement(String query) {
+        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+            String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
+
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+            }
+            return new TableSpaceConsistencyCheckStatement(tableSpace.trim());
+        } else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for tablespaceconsistencycheck"));
         }
     }
 

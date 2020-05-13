@@ -62,6 +62,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.server.ServerConfiguration;
@@ -556,6 +557,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LOGGER.log(Level.SEVERE, "Truncate table failed", err);
                 res = FutureUtils.exception(err);
             }
+        } else if (statement instanceof TableConsistencyCheckStatement) {
+            DBManager manager = this.tableSpaceManager.getDbmanager();
+            res = CompletableFuture.completedFuture(manager.createTableCheckSum((TableConsistencyCheckStatement) statement, context));
         } else {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }

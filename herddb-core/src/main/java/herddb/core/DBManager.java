@@ -40,7 +40,9 @@ import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataConsistencyStatementResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
@@ -50,6 +52,7 @@ import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
@@ -59,6 +62,8 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -73,6 +78,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -639,7 +645,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
-
+        if (statement instanceof TableSpaceConsistencyCheckStatement) {
+            if (transactionContext.transactionId > 0) {
+                return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
+            }
+            return  CompletableFuture.completedFuture(createTableSpaceCheckSum((TableSpaceConsistencyCheckStatement) statement));
+        }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             return FutureUtils.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
@@ -729,7 +740,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new NotLeaderException("No such tableSpace " + tableSpace + " here (at " + nodeId + "). "
                     + "Maybe the server is starting ");
         }
-        if (errorIfNotLeader && !manager.isLeader()) {
+        boolean allowExecutionFromFollower = statement.getAllowExecutionFromFollower();
+        if (errorIfNotLeader && !manager.isLeader() && !allowExecutionFromFollower) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
         }
         return manager.scan(statement, context, transactionContext, false, false);
@@ -905,6 +917,44 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } catch (Exception error) {
             LOGGER.log(Level.SEVERE, "error on dump", error);
         }
+    }
+
+    public DataConsistencyStatementResult createTableCheckSum(TableConsistencyCheckStatement tableConsistencyCheckStatement, StatementEvaluationContext context) {
+        TableSpaceManager manager = tablesSpaces.get(tableConsistencyCheckStatement.getTableSpace());
+        String tableName = tableConsistencyCheckStatement.getTable();
+        String tableSpaceName = tableConsistencyCheckStatement.getTableSpace();
+        if (manager == null) {
+            return new DataConsistencyStatementResult(false, "No such tablespace " + tableSpaceName);
+        }
+        try {
+            manager.createAndWriteTableCheksum(manager, tableSpaceName, tableName, context);
+        } catch (IOException | DataScannerException ex) {
+            LOGGER.log(Level.SEVERE, "Error on check of tablespace " + tableSpaceName , ex);
+            return new DataConsistencyStatementResult(false, "Error on check of tablespace " + tableSpaceName + ":" + ex);
+        }
+        return new DataConsistencyStatementResult(true, "Check table consistency for " + tableName + "completed");
+    }
+
+    public DataConsistencyStatementResult createTableSpaceCheckSum(TableSpaceConsistencyCheckStatement tableSpaceConsistencyCheckStatement) {
+        TableSpaceManager manager = tablesSpaces.get(tableSpaceConsistencyCheckStatement.getTableSpace());
+        String tableSpace = tableSpaceConsistencyCheckStatement.getTableSpace();
+        List<Table> tables = manager.getAllCommittedTables();
+        long _start = System.currentTimeMillis();
+        for (Table table : tables) {
+            AbstractTableManager tableManager = manager.getTableManager(table.name);
+            if (!tableManager.isSystemTable()) {
+                try {
+                    manager.createAndWriteTableCheksum(manager, tableSpace, tableManager.getTable().name, null);
+                } catch (IOException | DataScannerException ex) {
+                    LOGGER.log(Level.SEVERE, "Error on check of tablespace " + tableSpace , ex);
+                    return new DataConsistencyStatementResult(false, "Error on check  of tablespace " + tableSpace + ":" + ex);
+                }
+            }
+        }
+        long _stop = System.currentTimeMillis();
+        long tableSpace_check_duration = (_stop - _start);
+        LOGGER.log(Level.INFO, "Check tablespace consistency for {0} Completed in {1} ms", new Object[]{tableSpace, tableSpace_check_duration});
+        return new DataConsistencyStatementResult(true, "Check tablespace consistency for " + tableSpace + "completed in " + tableSpace_check_duration);
     }
 
     private String makeVirtualTableSpaceManagerId(String nodeId) {
