@@ -242,10 +242,13 @@ public class SimplerPlannerTest {
                     List<DataAccessor> results = scan.consume();
                     assertEquals(2, results.size());
                     assertEquals(3, results.get(0).getFieldNames().length);
-                    assertEquals(1234L, results.get(0).get(0));
+                    // see https://issues.apache.org/jira/browse/CALCITE-3998
+                    // we are summing integers but the final datatype is not bigint
+                    // but still INTEGER because we are actually summing only one value per row
+                    assertEquals(1234, results.get(0).get(0));
                     assertEquals(1L, results.get(0).get(1));
                     assertEquals(RawString.of("mykey"), results.get(0).get(2));
-                    assertEquals(1235L, results.get(1).get(0));
+                    assertEquals(1235, results.get(1).get(0));
                     assertEquals(1L, results.get(1).get(1));
                     assertEquals(RawString.of("mykey2"), results.get(1).get(2));
 
