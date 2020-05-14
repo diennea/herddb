@@ -88,8 +88,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -118,6 +120,7 @@ import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
@@ -132,6 +135,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.rel.rules.FilterJoinRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -507,13 +511,18 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
 
+        Set<RelOptRule> rules = new HashSet<>();
+        rules.addAll(Programs.RULE_SET);
+        LOG.info("RULES BEFORE "+rules.size());
+        rules.remove(FilterJoinRule.FILTER_ON_JOIN);
+        LOG.info("RULES AFTER "+rules.size());
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
                 .traitDefs(TRAITS)
                 // define the rules you want to apply
 
-                .programs(Programs.ofRules(Programs.RULE_SET))
+                .programs(Programs.ofRules(rules))
                 .build();
         Planner planner = Frameworks.getPlanner(config);
         if (LOG.isLoggable(Level.FINER)) {
