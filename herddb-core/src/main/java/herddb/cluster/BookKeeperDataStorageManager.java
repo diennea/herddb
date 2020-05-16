@@ -146,6 +146,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             this.pageIdToLedgerId = pageIdToLedgerId;
         }
 
+        @Override
+        public String toString() {
+            return "PagesMapping{" + "pageIdToLedgerId=" + pageIdToLedgerId + '}';
+        }
+
 
     }
 
@@ -178,6 +183,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             this.indexMappings = indexMappings;
         }
 
+        @Override
+        public String toString() {
+            return "TableSpacePagesMapping{" + "tableMappings=" + tableMappings + ", indexMappings=" + indexMappings + '}';
+        }
+        
 
     }
 
@@ -188,9 +198,9 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     private void persistTableSpaceMapping(String tableSpace) {
         try {
             TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
-            LOGGER.log(Level.INFO, "persisteTableSpaceMapping {0}", tableSpace);
             byte[] serialized = MAPPER.writeValueAsBytes(mapping);
             String znode = getTableSpaceMappingZNode(tableSpace);
+            LOGGER.log(Level.INFO, "persistTableSpaceMapping "+tableSpace+", "+mapping+" to "+znode+" "+new String(serialized, StandardCharsets.UTF_8));
             writeZNode(znode, serialized, null);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException(ex);
@@ -199,6 +209,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private void loadTableSpacesAtBoot() throws DataStorageManagerException {
         List<String> list = zkGetChildren(baseZkNode, false);
+        LOGGER.log(Level.INFO, "tableSpaces to load: {0}", list);
         for (String tablespace : list) {
             loadTableSpaceMapping(tablespace);
         }
@@ -213,6 +224,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         } else {
             try {
                 TableSpacePagesMapping read = MAPPER.readValue(serialized, TableSpacePagesMapping.class);
+                LOGGER.log(Level.INFO, "loadTableSpaceMapping "+tableSpace+", "+read+" from "+znode+" "+new String(serialized, StandardCharsets.UTF_8));
                 tableSpaceMappings.put(tableSpace, read);
             } catch (IOException ex) {
                 throw new DataStorageManagerException(ex);
