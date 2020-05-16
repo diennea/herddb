@@ -1193,42 +1193,46 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
-        accessTableData(scan, context, new ScanResultOperation() {
-            @Override
-            public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                byte[] newValue = null;
-                try {
-                    newValue = function.computeNewValue(actual, context, tableContext);
-                    if (indexes != null) {
-                        DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
-                        for (AbstractIndexManager index : indexes.values()) {
-                            RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+        try {
+            accessTableData(scan, context, new ScanResultOperation() {
+                @Override
+                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                    byte[] newValue = null;
+                    try {
+                        newValue = function.computeNewValue(actual, context, tableContext);
+                        if (indexes != null) {
+                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                            for (AbstractIndexManager index : indexes.values()) {
+                                RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                            }
                         }
+                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                        locksManager.releaseLock(lockHandle);
+                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                        return;
                     }
-                } catch (IllegalArgumentException | StatementExecutionException err) {
-                    locksManager.releaseLock(lockHandle);
-                    writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
-                    return;
+
+                    final long size = DataPage.estimateEntrySize(actual.key, newValue);
+                    if (size > maxLogicalPageSize) {
+                        locksManager.releaseLock(lockHandle);
+                        writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
+                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
+                                + ", max size " + maxLogicalPageSize)));
+                        return;
+                    }
+
+                    LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
+                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    lastKey.value = actual.key;
+                    lastValue.value = newValue;
+                    updateCount.incrementAndGet();
                 }
-
-                final long size = DataPage.estimateEntrySize(actual.key, newValue);
-                if (size > maxLogicalPageSize) {
-                    locksManager.releaseLock(lockHandle);
-                    writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
-                            + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
-                            + ", max size " + maxLogicalPageSize)));
-                    return;
-                }
-
-                LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
-                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
-                lastKey.value = actual.key;
-                lastValue.value = newValue;
-                updateCount.incrementAndGet();
-            }
-        }, transaction, true, true);
-
+            }, transaction, true, true);
+        } catch (HerdDBInternalException err) {
+            LOGGER.log(Level.SEVERE,"bad error during an update", err);
+            return FutureUtils.exception(err);
+        }
 
         if (writes.isEmpty()) {
             return CompletableFuture
@@ -1304,18 +1308,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
 
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
-        accessTableData(scan, context, new ScanResultOperation() {
-            @Override
-            public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
-                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
-                lastKey.value = actual.key;
-                lastValue.value = actual.value;
-                updateCount.incrementAndGet();
-            }
-        }, transaction, true, true);
-
+        try {
+            accessTableData(scan, context, new ScanResultOperation() {
+                @Override
+                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                    LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
+                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    lastKey.value = actual.key;
+                    lastValue.value = actual.value;
+                    updateCount.incrementAndGet();
+                }
+            }, transaction, true, true);
+        } catch (HerdDBInternalException err) {
+            LOGGER.log(Level.SEVERE,"bad error during a delete", err);
+            return FutureUtils.exception(err);
+        }
         if (writes.isEmpty()) {
             return CompletableFuture
                     .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
@@ -2038,49 +2046,52 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long transactionId = transaction != null ? transaction.transactionId : 0;
         LockHandle lock = (transaction != null || requireLock) ? lockForRead(key, transaction) : null;
         CompletableFuture<StatementExecutionResult> res = null;
-        if (transaction != null) {
-            if (transaction.recordDeleted(table.name, key)) {
-                res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
-            } else {
-                Record loadedInTransaction = transaction.recordUpdated(table.name, key);
-                if (loadedInTransaction != null) {
-                    if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
-                        res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
-                    } else {
-                        res = CompletableFuture.completedFuture(new GetResult(transactionId, loadedInTransaction, table));
-                    }
+        try {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
                 } else {
-                    loadedInTransaction = transaction.recordInserted(table.name, key);
+                    Record loadedInTransaction = transaction.recordUpdated(table.name, key);
                     if (loadedInTransaction != null) {
                         if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
                             res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
                         } else {
                             res = CompletableFuture.completedFuture(new GetResult(transactionId, loadedInTransaction, table));
                         }
+                    } else {
+                        loadedInTransaction = transaction.recordInserted(table.name, key);
+                        if (loadedInTransaction != null) {
+                            if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
+                                res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+                            } else {
+                                res = CompletableFuture.completedFuture(new GetResult(transactionId, loadedInTransaction, table));
+                            }
+                        }
                     }
                 }
             }
-        }
-        if (res == null) {
-            Long pageId = keyToPage.get(key);
-            if (pageId == null) {
-                res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
-            } else {
-                Record loaded = fetchRecord(key, pageId, null);
-                if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
+            if (res == null) {
+                Long pageId = keyToPage.get(key);
+                if (pageId == null) {
                     res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
                 } else {
-                    res = CompletableFuture.completedFuture(new GetResult(transactionId, loaded, table));
+                    Record loaded = fetchRecord(key, pageId, null);
+                    if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
+                        res = CompletableFuture.completedFuture(GetResult.NOT_FOUND(transactionId));
+                    } else {
+                        res = CompletableFuture.completedFuture(new GetResult(transactionId, loaded, table));
+                    }
                 }
             }
+            if (transaction == null && lock != null) {
+                res.whenComplete((r, e) -> {
+                    locksManager.releaseReadLock(lock);
+                });
+            }
+            return res;
+        } catch (HerdDBInternalException err) {
+            return FutureUtils.exception(err);
         }
-        if (transaction == null && lock != null) {
-            res.whenComplete((r, e) -> {
-                locksManager.releaseReadLock(lock);
-            });
-        }
-        return res;
-
     }
 
     /**
