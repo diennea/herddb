@@ -497,26 +497,25 @@ public class SimpleJoinTest {
                                 "seco", "b"
                         ))));
             }
-//            {
-//                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
-//                        + " tblspace1.table1 t1 "
-//                        + " NATURAL JOIN tblspace1.table3 t2 " // NATURAL is on columns with the same name and type
-//                        + " WHERE t1.n1 + 1 = t2.n3", Collections.emptyList()).consumeAndClose();
-//                for (DataAccessor t : tuples) {
-//                    System.out.println("tuple -: " + t.toMap());
-//                    assertEquals(2, t.getFieldNames().length);
-//                    assertEquals("first", t.getFieldNames()[0]);
-//                    assertEquals("seco", t.getFieldNames()[1]);
-//                }
-//                assertEquals(1, tuples.size());
-//
-//                assertTrue(
-//                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-//                                "first", "b",
-//                                "seco", "b"
-//                        ))));
-//
-//            }
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
+                        + " tblspace1.table1 t1 "
+                        + " NATURAL JOIN tblspace1.table3 t2 " // NATURAL is on columns with the same name and type
+                        + " WHERE t1.n1 + 1 = t2.n3", Collections.emptyList()).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("first", t.getFieldNames()[0]);
+                    assertEquals("seco", t.getFieldNames()[1]);
+                }
+                assertEquals(1, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                                "first", "b",
+                                "seco", "b"
+                        ))));
+            }
 
 
             {
