@@ -487,6 +487,44 @@ public class CalcitePlannerTest {
     }
 
     @Test
+    public void explainPlanTestIsNullExpression() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,"
+                             + "s1 string)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
+                             + "s1) values('testk1','tests1')", Collections.emptyList());
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
+                             + "s1) values('testk11','tests11')", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "EXPLAIN SELECT k1 FROM tblspace1.tsql where s1='tests1' and s1 is null", Collections.emptyList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(4, consume.size());
+                consume.get(0).forEach((k, b) -> {
+                    System.out.println("k:" + k + " -> " + b);
+                });
+                consume.get(1).forEach((k, b) -> {
+                    System.out.println("k:" + k + " -> " + b);
+                });
+                consume.get(2).forEach((k, b) -> {
+                    System.out.println("k:" + k + " -> " + b);
+                });
+                consume.get(3).forEach((k, b) -> {
+                    System.out.println("k:" + k + " -> " + b);
+                });
+            }
+        }
+    }
+
+    @Test
     public void showCreateTableTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
