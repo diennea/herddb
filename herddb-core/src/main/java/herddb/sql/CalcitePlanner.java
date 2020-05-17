@@ -499,19 +499,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             clearCache();
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
-
-        Set<RelOptRule> rules = new HashSet<>();
-        rules.addAll(Programs.RULE_SET);
-        LOG.info("RULES BEFORE "+rules.size());
-        rules.remove(FilterJoinRule.FILTER_ON_JOIN);
-        LOG.info("RULES AFTER "+rules.size());
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
                 .traitDefs(TRAITS)
                 // define the rules you want to apply
-
-                .programs(Programs.ofRules(rules))
+                .programs(Programs.ofRules(Programs.RULE_SET))
                 .build();
         Planner planner = Frameworks.getPlanner(config);
         if (LOG.isLoggable(Level.FINER)) {
