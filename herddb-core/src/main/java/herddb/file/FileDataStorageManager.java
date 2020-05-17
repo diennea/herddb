@@ -834,7 +834,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void cleanupAfterBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
+    public void cleanupAfterTableBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
         // we have to drop old page files or page files partially written by checkpoint interrupted at JVM crash/reboot
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {

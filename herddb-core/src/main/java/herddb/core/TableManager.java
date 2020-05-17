@@ -521,7 +521,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         keyToPage.start(bootSequenceNumber);
 
-        dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.uuid, activePagesAtBoot.keySet());
+        dataStorageManager.cleanupAfterTableBoot(tableSpaceUUID, table.uuid, activePagesAtBoot.keySet());
 
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
@@ -1230,7 +1230,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
-            LOGGER.log(Level.SEVERE,"bad error during an update", err);
+            LOGGER.log(Level.SEVERE, "bad error during an update", err);
             return FutureUtils.exception(err);
         }
 
@@ -1321,7 +1321,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
-            LOGGER.log(Level.SEVERE,"bad error during a delete", err);
+            LOGGER.log(Level.SEVERE, "bad error during a delete", err);
             return FutureUtils.exception(err);
         }
         if (writes.isEmpty()) {

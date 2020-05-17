@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -124,70 +125,81 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private static final class PagesMapping {
 
-        ConcurrentHashMap<Long, Long> pageIdToLedgerId = new ConcurrentHashMap<>();
+        ConcurrentHashMap<Long, Long> pages = new ConcurrentHashMap<>();
+        ConcurrentSkipListSet<Long> oldLedgers = new ConcurrentSkipListSet<>();
 
         private Long getLedgerIdForPage(Long pageId) {
-            return pageIdToLedgerId.get(pageId);
+            return pages.get(pageId);
         }
 
         private void removePageId(long pageId) {
-            pageIdToLedgerId.remove(pageId);
+            pages.remove(pageId);
         }
 
         private void writePageId(long pageId, long ledgerId) {
-            pageIdToLedgerId.put(pageId, ledgerId);
+            Long oldLedger = pages.put(pageId, ledgerId);
+            if (oldLedger != null) {
+                oldLedgers.add(oldLedger);
+            }
         }
 
-        public ConcurrentHashMap<Long, Long> getPageIdToLedgerId() {
-            return pageIdToLedgerId;
+        public ConcurrentHashMap<Long, Long> getPages() {
+            return pages;
         }
 
-        public void setPageIdToLedgerId(ConcurrentHashMap<Long, Long> pageIdToLedgerId) {
-            this.pageIdToLedgerId = pageIdToLedgerId;
+        public void setPages(ConcurrentHashMap<Long, Long> pages) {
+            this.pages = pages;
+        }
+
+        public ConcurrentSkipListSet<Long> getOldLedgers() {
+            return oldLedgers;
+        }
+
+        public void setOldLedgers(ConcurrentSkipListSet<Long> oldLedgers) {
+            this.oldLedgers = oldLedgers;
         }
 
         @Override
         public String toString() {
-            return "PagesMapping{" + "pageIdToLedgerId=" + pageIdToLedgerId + '}';
+            return "PagesMapping{" + "pages=" + pages + ", oldLedgers=" + oldLedgers + '}';
         }
-
 
     }
 
     public static final class TableSpacePagesMapping {
 
-        private ConcurrentHashMap<String, PagesMapping> tableMappings = new ConcurrentHashMap<>();
-        private ConcurrentHashMap<String, PagesMapping> indexMappings = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<String, PagesMapping> tables = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<String, PagesMapping> indexes = new ConcurrentHashMap<>();
 
         private PagesMapping getTablePagesMapping(String tableName) {
-            return tableMappings.computeIfAbsent(tableName, t -> new PagesMapping());
+            return tables.computeIfAbsent(tableName, t -> new PagesMapping());
         }
 
         private PagesMapping getIndexPagesMapping(String indexName) {
-            return indexMappings.computeIfAbsent(indexName, t -> new PagesMapping());
+            return indexes.computeIfAbsent(indexName, t -> new PagesMapping());
         }
 
         public ConcurrentHashMap<String, PagesMapping> getTableMappings() {
-            return tableMappings;
+            return tables;
         }
 
         public void setTableMappings(ConcurrentHashMap<String, PagesMapping> tableMappings) {
-            this.tableMappings = tableMappings;
+            this.tables = tableMappings;
         }
 
         public ConcurrentHashMap<String, PagesMapping> getIndexMappings() {
-            return indexMappings;
+            return indexes;
         }
 
         public void setIndexMappings(ConcurrentHashMap<String, PagesMapping> indexMappings) {
-            this.indexMappings = indexMappings;
+            this.indexes = indexMappings;
         }
 
         @Override
         public String toString() {
-            return "TableSpacePagesMapping{" + "tableMappings=" + tableMappings + ", indexMappings=" + indexMappings + '}';
+            return "TableSpacePagesMapping{" + "tableMappings=" + tables + ", indexMappings=" + indexes + '}';
         }
-        
+
 
     }
 
@@ -200,7 +212,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             TableSpacePagesMapping mapping = getTableSpacePagesMapping(tableSpace);
             byte[] serialized = MAPPER.writeValueAsBytes(mapping);
             String znode = getTableSpaceMappingZNode(tableSpace);
-            LOGGER.log(Level.INFO, "persistTableSpaceMapping "+tableSpace+", "+mapping+" to "+znode+" "+new String(serialized, StandardCharsets.UTF_8));
+            LOGGER.log(Level.INFO, "persistTableSpaceMapping " + tableSpace + ", " + mapping + " to " + znode + " JSON " + new String(serialized, StandardCharsets.UTF_8));
             writeZNode(znode, serialized, null);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException(ex);
@@ -220,11 +232,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         Stat stat = new Stat();
         byte[] serialized = readZNode(znode, stat);
         if (serialized == null) {
+            LOGGER.log(Level.INFO, "loadTableSpaceMapping " + tableSpace + ", from " + znode + " was not found");
             tableSpaceMappings.put(tableSpace, new TableSpacePagesMapping());
         } else {
             try {
                 TableSpacePagesMapping read = MAPPER.readValue(serialized, TableSpacePagesMapping.class);
-                LOGGER.log(Level.INFO, "loadTableSpaceMapping "+tableSpace+", "+read+" from "+znode+" "+new String(serialized, StandardCharsets.UTF_8));
+                LOGGER.log(Level.INFO, "loadTableSpaceMapping " + tableSpace + ", " + read + " from " + znode + " JSON " + new String(serialized, StandardCharsets.UTF_8));
                 tableSpaceMappings.put(tableSpace, read);
             } catch (IOException ex) {
                 throw new DataStorageManagerException(ex);
@@ -792,6 +805,9 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     @Override
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
+        // ensure that current mapping has been persisted safely
+        persistTableSpaceMapping(tableSpace);
+
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         String dir = getTableDirectory(tableSpace, tableName);
         String checkpointFile = getCheckPointsFile(dir, logPosition);
@@ -837,7 +853,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         List<PostCheckpointAction> result = new ArrayList<>();
         PagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName);
         // we can drop old page files now
-        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pageIdToLedgerId.entrySet()) {
+        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pages.entrySet()) {
             long pageId = pages.getKey();
             long ledgerId = pages.getValue();
             LOGGER.log(Level.FINEST, "checkpoint pageId {0} ledgerId {1}", new Object[]{pageId, ledgerId});
@@ -848,6 +864,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DropLedgerForTableAction(tableSpace, tableName, "delete page " + pageId + " ledgerId " + ledgerId, pageId, ledgerId));
             }
+        }
+
+        // we can drop orphan ledgers
+        for (Long ledgerId : tableSpacePagesMapping.oldLedgers) {
+            LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " without page. will be deleted after checkpoint end");
+            result.add(new DropLedgerForTableAction(tableSpace, tableName, "delete unused ledgerId " + ledgerId, Long.MAX_VALUE, ledgerId));
         }
 
         List<String> children = zkGetChildren(dir);
@@ -911,7 +933,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         // we can drop old page files now
         PagesMapping tableSpacePagesMapping = getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName);
         // we can drop old page files now
-        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pageIdToLedgerId.entrySet()) {
+        for (Map.Entry<Long, Long> pages : tableSpacePagesMapping.pages.entrySet()) {
             long pageId = pages.getKey();
             long ledgerId = pages.getValue();
             LOGGER.log(Level.FINEST, "checkpoint pageId {0} ledgerId {1}", new Object[]{pageId, ledgerId});
@@ -922,6 +944,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DropLedgerForIndexAction(tableSpace, indexName, "delete index page " + pageId + " ledgerId " + ledgerId, pageId, ledgerId));
             }
+        }
+
+        // we can drop orphan ledgers
+        for (Long ledgerId : tableSpacePagesMapping.oldLedgers) {
+            LOGGER.log(Level.FINEST, "checkpoint ledger " + ledgerId + " without page. will be deleted after checkpoint end");
+            result.add(new DropLedgerForIndexAction(tableSpace, indexName, "delete unused ledgerId " + ledgerId, Long.MAX_VALUE, ledgerId));
         }
 
         List<String> children = zkGetChildren(dir);
@@ -957,27 +985,22 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
 
-    private static boolean isPageFile(String path) {
-        return getPageId(path) >= 0;
-    }
-
     @Override
-    public void cleanupAfterBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
+    public void cleanupAfterTableBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
         // we have to drop old page files or page files partially written by checkpoint interrupted at JVM crash/reboot
         PagesMapping tablePagesMapping = getTableSpacePagesMapping(tableSpace).getTablePagesMapping(tableName);
 
-        for (Iterator<Map.Entry<Long, Long>> entry = tablePagesMapping.pageIdToLedgerId.entrySet().iterator(); entry.hasNext();) {
+        for (Iterator<Map.Entry<Long, Long>> entry = tablePagesMapping.pages.entrySet().iterator(); entry.hasNext();) {
             Map.Entry<Long, Long> next = entry.next();
             long pageId = next.getKey();
             long ledgerId = next.getValue();
-            LOGGER.log(Level.FINER, "cleanupAfterBoot pageId " + pageId + " ledger id " + ledgerId);
+            LOGGER.log(Level.FINER, "cleanupAfterTableBoot pageId " + pageId + " ledger id " + ledgerId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
-                LOGGER.log(Level.INFO, "cleanupAfterBoot pageId " + pageId + " ledger id " + ledgerId + ". will be deleted");
+                LOGGER.log(Level.INFO, "cleanupAfterTableBoot pageId " + pageId + " ledger id " + ledgerId + ". will be deleted");
                 // dropLedgerForTable will remove the entry from the map in case of successful deletion of the ledger
                 dropLedgerForTable(tableSpace, tableName, pageId, ledgerId, "cleanupAfterBoot " + tableSpace + "." + tableName + " pageId " + pageId);
             }
         }
-        persistTableSpaceMapping(tableSpace);
     }
 
     /**
@@ -1114,6 +1137,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             Thread.currentThread().interrupt();
             throw new DataStorageManagerException(err);
         }
+        LOGGER.log(Level.INFO, "writeIndexPage {0} pageId {1}, ledgerId {2}", new Object[]{indexName, pageId, ledgerId});
         getTableSpacePagesMapping(tableSpace).getIndexPagesMapping(indexName).writePageId(pageId, ledgerId);
 
         long now = System.currentTimeMillis();
@@ -1271,6 +1295,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
             throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
+
+        // we need to flush current mappings, because here we are flushing
+        // the status of all of the tables and indexes
+        persistTableSpaceMapping(tableSpace);
+
         String tableSpaceDirectory = getTableSpaceZNode(tableSpace);
         String fileTables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
         String fileIndexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
@@ -1410,6 +1439,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropTable(String tablespace, String tableName) throws DataStorageManagerException {
+        persistTableSpaceMapping(tablespace);
         String tableDir = getTableDirectory(tablespace, tableName);
         LOGGER.log(Level.INFO, "dropTable {0}.{1} in {2}", new Object[]{tablespace, tableName, tableDir});
         try {
@@ -1421,6 +1451,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     @Override
     public void truncateIndex(String tablespace, String name) throws DataStorageManagerException {
+        persistTableSpaceMapping(tablespace);
         String tableDir = getIndexDirectory(tablespace, name);
         LOGGER.log(Level.INFO, "truncateIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
         try {
@@ -1432,6 +1463,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
+        persistTableSpaceMapping(tablespace);
         String tableDir = getIndexDirectory(tablespace, name);
         LOGGER.log(Level.INFO, "dropIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
         try {
