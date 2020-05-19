@@ -22,6 +22,7 @@ package herddb.index.blink;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.AbstractIndexManager;
+import herddb.core.HerdDBInternalException;
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
 import herddb.index.IndexOperation;
@@ -122,27 +123,47 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public void put(Bytes key, Long currentPage) {
-        getTree().insert(key, currentPage);
+        try {
+            getTree().insert(key, currentPage);
+        } catch (UncheckedIOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     @Override
     public boolean put(Bytes key, Long newPage, Long expectedPage) {
-        return getTree().insert(key, newPage, expectedPage);
+        try {
+            return getTree().insert(key, newPage, expectedPage);
+        } catch (UncheckedIOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     @Override
     public boolean containsKey(Bytes key) {
-        return getTree().search(key) != null;
+        try {
+            return getTree().search(key) != null;
+        } catch (UncheckedIOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     @Override
     public Long get(Bytes key) {
-        return getTree().search(key);
+        try {
+            return getTree().search(key);
+        } catch (UncheckedIOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     @Override
     public Long remove(Bytes key) {
-        return getTree().delete(key);
+        try {
+            return getTree().delete(key);
+        } catch (UncheckedIOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     @Override

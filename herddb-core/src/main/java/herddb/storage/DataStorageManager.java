@@ -246,7 +246,7 @@ public abstract class DataStorageManager implements AutoCloseable {
 
     public abstract RecordSetFactory createRecordSetFactory();
 
-    public abstract void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot)
+    public abstract void cleanupAfterTableBoot(String tablespace, String name, Set<Long> activePagesAtBoot)
             throws DataStorageManagerException;
 
     public abstract void truncateIndex(String tableSpaceUUID, String name) throws DataStorageManagerException;

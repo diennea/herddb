@@ -54,6 +54,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MODE_LOCAL = "local";
     public static final String PROPERTY_MODE_STANDALONE = "standalone";
     public static final String PROPERTY_MODE_CLUSTER = "cluster";
+    public static final String PROPERTY_MODE_DISKLESSCLUSTER = "diskless-cluster";
 
     public static final String PROPERTY_BASEDIR = "server.base.dir";
     public static final String PROPERTY_BASEDIR_DEFAULT = "dbdata";

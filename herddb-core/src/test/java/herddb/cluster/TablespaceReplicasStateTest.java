@@ -71,11 +71,84 @@ public class TablespaceReplicasStateTest {
     }
 
     @Test
-    public void test_leader_online_log_available() throws Exception {
+    public void testCluster() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList())) {
+                    List<DataAccessor> results = scan.consume();
+                    assertEquals(2, results.size());
+                }
+
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
+                        + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
+                    assertEquals(1, scan.consume().size());
+                }
+
+                try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate "
+                        + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
+                    assertEquals(1, scan.consume().size());
+                }
+
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
+                        + "where nodeId='" + server_1.getNodeId() + "' and mode='leader'", Collections.emptyList())) {
+                    assertEquals(1, scan.consume().size());
+                }
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                for (int i = 0; i < 100; i++) {
+                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList())) {
+                        if (scan.consume().size() > 0) {
+                            break;
+                        }
+                    }
+                }
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList())) {
+                    assertEquals(1, scan.consume().size());
+                }
+            }
+        }
+    }
+
+
+    @Test
+    public void testDisklessCluster() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());

@@ -21,6 +21,7 @@
 package herddb.server;
 
 import herddb.client.ClientConfiguration;
+import herddb.cluster.BookKeeperDataStorageManager;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.EmbeddedBookie;
 import herddb.cluster.ZookeeperMetadataStorageManager;
@@ -81,6 +82,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
+    private final CommitLogManager commitLogManager;
     private String jdbcUrl;
     private UserManager userManager;
     private EmbeddedBookie embeddedBookie;
@@ -188,6 +190,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 realData);
 
         if (nodeId.isEmpty()) {
+            if (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode)) {
+                throw new RuntimeException("With " + ServerConfiguration.PROPERTY_MODE + "="
+                        + mode + " you must assign " + ServerConfiguration.PROPERTY_NODEID + " explicitly in your server configuration file");
+            }
             LocalNodeIdManager localNodeIdManager = buildLocalNodeIdManager();
             try {
                 nodeId = localNodeIdManager.readLocalNodeId();
@@ -204,10 +210,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             }
         }
 
+        this.commitLogManager = buildCommitLogManager();
         this.manager = new DBManager(nodeId,
                 metadataStorageManager,
-                buildDataStorageManager(),
-                buildCommitLogManager(),
+                buildDataStorageManager(nodeId),
+                commitLogManager,
                 tmpDirectory, serverHostData, configuration, statsLogger
         );
 
@@ -236,6 +243,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, (ZookeeperMetadataStorageManager) this.metadataStorageManager, statsLogger);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
@@ -293,6 +301,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 Path metadataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_METADATADIR, ServerConfiguration.PROPERTY_METADATADIR_DEFAULT));
                 return new FileMetadataStorageManager(metadataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
                         configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
                         configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
@@ -301,12 +310,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
     }
 
-    private DataStorageManager buildDataStorageManager() {
+    private DataStorageManager buildDataStorageManager(String nodeId) {
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryDataStorageManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER: {
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
                 boolean requirefsync = configuration.getBoolean(ServerConfiguration.PROPERTY_REQUIRE_FSYNC, ServerConfiguration.PROPERTY_REQUIRE_FSYNC_DEFAULT);
                 boolean pageodirect = configuration.getBoolean(ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT, ServerConfiguration.PROPERTY_PAGE_USE_ODIRECT_DEFAULT);
@@ -314,6 +323,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 boolean hashChecksEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED, ServerConfiguration.PROPERTY_HASH_CHECKS_ENABLED_DEFAULT);
                 boolean hashWritesEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED, ServerConfiguration.PROPERTY_HASH_WRITES_ENABLED_DEFAULT);
                 return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, requirefsync, pageodirect, indexodirect, hashChecksEnabled, hashWritesEnabled, statsLogger);
+            }
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER: {
+                int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
+                return new BookKeeperDataStorageManager(nodeId, tmpDirectory, diskswapThreshold, (ZookeeperMetadataStorageManager) metadataStorageManager,
+                        (BookkeeperCommitLogManager) this.commitLogManager, this.statsLogger);
+            }
             default:
                 throw new RuntimeException();
         }
@@ -337,6 +352,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                         statsLogger.scope("txlog")
                 );
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration, statsLogger);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
@@ -368,8 +384,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryLocalNodeIdManager(dataDirectory);
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                return new LocalNodeIdManager(dataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+            case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 return new LocalNodeIdManager(dataDirectory);
             default:
                 throw new RuntimeException();

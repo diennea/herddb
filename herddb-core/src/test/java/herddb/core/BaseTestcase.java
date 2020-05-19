@@ -62,7 +62,7 @@ public class BaseTestcase {
         return new MemoryCommitLogManager();
     }
 
-    protected DataStorageManager makeDataStorageManager() throws Exception {
+    protected DataStorageManager makeDataStorageManager(CommitLogManager commitLog, MetadataStorageManager metadata) throws Exception {
         return new MemoryDataStorageManager();
     }
 
@@ -87,7 +87,7 @@ public class BaseTestcase {
         beforeSetup();
         metadataStorageManager = makeMetadataStorageManager();
         commitLogManager = makeCommitLogManager();
-        dataStorageManager = makeDataStorageManager();
+        dataStorageManager = makeDataStorageManager(commitLogManager, metadataStorageManager);
         System.setErr(System.out);
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager, null, null);
         manager.start();

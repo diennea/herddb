@@ -24,9 +24,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import herddb.cluster.BookKeeperDataStorageManager;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
-import herddb.file.FileDataStorageManager;
 import herddb.log.CommitLogManager;
 import herddb.metadata.MetadataStorageManager;
 import herddb.model.GetResult;
@@ -53,7 +53,7 @@ import org.junit.rules.TemporaryFolder;
 /**
  * @author enrico.olivelli
  */
-public class SimpleClusterTest extends BaseTestcase {
+public class SimpleClusterDisklessTest extends BaseTestcase {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -84,7 +84,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
     @Override
     protected DataStorageManager makeDataStorageManager(CommitLogManager commitLog, MetadataStorageManager metadata) throws Exception {
-        return new FileDataStorageManager(folder.newFolder().toPath());
+        return new BookKeeperDataStorageManager("localhost", folder.newFolder().toPath(), (ZookeeperMetadataStorageManager) metadata, (BookkeeperCommitLogManager) commitLog);
     }
 
     @Test

@@ -78,6 +78,10 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         }
     };
 
+    public String getBasePath() {
+        return basePath;
+    }
+
     public String getZkAddress() {
         return zkAddress;
     }
@@ -187,7 +191,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         return zooKeeper;
     }
 
-    private synchronized ZooKeeper ensureZooKeeper() throws KeeperException, InterruptedException, IOException {
+    public synchronized ZooKeeper ensureZooKeeper() throws KeeperException, InterruptedException, IOException {
         if (!started) {
             throw new IOException("MetadataStorageManager not yet started");
         }

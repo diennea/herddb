@@ -578,7 +578,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void cleanupAfterBoot(
+    public void cleanupAfterTableBoot(
             String tablespace, String name, Set<Long> activePagesAtBoot
     ) {
     }

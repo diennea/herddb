@@ -1889,7 +1889,6 @@ public class TableSpaceManager {
                 }
             }
             return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
-
         } finally {
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
