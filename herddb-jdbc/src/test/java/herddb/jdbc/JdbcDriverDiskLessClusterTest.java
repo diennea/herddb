@@ -41,7 +41,7 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author enrico.olivelli
  */
-public class JdbcDriverZookeeperTest {
+public class JdbcDriverDiskLessClusterTest {
 
     private ZKTestEnv testEnv;
 
@@ -62,12 +62,11 @@ public class JdbcDriverZookeeperTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void test() throws Exception {
-
+    public void testDisklessCluster() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
-        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7869);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
