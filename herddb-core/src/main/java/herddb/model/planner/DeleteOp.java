@@ -161,4 +161,9 @@ public class DeleteOp implements PlannerOp {
         }
         return Wrapper.unwrap(this, clazz);
     }
+
+    @Override
+    public String toString() {
+        return String.format("DeleteOp {input = %s }", input.toString());
+    }
 }

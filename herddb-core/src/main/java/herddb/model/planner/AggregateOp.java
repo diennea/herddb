@@ -282,4 +282,8 @@ public class AggregateOp implements PlannerOp {
         return Wrapper.unwrap(this, clazz);
     }
 
+    @Override
+    public String toString() {
+        return String.format("AggregateOp {GroupedFieldsIndexes = %d ArgList = %d }", groupedFiledsIndexes.size() , argLists.size());
+    }
 }

@@ -62,4 +62,9 @@ public final class InsertStatement extends DMLStatement {
         return upsert;
     }
 
+    @Override
+    public String toString() {
+        return String.format("{InsertStatement={ keyfunction=%s valuesFunction=%s}}",
+                             keyFunction.toString(), valuesFunction.toString());
+    }
 }

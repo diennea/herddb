@@ -82,6 +82,10 @@ public class SemiJoinOp implements PlannerOp {
         );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result, resLeft.dataScanner, resRight.dataScanner);
         return new ScanResult(resTransactionId, joinedScanner);
+    }
 
+    @Override
+    public String toString() {
+        return String.format("SemiJoinOp {leftKeySize = %d rightKeySize = %d }", leftKeys.length , rightKeys.length);
     }
 }

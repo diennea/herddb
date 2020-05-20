@@ -157,4 +157,8 @@ public class FilterOp implements PlannerOp {
         return this;
     }
 
+    @Override
+    public String toString() {
+        return String.format("FilterOp {input=[ %s ] condition=[ %s] }", input.toString(), condition.toString());
+    }
 }
