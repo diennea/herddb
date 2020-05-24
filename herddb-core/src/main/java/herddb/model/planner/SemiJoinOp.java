@@ -86,6 +86,7 @@ public class SemiJoinOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("SemiJoinOp {leftKeySize = %d rightKeySize = %d }", leftKeys.length , rightKeys.length);
+        return String.format("SemiJoinOp {leftKeySize = %d rightKeySize = %d  left = {%s} right = {%s}}",
+                leftKeys.length , rightKeys.length, left.toString(), right.toString());
     }
 }
