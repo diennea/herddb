@@ -42,9 +42,9 @@ import org.junit.Test;
  *
  * @author hamado
  */
-public class ConsistencyCheckDuringRecovery extends ReplicatedLogtestcase{
-    
-        final String tableName = "table1";
+public class ConsistencyCheckDuringRecoveryTest extends ReplicatedLogtestcase {
+
+    final String tableName = "table1";
     final String tableSpaceName = "t2";
 
     @Test
@@ -91,15 +91,15 @@ public class ConsistencyCheckDuringRecovery extends ReplicatedLogtestcase{
             //restart leader node
             manager1.waitForTablespace("t2", 10000);
         }
-        
+
         try (DBManager manager1 = startDBManager("node2")) {
             //restart follower  node
             manager1.waitForTablespace("t2", 1000);
         }
-        
-        
-                //Expected 2 call for createChecksum (node1 and node2)
+
+
+        //Expected 3 call for createChecksum (node1 and node2)
         assertEquals(3, callCount.get());
     }
-    
+
 }
