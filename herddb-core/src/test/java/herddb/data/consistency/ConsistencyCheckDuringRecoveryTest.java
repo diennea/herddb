@@ -19,9 +19,11 @@
  */
 package herddb.data.consistency;
 
+import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.core.ReplicatedLogtestcase;
-import static herddb.core.TestUtils.execute;
 import herddb.model.ColumnTypes;
 import herddb.model.DataConsistencyStatementResult;
 import herddb.model.StatementEvaluationContext;
@@ -34,8 +36,6 @@ import herddb.utils.SystemInstrumentation;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
