@@ -98,6 +98,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     private volatile boolean closed = false;
     private volatile boolean failed = false;
+    private final boolean skipTableConsistencyCheckDuringRecovery = true;
 
     public LedgersInfo getActualLedgersList() {
         return actualLedgersList;
@@ -616,7 +617,7 @@ public class BookkeeperCommitLog extends CommitLog {
                                     lastLedgerId = ledgerId;
                                     currentLedgerId = ledgerId;
                                     lastSequenceNumber.set(entryId);
-                                    if (number.after(snapshotSequenceNumber)) {
+                                    if (number.after(snapshotSequenceNumber) && !skipTableConsistencyCheckDuringRecovery) {
                                         if (LOGGER.isLoggable(Level.FINEST)) {
                                             LOGGER.log(Level.FINEST, "rec " + tableSpaceName + " #" + localEntryCount + " {0}, {1}",
                                                     new Object[]{number, statusEdit});
