@@ -98,8 +98,8 @@ public class ConsistencyCheckDuringRecoveryTest extends ReplicatedLogtestcase {
         }
 
 
-        //Expected 3 call for createChecksum (node1 and node2)
-        assertEquals(3, callCount.get());
+        //Expected 2 call for createChecksum (node1 and node2)
+        assertEquals(2, callCount.get());
     }
 
 }
