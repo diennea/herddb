@@ -2068,7 +2068,13 @@ public class TableSpaceManager {
                 throw new RuntimeException("System was requested to stop, aborting recovery at " + t);
             }
             try {
-                apply(new CommitLogResult(t, false, true), u, true);
+                if (u.type != LogEntryType.TABLE_CONSISTENCY_CHECK) {
+                    apply(new CommitLogResult(t, false, true), u, true);
+                } else {
+                    if (LOGGER.isLoggable(Level.FINEST)) {
+                        LOGGER.log(Level.FINEST, "skip {0} consistency check LogEntry {1}", new Object[]{tableSpaceName, u});
+                    }
+                }
             } catch (DDLException | DataStorageManagerException err) {
                 throw new RuntimeException(err);
             }
