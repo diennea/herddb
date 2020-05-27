@@ -29,7 +29,6 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.DataAccessor;
-
 import java.util.Arrays;
 import java.util.List;
 
