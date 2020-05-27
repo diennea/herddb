@@ -176,6 +176,6 @@ public class UpdateOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("{UpdateOp=[ input=%s recordFunction=%s}", input, recordFunction.toString());
+        return String.format("UpdateOp=[ input=%s recordFunction= %s", input, recordFunction.toString());
     }
 }
