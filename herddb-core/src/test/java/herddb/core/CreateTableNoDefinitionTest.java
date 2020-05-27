@@ -28,16 +28,22 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import java.util.Collections;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 /**
  *
  * @author hamado
  */
 public class CreateTableNoDefinitionTest {
-    
-    @Test (expected = StatementExecutionException.class)
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
+
+    @Test
     public void createTable1() throws Exception {
+        exceptionRule.expect(StatementExecutionException.class);
+        exceptionRule.expectMessage("A table must have at least 1 column");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
