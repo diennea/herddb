@@ -528,7 +528,6 @@ public class TableSpaceManager {
                     The tablespace may not be avaible yet and therefore calcite will not able to performed the select query.
                 */
                 if (recovery) {
-                    LOGGER.log(Level.SEVERE, "skip {0} consistency check LogEntry {1}", new Object[]{tableSpaceName, entry});
                     if (LOGGER.isLoggable(Level.FINEST)) {
                         LOGGER.log(Level.FINEST, "skip {0} consistency check LogEntry {1}", new Object[]{tableSpaceName, entry});
                     }
