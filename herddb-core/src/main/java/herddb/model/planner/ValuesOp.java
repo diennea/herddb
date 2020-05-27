@@ -92,4 +92,8 @@ public class ValuesOp implements PlannerOp {
         return new ScanResult(transactionContext.transactionId, res);
     }
 
+    @Override
+    public String toString() {
+        return new StringBuilder().append("ValuesOp(tuples=" + this.tuples + ")").append(": count = ").append(this.tuples.size()).toString();
+    }
 }

@@ -49,6 +49,11 @@ public class DeleteStatement extends DMLStatement {
                     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
                         return true;
                     }
+
+                    @Override
+                    public String toString() {
+                        return "true";
+                    }
                 };
             } else {
                 predicate = new RawKeyEquals(key);

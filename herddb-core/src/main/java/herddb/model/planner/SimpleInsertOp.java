@@ -66,4 +66,8 @@ public class SimpleInsertOp implements PlannerOp {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return String.format("SimpleInsert= statement %s ", statement.toString());
+    }
 }

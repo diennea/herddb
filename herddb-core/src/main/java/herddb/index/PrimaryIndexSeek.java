@@ -40,4 +40,8 @@ public class PrimaryIndexSeek implements IndexOperation {
         return "PRIMARY KEY";
     }
 
+    @Override
+    public String toString() {
+        return value.toString();
+    }
 }

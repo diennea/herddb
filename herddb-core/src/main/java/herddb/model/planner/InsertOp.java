@@ -203,4 +203,9 @@ public class InsertOp implements PlannerOp {
         }
         return Wrapper.unwrap(this, clazz);
     }
+
+    @Override
+    public String toString() {
+        return new StringBuilder().append("InsertOp=").append(input.toString()).toString();
+    }
 }

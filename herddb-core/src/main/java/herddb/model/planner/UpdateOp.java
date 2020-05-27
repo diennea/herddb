@@ -173,4 +173,9 @@ public class UpdateOp implements PlannerOp {
         }
         return Wrapper.unwrap(this, clazz);
     }
+
+    @Override
+    public String toString() {
+        return String.format("UpdateOp=[ input=%s recordFunction= %s", input, recordFunction.toString());
+    }
 }

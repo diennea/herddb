@@ -29,6 +29,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -130,7 +131,16 @@ public class UnionAllOp implements PlannerOp {
             current.close();
             super.close();
         }
-
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("UnionAllOp=");
+        if (inputs == null || inputs.size() == 0) {
+            sb.append("none");
+        } else {
+            sb.append(Arrays.toString(inputs.toArray()));
+        }
+        return sb.toString();
+    }
 }
