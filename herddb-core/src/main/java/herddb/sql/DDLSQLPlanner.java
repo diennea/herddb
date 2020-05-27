@@ -320,6 +320,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
+        if(s.getColumnDefinitions() == null){
+            throw new StatementExecutionException("A table must have at least 1 column");
+        }
         final boolean isNotExsists = s.isIfNotExists();
         try {
             boolean foundPk = false;
