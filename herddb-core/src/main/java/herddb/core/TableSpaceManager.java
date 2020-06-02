@@ -523,6 +523,14 @@ public class TableSpaceManager {
             }
             break;
             case LogEntryType.TABLE_CONSISTENCY_CHECK: {
+                /*
+                    In recovery mode, we need to skip the consistency check.
+                    The tablespace may not be avaible yet and therefore calcite will not able to performed the select query.
+                */
+                if (recovery) {
+                   LOGGER.log(Level.INFO, "skip {0} consistency check LogEntry {1}", new Object[]{tableSpaceName, entry});
+                   break;
+                }
                 try {
                     TableChecksum check = MAPPER.readValue(entry.value.to_array(), TableChecksum.class);
                     String tableSpace = check.getTableSpaceName();
