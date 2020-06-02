@@ -155,7 +155,7 @@ public abstract class DataScanner implements AutoCloseable {
         }
         enumeratorOpened = true;
         if (rewindOnClose && !isRewindSupported()) {
-            throw new HerdDBInternalException("This datascanner is not rewindable");
+            throw new HerdDBInternalException("This datascanner (" + this.getClass() + ") is not rewindable");
         }
         return new Enumerator<DataAccessor>() {
             private DataAccessor current;
