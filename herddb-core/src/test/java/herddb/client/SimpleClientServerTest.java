@@ -35,6 +35,8 @@ import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.ServerHostData;
 import herddb.network.netty.NettyChannel;
 import herddb.proto.Pdu;
 import herddb.server.Server;
@@ -44,6 +46,7 @@ import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 import herddb.utils.TestUtils;
 import io.netty.channel.socket.SocketChannel;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -818,6 +821,52 @@ public class SimpleClientServerTest {
 
             }
         }
+    }
+
+    @Test
+    public void testHandleReadTimeout() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
+        final int timeout = 1000;
+        final AtomicInteger channelCreatedCount = new AtomicInteger();
+        clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, timeout);
+        try (HDBClient client = new HDBClient(clientConfiguration) {
+            @Override
+            Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
+                channelCreatedCount.incrementAndGet();
+                return super.createChannelTo(server, eventReceiver);
+            }
+
+        }) {
+            try (HDBConnection connection1 = client.openConnection()) {
+
+                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                    server.start();
+                    server.waitForStandaloneBoot();
+                    client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                    assertTrue(connection1.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+                    channelCreatedCount.set(0);
+                    long resultCreateTable = connection1.executeUpdate(TableSpace.DEFAULT,
+                            "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, false /*usePreparedStatement*/,
+                            Collections.emptyList()).updateCount;
+                    Assert.assertEquals(1, resultCreateTable);
+                    assertEquals(0, channelCreatedCount.get());
+
+                    // wait for client side timeout
+                    // the only connected socket will be disconnected
+                    Thread.sleep(timeout + 1000);
+
+                    connection1.executeScan(TableSpace.DEFAULT,
+                            "SELECT * FROM mytable", false /*usePreparedStatement*/,
+                            Collections.emptyList(), 0, 0, 10).close();
+
+                    assertEquals(1, channelCreatedCount.get());
+                }
+
+            }
+        }
+
     }
 
 }
