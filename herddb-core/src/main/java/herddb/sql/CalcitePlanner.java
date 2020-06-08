@@ -506,13 +506,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             clearCache();
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
-
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
                 .traitDefs(TRAITS)
                 // define the rules you want to apply
-
                 .programs(Programs.ofRules(Programs.RULE_SET))
                 .build();
         Planner planner = Frameworks.getPlanner(config);

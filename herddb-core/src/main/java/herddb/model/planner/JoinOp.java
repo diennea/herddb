@@ -155,8 +155,8 @@ public class JoinOp implements PlannerOp {
         }
 
         Enumerable<DataAccessor> result = mergeJoin
-                ? EnumerableDefaults.mergeJoin(leftScanner.createRewindOnCloseEnumerable(),
-                        rightScanner.createRewindOnCloseEnumerable(),
+                ? EnumerableDefaults.mergeJoin(leftScanner.createNonRewindableEnumerable(),
+                        rightScanner.createNonRewindableEnumerable(),
                         JoinKey.keyExtractor(leftKeys),
                         JoinKey.keyExtractor(rightKeys),
                         resultProjection,
