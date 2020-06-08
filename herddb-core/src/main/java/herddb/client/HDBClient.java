@@ -159,7 +159,7 @@ public class HDBClient implements AutoCloseable {
     }
 
     Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
-        int timeoutms = configuration.getInt(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
+        int timeoutms = configuration.getInt(ClientConfiguration.PROPERTY_NETWORK_TIMEOUT, ClientConfiguration.PROPERTY_NETWORK_TIMEOUT_DEFAULT);
         int timeouts = (int) TimeUnit.MILLISECONDS.toSeconds(timeoutms);
         return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeoutms, timeouts, eventReceiver, thredpool,
                 networkGroup, localEventsGroup);
