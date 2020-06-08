@@ -830,7 +830,7 @@ public class SimpleClientServerTest {
         clientConfiguration.set(ClientConfiguration.PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
         final int timeout = 1000;
         final AtomicInteger channelCreatedCount = new AtomicInteger();
-        clientConfiguration.set(ClientConfiguration.PROPERTY_TIMEOUT, timeout);
+        clientConfiguration.set(ClientConfiguration.PROPERTY_NETWORK_TIMEOUT, timeout);
         try (HDBClient client = new HDBClient(clientConfiguration) {
             @Override
             Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
