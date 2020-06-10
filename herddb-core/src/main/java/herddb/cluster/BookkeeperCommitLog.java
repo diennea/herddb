@@ -95,7 +95,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private long maxLedgerSizeBytes = 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
     private boolean writeLedgerHeader = true;
-
+    private boolean startWritingCalled = false;
     private volatile boolean closed = false;
     private volatile boolean failed = false;
 
@@ -445,6 +445,9 @@ public class BookkeeperCommitLog extends CommitLog {
         Long pendingLedgerId = null;
         lock.writeLock().lock();
         try {
+            if (!startWritingCalled) {
+                throw new LogNotAvailableException("this log has is not allowed to write");
+            }
             // wait for all previous writes to succeed and then close the ledger
             // closing a ledger invalidates all pending writes and seals metadata
             // if a pending write fails we are failing the creation of the new ledger
@@ -674,6 +677,12 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public void startWriting() throws LogNotAvailableException {
+        lock.writeLock().lock();
+        try {
+            startWritingCalled = true;
+        } finally {
+            lock.writeLock().unlock();
+        }
         actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
         openNewLedger();
     }
