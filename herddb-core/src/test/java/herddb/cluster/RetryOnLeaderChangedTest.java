@@ -596,7 +596,7 @@ public class RetryOnLeaderChangedTest {
             // wait for all of the three nodes to announce
             herddb.utils.TestUtils.waitForCondition(() -> {
                 List<NodeMetadata> listNodes = server_3.getMetadataStorageManager().listNodes();
-                System.out.println("NODES: "+listNodes);
+                System.out.println("NODES: " + listNodes);
                 return listNodes.size() == 3;
             }, herddb.utils.TestUtils.NOOP, 100);
 
@@ -610,7 +610,7 @@ public class RetryOnLeaderChangedTest {
             // wait for the cluster to settle to 2 replicas
             herddb.utils.TestUtils.waitForCondition(() -> {
                 TableSpace ts = server_3.getMetadataStorageManager().describeTableSpace("ttt");
-                System.out.println("TS: "+ts);
+                System.out.println("TS: " + ts);
                 assertTrue(ts.replicas.size() <= 2);
                 return ts.replicas.size() == 2;
             }, herddb.utils.TestUtils.NOOP, 100);
