@@ -58,8 +58,10 @@ public class ClientConfiguration {
 
     public static final String PROPERTY_BASEDIR = "client.base.dir";
     public static final String PROPERTY_TIMEOUT = "client.timeout";
+    public static final String PROPERTY_NETWORK_TIMEOUT = "client.network.timeout";
     public static final String PROPERTY_CLIENTID = "client.client.id";
     public static final int PROPERTY_TIMEOUT_DEFAULT = 1000 * 60 * 5;
+    public static final int PROPERTY_NETWORK_TIMEOUT_DEFAULT = 0;
     public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
     public static final String PROPERTY_MODE = "client.mode";

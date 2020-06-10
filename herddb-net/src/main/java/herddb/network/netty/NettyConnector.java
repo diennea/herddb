@@ -85,7 +85,6 @@ public class NettyConnector {
             b.group(group)
                     .channel(channelType)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
-                    .option(ChannelOption.SO_TIMEOUT, socketTimeout)
                     .handler(new ChannelInitializer<Channel>() {
                                  @Override
                                  public void initChannel(Channel ch) throws Exception {
