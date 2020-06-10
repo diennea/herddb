@@ -814,6 +814,9 @@ public class TableSpaceManager {
     }
 
     void processAbandonedTransactions() {
+        if (!leader) {
+            return;
+        }
         long now = System.currentTimeMillis();
         long timeout = dbmanager.getAbandonedTransactionsTimeout();
         if (timeout <= 0) {

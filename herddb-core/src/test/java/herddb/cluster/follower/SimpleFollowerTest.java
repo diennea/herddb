@@ -19,9 +19,11 @@
  */
 package herddb.cluster.follower;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
+import herddb.core.ActivatorRunRequest;
 import herddb.core.TableSpaceManager;
 import herddb.log.LogSequenceNumber;
 import herddb.model.ColumnTypes;
@@ -46,6 +48,7 @@ import herddb.server.ServerConfiguration;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
+import herddb.utils.TestUtils;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -414,6 +417,87 @@ public class SimpleFollowerTest extends MultiServerBase {
 
             }
 
+        }
+    }
+
+
+
+    @Test
+    public void followerMustNoRollbackAbandonedTransactions() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT, 1)
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+        Table table = Table.builder()
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+
+
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                // start a transaction
+                DMLStatementExecutionResult executeUpdateRes =
+                    server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            TransactionContext.AUTOTRANSACTION_TRANSACTION);
+                long tx = executeUpdateRes.transactionId;
+                assertTrue(tx > 0);
+
+                // wait for transaction to arrive on server_2
+                TestUtils.waitForCondition(() -> {
+                    return server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx) != null;
+                }, TestUtils.NOOP, 100);
+
+                // make the transaction appear "abandoned" to server_2
+                Thread.sleep(1000 + (int) server_2.getManager().getAbandonedTransactionsTimeout());
+
+                server_2.getManager().triggerActivator(ActivatorRunRequest.FULL);
+
+                assertFalse(server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).isFailed());
+
+
+            }
+
+            // restart the follower again
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+            }
         }
     }
 }
