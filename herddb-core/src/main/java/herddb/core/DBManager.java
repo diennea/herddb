@@ -576,14 +576,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 return !tableSpace.replicas.contains(n);
             }).collect(Collectors.toList());
             Collections.shuffle(availableOtherNodes);
-            LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
+            int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
+            LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, missing {3}, availableOtherNodes={4}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, countMissing, availableOtherNodes});
             if (!availableOtherNodes.isEmpty()) {
-                int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
                 TableSpace.Builder newTableSpaceBuilder =
                         TableSpace
                                 .builder()
                                 .cloning(tableSpace);
-                while (!availableOtherNodes.isEmpty() && countMissing > 0) {
+                while (!availableOtherNodes.isEmpty() && countMissing-- > 0) {
                     String node = availableOtherNodes.remove(0);
                     LOGGER.log(Level.WARNING, "Tablespace {0} adding {1} node as replica", new Object[]{tableSpaceName, node});
                     newTableSpaceBuilder.replica(node);
@@ -591,7 +591,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 TableSpace newTableSpace = newTableSpaceBuilder.build();
                 boolean ok = metadataStorageManager.updateTableSpace(newTableSpace, tableSpace);
                 if (!ok) {
-                    LOGGER.log(Level.SEVERE, "updating tableSpace " + tableSpaceName + " metadata failed");
+                    LOGGER.log(Level.SEVERE, "updating tableSpace {0} metadata failed, someone else altered metadata", tableSpaceName);
                 }
             }
         }

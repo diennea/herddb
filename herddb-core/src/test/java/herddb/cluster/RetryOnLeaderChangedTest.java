@@ -31,11 +31,13 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
+import herddb.core.ActivatorRunRequest;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.core.TestUtils;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.network.Channel;
@@ -557,4 +559,62 @@ public class RetryOnLeaderChangedTest {
 
     }
 
+     @Test
+    public void testExpectedReplicaCount() throws Exception {
+
+        TestStatsProvider statsProvider = new TestStatsProvider();
+
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+         ServerConfiguration serverconfig_3 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server3")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7869);
+
+        try (Server server_1 = new Server(serverconfig_1);
+                Server server_2 = new Server(serverconfig_2);
+                Server server_3 = new Server(serverconfig_3)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_2.start();
+            server_3.start();
+
+            // wait for all of the three nodes to announce
+            herddb.utils.TestUtils.waitForCondition(() -> {
+                List<NodeMetadata> listNodes = server_3.getMetadataStorageManager().listNodes();
+                System.out.println("NODES: "+listNodes);
+                return listNodes.size() == 3;
+            }, herddb.utils.TestUtils.NOOP, 100);
+
+            // create the tablespace
+            TestUtils.execute(server_1.getManager(),
+                        "CREATE TABLESPACE 'ttt','leader:" + server_1.getNodeId() + "','expectedreplicacount:2'",
+                        Collections.emptyList());
+
+            server_2.getManager().triggerActivator(ActivatorRunRequest.FULL);
+
+            // wait for the cluster to settle to 2 replicas
+            herddb.utils.TestUtils.waitForCondition(() -> {
+                TableSpace ts = server_3.getMetadataStorageManager().describeTableSpace("ttt");
+                System.out.println("TS: "+ts);
+                assertTrue(ts.replicas.size() <= 2);
+                return ts.replicas.size() == 2;
+            }, herddb.utils.TestUtils.NOOP, 100);
+
+        }
+    }
 }
