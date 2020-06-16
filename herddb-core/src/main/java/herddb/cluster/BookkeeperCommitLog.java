@@ -718,6 +718,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 LOGGER.log(Level.INFO, "dropping ledger {0}, tablespace {1}",
                         new Object[]{ledgerId, tableSpaceDescription()});
                 actualLedgersList.removeLedger(ledgerId);
+                metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
+
                 try {
                     bookKeeper.deleteLedger(ledgerId);
                 } catch (BKException.BKNoSuchLedgerExistsException
@@ -725,7 +727,6 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }
-                metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
                 LOGGER.log(Level.INFO, "dropping ledger {0}, finished, tablespace {1}",
                         new Object[]{ledgerId, tableSpaceDescription()});
             } catch (BKException | InterruptedException error) {
