@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.cluster.BookkeeperCommitLog;
+import herddb.cluster.LedgersInfo;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
@@ -42,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import org.apache.bookkeeper.client.BookKeeper;
 import org.junit.Test;
 
 public class LedgerClosedTest extends BookkeeperFailuresBase {
@@ -126,6 +128,74 @@ public class LedgerClosedTest extends BookkeeperFailuresBase {
                     assertEquals(4, consume.size());
                 }
             }
+        }
+    }
+
+    @Test
+    public void uselessLedgerDroppedError() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+
+        try (Server server = new Server(serverconfig_1)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.
+                    DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(
+                    table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(
+                    table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(
+                    table, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                    TransactionContext.NO_TRANSACTION);
+            TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+            BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
+            long ledgerId = log.getLastSequenceNumber().ledgerId;
+            assertTrue(ledgerId >= 0);
+
+        }
+        // restart
+        try (Server server = new Server(serverconfig_1)) {
+            server.start();
+            server.waitForStandaloneBoot();
+        }
+        // restart
+        LedgersInfo actualLedgersList;
+        try (Server server = new Server(serverconfig_1)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
+            BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
+            actualLedgersList = log.getActualLedgersList();
+            assertEquals(3, actualLedgersList.getActiveLedgers().size());
+            System.out.println("actualLedgersList: " + actualLedgersList);
+            long lastLedgerId = log.getLastLedgerId();
+            assertEquals(lastLedgerId, actualLedgersList.getActiveLedgers().get(actualLedgersList.getActiveLedgers().size() - 1).longValue());
+
+            try (BookKeeper bk = createBookKeeper()) {
+                long ledgerIdToDrop = actualLedgersList.getActiveLedgers().get(0);
+                System.out.println("dropping " + ledgerIdToDrop);
+                bk.newDeleteLedgerOp().withLedgerId(ledgerIdToDrop).execute().get();
+            }
+        }
+        // restart again,
+        // the server should boot even if the ledger does not exist anymore
+        try (Server server = new Server(serverconfig_1)) {
+            server.start();
+            server.waitForStandaloneBoot();
         }
     }
 }
