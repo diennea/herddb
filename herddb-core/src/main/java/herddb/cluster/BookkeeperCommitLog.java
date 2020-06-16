@@ -537,9 +537,14 @@ public class BookkeeperCommitLog extends CommitLog {
                             ledgerLeader, metadata.getLastEntryId(), metadata.getLength()});
             } catch (BKException.BKNoSuchLedgerExistsException
                     | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
-                throw new FullRecoveryNeededException(
+                if (ledgerId < snapshotSequenceNumber.ledgerId) {
+                    LOGGER.log(Level.INFO, "Actual ledgers list includes a not existing ledgerid:" + ledgerId + " tablespace " + tableSpaceDescription
+                            + ", but this ledger is not useful for recovery (snapshotSequenceNumber.ledgerId is " + snapshotSequenceNumber.ledgerId);
+                } else {
+                    throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
+                }
             } catch (LogNotAvailableException e) {
                 throw e;
             } catch (Exception e) {
@@ -718,6 +723,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 LOGGER.log(Level.INFO, "dropping ledger {0}, tablespace {1}",
                         new Object[]{ledgerId, tableSpaceDescription()});
                 actualLedgersList.removeLedger(ledgerId);
+                metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
+
                 try {
                     bookKeeper.deleteLedger(ledgerId);
                 } catch (BKException.BKNoSuchLedgerExistsException
@@ -725,7 +732,6 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId + " for tablespace "
                             + tableSpaceDescription(), error);
                 }
-                metadataManager.saveActualLedgersList(tableSpaceUUID, actualLedgersList);
                 LOGGER.log(Level.INFO, "dropping ledger {0}, finished, tablespace {1}",
                         new Object[]{ledgerId, tableSpaceDescription()});
             } catch (BKException | InterruptedException error) {
