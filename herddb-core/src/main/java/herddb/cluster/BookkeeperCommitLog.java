@@ -537,9 +537,14 @@ public class BookkeeperCommitLog extends CommitLog {
                             ledgerLeader, metadata.getLastEntryId(), metadata.getLength()});
             } catch (BKException.BKNoSuchLedgerExistsException
                     | BKException.BKNoSuchLedgerExistsOnMetadataServerException e) {
-                throw new FullRecoveryNeededException(
+                if (ledgerId < snapshotSequenceNumber.ledgerId) {
+                    LOGGER.log(Level.INFO, "Actual ledgers list includes a not existing ledgerid:" + ledgerId + " tablespace " + tableSpaceDescription
+                            + ", but this ledger is not useful for recovery (snapshotSequenceNumber.ledgerId is " + snapshotSequenceNumber.ledgerId);
+                } else {
+                    throw new FullRecoveryNeededException(
                         new Exception("Actual ledgers list includes a not existing ledgerid:" + ledgerId
                                 + " tablespace " + tableSpaceDescription));
+                }
             } catch (LogNotAvailableException e) {
                 throw e;
             } catch (Exception e) {
