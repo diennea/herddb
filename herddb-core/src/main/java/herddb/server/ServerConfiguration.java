@@ -228,6 +228,12 @@ public final class ServerConfiguration {
      */
     public static final String PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS = "server.tablemanager.disablerowlevellocks";
     public static final boolean PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT = false;
+    
+    public static final String PROPERTY_WRITELOCK_TIMEOUT = "server.tablemanager.writelocktimeout";
+    public static final int PROPERTY_WRITELOCK_TIMEOUT_DEFAULT = 60 * 30;
+    
+    public static final String PROPERTY_READLOCK_TIMEOUT = "server.tablemanager.readlocktimeout";
+    public static final int PROPERTY_READLOCK_TIMEOUT_DEFAULT = 60 * 30;
 
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
