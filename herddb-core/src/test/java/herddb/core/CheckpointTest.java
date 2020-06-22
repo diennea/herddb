@@ -22,6 +22,7 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -33,8 +34,10 @@ import herddb.file.FileMetadataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.server.ServerConfiguration;
@@ -755,4 +758,60 @@ public class CheckpointTest {
 
     }
 
+    @Test
+    public void checkpointAfterLockTimeout() throws Exception {
+        String nodeId = "localhost";
+
+        ServerConfiguration config1 = new ServerConfiguration();
+        // 1 second
+        config1.set(ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT, 1);
+        config1.set(ServerConfiguration.PROPERTY_READLOCK_TIMEOUT, 1);
+
+        try (DBManager manager = new DBManager("localhost",
+                new MemoryMetadataStorageManager(),
+                new MemoryDataStorageManager(),
+                new MemoryCommitLogManager(),
+                null, null, config1,
+                null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1))",
+                    Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)",
+                    Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            DMLStatementExecutionResult lockRecord =
+                    executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
+                            Arrays.asList("a", "mykey"), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            long tx = lockRecord.transactionId;
+            assertTrue(tx > 0);
+            assertEquals(1, lockRecord.getUpdateCount());
+
+            // holding a lock on the record, but not the checkpoint lock
+            manager.checkpoint();
+
+            StatementExecutionException err = herddb.utils.TestUtils.expectThrows(herddb.model.StatementExecutionException.class, () -> {
+                // this update will timeout, lock is already held by the transaction
+                executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
+                        Arrays.asList("a", "mykey"), TransactionContext.NO_TRANSACTION);
+            });
+            assertEquals("timed out acquiring lock for write", err.getCause().getMessage());
+
+            manager.checkpoint();
+
+            err = herddb.utils.TestUtils.expectThrows(herddb.model.StatementExecutionException.class, () -> {
+                // this select in a transaction will timeout, write lock is already held by the transaction
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1=?",
+                        Arrays.asList("mykey"), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            });
+            assertEquals("timedout trying to read lock", err.getCause().getMessage());
+
+            manager.checkpoint();
+
+        }
+    }
 }

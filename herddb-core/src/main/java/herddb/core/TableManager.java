@@ -402,7 +402,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS,
                 ServerConfiguration.PROPERTY_TABLEMANAGER_DISABLE_ROWLEVELLOCKS_DEFAULT
         );
-        locksManager = nolocks ? new NullLockManager() : new LocalLockManager();
+        if (nolocks) {
+            locksManager = new NullLockManager();
+        } else {
+            int writeLockTimeout = tableSpaceManager.getDbmanager().getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT_DEFAULT
+            );
+            int readLockTimeout = tableSpaceManager.getDbmanager().getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT_DEFAULT
+            );
+            LocalLockManager newLocksManager = new LocalLockManager();
+            newLocksManager.setWriteLockTimeout(writeLockTimeout);
+            newLocksManager.setReadLockTimeout(readLockTimeout);
+            locksManager = newLocksManager;
+    }
     }
 
     private TableContext buildTableContext() {
@@ -1012,43 +1027,51 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
 //        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
-        if (transaction != null) {
-            LockHandle lock = transaction.lookupLock(table.name, key);
-            if (lock != null) {
-                if (lock.write) {
-                    // transaction already locked the key for writes
-                    return lock;
+        try {
+            if (transaction != null) {
+                LockHandle lock = transaction.lookupLock(table.name, key);
+                if (lock != null) {
+                    if (lock.write) {
+                        // transaction already locked the key for writes
+                        return lock;
+                    } else {
+                        // transaction already locked the key, but we need to upgrade the lock
+                        locksManager.releaseLock(lock);
+                        transaction.unregisterUpgradedLocksOnTable(table.name, lock);
+                        lock = locksManager.acquireWriteLockForKey(key);
+                        transaction.registerLockOnTable(this.table.name, lock);
+                        return lock;
+                    }
                 } else {
-                    // transaction already locked the key, but we need to upgrade the lock
-                    locksManager.releaseLock(lock);
-                    transaction.unregisterUpgradedLocksOnTable(table.name, lock);
                     lock = locksManager.acquireWriteLockForKey(key);
                     transaction.registerLockOnTable(this.table.name, lock);
                     return lock;
                 }
             } else {
-                lock = locksManager.acquireWriteLockForKey(key);
-                transaction.registerLockOnTable(this.table.name, lock);
-                return lock;
+                return locksManager.acquireWriteLockForKey(key);
             }
-        } else {
-            return locksManager.acquireWriteLockForKey(key);
+        } catch (RuntimeException err) { // locktimeout or other internal lockmanager error
+            throw new StatementExecutionException(err);
         }
     }
 
     private LockHandle lockForRead(Bytes key, Transaction transaction) {
-        if (transaction != null) {
-            LockHandle lock = transaction.lookupLock(table.name, key);
-            if (lock != null) {
-                // transaction already locked the key
-                return lock;
+        try {
+            if (transaction != null) {
+                LockHandle lock = transaction.lookupLock(table.name, key);
+                if (lock != null) {
+                    // transaction already locked the key
+                    return lock;
+                } else {
+                    lock = locksManager.acquireReadLockForKey(key);
+                    transaction.registerLockOnTable(this.table.name, lock);
+                    return lock;
+                }
             } else {
-                lock = locksManager.acquireReadLockForKey(key);
-                transaction.registerLockOnTable(this.table.name, lock);
-                return lock;
+                return locksManager.acquireReadLockForKey(key);
             }
-        } else {
-            return locksManager.acquireReadLockForKey(key);
+        } catch (RuntimeException err) { // locktimeout or other internal lockmanager error
+            throw new StatementExecutionException(err);
         }
     }
 
