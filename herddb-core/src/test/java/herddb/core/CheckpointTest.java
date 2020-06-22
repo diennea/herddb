@@ -767,7 +767,7 @@ public class CheckpointTest {
         config1.set(ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT, 1);
         config1.set(ServerConfiguration.PROPERTY_READLOCK_TIMEOUT, 1);
 
-        try ( DBManager manager = new DBManager("localhost",
+        try (DBManager manager = new DBManager("localhost",
                 new MemoryMetadataStorageManager(),
                 new MemoryDataStorageManager(),
                 new MemoryCommitLogManager(),
