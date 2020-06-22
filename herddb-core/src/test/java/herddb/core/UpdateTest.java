@@ -28,9 +28,11 @@ import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -252,6 +254,54 @@ public class UpdateTest {
                 assertEquals(1, recordSet.size());
                 assertNull(recordSet.get(0).get(0));
             }
+        }
+    }
+
+
+    @Test
+    public void simpleManualSequence() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.myseq (k1 int, k2 int, current_value int, primary key(k1, k2))", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.myseq(k1,k2,current_value) values(?,?,?)",
+                    Arrays.asList(Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(1))).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(1, recordSet.size());
+                assertEquals(1, recordSet.get(0).get(0));
+            }
+
+            // set current_value = 2 if current_value = 1
+            DMLStatementExecutionResult updateSequence1 =
+                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=? and k2=? and current_value=?",
+                            Arrays.asList(Integer.valueOf(2), Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(1)), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            assertTrue(updateSequence1.transactionId > 0);
+
+            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(1, recordSet.size());
+                assertEquals(2, recordSet.get(0).get(0));
+            }
+
+            DMLStatementExecutionResult updateSequence2 =
+                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=? and k2=? and current_value=?",
+                            Arrays.asList(Integer.valueOf(3), Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(2)), new TransactionContext(updateSequence1.transactionId));
+            assertEquals(updateSequence2.transactionId, updateSequence1.transactionId);
+
+            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(1, recordSet.size());
+                assertEquals(3, recordSet.get(0).get(0));
+            }
+
+
         }
     }
 
