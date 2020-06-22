@@ -269,10 +269,12 @@ public class UpdateTest {
 
             execute(manager, "CREATE TABLE tblspace1.myseq (k1 int, k2 int, current_value int, primary key(k1, k2))", Collections.emptyList());
 
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.myseq(k1,k2,current_value) values(?,?,?)",
-                    Arrays.asList(Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(1))).getUpdateCount());
+            DMLStatementExecutionResult insertSequence1 =
+                    executeUpdate(manager, "INSERT INTO tblspace1.myseq(k1,k2,current_value) values(?,?,?)",
+                            Arrays.asList(Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(1)), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            assertTrue(insertSequence1.transactionId > 0);
 
-            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78))) {
+            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(insertSequence1.transactionId))) {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
                 assertEquals(1, recordSet.size());
                 assertEquals(1, recordSet.get(0).get(0));
@@ -280,9 +282,10 @@ public class UpdateTest {
 
             // set current_value = 2 if current_value = 1
             DMLStatementExecutionResult updateSequence1 =
-                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=? and k2=? and current_value=?",
-                            Arrays.asList(Integer.valueOf(2), Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(1)), TransactionContext.AUTOTRANSACTION_TRANSACTION);
-            assertTrue(updateSequence1.transactionId > 0);
+                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=78 and k2=0 and current_value=?",
+                            Arrays.asList(Integer.valueOf(2), Integer.valueOf(1)), new TransactionContext(insertSequence1.transactionId));
+            assertEquals(insertSequence1.transactionId, updateSequence1.transactionId);
+            assertEquals(1, updateSequence1.getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
@@ -291,16 +294,27 @@ public class UpdateTest {
             }
 
             DMLStatementExecutionResult updateSequence2 =
-                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=? and k2=? and current_value=?",
-                            Arrays.asList(Integer.valueOf(3), Integer.valueOf(78), Integer.valueOf(0), Integer.valueOf(2)), new TransactionContext(updateSequence1.transactionId));
+                    executeUpdate(manager, "UPDATE tblspace1.myseq set current_value=? where k1=78 and k2=0 and current_value=?",
+                            Arrays.asList(Integer.valueOf(3), Integer.valueOf(2)), new TransactionContext(updateSequence1.transactionId));
             assertEquals(updateSequence2.transactionId, updateSequence1.transactionId);
+            assertEquals(1, updateSequence2.getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
                 assertEquals(1, recordSet.size());
                 assertEquals(3, recordSet.get(0).get(0));
             }
-
+            
+            DMLStatementExecutionResult deleteSequence2 =
+                    executeUpdate(manager, "DELETE FROM tblspace1.myseq where k1=78 and k2=0 ",
+                            Arrays.asList(), new TransactionContext(updateSequence1.transactionId));
+            assertEquals(deleteSequence2.transactionId, updateSequence1.transactionId);
+            assertEquals(1, deleteSequence2.getUpdateCount());
+            
+            try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
+                List<DataAccessor> recordSet = scan.consumeAndClose();
+                assertEquals(0, recordSet.size());
+            }
 
         }
     }

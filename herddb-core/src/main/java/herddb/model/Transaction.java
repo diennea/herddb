@@ -239,15 +239,24 @@ public class Transaction {
         if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        Map<Bytes, Record> ll = changedRecords.get(tableName);
-        if (ll == null) {
-            ll = new HashMap<>();
-            changedRecords.put(tableName, ll);
-        }
-        if (value == null) {
-            ll.remove(key);
+        Map<Bytes, Record> newRecordsForTable = newRecords.get(tableName);
+        if (newRecordsForTable != null && newRecordsForTable.containsKey(key)) {
+            if (value == null) {
+                newRecordsForTable.remove(key);
+            } else {
+                newRecordsForTable.put(key, new Record(key, value));
+            }
         } else {
-            ll.put(key, new Record(key, value));
+            Map<Bytes, Record> ll = changedRecords.get(tableName);
+            if (ll == null) {
+                ll = new HashMap<>();
+                changedRecords.put(tableName, ll);
+            }
+            if (value == null) {
+                ll.remove(key);
+            } else {
+                ll.put(key, new Record(key, value));
+            }
         }
     }
 
