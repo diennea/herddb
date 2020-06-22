@@ -304,13 +304,13 @@ public class UpdateTest {
                 assertEquals(1, recordSet.size());
                 assertEquals(3, recordSet.get(0).get(0));
             }
-            
+
             DMLStatementExecutionResult deleteSequence2 =
                     executeUpdate(manager, "DELETE FROM tblspace1.myseq where k1=78 and k2=0 ",
                             Arrays.asList(), new TransactionContext(updateSequence1.transactionId));
             assertEquals(deleteSequence2.transactionId, updateSequence1.transactionId);
             assertEquals(1, deleteSequence2.getUpdateCount());
-            
+
             try (DataScanner scan = scan(manager, "SELECT current_value from tblspace1.myseq where k1=?", Arrays.asList(78), new TransactionContext(updateSequence1.transactionId))) {
                 List<DataAccessor> recordSet = scan.consumeAndClose();
                 assertEquals(0, recordSet.size());
