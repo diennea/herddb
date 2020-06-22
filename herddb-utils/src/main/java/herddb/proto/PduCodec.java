@@ -26,6 +26,7 @@ import herddb.utils.IntHolder;
 import herddb.utils.KeyValue;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
+import herddb.utils.SystemProperties;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -45,6 +46,8 @@ import java.util.function.Consumer;
  * @author enrico.olivelli
  */
 public abstract class PduCodec {
+
+    private static final boolean SEND_FULL_STACKTRACES = SystemProperties.getBooleanSystemProperty("herddb.network.sendstacktraces", true);
 
     public static final byte VERSION_3 = 3;
 
@@ -453,9 +456,16 @@ public abstract class PduCodec {
         }
 
         public static ByteBuf write(long messageId, Throwable error, boolean notLeader, boolean missingPreparedStatementError) {
-            StringWriter writer = new StringWriter();
-            error.printStackTrace(new PrintWriter(writer));
-            return write(messageId, writer.toString(), notLeader, missingPreparedStatementError, false);
+            String errorMessageForClient;
+            if (SEND_FULL_STACKTRACES) {
+                StringWriter writer = new StringWriter();
+                error.printStackTrace(new PrintWriter(writer));
+                errorMessageForClient = writer.toString();
+            } else {
+                // no stacktrace
+                errorMessageForClient = error + "";
+            }
+            return write(messageId, errorMessageForClient, notLeader, missingPreparedStatementError, false);
         }
 
         public static ByteBuf write(long messageId, Throwable error) {

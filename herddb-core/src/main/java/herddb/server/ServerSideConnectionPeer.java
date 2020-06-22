@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.calcite.tools.ValidationException;
 
 /**
  * Handles a client Connection
@@ -480,7 +481,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 channel.sendReplyMessage(message.messageId, error);
             }
         } catch (DataScannerException | StatementExecutionException err) {
-            LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
+            if (err.getCause() != null && err.getCause() instanceof ValidationException) {
+                // no stacktraces for bad queries
+                LOGGER.log(Level.FINE, "SQL error on scanner " + scannerId + ": " + err);
+            } else {
+                LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
+            }
             scanners.remove(scannerId);
             ByteBuf error = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, error);
@@ -650,7 +656,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             message.close();
                             runningStatements.unregisterRunningStatement(statementInfo);
                         } catch (Throwable t) {
-                            t.printStackTrace();
+                            LOGGER.log(Level.SEVERE, "Internal error", t);
                         }
                         return;
                     }
