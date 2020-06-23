@@ -43,6 +43,7 @@ import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -153,7 +154,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+        } else {
+            // this is intentionally converted to java.sql.Timestamp
+            setTimestamp(parameterIndex, new java.sql.Timestamp(x.getTime()));
+        }
     }
 
     @Override
@@ -281,7 +287,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+        } else {
+            // this is intentionally converted to java.sql.Timestamp
+            setTimestamp(parameterIndex, new java.sql.Timestamp(x.getTime()), cal);
+        }
     }
 
     @Override

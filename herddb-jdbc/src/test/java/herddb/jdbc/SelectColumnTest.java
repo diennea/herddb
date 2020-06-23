@@ -26,6 +26,10 @@ import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -63,6 +67,10 @@ public class SelectColumnTest {
 
         data.add(new TestData("string", SelectColumnTest::checkString,
                 new Object[][]{{"1", "1"}, {"null", null}, {"tre", "tre"}, {"", ""}}));
+
+        data.add(new TestData("blob", SelectColumnTest::checkBlob,
+                new Object[][]{{"1".getBytes(StandardCharsets.UTF_8), "1".getBytes(StandardCharsets.UTF_8)}, {"null".getBytes(StandardCharsets.UTF_8), null},
+                    {"tre".getBytes(StandardCharsets.UTF_8), "tre".getBytes(StandardCharsets.UTF_8)}, {"".getBytes(StandardCharsets.UTF_8), "".getBytes(StandardCharsets.UTF_8)}}));
 
         data.add(new TestData("timestamp", SelectColumnTest::checkTimestamp,
                 new Object[][]{{new Timestamp(1), null}, {new Timestamp(0), new Timestamp(0)},
@@ -261,6 +269,33 @@ public class SelectColumnTest {
             Object object = rs.getObject(1);
             Assert.assertEquals(expected, object);
         } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkBlob(ResultSet rs, Object expected) {
+        try {
+            byte[] actual = rs.getBytes(1);
+            Assert.assertArrayEquals((byte[]) expected, actual);
+
+            if (expected != null) {
+                DataInputStream dataInputStream = new DataInputStream(rs.getBinaryStream(1));
+                byte[] actualFromStream = new byte[actual.length];
+                dataInputStream.readFully(actualFromStream);
+                Assert.assertArrayEquals((byte[]) expected, actualFromStream);
+
+                Blob blob = rs.getBlob(1);
+                assertEquals(blob.length(), actual.length);
+
+                DataInputStream dataInputStream2 = new DataInputStream(blob.getBinaryStream());
+                byte[] actualFromStream2 = new byte[actual.length];
+                dataInputStream2.readFully(actualFromStream2);
+                Assert.assertArrayEquals((byte[]) expected, actualFromStream2);
+            }
+
+            byte[] object = (byte[]) rs.getObject(1);
+            Assert.assertArrayEquals((byte[]) expected, object);
+        } catch (SQLException | IOException e) {
             throw new RuntimeException(e);
         }
     }

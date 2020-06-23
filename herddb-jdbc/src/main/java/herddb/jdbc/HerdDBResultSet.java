@@ -25,7 +25,9 @@ import herddb.client.ScanResultSetMetadata;
 import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
@@ -191,7 +193,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public InputStream getBinaryStream(String columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getBinaryStream(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
@@ -335,7 +337,19 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public byte[] getBytes(int columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        fillLastValue(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            if (lastValue instanceof byte[]) {
+                return ((byte[]) lastValue);
+            } else {
+                throw new SQLException("Value " + lastValue + " (" + lastValue.getClass() + ") cannot be interpreted as a byte[]");
+            }
+        } else {
+            wasNull = true;
+            return null;
+        }
     }
 
     @Override
@@ -401,7 +415,12 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public InputStream getBinaryStream(int columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        byte[] bytes = getBytes(columnLabel);
+        if (bytes != null) {
+            return new SimpleByteArrayInputStream(bytes);
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -946,7 +965,65 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public Blob getBlob(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        final byte[] bytes = getBytes(columnIndex);
+        if (bytes == null) {
+            return null;
+        }
+        return new Blob() {
+            @Override
+            public long length() throws SQLException {
+                return bytes.length;
+            }
+
+            @Override
+            public byte[] getBytes(long pos, int length) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public InputStream getBinaryStream() throws SQLException {
+                return new SimpleByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public long position(byte[] pattern, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public long position(Blob pattern, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public int setBytes(long pos, byte[] bytes) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public int setBytes(long pos, byte[] bytes, int offset, int len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public OutputStream setBinaryStream(long pos) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public void truncate(long len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public void free() throws SQLException {
+            }
+
+            @Override
+            public InputStream getBinaryStream(long pos, long length) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+        };
     }
 
     @Override
@@ -971,7 +1048,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getBlob(resolveColumnIndexByName(columnLabel));
     }
 
     @Override
