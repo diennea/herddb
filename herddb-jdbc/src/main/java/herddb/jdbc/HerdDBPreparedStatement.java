@@ -107,8 +107,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        ensureParameterPos(parameterIndex);
-        parameters.set(parameterIndex - 1, x);
+        setInt(parameterIndex, x);
     }
 
     @Override

@@ -40,7 +40,7 @@ public class TypedJdbcParameterExpression implements CompiledSQLExpression {
             return SQLRecordPredicate.cast(value, type);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("Unexpected cast to type " + type + " for value " + value + " "
-                    + "while accessing JDBC paramter #" + index, err);
+                    + "while accessing JDBC parameter #" + (index + 1) + ": " + err, err);
         }
     }
 
