@@ -235,9 +235,10 @@ public class Transaction {
      * @param key
      * @param value     if null this is a DELETE
      */
-    public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, CommitLogResult writeResult) {
+    public synchronized boolean registerRecordUpdate(String tableName, Bytes key, Bytes value, CommitLogResult writeResult) {
         if (updateLastSequenceNumber(writeResult)) {
-            return;
+            // this return value is not important
+            return false;
         }
         Map<Bytes, Record> newRecordsForTable = newRecords.get(tableName);
         if (newRecordsForTable != null && newRecordsForTable.containsKey(key)) {
@@ -246,6 +247,7 @@ public class Transaction {
             } else {
                 newRecordsForTable.put(key, new Record(key, value));
             }
+            return true;
         } else {
             Map<Bytes, Record> ll = changedRecords.get(tableName);
             if (ll == null) {
@@ -257,6 +259,7 @@ public class Transaction {
             } else {
                 ll.put(key, new Record(key, value));
             }
+            return false;
         }
     }
 
@@ -265,7 +268,11 @@ public class Transaction {
                 && lastSequenceNumber != null && lastSequenceNumber.after(writeResult.getLogSequenceNumber())) {
             return;
         }
-        registerRecordUpdate(tableName, key, null, writeResult);
+        boolean wasANewRecord = registerRecordUpdate(tableName, key, null, writeResult);
+        if (wasANewRecord) {
+            // the record was never written to the table, no need to track the deletion
+            return;
+        }
 
         Set<Bytes> ll = deletedRecords.get(tableName);
         if (ll == null) {
