@@ -89,7 +89,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
+import java.util.TimeZone;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -110,11 +113,15 @@ import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
+import org.apache.calcite.config.CalciteConnectionConfig;
+import org.apache.calcite.config.CalciteConnectionConfigImpl;
+import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
 import org.apache.calcite.linq4j.Queryable;
 import org.apache.calcite.linq4j.tree.Expression;
+import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -506,10 +513,25 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             clearCache();
             throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
+        Properties props = new Properties();
+        props.put(CalciteConnectionProperty.TIME_ZONE.camelName(), TimeZone.getDefault().getID());
+        props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
+        final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
+
         final FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(SQL_PARSER_CONFIG)
                 .defaultSchema(subSchema)
                 .traitDefs(TRAITS)
+                .context(new Context() {
+                    @Override
+                    public <C> C unwrap(Class<C> aClass) {
+                        if (aClass == CalciteConnectionConfigImpl.class
+                                || aClass == CalciteConnectionConfig.class) {
+                            return (C) calciteRuntimeContextConfig;
+                        }
+                        return null;
+                    }
+                })
                 // define the rules you want to apply
                 .programs(Programs.ofRules(Programs.RULE_SET))
                 .build();
@@ -529,6 +551,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelDataType originalRowType = logicalPlan.getRowType();
             RelOptCluster cluster = logicalPlan.getCluster();
             final RelOptPlanner optPlanner = cluster.getPlanner();
+
             optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
             RelTraitSet desiredTraits =
                     cluster.traitSet()

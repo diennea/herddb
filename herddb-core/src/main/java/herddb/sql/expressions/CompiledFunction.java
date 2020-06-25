@@ -24,7 +24,10 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.DataAccessor;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.util.List;
+import org.apache.calcite.avatica.util.TimeUnitRange;
 
 public class CompiledFunction implements CompiledSQLExpression {
 
@@ -100,8 +103,57 @@ public class CompiledFunction implements CompiledSQLExpression {
                     return (double) Math.round((double) parValue / roundMultiplier) * roundMultiplier;
                 }
             }
+            case BuiltinFunctions.EXTRACT: {
+                TimeUnitRange range = (TimeUnitRange) parameters.get(0).evaluate(bean, context);
+                Object parValue = parameters.get(1).evaluate(bean, context);
+                if (parValue == null) {
+                    return null;
+                }
+                if (!(parValue instanceof java.sql.Timestamp)) {
+                    throw new StatementExecutionException("Cannot EXTRACT " + range + " FROM a " + parValue.getClass() + " value is " + parValue);
+                }
+                ZonedDateTime i = ((java.sql.Timestamp) parValue).toInstant().atZone(context.getTimezone());
+                switch (range) {
+                    case YEAR:
+                        return i.get(ChronoField.YEAR);
+                    case MONTH:
+                        return i.get(ChronoField.MONTH_OF_YEAR);
+                    case DAY:
+                        return i.get(ChronoField.DAY_OF_MONTH);
+                    case DOW:
+                        return i.get(ChronoField.DAY_OF_WEEK);
+                    case HOUR:
+                        return i.get(ChronoField.HOUR_OF_DAY);
+                    case MINUTE:
+                        return i.get(ChronoField.MINUTE_OF_HOUR);
+                    case SECOND:
+                        return i.get(ChronoField.SECOND_OF_MINUTE);
+                    case MILLISECOND:
+                        return i.get(ChronoField.MILLI_OF_SECOND);
+                    default:
+                        throw new StatementExecutionException("Unsupported EXTRACT " + range);
+                }
+            }
+            case BuiltinFunctions.FLOOR: {
+                // currently only supported FLOOR(value TO DAY) to get the midnight value
+                Object parValue = parameters.get(0).evaluate(bean, context);
+                if (parValue == null) {
+                    return null;
+                }
+                TimeUnitRange range = (TimeUnitRange) parameters.get(1).evaluate(bean, context);
+                if (!(parValue instanceof java.sql.Timestamp)) {
+                    throw new StatementExecutionException("Cannot FLOOR " + range + " FROM a " + parValue.getClass() + " value is " + parValue);
+                }
+                ZonedDateTime i = ((java.sql.Timestamp) parValue).toInstant().atZone(context.getTimezone());
+                switch (range) {
+                    case DAY:
+                        return new java.sql.Timestamp(i.toLocalDate().atStartOfDay(context.getTimezone()).toInstant().toEpochMilli());
+                    default:
+                        throw new StatementExecutionException("Unsupported FLOOR " + range);
+                }
+            }
             default:
-                throw new StatementExecutionException("unhandled function " + name);
+                throw new StatementExecutionException("unhandled function " + name + " operands " + parameters);
         }
     }
 

@@ -22,6 +22,7 @@ package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.DBManager;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Logger;
@@ -40,6 +41,7 @@ public class StatementEvaluationContext {
     private TransactionContext transactionContext;
     private String defaultTablespace = TableSpace.DEFAULT;
     private volatile long tableSpaceLock;
+    private static final ZoneId timezone = ZoneId.systemDefault();
 
     // CHECKSTYLE.OFF: MethodName
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
@@ -99,6 +101,10 @@ public class StatementEvaluationContext {
 
     public void setTableSpaceLock(long tableSpaceLock) {
         this.tableSpaceLock = tableSpaceLock;
+    }
+
+    public ZoneId getTimezone() {
+        return timezone;
     }
 
 }

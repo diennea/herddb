@@ -126,6 +126,11 @@ public interface SQLRecordPredicateFunctions {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() + ((Number) b).doubleValue();
         }
+        if (a instanceof java.sql.Timestamp && b instanceof Long) {
+            // TIMESTAMPADD
+            return new java.sql.Timestamp(((java.sql.Timestamp) a).getTime() + ((Long) b));
+        }
+
         throw new IllegalArgumentException("cannot add " + a + " and " + b);
     }
 
@@ -153,6 +158,10 @@ public interface SQLRecordPredicateFunctions {
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() - ((Number) b).doubleValue();
+        }
+        if (a instanceof java.sql.Timestamp && b instanceof java.sql.Timestamp) {
+            // TIMESTAMPDIFF
+            return ((java.sql.Timestamp) a).getTime() - ((java.sql.Timestamp) b).getTime();
         }
         throw new IllegalArgumentException("cannot subtract " + a + " and " + b);
     }
