@@ -52,4 +52,9 @@ public class DropTableStatement extends DDLStatement {
         return ifExists;
     }
 
+    @Override
+    public String toString() {
+        return "DropTableStatement{" + "table=" + table + ", ifExists=" + ifExists + '}';
+    }
+
 }
