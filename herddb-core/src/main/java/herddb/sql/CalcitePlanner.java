@@ -500,7 +500,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     RelCollationTraitDef.INSTANCE));
 
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
-            SqlParseException, ValidationException, MetadataStorageManagerException {
+            SqlParseException, ValidationException, MetadataStorageManagerException, StatementExecutionException {
         SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
         if (subSchema == null) {
             clearCache();
@@ -517,37 +517,42 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (LOG.isLoggable(Level.FINER)) {
             LOG.log(Level.FINER, "Query: {0}", query);
         }
-        SqlNode n = planner.parse(query);
-        n = planner.validate(n);
-        RelNode logicalPlan = planner.rel(n).project();
-        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+        try {
+            SqlNode n = planner.parse(query);
+            n = planner.validate(n);
+            RelNode logicalPlan = planner.rel(n).project();
+            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
-                            SqlExplainLevel.ALL_ATTRIBUTES)});
-        }
-        RelDataType originalRowType = logicalPlan.getRowType();
-        RelOptCluster cluster = logicalPlan.getCluster();
-        final RelOptPlanner optPlanner = cluster.getPlanner();
-        optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
-        RelTraitSet desiredTraits =
-                cluster.traitSet()
-                        .replace(EnumerableConvention.INSTANCE);
-        final RelCollation collation =
-                logicalPlan instanceof Sort
-                        ? ((Sort) logicalPlan).collation
-                        : null;
-        if (collation != null) {
-            desiredTraits = desiredTraits.replace(collation);
-        }
-        final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
-        optPlanner.setRoot(newRoot);
-        RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-            LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+                    SqlExplainLevel.ALL_ATTRIBUTES)});
+            }
+            RelDataType originalRowType = logicalPlan.getRowType();
+            RelOptCluster cluster = logicalPlan.getCluster();
+            final RelOptPlanner optPlanner = cluster.getPlanner();
+            optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
+            RelTraitSet desiredTraits =
+                    cluster.traitSet()
+                            .replace(EnumerableConvention.INSTANCE);
+            final RelCollation collation =
+                    logicalPlan instanceof Sort
+                            ? ((Sort) logicalPlan).collation
+                            : null;
+            if (collation != null) {
+                desiredTraits = desiredTraits.replace(collation);
+            }
+            final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
+            optPlanner.setRoot(newRoot);
+            RelNode bestExp = optPlanner.findBestExp();
+            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
-                            SqlExplainLevel.ALL_ATTRIBUTES)});
+                    SqlExplainLevel.ALL_ATTRIBUTES)});
+            }
+
+            return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
+        } catch (AssertionError err) {
+            throw new StatementExecutionException("Internal Calcite error " + err, err);
         }
-        return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
     }
 
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {

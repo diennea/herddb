@@ -72,10 +72,17 @@ public class DropTableSQLTest {
                 List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
-            execute(manager, "DROP TABLE tsql2", Collections.emptyList());
+            // name is not case sensitive
+            execute(manager, "DROP TABLE tSQL2", Collections.emptyList());
             try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList())) {
                 assertTrue(scan.consume().isEmpty());
             }
+
+            herddb.utils.TestUtils.assertThrows(StatementExecutionException.class, () -> {
+                execute(manager, "DROP TABLE tSQL2", Collections.emptyList());
+            });
+
+            execute(manager, "DROP TABLE IF EXISTS tSQL2", Collections.emptyList());
 
         }
 
@@ -119,7 +126,8 @@ public class DropTableSQLTest {
 
             long tx2 = ((TransactionResult) execute(manager, "EXECUTE begintransaction 'tblspace1'", Collections.emptyList())).getTransactionId();
 
-            execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx2));
+            // name is not case sensitive
+            execute(manager, "DROP TABLE tblspace1.tSQL", Collections.emptyList(), new TransactionContext(tx2));
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 List<DataAccessor> all = scan.consume();

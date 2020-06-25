@@ -1524,20 +1524,26 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         try {
-            if (!tables.containsKey(statement.getTable())) {
+            String tableNameUpperCase = statement.getTable().toUpperCase();
+            String tableNameNormalized = tables.keySet()
+                    .stream()
+                    .filter(t -> t.toUpperCase().equals(tableNameUpperCase))
+                    .findFirst()
+                    .orElse(statement.getTable());
+            if (!tables.containsKey(tableNameNormalized)) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
                 }
-                throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
+                throw new TableDoesNotExistException("table does not exist " + tableNameNormalized + " on tableSpace " + statement.getTableSpace());
             }
-            if (transaction != null && transaction.isTableDropped(statement.getTable())) {
+            if (transaction != null && transaction.isTableDropped(tableNameNormalized)) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction.transactionId);
                 }
-                throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
+                throw new TableDoesNotExistException("table does not exist " + tableNameNormalized + " on tableSpace " + statement.getTableSpace());
             }
 
-            Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(statement.getTable());
+            Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(tableNameNormalized);
             if (indexesOnTable != null) {
                 for (String index : indexesOnTable.keySet()) {
                     LogEntry entry = LogEntryFactory.dropIndex(index, transaction);
@@ -1546,7 +1552,7 @@ public class TableSpaceManager {
                 }
             }
 
-            LogEntry entry = LogEntryFactory.dropTable(statement.getTable(), transaction);
+            LogEntry entry = LogEntryFactory.dropTable(tableNameNormalized, transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
 
