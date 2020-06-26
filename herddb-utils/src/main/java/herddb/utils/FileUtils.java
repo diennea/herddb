@@ -22,6 +22,8 @@ package herddb.utils;
 
 import io.netty.util.internal.PlatformDependent;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
@@ -81,5 +83,43 @@ public class FileUtils {
             return;
         }
         PlatformDependent.freeDirectBuffer(buffer);
+    }
+
+
+    private static final int COPY_BUFFER_SIZE = 8 * 1024;
+
+    public static long copyStreams(final InputStream input, final OutputStream output) throws IOException {
+        long count = 0;
+        int n = 0;
+        byte[] buffer = new byte[COPY_BUFFER_SIZE];
+        while (-1 != (n = input.read(buffer))) {
+            output.write(buffer, 0, n);
+            count += n;
+        }
+        return count;
+    }
+
+    public static long copyStreams(final InputStream input, final OutputStream output, final long sizeToCopy) throws IOException {
+        long count = 0;
+        int n = 0;
+        final int bufferSize;
+        if (COPY_BUFFER_SIZE > sizeToCopy) {
+            bufferSize = (int) sizeToCopy;
+        } else {
+            bufferSize = COPY_BUFFER_SIZE;
+        }
+        byte[] buffer = new byte[bufferSize];
+        while (count + bufferSize < sizeToCopy && -1 != (n = input.read(buffer))) {
+            output.write(buffer, 0, n);
+            count += n;
+        }
+        int remaining = (int) (sizeToCopy - count);
+        if (remaining > 0) {
+            buffer = new byte[remaining];
+            n = input.read(buffer);
+            output.write(buffer, 0, n);
+            count += n;
+        }
+        return count;
     }
 }

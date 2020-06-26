@@ -25,10 +25,16 @@ import herddb.client.DMLResult;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.jdbc.utils.SQLExceptionUtils;
+import herddb.utils.FileUtils;
+import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -136,7 +142,8 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        // TODO: this is an approximation
+        setDouble(parameterIndex, x.doubleValue());
     }
 
     @Override
@@ -163,7 +170,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("setTime Not supported yet");
     }
 
     @Override
@@ -174,17 +181,18 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        // in ASCII length in bytes == length in chars
+        setCharacterStream(parameterIndex, new InputStreamReader(x, StandardCharsets.US_ASCII), length);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, new InputStreamReader(x, StandardCharsets.UTF_8), length);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setBinaryStream(parameterIndex, x, (long) length);
     }
 
     @Override
@@ -256,32 +264,32 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, reader, (long) length);
     }
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("setRef is not supported yet");
     }
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setBinaryStream(parameterIndex, x.getBinaryStream());
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, x.getCharacterStream());
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("setArray is not supported yet");
     }
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("Not supported yet.");
     }
 
     @Override
@@ -296,7 +304,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("setTime not supported yet.");
     }
 
     @Override
@@ -312,7 +320,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setString(parameterIndex, x.toString());
     }
 
     @Override
@@ -326,59 +334,65 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
             @Override
             public int isNullable(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return ParameterMetaData.parameterNullableUnknown;
             }
 
             @Override
             public boolean isSigned(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                // unknown at client side
+                return true;
             }
 
             @Override
             public int getPrecision(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                // unknown at client side
+                return 0;
             }
 
             @Override
             public int getScale(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                // unknown at client side
+                return 0;
             }
 
             @Override
             public int getParameterType(int param) throws SQLException {
+                // unknown at client side
                 return java.sql.Types.OTHER;
             }
 
             @Override
             public String getParameterTypeName(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                // unknown at client side
+                return "object";
             }
 
             @Override
             public String getParameterClassName(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                // unknown at client side
+                return Object.class.getName();
             }
 
             @Override
             public int getParameterMode(int param) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return ParameterMetaData.parameterModeIn;
             }
 
             @Override
             public <T> T unwrap(Class<T> iface) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return (T) this;
             }
 
             @Override
             public boolean isWrapperFor(Class<?> iface) throws SQLException {
-                throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return false;
             }
         };
     }
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLException("setRowId not supported yet.");
     }
 
     @Override
@@ -388,32 +402,32 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, value, length);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setNCharacterStream(parameterIndex, value.getCharacterStream());
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setNCharacterStream(parameterIndex, reader, length);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setBinaryStream(parameterIndex, inputStream, length);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setNCharacterStream(parameterIndex, reader, length);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setNCharacterStream(parameterIndex, xmlObject.getCharacterStream());
     }
 
     @Override
@@ -424,52 +438,98 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        // in ASCII length in bytes == length in chars
+        setCharacterStream(parameterIndex, new InputStreamReader(x, StandardCharsets.US_ASCII), length);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (length >= Integer.MAX_VALUE) {
+            throw new SQLException("Cannot send a byte[] larger than " + Integer.MAX_VALUE);
+        }
+        try {
+            VisibleByteArrayOutputStream out = new VisibleByteArrayOutputStream((int) length);
+            // one day we will be able to use InputStream#transferTo
+            long writtenCount = FileUtils.copyStreams(x, out, length);
+            if (writtenCount != length) {
+                throw new SQLException("The supplied inputstream returned only " + writtenCount + " bytes, exptected " + length);
+            }
+            // toByteArrayNoCopy won't create an additional copy if not needed
+            setBytes(parameterIndex, out.toByteArrayNoCopy());
+        } catch (IOException ex) {
+            throw new SQLException(ex);
+        }
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (length >= Integer.MAX_VALUE) {
+            throw new SQLException("Cannot handle a value larger that " + Integer.MAX_VALUE + " chars");
+        }
+        try {
+            CharBuffer buffer = CharBuffer.allocate((int) length);
+            int readCount = reader.read(buffer);
+            if (readCount != length) {
+                throw new IOException("short read from " + reader + ", read " + readCount + " characters, expected " + length);
+            }
+            buffer.flip();
+            setString(parameterIndex, buffer.toString());
+        } catch (IOException iOException) {
+            throw new SQLException(iOException);
+        }
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, new InputStreamReader(x, StandardCharsets.US_ASCII));
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        try {
+            VisibleByteArrayOutputStream out = new VisibleByteArrayOutputStream();
+            // one day we will be able to use InputStream#transferTo
+            FileUtils.copyStreams(x, out);
+            setBytes(parameterIndex, out.toByteArray());
+        } catch (IOException ex) {
+            throw new SQLException(ex);
+        }
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        try {
+            // one day we will be able to use Reader#transferTo
+            char[] arr = new char[8 * 1024];
+            StringBuilder buffer = new StringBuilder();
+            int numCharsRead;
+            while ((numCharsRead = reader.read(arr, 0, arr.length)) != -1) {
+                buffer.append(arr, 0, numCharsRead);
+            }
+            setString(parameterIndex, buffer.toString());
+        } catch (IOException iOException) {
+            throw new SQLException(iOException);
+        }
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, value);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, reader);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setBinaryStream(parameterIndex, inputStream);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setCharacterStream(parameterIndex, reader);
     }
 
     @Override
