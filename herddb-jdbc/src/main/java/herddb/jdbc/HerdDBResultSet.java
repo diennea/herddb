@@ -29,7 +29,10 @@ import herddb.utils.SimpleByteArrayInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
+import java.io.Writer;
 import java.math.BigDecimal;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -1028,7 +1031,75 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public Clob getClob(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        String string = getString(columnIndex);
+        if (string == null) {
+            return null;
+        }
+        return new Clob() {
+            @Override
+            public long length() throws SQLException {
+                return string.length();
+            }
+
+            @Override
+            public String getSubString(long pos, int length) throws SQLException {
+                return string.substring((int) pos, (int) length);
+            }
+
+            @Override
+            public Reader getCharacterStream() throws SQLException {
+                return new StringReader(string);
+            }
+
+            @Override
+            public InputStream getAsciiStream() throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public long position(String searchstr, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public long position(Clob searchstr, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public int setString(long pos, String str) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public int setString(long pos, String str, int offset, int len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public OutputStream setAsciiStream(long pos) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public Writer setCharacterStream(long pos) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public void truncate(long len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public void free() throws SQLException {
+            }
+
+            @Override
+            public Reader getCharacterStream(long pos, long length) throws SQLException {
+                return new StringReader(this.getSubString(0, (int) length));
+            }
+        };
     }
 
     @Override
@@ -1053,7 +1124,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getClob(resolveColumnIndexByName(columnLabel));
     }
 
     @Override
@@ -1083,22 +1154,30 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getTimestamp(columnIndex);
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getTimestamp(columnLabel);
     }
 
     @Override
     public URL getURL(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        String res = getString(columnIndex);
+        if (res == null) {
+            return null;
+        }
+        try {
+            return new URL(res);
+        } catch (MalformedURLException err) {
+            throw new SQLException(err);
+        }
     }
 
     @Override
     public URL getURL(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getURL(resolveColumnIndexByName(columnLabel));
     }
 
     @Override
@@ -1193,12 +1272,80 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public NClob getNClob(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        String string = getString(columnIndex);
+        if (string == null) {
+            return null;
+        }
+        return new NClob() {
+            @Override
+            public long length() throws SQLException {
+                return string.length();
+            }
+
+            @Override
+            public String getSubString(long pos, int length) throws SQLException {
+                return string.substring((int) pos, (int) length);
+            }
+
+            @Override
+            public Reader getCharacterStream() throws SQLException {
+                return new StringReader(string);
+            }
+
+            @Override
+            public InputStream getAsciiStream() throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public long position(String searchstr, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public long position(Clob searchstr, long start) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public int setString(long pos, String str) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public int setString(long pos, String str, int offset, int len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public OutputStream setAsciiStream(long pos) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public Writer setCharacterStream(long pos) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public void truncate(long len) throws SQLException {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public void free() throws SQLException {
+            }
+
+            @Override
+            public Reader getCharacterStream(long pos, long length) throws SQLException {
+                return new StringReader(this.getSubString(0, (int) length));
+            }
+        };
     }
 
     @Override
     public NClob getNClob(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getNClob(resolveColumnIndexByName(columnLabel));
     }
 
     @Override

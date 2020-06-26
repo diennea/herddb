@@ -26,6 +26,8 @@ import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -59,7 +61,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     public Driver() {
     }
 
-    private final HashMap<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
+    private static final HashMap<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
@@ -100,8 +102,25 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         return LOG;
     }
 
+    private static String computeKey(String url, Properties info) {
+        StringBuilder res = new StringBuilder();
+        res.append(url);
+        res.append('#');
+        if (info != null) {
+            List<String> keys = new ArrayList<>(info.stringPropertyNames());
+            keys.sort(Comparator.naturalOrder());
+            for (String key : keys) {
+                String value = info.getProperty(key, "");
+                res.append(key);
+                res.append('=');
+                res.append(value);
+                res.append('.');
+            }
+        }
+        return res.toString();
+    }
     private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
-        String key = url + "_" + info;
+        String key = computeKey(url, info);
         HerdDBEmbeddedDataSource ds = datasources.get(key);
         if (ds != null) {
             return ds;
@@ -119,8 +138,11 @@ public class Driver implements java.sql.Driver, AutoCloseable {
 
     @Override
     public synchronized void close() {
-        LOG.log(Level.SEVERE, "Unregistering HerdDB JDBC Driver");
-        datasources.values().forEach(BasicHerdDBDataSource::close);
+        LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0}", this);
+        datasources.forEach((key, ds) -> {
+            LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0} Datasource ID {1}", new Object[]{this, key});
+            ds.close();
+        });
         datasources.clear();
     }
 
@@ -130,7 +152,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     public synchronized void closeDatasources(String url) {
 
         List<Entry<String, HerdDBEmbeddedDataSource>> entries = datasources.entrySet().stream()
-                .filter(e -> e.getKey().startsWith(url + "_")).collect(Collectors.toList());
+                .filter(e -> e.getKey().startsWith(url + '#')).collect(Collectors.toList());
 
         for (Entry<String, HerdDBEmbeddedDataSource> entry : entries) {
             datasources.remove(entry.getKey());
