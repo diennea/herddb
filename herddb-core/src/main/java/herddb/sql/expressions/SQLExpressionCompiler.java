@@ -71,10 +71,8 @@ public class SQLExpressionCompiler {
             SqlOperator op = p.op;
             String name = op.getName();
             CompiledSQLExpression[] operands = new CompiledSQLExpression[p.operands.size()];
-//            System.out.println("operator '" + op + "' with " + p.operands.size() + " ops");
             int i = 0;
             for (RexNode operand : p.operands) {
-//                System.out.println("operand: " + operand);
                 operands[i++] = compileExpression(operand);
             }
             switch (name) {
@@ -103,6 +101,8 @@ public class SQLExpressionCompiler {
                     return new CompiledMultiplyExpression(operands[0], operands[1]);
                 case "/":
                     return new CompiledDivideExpression(operands[0], operands[1]);
+                case "/INT":
+                    return new CompiledDivideIntExpression(operands[0], operands[1]);
                 case "LIKE":
                     return new CompiledLikeExpression(operands[0], operands[1]);
                 case "AND":
@@ -138,6 +138,15 @@ public class SQLExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.ABS, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_ROUND:
                     return new CompiledFunction(BuiltinFunctions.ROUND, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_EXTRACT:
+                    return new CompiledFunction(BuiltinFunctions.EXTRACT, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_FLOOR:
+                    return new CompiledFunction(BuiltinFunctions.FLOOR, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_REINTERPRET:
+                    if (operands.length != 1) {
+                        throw new StatementExecutionException("unsupported use of Reinterpret with " + Arrays.toString(operands));
+                    }
+                    return (CompiledSQLExpression) operands[0];
                 default:
                     throw new StatementExecutionException("unsupported operator '" + name + "'");
             }

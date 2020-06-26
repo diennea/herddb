@@ -55,6 +55,9 @@ public class BuiltinFunctions {
     public static final String UPPER = "upper";
     public static final String ABS = "abs";
     public static final String ROUND = "round";
+    public static final String EXTRACT = "extract";
+    public static final String FLOOR = "floor";
+
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
     public static final String BOOLEAN_TRUE = "true";
@@ -70,6 +73,10 @@ public class BuiltinFunctions {
     public static final String NAME_UPPER = "UPPER";
     public static final String NAME_ABS = "ABS";
     public static final String NAME_ROUND = "ROUND";
+    public static final String NAME_EXTRACT = "EXTRACT";
+    public static final String NAME_FLOOR = "FLOOR";
+
+    public static final String NAME_REINTERPRET = "Reinterpret";
     // special
     public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
 
@@ -107,49 +114,6 @@ public class BuiltinFunctions {
                 return new SingleValueCalculator(fieldName, firstParam, context);
             default:
                 return null;
-        }
-    }
-
-    public static boolean isScalarFunction(String name) {
-        switch (name) {
-            case LOWER:
-            case UPPER:
-            case ABS:
-            case ROUND:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    public static boolean isAggregateFunction(String name) {
-        switch (name) {
-            case COUNT:
-            case SUM:
-            case MIN:
-            case MAX:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    public static int typeOfFunction(String lowerCaseName) throws StatementExecutionException {
-        switch (lowerCaseName) {
-            case BuiltinFunctions.COUNT:
-            case BuiltinFunctions.SUM:
-            case BuiltinFunctions.MIN:
-            case BuiltinFunctions.MAX:
-            case BuiltinFunctions.ABS:
-            case BuiltinFunctions.ROUND:
-                return ColumnTypes.LONG;
-
-            case BuiltinFunctions.LOWER:
-            case BuiltinFunctions.UPPER:
-                return ColumnTypes.STRING;
-            default:
-                throw new StatementExecutionException("unhandled function " + lowerCaseName);
-
         }
     }
 

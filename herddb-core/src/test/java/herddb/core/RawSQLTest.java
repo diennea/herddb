@@ -70,6 +70,7 @@ import herddb.utils.MapUtils;
 import herddb.utils.RawString;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -692,6 +693,56 @@ public class RawSQLTest {
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='value1'", Collections.emptyList()).consumeAndClose().size());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=k1  where k1=?", Arrays.asList("mykey")).getUpdateCount());
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='mykey'", Collections.emptyList()).consumeAndClose().size());
+        }
+    }
+
+    @Test
+    public void timestampFunctionsTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,d1 timestamp)", Collections.emptyList());
+
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+            java.sql.Timestamp nowPlusOneDayInMillis = new java.sql.Timestamp(now.getTime() + 1000 * 60 * 60 * 24);
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey", now)).getUpdateCount());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where d1=?", Arrays.asList(now)).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where timestampdiff(SECOND, d1, CAST(? AS TIMESTAMP)) = 60 * 60 * 24", Arrays.asList(nowPlusOneDayInMillis)).consumeAndClose().
+                    size());
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(now.getTime());
+
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where YEAR(d1) = ?", Arrays.asList(cal.get(Calendar.YEAR))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where MONTH(d1)= ?", Arrays.asList(cal.get(Calendar.MONTH) + 1)).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where DAYOFMONTH(d1)= ?", Arrays.asList(cal.get(Calendar.DAY_OF_MONTH))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where HOUR(d1)= ?", Arrays.asList(cal.get(Calendar.HOUR_OF_DAY))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where MINUTE(d1)= ?", Arrays.asList(cal.get(Calendar.MINUTE))).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where SECOND(d1)= ?", Arrays.asList(cal.get(Calendar.SECOND))).consumeAndClose().size());
+
+            cal.set(Calendar.MILLISECOND, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            java.sql.Timestamp midnight = new java.sql.Timestamp(cal.getTimeInMillis());
+
+            int convertedDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1;
+            if (convertedDayOfWeek == 0) {
+                convertedDayOfWeek = 7;
+            }
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where DAYOFWEEK(d1)= ?", Arrays.asList(convertedDayOfWeek)).consumeAndClose().size());
+
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where FLOOR(d1 TO DAY) = ?", Arrays.asList(midnight)).consumeAndClose().size());
+
+            cal.add(Calendar.DATE, 1);
+
+            java.sql.Timestamp midnightOfTomorrow = new java.sql.Timestamp(cal.getTimeInMillis());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql"
+                    + " where TIMESTAMPADD(DAY, 1, CAST(? AS TIMESTAMP)) = CAST(? AS TIMESTAMP)", Arrays.asList(midnight, midnightOfTomorrow)).consumeAndClose().size());
+
         }
     }
 
