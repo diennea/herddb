@@ -17,10 +17,10 @@
  under the License.
 
  */
-
 package herddb.jdbc;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.utils.Version;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -47,6 +47,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     private static final Logger LOG = Logger.getLogger(Driver.class.getName());
 
     private static final Driver INSTANCE = new Driver();
+    private static final DataSourceManager DATASOURCE_MANAGER = new DataSourceManager();
 
     static {
         try {
@@ -61,14 +62,57 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     public Driver() {
     }
 
-    private static final HashMap<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
+    private static class DataSourceManager {
+
+        private final HashMap<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
+
+        private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
+            String key = computeKey(url, info);
+            HerdDBEmbeddedDataSource ds = datasources.get(key);
+            if (ds != null) {
+                return ds;
+            }
+            /**
+             * DriverManager puts username/password in 'user' and 'password'
+             * properties
+             */
+            ds = new HerdDBEmbeddedDataSource(info);
+            ds.setUrl(url);
+
+            datasources.put(key, ds);
+            return ds;
+        }
+
+        private synchronized void closeAll() {
+            LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0}", this);
+            datasources.forEach((key, ds) -> {
+                LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0} Datasource ID {1}", new Object[]{this, key});
+                ds.close();
+            });
+            datasources.clear();
+        }
+
+        /**
+         * Closes drive embedded datasources by their connection url
+         */
+        public synchronized void closeDatasources(String url) {
+
+            List<Entry<String, HerdDBEmbeddedDataSource>> entries = datasources.entrySet().stream()
+                    .filter(e -> e.getKey().startsWith(url + '#')).collect(Collectors.toList());
+
+            for (Entry<String, HerdDBEmbeddedDataSource> entry : entries) {
+                datasources.remove(entry.getKey());
+                entry.getValue().close();
+            }
+        }
+    }
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
         if (!acceptsURL(url)) {
             return null;
         }
-        HerdDBEmbeddedDataSource datasource = ensureDatasource(url, info);
+        HerdDBEmbeddedDataSource datasource = DATASOURCE_MANAGER.ensureDatasource(url, info);
         return datasource.getConnection();
     }
 
@@ -84,12 +128,12 @@ public class Driver implements java.sql.Driver, AutoCloseable {
 
     @Override
     public int getMajorVersion() {
-        return 0;
+        return Version.getJDBC_DRIVER_MAJOR_VERSION();
     }
 
     @Override
     public int getMinorVersion() {
-        return 0;
+        return Version.getJDBC_DRIVER_MINOR_VERSION();
     }
 
     @Override
@@ -119,45 +163,11 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         }
         return res.toString();
     }
-    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
-        String key = computeKey(url, info);
-        HerdDBEmbeddedDataSource ds = datasources.get(key);
-        if (ds != null) {
-            return ds;
-        }
-        /**
-         * DriverManager puts username/password in 'user' and 'password'
-         * properties
-         */
-        ds = new HerdDBEmbeddedDataSource(info);
-        ds.setUrl(url);
 
-        datasources.put(key, ds);
-        return ds;
-    }
 
     @Override
     public synchronized void close() {
-        LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0}", this);
-        datasources.forEach((key, ds) -> {
-            LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0} Datasource ID {1}", new Object[]{this, key});
-            ds.close();
-        });
-        datasources.clear();
-    }
-
-    /**
-     * Closes drive embedded datasources by their connection url
-     */
-    public synchronized void closeDatasources(String url) {
-
-        List<Entry<String, HerdDBEmbeddedDataSource>> entries = datasources.entrySet().stream()
-                .filter(e -> e.getKey().startsWith(url + '#')).collect(Collectors.toList());
-
-        for (Entry<String, HerdDBEmbeddedDataSource> entry : entries) {
-            datasources.remove(entry.getKey());
-            entry.getValue().close();
-        }
+        DATASOURCE_MANAGER.closeAll();
     }
 
 

@@ -30,13 +30,23 @@ import java.util.Properties;
 public class Version {
 
     private static final String VERSION;
+    private static final int JDBC_DRIVER_MAJOR_VERSION;
+    private static final int JDBC_DRIVER_MINOR_VERSION;
 
     static {
         Properties pluginProperties = new Properties();
         try (InputStream in = Version.class.getResourceAsStream("/META-INF/herddb.version.properties")) {
             pluginProperties.load(in);
-            VERSION = (String) pluginProperties.get("version");
-        } catch (IOException err) {
+            VERSION = pluginProperties.get("version") + "";
+            String[] split = VERSION.split("\\.");
+            if (split.length > 2) {
+                JDBC_DRIVER_MINOR_VERSION = Integer.parseInt(split[1]);
+                JDBC_DRIVER_MAJOR_VERSION = Integer.parseInt(split[0]);
+            } else {
+                JDBC_DRIVER_MINOR_VERSION = 0;
+                JDBC_DRIVER_MAJOR_VERSION = 0;
+            }
+        } catch (IOException | NumberFormatException err) {
             throw new RuntimeException(err);
         }
     }
@@ -44,4 +54,13 @@ public class Version {
     public static String getVERSION() {
         return VERSION;
     }
+
+    public static int getJDBC_DRIVER_MAJOR_VERSION() {
+        return JDBC_DRIVER_MAJOR_VERSION;
+    }
+
+    public static int getJDBC_DRIVER_MINOR_VERSION() {
+        return JDBC_DRIVER_MINOR_VERSION;
+    }
+
 }

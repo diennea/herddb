@@ -24,6 +24,7 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.io.File;
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -43,9 +44,17 @@ public class JdbcDriverTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
+
+    @Test
+    public void testVersion() throws Exception {
+        Driver driver = DriverManager.getDriver("jdbc:herddb:server:localhost:7000?");
+        System.out.println("MAJ " + driver.getMajorVersion() + " MIN " + driver.getMinorVersion());
+        assertTrue(driver.getMajorVersion() >= 0); // 0.17.0-SNAPSHOT -> 0
+        assertTrue(driver.getMinorVersion() >= 0); // 0.17.0-SNAPSHOT -> 17
+    }
+
     @Test
     public void test() throws Exception {
-
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
