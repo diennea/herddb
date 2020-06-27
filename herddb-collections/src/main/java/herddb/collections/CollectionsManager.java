@@ -199,7 +199,7 @@ public final class CollectionsManager implements AutoCloseable {
                 .tablespace(TableSpace.DEFAULT)
                 .build();
         CreateTableStatement createTable = new CreateTableStatement(table);
-        tableSpaceManager.executeStatement(createTable, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION);
+        tableSpaceManager.executeStatement(createTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         return table;
     }
 
