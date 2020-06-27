@@ -243,10 +243,18 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 + ",query:" + query
                 + ",returnValues:" + returnValues
                 + ",maxRows:" + maxRows;
+        boolean forceAcquireWriteLock;
+        if (query.endsWith(" FOR UPDATE") // this looks very hacky
+                && query.substring(0, 6).toLowerCase().equals("select")) {
+            forceAcquireWriteLock = true;
+            query = query.substring(0, query.length() - " FOR UPDATE".length());
+        } else {
+            forceAcquireWriteLock = false;
+        }
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
-                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
+                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock));
             }
         }
 
@@ -300,7 +308,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                         new SQLPlannedOperationStatement(values),
                         values
                 );
-                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock));
             }
 
             if (query.startsWith("SHOW")) {
@@ -334,7 +342,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     if (allowCache) {
                         cache.put(cacheKey, executionPlan);
                     }
-                    return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+                    return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock));
                 }
             }
             if (maxRows > 0) {
@@ -353,7 +361,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
             }
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock));
         } catch (CalciteContextException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + ex.getOriginalStatement() + "'", ex);
             //TODO can this be done better ?
@@ -423,7 +431,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     new SQLPlannedOperationStatement(values),
                     values
             );
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false));
         } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for SHOW CREATE TABLE tablespace.tablename"));
         }

@@ -856,7 +856,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 //            LOGGER.log(Level.SEVERE, "statement " + statement);
             CompletableFuture<StatementExecutionResult> res = server
                     .getManager()
-                    .executeStatementAsync(statement, new StatementEvaluationContext(), transactionContext);
+                    .executeStatementAsync(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             res.whenComplete((result, err) -> {
                 try {

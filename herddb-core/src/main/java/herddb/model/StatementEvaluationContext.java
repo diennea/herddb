@@ -42,12 +42,18 @@ public class StatementEvaluationContext {
     private String defaultTablespace = TableSpace.DEFAULT;
     private volatile long tableSpaceLock;
     private static final ZoneId timezone = ZoneId.systemDefault();
+    private final boolean forceAcquireWriteLock;
 
     // CHECKSTYLE.OFF: MethodName
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
-        return new StatementEvaluationContext();
+        return new StatementEvaluationContext(false);
     }
     // CHECKSTYLE.ON: MethodName
+
+    protected StatementEvaluationContext(boolean forceAcquireWriteLock) {
+        this.forceAcquireWriteLock = forceAcquireWriteLock;
+    }
+
 
     public String getDefaultTablespace() {
         return defaultTablespace;
@@ -105,6 +111,10 @@ public class StatementEvaluationContext {
 
     public ZoneId getTimezone() {
         return timezone;
+    }
+
+    public boolean isForceAcquireWriteLock() {
+        return forceAcquireWriteLock;
     }
 
 }
