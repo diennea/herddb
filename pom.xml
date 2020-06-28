@@ -573,7 +573,7 @@
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
                 <module>herddb-backward-compatibility</module>
-                <module>herddb-thirdparty-compatibility</module>
+                <module>herddb-thirdparty</module>
             </modules>
             <distributionManagement>
                 <repository>
