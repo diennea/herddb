@@ -1424,7 +1424,7 @@ public class TableSpaceManager {
             } catch (IllegalArgumentException error) {
                 throw new StatementExecutionException(error);
             }
-            validateAlterTable(newTable, null);
+            validateAlterTable(newTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
             LogEntry entry = LogEntryFactory.alterTable(newTable, null);
             try {
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
