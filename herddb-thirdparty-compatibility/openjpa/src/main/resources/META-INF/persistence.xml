@@ -24,12 +24,22 @@
     <class>test.entity.User</class>
     <exclude-unlisted-classes>true</exclude-unlisted-classes>
     <properties>
-      <property name="javax.persistence.jdbc.driver" value="herddb.jdbc.Driver" />
       <property name="javax.persistence.jdbc.url" value="jdbc:herddb:local" />
       <property name="javax.persistence.jdbc.user" value="sa" />
       <property name="javax.persistence.jdbc.password" value="hdb" />
       <property name="javax.persistence.schema-generation.database.action" value="drop-and-create" />
       <property name="openjpa.jdbc.DBDictionary" value="org.apache.openjpa.jdbc.sql.DBDictionary(ForUpdateClause='')"/>
+<!--      <property name="openjpa.jdbc.DBDictionary" value="mysql(ForUpdateClause='')"/>-->
+      <property name="openjpa.ConnectionProperties" 
+            value="DriverClassName=herddb.jdbc.Driver,
+              Url=jdbc:herddb:local, 
+              MaxActive=100,
+              MinIdle=1, 
+              Username=sa, 
+              Password=hdb"/>
+       <property name="openjpa.ConnectionDriverName" 
+            value="org.apache.commons.dbcp.BasicDataSource"/>
+       <property name="openjpa.ConnectionRetainMode" value="on-demand"/>
     </properties>
   </persistence-unit>
 </persistence>
