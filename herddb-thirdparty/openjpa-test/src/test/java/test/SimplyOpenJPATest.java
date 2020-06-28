@@ -55,11 +55,11 @@ public class SimplyOpenJPATest {
         }
         factory.close();
 
-        // clean up
-        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-            Driver d = e.nextElement();
-            DriverManager.deregisterDriver(d);
-        }
+//        // clean up
+//        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
+//            Driver d = e.nextElement();
+//            DriverManager.deregisterDriver(d);
+//        }
 
     }
 }

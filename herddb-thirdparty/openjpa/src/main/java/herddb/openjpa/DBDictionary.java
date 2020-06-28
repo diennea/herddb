@@ -58,30 +58,30 @@ public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
         forUpdateClause = "";
 
     }
-
-    @Override
-    public void closeDataSource(DataSource ds) {
-        super.closeDataSource(ds);
-        if (ds instanceof DelegatingDataSource) {
-            ds = ((DelegatingDataSource) ds).getInnermostDelegate();
-        }
-        if (ds instanceof BasicDataSource) {
-            try {
-                BasicDataSource sa = (BasicDataSource) ds;
-                sa.close();
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        if (ds instanceof AutoCloseable) {
-            try {
-                AutoCloseable ac = (AutoCloseable) ds;
-                ac.close();
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-    }
+//
+//    @Override
+//    public void closeDataSource(DataSource ds) {
+//        super.closeDataSource(ds);
+//        if (ds instanceof DelegatingDataSource) {
+//            ds = ((DelegatingDataSource) ds).getInnermostDelegate();
+//        }
+//        if (ds instanceof BasicDataSource) {
+//            try {
+//                BasicDataSource sa = (BasicDataSource) ds;
+//                sa.close();
+//            } catch (SQLException ex) {
+//                throw new RuntimeException(ex);
+//            }
+//        }
+//        if (ds instanceof AutoCloseable) {
+//            try {
+//                AutoCloseable ac = (AutoCloseable) ds;
+//                ac.close();
+//            } catch (Exception ex) {
+//                throw new RuntimeException(ex);
+//            }
+//        }
+//    }
 
 
 }
