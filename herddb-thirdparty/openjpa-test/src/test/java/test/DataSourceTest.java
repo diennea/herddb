@@ -39,6 +39,7 @@ public class DataSourceTest {
     public void hello() throws Exception {
 
         // create an manage your own datasource
+        // with autoClose=true the server will be shutdown when you shutdown the datasource
         org.apache.commons.dbcp2.BasicDataSource ds2 = new org.apache.commons.dbcp2.BasicDataSource();
         ds2.setUrl("jdbc:herddb:local?autoClose=true");
         ds2.setUsername("sa");
@@ -66,11 +67,6 @@ public class DataSourceTest {
         factory.close();
 
         ds2.close();
-//        // clean up
-//        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-//            Driver d = e.nextElement();
-//            DriverManager.deregisterDriver(d);
-//        }
 
     }
 }
