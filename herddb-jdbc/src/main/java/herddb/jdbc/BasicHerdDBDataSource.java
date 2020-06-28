@@ -26,6 +26,7 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -46,7 +47,7 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
  *
  * @author enrico.olivelli
  */
-public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
+public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseable, Closeable {
 
     protected HDBClient client;
     protected final Properties properties = new Properties();

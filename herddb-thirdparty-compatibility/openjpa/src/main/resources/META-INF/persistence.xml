@@ -39,6 +39,12 @@
               Password=hdb"/>
        <property name="openjpa.ConnectionDriverName" 
             value="org.apache.commons.dbcp.BasicDataSource"/>
+<!--       
+       <property name="openjpa.ConnectionDriverName" 
+            value="herddb.jdbc.HerdDBEmbeddedDataSource"/>
+       -->
+       
+       
        <property name="openjpa.ConnectionRetainMode" value="on-demand"/>
     </properties>
   </persistence-unit>
