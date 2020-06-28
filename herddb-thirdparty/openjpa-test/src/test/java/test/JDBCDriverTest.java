@@ -18,11 +18,10 @@
  *
  */
 package test;
-
-import static org.junit.Assert.assertEquals;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.util.Enumeration;
+import static org.junit.Assert.assertEquals;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
@@ -34,12 +33,14 @@ import test.entity.User;
  *
  * @author enrico.olivelli
  */
-public class SimplyOpenJPATest {
+public class JDBCDriverTest {
 
     @Test
     public void hello() throws Exception {
 
-        final EntityManagerFactory factory = Persistence.createEntityManagerFactory("hdb");
+
+        final EntityManagerFactory factory = Persistence.createEntityManagerFactory("hdb_jdbc");
+
         {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
@@ -55,11 +56,11 @@ public class SimplyOpenJPATest {
         }
         factory.close();
 
-//        // clean up
-//        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-//            Driver d = e.nextElement();
-//            DriverManager.deregisterDriver(d);
-//        }
+        // clean up, unregistring the driver will shutdown every datasource
+        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
+            Driver d = e.nextElement();
+            DriverManager.deregisterDriver(d);
+        }
 
     }
 }

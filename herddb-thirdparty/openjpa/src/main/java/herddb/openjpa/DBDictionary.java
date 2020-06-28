@@ -15,11 +15,6 @@
  */
 package herddb.openjpa;
 
-import java.sql.SQLException;
-import javax.sql.DataSource;
-import org.apache.commons.dbcp.BasicDataSource;
-import org.apache.openjpa.lib.jdbc.DelegatingDataSource;
-
 /**
  * OpenJPA DBDictionary
  */

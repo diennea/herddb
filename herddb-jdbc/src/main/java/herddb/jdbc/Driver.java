@@ -78,7 +78,6 @@ public class Driver implements java.sql.Driver, AutoCloseable {
              */
             ds = new HerdDBEmbeddedDataSource(info);
             ds.setUrl(url);
-            ds.setAutoClose(true);
             final DataSourceManager dr = this;
             ds.setOnAutoClose(d -> {
                 synchronized (dr) {

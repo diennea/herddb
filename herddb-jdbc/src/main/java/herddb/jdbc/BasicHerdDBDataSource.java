@@ -180,7 +180,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected synchronized void ensureClient() throws SQLException {
         if (client == null) {
             ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
-            autoClose = clientConfiguration.getBoolean("autoClose", isAutoClose());
             Properties propsNoPassword = new Properties();
             propsNoPassword.putAll(properties);
             propsNoPassword.setProperty("password", "---");
@@ -190,6 +189,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             } catch (RuntimeException err) {
                 throw new SQLException(err);
             }
+            autoClose = clientConfiguration.getBoolean("autoClose", isAutoClose());
             if (properties.containsKey("discoverTableSpaceFromQuery")) {
                 this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
             }
@@ -231,7 +231,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         ensureConnection();
         try {
             Connection res = pool.borrowObject();
-            int count = activeCount.incrementAndGet();
+            activeCount.incrementAndGet();
             return res;
         } catch (Exception err) {
             throw new SQLException(err);
