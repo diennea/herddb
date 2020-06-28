@@ -25,14 +25,15 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-    <name>HerdDB Third Party compatibility tests</name>
-    <artifactId>herddb-thirdparty-compatibility</artifactId>   
+    <name>HerdDB Third Party compatibility</name>
+    <artifactId>herddb-thirdparty</artifactId>   
     <packaging>pom</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
     </properties> 
     <modules>
         <module>openjpa</module>
+        <module>openjpa-test</module>
     </modules>    
     <build>                
         <pluginManagement>
