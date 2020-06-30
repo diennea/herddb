@@ -7,7 +7,7 @@
     <exclude-unlisted-classes>true</exclude-unlisted-classes>
     <properties>
       <property name="javax.persistence.schema-generation.database.action" value="create" />
-      <property name="openjpa.jdbc.DBDictionary" value="org.apache.openjpa.jdbc.sql.DBDictionary(ForUpdateClause='')"/>
+       <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
     </properties>
   </persistence-unit>
   
@@ -20,7 +20,7 @@
       <property name="javax.persistence.jdbc.user" value="sa" />
       <property name="javax.persistence.jdbc.password" value="hdb" />
       <property name="javax.persistence.schema-generation.database.action" value="create" />
-      <property name="openjpa.jdbc.DBDictionary" value="org.apache.openjpa.jdbc.sql.DBDictionary(ForUpdateClause='')"/>
+      <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
       <property name="openjpa.jdbc.DriverDataSource" value="dbcp"/>
       <property name="openjpa.ConnectionProperties" value="maxActive=100,minActive=1,minIdle=1,maxIdle=10,initialSize=1"/>
     </properties>

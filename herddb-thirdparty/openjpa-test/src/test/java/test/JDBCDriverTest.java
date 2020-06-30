@@ -26,6 +26,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
+import org.junit.Ignore;
 import org.junit.Test;
 import test.entity.User;
 
@@ -36,6 +37,7 @@ import test.entity.User;
 public class JDBCDriverTest {
 
     @Test
+    @Ignore
     public void hello() throws Exception {
 
 
@@ -51,7 +53,7 @@ public class JDBCDriverTest {
         }
         {
             final EntityManager em = factory.createEntityManager();
-            assertEquals(1, em.createQuery("select e from MyUser e").getResultList().size());
+            assertEquals(1, em.createQuery("select e from User e").getResultList().size());
             em.close();
         }
         factory.close();

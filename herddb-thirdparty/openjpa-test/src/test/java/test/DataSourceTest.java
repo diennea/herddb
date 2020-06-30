@@ -61,7 +61,7 @@ public class DataSourceTest {
         }
         {
             final EntityManager em = factory.createEntityManager();
-            assertEquals(1, em.createQuery("select e from MyUser e").getResultList().size());
+            assertEquals(1, em.createQuery("select e from User e").getResultList().size());
             em.close();
         }
         factory.close();
