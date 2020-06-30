@@ -19,8 +19,8 @@
  */
 package test;
 
-import herddb.jdbc.Driver;
 import static org.junit.Assert.assertEquals;
+import herddb.jdbc.Driver;
 import java.util.Map;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
@@ -55,7 +55,7 @@ public class DataSourceTest {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
             transaction.begin();
-            em.persist(new User(0, "First", "Something"));
+            em.persist(new User(0, "First", 10, "Something"));
             transaction.commit();
             em.close();
         }

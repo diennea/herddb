@@ -36,6 +36,8 @@ public class User {
     @GeneratedValue
     private long id;
     private String name;
+    // reserved word for Calcite
+    private int value;
     @Lob
     private String description;
 }

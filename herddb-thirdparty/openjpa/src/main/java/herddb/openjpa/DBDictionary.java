@@ -21,14 +21,19 @@ package herddb.openjpa;
 public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
 
     private static final String DELIMITER_BACK_TICK = "`";
-    
+
     public DBDictionary() {
         platform = "HerdDB";
-        forUpdateClause = "";
+        databaseProductName = "HerdDB";
+        supportsForeignKeys = false;
+        supportsUniqueConstraints = false;
+        supportsCascadeDeleteAction = false;
+
+        // make OpenJPA escape everything, because Calcite has a lot of reserved words, like 'User', 'Value'...
         setDelimitIdentifiers(true);
         setSupportsDelimitedIdentifiers(true);
         setLeadingDelimiter(DELIMITER_BACK_TICK);
         setTrailingDelimiter(DELIMITER_BACK_TICK);
-    }    
+    }
 
 }

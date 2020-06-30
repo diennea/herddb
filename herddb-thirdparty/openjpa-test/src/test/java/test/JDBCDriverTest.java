@@ -18,15 +18,15 @@
  *
  */
 package test;
+
+import static org.junit.Assert.assertEquals;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.util.Enumeration;
-import static org.junit.Assert.assertEquals;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
-import org.junit.Ignore;
 import org.junit.Test;
 import test.entity.User;
 
@@ -37,7 +37,6 @@ import test.entity.User;
 public class JDBCDriverTest {
 
     @Test
-    @Ignore
     public void hello() throws Exception {
 
 
@@ -47,7 +46,7 @@ public class JDBCDriverTest {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
             transaction.begin();
-            em.persist(new User(0, "First", "Something"));
+            em.persist(new User(0, "First", 10, "Something"));
             transaction.commit();
             em.close();
         }
