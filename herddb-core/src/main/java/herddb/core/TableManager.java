@@ -2070,8 +2070,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         Predicate predicate = get.getPredicate();
         boolean requireLock = get.isRequireLock();
+        boolean useWriteLock = requireLock && context.isForceAcquireWriteLock();
         long transactionId = transaction != null ? transaction.transactionId : 0;
-        LockHandle lock = (transaction != null || requireLock) ? lockForRead(key, transaction) : null;
+        LockHandle lock = (transaction != null || requireLock) ? (useWriteLock ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
         CompletableFuture<StatementExecutionResult> res = null;
         try {
             if (transaction != null) {
@@ -2894,6 +2895,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite
     ) throws StatementExecutionException {
+
+        forWrite = forWrite || context.isForceAcquireWriteLock();
+
         TupleComparator comparator = statement.getComparator();
         if (!ENABLE_STREAMING_DATA_SCANNER || (comparator != null
                 && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {

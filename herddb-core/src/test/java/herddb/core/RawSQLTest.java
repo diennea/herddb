@@ -29,7 +29,10 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -52,6 +55,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.CommitTransactionStatement;
@@ -226,6 +230,150 @@ public class RawSQLTest {
                     + "n1 decimal(18,0),"
                     + "n2 numeric(10,0))", Collections.emptyList());
 
+        }
+    }
+
+    @Test
+    public void selectForUpdate() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key, n1 int)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("a", 1));
+
+            // GET .. FOR UPDATE -> WRITE LOCK
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a' FOR UPDATE", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertTrue(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+            // GET .. -> READ LOCK
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertFalse(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+            // SCAN .. FOR UPDATE -> WRITE LOCK
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql FOR UPDATE", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertTrue(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+            // SCAN .. -> READ LOCK
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertFalse(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+
+            // test that locks are reentrant
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a' FOR UPDATE", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertTrue(lock.write);
+
+                long tx2;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a' FOR UPDATE", Collections.emptyList(), new TransactionContext(tx))) {
+                    assertEquals(1, scan.consume().size());
+                    tx2 = scan.getTransactionId();
+                }
+                assertEquals(tx2, tx);
+
+
+                Transaction transaction2 = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock2 = (herddb.utils.LockHandle) transaction2.locks.get("tsql").get(key);
+                System.out.println("LOCK2: " + lock2);
+                assertNotNull(lock2);
+                assertSame(lock2, lock);
+
+
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+            // test lock upgrade
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNotNull(lock);
+                assertFalse(lock.write);
+
+                long tx2;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a' FOR UPDATE", Collections.emptyList(), new TransactionContext(tx))) {
+                    assertEquals(1, scan.consume().size());
+                    tx2 = scan.getTransactionId();
+                }
+                assertEquals(tx2, tx);
+
+
+                Transaction transaction2 = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock2 = (herddb.utils.LockHandle) transaction2.locks.get("tsql").get(key);
+                System.out.println("LOCK2: " + lock2);
+                assertNotNull(lock2);
+                assertNotSame(lock2, lock);
+                assertTrue(lock2.write);
+
+                commitTransaction(manager, "tblspace1", tx);
+            }
         }
     }
 

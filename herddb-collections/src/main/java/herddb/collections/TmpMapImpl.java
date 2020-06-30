@@ -72,6 +72,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         private final V value;
 
         public PutStatementEvaluationContext(K key, V value) {
+            super(false);
             this.key = key;
             this.value = value;
         }
@@ -137,7 +138,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void close() {
         DropTableStatement drop = new DropTableStatement(TableSpace.DEFAULT, tmpTableName, true);
-        tableSpaceManager.executeStatement(drop, new StatementEvaluationContext(),
+        tableSpaceManager.executeStatement(drop, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                 herddb.model.TransactionContext.NO_TRANSACTION);
     }
 
@@ -196,7 +197,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     public void forEach(BiSink<K, V> sink) throws CollectionsException, SinkException {
 
         try (DataScanner dataScanner =
-                     tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                     tableSpaceManager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION,
                              false,
                              false)) {
             while (dataScanner.hasNext()) {
@@ -228,7 +229,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     public void clear() throws CollectionsException {
         try {
             tableSpaceManager.executeStatement(new TruncateTableStatement(tmpTableName, tmpTableName),
-                    new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION);
+                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         } catch (HerdDBInternalException err) {
             throw new CollectionsException(err);
         }
@@ -237,7 +238,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
     @Override
     public void forEachKey(Sink<K> sink) throws CollectionsException, SinkException {
         try (DataScanner dataScanner =
-                     tableSpaceManager.scan(scan, new StatementEvaluationContext(), TransactionContext.NO_TRANSACTION,
+                     tableSpaceManager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION,
                              false,
                              false)) {
             while (dataScanner.hasNext()) {
@@ -267,7 +268,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
             GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
                     false);
             GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                    new StatementEvaluationContext(),
+                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     herddb.model.TransactionContext.NO_TRANSACTION);
             if (!getResult.found()) {
                 return null;
@@ -285,7 +286,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
             GetStatement get = new GetStatement(TableSpace.DEFAULT, tmpTableName, Bytes.from_array(serializedKey), null,
                     false);
             GetResult getResult = (GetResult) tableSpaceManager.executeStatement(get,
-                    new StatementEvaluationContext(),
+                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                     herddb.model.TransactionContext.NO_TRANSACTION);
             return getResult.found();
         } catch (HerdDBInternalException err) {

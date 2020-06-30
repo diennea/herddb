@@ -232,16 +232,16 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
-                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
+                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, false));
             }
         }
         if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
             ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false));
         }
         if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
             ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false));
         }
 
         net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
@@ -252,7 +252,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (allowCache) {
             cache.put(cacheKey, executionPlan);
         }
-        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false));
 
     }
 
