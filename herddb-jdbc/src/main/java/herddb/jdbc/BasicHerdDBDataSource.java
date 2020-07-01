@@ -210,7 +210,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     protected synchronized void ensureConnection() throws SQLException {
-        ensureClient();
+         ensureClient();
     }
 
     public synchronized HDBClient getClient() {
@@ -230,7 +230,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
         try {
-            Connection res = pool.borrowObject();
+            Connection res = getPool().borrowObject();
             activeCount.incrementAndGet();
             return res;
         } catch (Exception err) {
@@ -296,7 +296,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     void releaseConnection(HerdDBConnection connection) {
-        pool.returnObject(connection);
+        getPool().returnObject(connection);
         if (activeCount.decrementAndGet() == 0) {
             performAutoClose();
         }
@@ -338,4 +338,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         }
 
     }
+
+    private synchronized GenericObjectPool<HerdDBConnection> getPool() {
+        return pool;
+    }
+
 }

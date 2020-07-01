@@ -15,9 +15,12 @@
  */
 package herddb.openjpa;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * OpenJPA DBDictionary for HerdDB.
  */
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_SUPERCLASS")
 public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
 
     private static final String DELIMITER_BACK_TICK = "`";

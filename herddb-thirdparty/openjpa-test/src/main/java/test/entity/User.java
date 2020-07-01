@@ -19,6 +19,7 @@
  */
 package test.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
@@ -31,7 +32,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
+@SuppressFBWarnings(value = {"UWF_UNWRITTEN_FIELD", "NP_BOOLEAN_RETURN_NULL"},
+        justification = " Unwritten field: test.entity.User.pcPCSuperclass [test.entity.User] "
+        + " test.entity.User.pcIsDetached() has Boolean return type and returns explicit null")
 public class User {
+
     @Id
     @GeneratedValue
     private long id;
