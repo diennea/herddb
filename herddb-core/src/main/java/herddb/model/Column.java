@@ -20,6 +20,8 @@
 
 package herddb.model;
 
+import herddb.utils.Bytes;
+
 /**
  * Definition of a column
  *
@@ -43,20 +45,31 @@ public class Column {
      * @see ColumnTypes
      */
     public final int type;
+    
+    /**
+     * Default values, pre-encoded
+     */
+    public final Bytes defaultValue;
 
-    private Column(String name, int type, int serialPosition) {
+    private Column(String name, int type, int serialPosition, Bytes defaultValue) {
         this.name = name;
         this.type = type;
         this.serialPosition = serialPosition;
+        this.defaultValue = defaultValue;
     }
 
     public static Column column(String name, int type) {
-        return new Column(name, type, -1);
+        return new Column(name, type, -1, null);
     }
 
     public static Column column(String name, int type, int serialPosition) {
-        return new Column(name, type, serialPosition);
+        return new Column(name, type, serialPosition, null);
     }
+    
+    public static Column column(String name, int type, int serialPosition, Bytes defaultValue) {
+        return new Column(name, type, serialPosition, defaultValue);
+    }
+    
     public  String getName(){
         return name;
     }

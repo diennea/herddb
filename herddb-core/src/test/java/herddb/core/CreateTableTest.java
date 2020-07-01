@@ -191,4 +191,5 @@ public class CreateTableTest {
             manager.executePlan(queryUpdate.plan, queryUpdate.context, TransactionContext.NO_TRANSACTION);
         }
     }
+
 }

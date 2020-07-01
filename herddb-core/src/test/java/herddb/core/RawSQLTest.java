@@ -2543,4 +2543,23 @@ public class RawSQLTest {
 
         }
     }
+    
+    @Test
+    public void createDefaultWithDefaultValues() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key default 'defaultstring',"
+                    + "n1 int default 13,"
+                    + "f1 float default 12.1,"
+                    + "s1 string default 'text',"
+                    + "b1 boolean default 'true',"
+                    + "d1 timestamp default CURRENT_TIMESTAMP"
+                    + ")", Collections.emptyList());
+        }
+    }
 }

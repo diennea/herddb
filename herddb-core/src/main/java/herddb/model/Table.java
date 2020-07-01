@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
 import herddb.sql.expressions.BindableTableScanColumnNameResolver;
+import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
@@ -176,13 +177,17 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             for (int i = 0; i < ncols; i++) {
                 long cversion = dii.readVLong(); // version
                 long cflags = dii.readVLong(); // flags for future implementations
-                if (cversion != 1 || cflags != 0) {
+                if (cversion != 1 || (cflags != 0 && cflags != 1)) {
                     throw new IOException("corrupted table file");
                 }
                 String cname = dii.readUTF();
                 int type = dii.readVInt();
                 int serialPosition = dii.readVInt();
-                columns[i] = Column.column(cname, type, serialPosition);
+                Bytes defaultValue = null;
+                if (cflags == 1) {
+                    defaultValue = dii.readBytes();
+                }
+                columns[i] = Column.column(cname, type, serialPosition, defaultValue);
             }
             return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
         } catch (IOException err) {
@@ -208,10 +213,17 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             doo.writeVInt(columns.length);
             for (Column c : columns) {
                 doo.writeVLong(1); // version
-                doo.writeVLong(0); // flags for future implementations
+                if (c.defaultValue != null) {
+                    doo.writeVLong(1); // flags for future implementations
+                } else {
+                    doo.writeVLong(0); // flags for future implementations
+                }
                 doo.writeUTF(c.name);
                 doo.writeVInt(c.type);
                 doo.writeVInt(c.serialPosition);
+                if (c.defaultValue != null) {
+                    doo.writeArray(c.defaultValue);
+                }
             }
         } catch (IOException ee) {
             throw new RuntimeException(ee);
@@ -439,6 +451,18 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
             this.columns.add(Column.column(_name, type, serialPosition));
+            return this;
+        }
+        
+        public Builder column(String name, int type, int serialPosition, Bytes defaultValue) {
+            if (name == null || name.isEmpty()) {
+                throw new IllegalArgumentException();
+            }
+            String _name = name.toLowerCase();
+            if (this.columns.stream().filter(c -> (c.name.equals(_name))).findAny().isPresent()) {
+                throw new IllegalArgumentException("column " + name + " already exists");
+            }
+            this.columns.add(Column.column(_name, type, serialPosition, defaultValue));
             return this;
         }
 
