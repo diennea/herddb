@@ -20,6 +20,7 @@
 
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
@@ -44,11 +45,13 @@ public class JdbcDriverLocalTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void test() throws Exception {
+    public void testNoAutoClose() throws Exception {
+
+        DriverManager.registerDriver(new Driver());
 
         Properties props = new Properties();
         props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
              Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
@@ -57,9 +60,29 @@ public class JdbcDriverLocalTest {
                 count++;
             }
             assertTrue(count > 0);
+            statement.execute("CREATE TABLE tt(k1 string primary key)");
+            statement.execute("INSERT INTO tt values('aa')");
         }
 
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM tt")) {
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            assertEquals(1, count);
+        }
+
+    }
+
+    @Test
+    public void testAutoClose() throws Exception {
+        DriverManager.registerDriver(new Driver());
+
+        Properties props = new Properties();
+        props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
              Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
@@ -68,6 +91,18 @@ public class JdbcDriverLocalTest {
                 count++;
             }
             assertTrue(count > 0);
+            statement.execute("CREATE TABLE tt(k1 string primary key)");
+            statement.execute("INSERT INTO tt values('aa')");
+        }
+
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM tt")) {
+            int count = 0;
+            while (rs.next()) {
+                count++;
+            }
+            assertEquals(1, count);
         }
 
     }

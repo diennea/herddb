@@ -27,6 +27,7 @@ import herddb.client.impl.MapListScanResultSet;
 import herddb.model.ColumnTypes;
 import herddb.model.TransactionContext;
 import herddb.utils.SQLUtils;
+import herddb.utils.Version;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -105,7 +106,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return "";
+        return Version.getVERSION();
     }
 
     @Override
@@ -115,17 +116,17 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return "0.0";
+        return Version.getVERSION();
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return 0;
+        return Version.getJDBC_DRIVER_MAJOR_VERSION();
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return 0;
+        return Version.getJDBC_DRIVER_MINOR_VERSION();
     }
 
     @Override

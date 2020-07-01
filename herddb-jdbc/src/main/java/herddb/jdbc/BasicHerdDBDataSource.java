@@ -26,11 +26,14 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.commons.pool2.PooledObject;
@@ -44,13 +47,15 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
  *
  * @author enrico.olivelli
  */
-public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
+public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseable, Closeable {
 
     protected HDBClient client;
     protected final Properties properties = new Properties();
     protected int loginTimeout;
     protected int maxActive = 200;
-
+    private boolean autoClose;
+    private final AtomicInteger activeCount = new AtomicInteger();
+    private Consumer<BasicHerdDBDataSource> onAutoClose = BasicHerdDBDataSource::close;
     private static final Logger LOGGER = Logger.getLogger(BasicHerdDBDataSource.class.getName());
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
@@ -184,6 +189,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             } catch (RuntimeException err) {
                 throw new SQLException(err);
             }
+            autoClose = clientConfiguration.getBoolean("autoClose", isAutoClose());
             if (properties.containsKey("discoverTableSpaceFromQuery")) {
                 this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
             }
@@ -204,7 +210,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     protected synchronized void ensureConnection() throws SQLException {
-        ensureClient();
+         ensureClient();
     }
 
     public synchronized HDBClient getClient() {
@@ -224,7 +230,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
         try {
-            return pool.borrowObject();
+            Connection res = getPool().borrowObject();
+            activeCount.incrementAndGet();
+            return res;
         } catch (Exception err) {
             throw new SQLException(err);
         }
@@ -267,6 +275,18 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         return false;
     }
 
+    public synchronized boolean isAutoClose() {
+        return autoClose;
+    }
+
+    public synchronized void setAutoClose(boolean autoClose) {
+        this.autoClose = autoClose;
+    }
+
+    public synchronized void setOnAutoClose(Consumer<BasicHerdDBDataSource> onAutoClose) {
+        this.onAutoClose = onAutoClose;
+    }
+
     @Override
     public synchronized void close() {
         if (client != null) {
@@ -276,7 +296,18 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     void releaseConnection(HerdDBConnection connection) {
-        pool.returnObject(connection);
+        getPool().returnObject(connection);
+        if (activeCount.decrementAndGet() == 0) {
+            performAutoClose();
+        }
+    }
+
+    private synchronized void performAutoClose() {
+        if (autoClose) {
+            if (onAutoClose != null) {
+                onAutoClose.accept(this);
+            }
+        }
     }
 
     private class ConnectionsFactory implements PooledObjectFactory<HerdDBConnection> {
@@ -307,4 +338,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         }
 
     }
+
+    private synchronized GenericObjectPool<HerdDBConnection> getPool() {
+        return pool;
+    }
+
 }

@@ -25,7 +25,7 @@ cache:
 jobs:
   include:
   - stage: test
-    jdk: oraclejdk11
+    jdk: openjdk11
     script: mvn checkstyle:check verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false jacoco:report coveralls:report spotbugs:check apache-rat:check
 
 branches:
