@@ -1104,8 +1104,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
-    private Bytes decodeDefaultValue(ColumnDefinition cf, int type) {
-        List<String> specs = cf.getColumnSpecStrings();
+    private static Bytes decodeDefaultValue(ColumnDefinition cf, int type) {
+        List<String> specs = cf.getColumnSpecs();
         if (specs == null || specs.isEmpty()) {
             return null;
         }
@@ -1121,35 +1121,62 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (defaultKeyWordPos < 0) {
             return null;
         }
-        if (defaultKeyWordPos == specs.size() -1) {
-             throw new StatementExecutionException("Bad default constraint specs: "+specs);
-         }
-         String defaultRepresentation = specs.get(defaultKeyWordPos + 1);
-         if (defaultRepresentation.isEmpty()) { // not possible
-             throw new StatementExecutionException("Bad default constraint specs: "+specs);
-         }
-         try {
-         switch (type) {
-             case ColumnTypes.STRING:
-             case ColumnTypes.NOTNULL_STRING:
-                 if (defaultRepresentation.length() <= 1) {
-                     throw new StatementExecutionException("Bad default constraint specs: "+specs);
-                 }
-                 if (!defaultRepresentation.startsWith("'") || !defaultRepresentation.endsWith("'") ) {
-                     throw new StatementExecutionException("Bad default constraint specs: "+specs);
-                 }
-                 // TODO: unescape values
-                 return Bytes.from_string(defaultRepresentation.substring(1, defaultRepresentation.length() - 1));
-             case ColumnTypes.INTEGER:
-             case ColumnTypes.NOTNULL_INTEGER:                 
-                 return Bytes.from_int(Integer.parseInt(defaultRepresentation));
-             default:
-                 throw new StatementExecutionException("Default not yet supported for columns of type "+ColumnTypes.typeToString(type));
-         }
-         } catch (IllegalArgumentException err) {
-             throw new StatementExecutionException("Bad default constraint specs: "+specs, err);
-         }
- 
+        if (defaultKeyWordPos == specs.size() - 1) {
+            throw new StatementExecutionException("Bad default constraint specs: " + specs);
+        }
+        String defaultRepresentation = specs.get(defaultKeyWordPos + 1);
+        if (defaultRepresentation.isEmpty()) { // not possible
+            throw new StatementExecutionException("Bad default constraint specs: " + specs);
+        }
+        if (defaultRepresentation.equalsIgnoreCase("null")) {
+            return null;
+        }
+        try {
+            switch (type) {
+                case ColumnTypes.STRING:
+                case ColumnTypes.NOTNULL_STRING:
+                    if (defaultRepresentation.length() <= 1) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    if (!defaultRepresentation.startsWith("'") || !defaultRepresentation.endsWith("'")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    // TODO: unescape values
+                    return Bytes.from_string(defaultRepresentation.substring(1, defaultRepresentation.length() - 1));
+                case ColumnTypes.INTEGER:
+                case ColumnTypes.NOTNULL_INTEGER:
+                    return Bytes.from_int(Integer.parseInt(defaultRepresentation));
+                case ColumnTypes.LONG:
+                case ColumnTypes.NOTNULL_LONG:
+                    return Bytes.from_long(Long.parseLong(defaultRepresentation));
+                case ColumnTypes.DOUBLE:
+                    // TODO: deal with Java Locale
+                    return Bytes.from_double(Double.parseDouble(defaultRepresentation));
+                case ColumnTypes.BOOLEAN:
+                    if (defaultRepresentation.length() <= 1) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    if (!defaultRepresentation.startsWith("'") || !defaultRepresentation.endsWith("'")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    defaultRepresentation = defaultRepresentation.substring(1, defaultRepresentation.length() - 1);
+                    if (!defaultRepresentation.equalsIgnoreCase("true")
+                            && !defaultRepresentation.equalsIgnoreCase("false")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    return Bytes.from_boolean(Boolean.parseBoolean(defaultRepresentation));
+                case ColumnTypes.TIMESTAMP:
+                    if (!defaultRepresentation.equalsIgnoreCase("current_timestamp")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    return Bytes.from_string("CURRENT_TIMESTAMP");
+                default:
+                    throw new StatementExecutionException("Default not yet supported for columns of type " + ColumnTypes.typeToString(type));
+            }
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException("Bad default constraint specs: " + specs, err);
+        }
+
     }
 
 }

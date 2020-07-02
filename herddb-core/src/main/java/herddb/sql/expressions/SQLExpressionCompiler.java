@@ -166,7 +166,8 @@ public class SQLExpressionCompiler {
             if (relDataType instanceof BasicSqlType) {
                 sqlTypeName = relDataType.getSqlTypeName();
             }
-            if (sqlTypeName == SqlTypeName.DECIMAL) {
+            if (sqlTypeName == SqlTypeName.DECIMAL
+                    || sqlTypeName == SqlTypeName.DOUBLE) {
                 return ((BigDecimal) value3).doubleValue();
             }
             return ((BigDecimal) value3).longValue();

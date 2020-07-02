@@ -54,7 +54,7 @@ public class SystemTablesTest {
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int default 18,s1 string)", Collections.emptyList());
             execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key,n1 long,s1 timestamp, b1 blob)", Collections.emptyList());
             execute(manager, "CREATE BRIN INDEX index1 on tblspace1.tsql2 (s1,b1)", Collections.emptyList());
             execute(manager, "CREATE HASH INDEX index2 on tblspace1.tsql2 (b1)", Collections.emptyList());
@@ -312,6 +312,7 @@ public class SystemTablesTest {
                                 && t.get("column_name").equals("n1")
                                 && t.get("data_type").equals("integer")
                                 && t.get("auto_increment").equals(0)
+                                && t.get("default_value").equals("18")
                         ).findAny().isPresent());
                 assertTrue(records.stream()
                         .filter(t

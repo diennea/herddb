@@ -47,6 +47,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             .column("data_type", ColumnTypes.STRING)
             .column("type_name", ColumnTypes.STRING)
             .column("auto_increment", ColumnTypes.INTEGER)
+            .column("default_value", ColumnTypes.STRING)
             .primaryKey("column_name", false)
             .primaryKey("table_name", false)
             .build();
@@ -64,6 +65,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
             for (Column c : t.columns) {
                 boolean pk = t.isPrimaryKeyColumn(c.name);
                 boolean nonNullCType = pk || ColumnTypes.isNotNullDataType(c.type);
+                String defaultValue = Column.defaultValueToString(c);
                 result.add(RecordSerializer.makeRecord(
                         table,
                         "table_name", t.name,
@@ -72,7 +74,8 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "is_nullable", nonNullCType ? DatabaseMetaData.columnNoNulls : DatabaseMetaData.columnNullable,
                         "data_type", ColumnTypes.sqlDataType(c.type),
                         "type_name", ColumnTypes.typeToString(c.type),
-                        "auto_increment", (pk && t.auto_increment) ? 1 : 0
+                        "auto_increment", (pk && t.auto_increment) ? 1 : 0,
+                        "default_value", defaultValue
                 ));
             }
         }

@@ -67,7 +67,6 @@ import herddb.model.planner.SortedBindableTableScanOp;
 import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
-import herddb.server.ServerSideScannerPeer;
 import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.CompiledEqualsExpression;
 import herddb.sql.expressions.ConstantExpression;
@@ -497,7 +496,7 @@ public class CalcitePlannerTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.test (k1 string primary key,"
-                    + "s1 string not null)", Collections.emptyList());
+                    + "s1 string not null default 'mydefault')", Collections.emptyList());
 
             execute(manager, "CREATE TABLE tblspace1.test22 (k1 string not null ,"
                     + "s1 string not null, n1 int, primary key(k1,n1))", Collections.emptyList());
@@ -510,14 +509,12 @@ public class CalcitePlannerTest {
                 ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
                 DataScanner dataScanner = scanResult.dataScanner;
 
-                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
-
                 String[] columns = dataScanner.getFieldNames();
                 List<DataAccessor> records = dataScanner.consume(2);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple) records.get(0);
-                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null,PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null DEFAULT 'mydefault',PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
             translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test22", Collections.emptyList(),
@@ -526,8 +523,6 @@ public class CalcitePlannerTest {
                     || translatedQuery.plan.mainStatement instanceof ScanStatement) {
                 ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
                 DataScanner dataScanner = scanResult.dataScanner;
-
-                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
 
                 String[] columns = dataScanner.getFieldNames();
                 List<DataAccessor> records = dataScanner.consume(2);
@@ -562,8 +557,6 @@ public class CalcitePlannerTest {
                     || translatedQuery.plan.mainStatement instanceof ScanStatement) {
                 ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
                 DataScanner dataScanner = scanResult.dataScanner;
-
-                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
 
                 String[] columns = dataScanner.getFieldNames();
                 List<DataAccessor> records = dataScanner.consume(2);
@@ -620,8 +613,6 @@ public class CalcitePlannerTest {
                     || translatedQuery.plan.mainStatement instanceof ScanStatement) {
                 ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
                 DataScanner dataScanner = scanResult.dataScanner;
-
-                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
 
                 String[] columns = dataScanner.getFieldNames();
                 List<DataAccessor> records = dataScanner.consume(2);

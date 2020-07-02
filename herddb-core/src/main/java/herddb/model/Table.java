@@ -453,7 +453,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             this.columns.add(Column.column(_name, type, serialPosition));
             return this;
         }
-        
+
         public Builder column(String name, int type, int serialPosition, Bytes defaultValue) {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException();

@@ -29,4 +29,6 @@ public interface ScanLimits {
 
     int computeOffset(StatementEvaluationContext context) throws StatementExecutionException;
 
+    // this is to break circular dependencies with referenced ScanStatements
+    String toStringForScan();
 }

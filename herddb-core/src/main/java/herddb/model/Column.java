@@ -45,9 +45,10 @@ public class Column {
      * @see ColumnTypes
      */
     public final int type;
-    
+
     /**
-     * Default values, pre-encoded
+     * Default values, pre-encoded.
+     * For timestamp columns it may be the 'CURRENT_TIMESTAMP' string
      */
     public final Bytes defaultValue;
 
@@ -65,11 +66,11 @@ public class Column {
     public static Column column(String name, int type, int serialPosition) {
         return new Column(name, type, serialPosition, null);
     }
-    
+
     public static Column column(String name, int type, int serialPosition, Bytes defaultValue) {
         return new Column(name, type, serialPosition, defaultValue);
     }
-    
+
     public  String getName(){
         return name;
     }
@@ -77,6 +78,29 @@ public class Column {
     @Override
     public String toString() {
         return "{" + "name=" + name + ", type=" + type + '}';
+    }
+
+    public static String defaultValueToString(Column c) {
+        if (c.defaultValue == null) {
+            return "NULL";
+        }
+        switch (c.type) {
+            case ColumnTypes.BOOLEAN:
+                return "'" + c.defaultValue.to_boolean() + "'";
+            case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
+                return c.defaultValue.to_int() + "";
+            case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
+                return c.defaultValue.to_long() + "";
+            case ColumnTypes.DOUBLE:
+                return c.defaultValue.to_double() + "";
+            case ColumnTypes.TIMESTAMP:
+                // expected only CURRENT_TIMESTAMP currently
+                return c.defaultValue.to_string();
+            default:
+                return "NULL";
+        }
     }
 
 }
