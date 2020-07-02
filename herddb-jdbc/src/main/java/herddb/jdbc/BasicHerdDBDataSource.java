@@ -63,6 +63,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     private int waitForTableSpaceTimeout = 60000;
     private boolean discoverTableSpaceFromQuery = true;
     private HDBConnection connection;
+    private boolean poolConnections = true;
     private GenericObjectPool<HerdDBConnection> pool;
 
     private synchronized HDBConnection getHDBConnection() {
@@ -163,6 +164,14 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         this.url = url;
     }
 
+    public synchronized boolean isPoolConnections() {
+        return poolConnections;
+    }
+
+    public synchronized void setPoolConnections(boolean poolConnections) {
+        this.poolConnections = poolConnections;
+    }
+
     public Properties getProperties() {
         return properties;
     }
@@ -196,16 +205,21 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             client = new HDBClient(clientConfiguration);
         }
         if (pool == null) {
+            poolConnections = Boolean.parseBoolean(properties.getProperty("poolConnections", poolConnections + ""));
             if (properties.containsKey("maxActive")) {
-                this.maxActive = Integer.parseInt(properties.get("maxActive").toString());
+                this.maxActive = Integer.parseInt(properties.getProperty("maxActive", maxActive + ""));
             }
-            GenericObjectPoolConfig config = new GenericObjectPoolConfig();
-            config.setBlockWhenExhausted(true);
-            config.setMaxTotal(maxActive);
-            config.setMaxIdle(maxActive);
-            config.setMinIdle(maxActive / 2);
-            config.setJmxNamePrefix("HerdDBClient");
-            pool = new GenericObjectPool<>(new ConnectionsFactory(), config);
+            if (!poolConnections) {
+                pool = null;
+            } else {
+                GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+                config.setBlockWhenExhausted(true);
+                config.setMaxTotal(maxActive);
+                config.setMaxIdle(maxActive);
+                config.setMinIdle(maxActive / 2);
+                config.setJmxNamePrefix("HerdDBClient");
+                pool = new GenericObjectPool<>(new ConnectionsFactory(), config);
+            }
         }
     }
 
@@ -226,11 +240,20 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         return getConnection(null, null);
     }
 
+    private HerdDBConnection makeConnection() throws SQLException {
+        return new HerdDBConnection(BasicHerdDBDataSource.this, getHDBConnection(), defaultSchema);
+    }
+
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
         try {
-            Connection res = getPool().borrowObject();
+            Connection res;
+            if (!isPoolConnections()) {
+                res = makeConnection();
+            } else {
+                res = getPool().borrowObject();
+            }
             activeCount.incrementAndGet();
             return res;
         } catch (Exception err) {
@@ -296,7 +319,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     void releaseConnection(HerdDBConnection connection) {
-        getPool().returnObject(connection);
+        if (isPoolConnections()) {
+            getPool().returnObject(connection);
+        }
         if (activeCount.decrementAndGet() == 0) {
             performAutoClose();
         }
@@ -314,7 +339,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
         @Override
         public PooledObject<HerdDBConnection> makeObject() throws Exception {
-            HerdDBConnection res = new HerdDBConnection(BasicHerdDBDataSource.this, getHDBConnection(), defaultSchema);
+            HerdDBConnection res = makeConnection();
             return new DefaultPooledObject<>(res);
         }
 

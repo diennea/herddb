@@ -19,6 +19,8 @@
  */
 package herddb.jdbc;
 
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
@@ -83,7 +85,45 @@ public class JdbcDriverTest {
     }
 
     @Test
-    public void testResuseConnections() throws Exception {
+    public void testNotPoolSQLConnectionsInJDBCDriverByDefault() throws Exception {
+        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        try (Server server = new Server(conf)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            Connection connection1;
+            Connection connection2;
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");) {
+                connection1 = connection;
+            }
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");) {
+                connection2 = connection;
+            }
+            assertNotSame(connection1, connection2);
+        }
+    }
+
+    @Test
+    public void testForcePoolSQLConnectionsInJDBCDriver() throws Exception {
+        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        try (Server server = new Server(conf)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            Connection connection1;
+            Connection connection2;
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?poolConnections=true");) {
+                connection1 = connection;
+            }
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?poolConnections=true");) {
+                connection2 = connection;
+            }
+            assertSame(connection1, connection2);
+        }
+    }
+
+    @Test
+    public void testReuseSocketConnections() throws Exception {
 
         ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
         conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
