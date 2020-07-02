@@ -249,7 +249,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         });
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.INFO, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
-        if (address.isUnresolved()) {
+        if (enableRealNetwork && address.isUnresolved()) {
             throw new IOException("Bind address " + host + ":" + port + " cannot be resolved");
         }
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {

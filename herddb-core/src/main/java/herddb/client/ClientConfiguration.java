@@ -191,8 +191,15 @@ public class ClientConfiguration {
             }
             set(PROPERTY_SERVER_ADDRESS, host);
             set(PROPERTY_SERVER_PORT, port);
-        } else if (before.startsWith("jdbc:herddb:local:")) {
+        } else if (before.startsWith("jdbc:herddb:local")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
+            if (before.startsWith("jdbc:herddb:local:")) {
+                String databaseId = before.substring("jdbc:herddb:local:".length() + 1).trim().toLowerCase();
+                if (!databaseId.isEmpty()) {
+                    set(PROPERTY_SERVER_ADDRESS, databaseId);
+                    set(PROPERTY_SERVER_PORT, 0);
+                }
+            }
         }
         if (questionMark < url.length()) {
             String qs = url.substring(questionMark + 1);
