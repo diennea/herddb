@@ -350,7 +350,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 String columnName = fixMySqlBackTicks(cf.getColumnName().toLowerCase());
                 int type;
                 String dataType = cf.getColDataType().getDataType();
-                List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecStrings());
+                List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecs());
                 type = sqlDataTypeToColumnType(dataType,
                         cf.getColDataType().getArgumentsStringList(), columnSpecs);
 
