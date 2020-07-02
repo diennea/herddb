@@ -107,6 +107,28 @@ public class JdbcDriverLocalTest {
 
     }
 
+
+    @Test
+    public void testNamedMemoryDB() throws Exception {
+        DriverManager.registerDriver(new Driver());
+
+        Properties props = new Properties();
+        props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
+
+        Properties props2 = new Properties();
+        props2.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
+
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local:db1", props);
+                Connection connection2 = DriverManager.getConnection("jdbc:herddb:local:db2", props);
+             Statement statement1 = connection.createStatement();
+                Statement statement2 = connection2.createStatement();) {
+            // databases are totally independent from each other
+            statement1.execute("CREATE TABLE tt(k1 string primary key)");
+            statement2.execute("CREATE TABLE tt(k1 string primary key)");
+        }
+
+    }
+
     @After
     public void destroy() throws Exception {
         for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
