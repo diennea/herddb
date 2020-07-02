@@ -169,6 +169,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     public synchronized void setPoolConnections(boolean poolConnections) {
+        if (client != null || pool != null) {
+            throw new IllegalStateException("Cannot set poolConections=" + poolConnections + " once bootstrap is completed");
+        }
         this.poolConnections = poolConnections;
     }
 
