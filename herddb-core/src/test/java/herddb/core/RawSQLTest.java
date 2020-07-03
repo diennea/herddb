@@ -2360,16 +2360,17 @@ public class RawSQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
 
-            execute(manager, "CREATE INDEX `ix1` ON tblspace1.`tsql`(`n1`,`s1`)", Collections.emptyList());
+            execute(manager, "CREATE INDEX `ix1` ON `tblspace1`.`tsql`(`n1`,`s1`)", Collections.emptyList());
 
 
             try {
-            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
+                executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
                 fail("nulls are not allowed on indexed columns");
             } catch (StatementExecutionException ok) {
             }
 
-            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", 213));
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", 213, "a"));
+
             try {
                 executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey"));
                 fail("nulls are not allowed on indexed columns");
@@ -2377,7 +2378,7 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
-                assertEquals(2, scan.consume().size());
+                assertEquals(1, scan.consume().size());
             }
         }
     }
