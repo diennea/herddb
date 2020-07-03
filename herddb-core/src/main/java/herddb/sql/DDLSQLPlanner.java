@@ -373,7 +373,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
 
             if (!foundPk) {
-                tablebuilder.column("_pk", ColumnTypes.LONG, position++);
+                tablebuilder.column("_pk", ColumnTypes.LONG, position++, null);
                 tablebuilder.primaryKey("_pk", true);
             }
 
@@ -909,11 +909,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
                     List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
-                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), sqlDataTypeToColumnType(
+                    int type = sqlDataTypeToColumnType(
                             cl.getColDataType().getDataType(),
                             cl.getColDataType().getArgumentsStringList(),
                             columnSpecs
-                    ));
+                    );
+                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), type, decodeDefaultValue(cl, type));
                     addColumns.add(newColumn);
                 }
             }
@@ -982,7 +983,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             changeAutoIncrement = new_auto_increment;
                         }
                     }
-                    Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                    Bytes newDefault = oldColumn.defaultValue;
+                    if (containsDefaultClause(cl)) {
+                        newDefault = decodeDefaultValue(cl, newType);
+                    }
+                    Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition, newDefault);
                     modifyColumns.add(newColumnDef);
                 }
             }
@@ -1050,7 +1055,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (renameTo != null) {
                     columnName = renameTo;
                 }
-                Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition, oldColumn.defaultValue);
                 modifyColumns.add(newColumnDef);
             }
 
@@ -1102,6 +1107,20 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
         String tableName = fixMySqlBackTicks(truncate.getTable().getName().toLowerCase());
         return new TruncateTableStatement(tableSpace, tableName);
+    }
+
+
+    private static boolean containsDefaultClause(ColumnDefinition cf) {
+        List<String> specs = cf.getColumnSpecs();
+        if (specs == null || specs.isEmpty()) {
+            return false;
+        }
+        for (String spec : specs) {
+            if (spec.equalsIgnoreCase("default")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Bytes decodeDefaultValue(ColumnDefinition cf, int type) {

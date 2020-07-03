@@ -21,6 +21,7 @@
 package herddb.model;
 
 import herddb.utils.Bytes;
+import java.util.Objects;
 
 /**
  * Definition of a column
@@ -63,6 +64,10 @@ public class Column {
         return new Column(name, type, -1, null);
     }
 
+    public static Column column(String name, int type, Bytes defaultValue) {
+        return new Column(name, type, -1, defaultValue);
+    }
+
     public static Column column(String name, int type, int serialPosition) {
         return new Column(name, type, serialPosition, null);
     }
@@ -101,6 +106,40 @@ public class Column {
             default:
                 return "NULL";
         }
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 43 * hash + Objects.hashCode(this.name);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Column other = (Column) obj;
+        if (this.serialPosition != other.serialPosition) {
+            return false;
+        }
+        if (this.type != other.type) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.defaultValue, other.defaultValue)) {
+            return false;
+        }
+        return true;
     }
 
 }
