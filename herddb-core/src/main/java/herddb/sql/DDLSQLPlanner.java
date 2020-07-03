@@ -451,7 +451,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
             }
             for (String columnName : s.getIndex().getColumnsNames()) {
-                columnName = columnName.toLowerCase();
+                columnName = fixMySqlBackTicks(columnName.toLowerCase());
                 Column column = tableDefinition.getTable().getColumn(columnName);
                 if (column == null) {
                     throw new StatementExecutionException(

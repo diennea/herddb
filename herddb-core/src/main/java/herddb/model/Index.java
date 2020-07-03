@@ -59,6 +59,13 @@ public class Index implements ColumnsList {
         return columnNames;
     }
 
+    @Override
+    public boolean allowNullsForIndexedValues() {
+        // for single column indexes we can support null values
+        // they usually won't be indexed, but this fact depends on the index implemention.
+        return columnNames.length == 1;
+    }
+
     private Index(
             String uuid,
             String name, String table, String tablespace, String type, Column[] columns

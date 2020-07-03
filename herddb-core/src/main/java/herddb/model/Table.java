@@ -239,6 +239,13 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return primaryKey;
     }
 
+    @Override
+    public boolean allowNullsForIndexedValues() {
+        // this refers to the PK, the PK cannot be NULL
+        return false;
+    }
+
+
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {
         int new_maxSerialPosition = this.maxSerialPosition;
         String newTableName = alterTableStatement.getNewTableName() != null ? alterTableStatement.getNewTableName().toLowerCase()

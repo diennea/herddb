@@ -273,6 +273,9 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
     @Override
     public void recordDeleted(Bytes key, Bytes indexKey) {
+        if (indexKey == null) {
+            return;
+        }
         removeValueFromIndex(indexKey, key);
     }
 
@@ -289,6 +292,9 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
     @Override
     public void recordInserted(Bytes key, Bytes indexKey) {
+        if (indexKey == null) {
+            return;
+        }
         addValueToIndex(indexKey, key);
     }
 

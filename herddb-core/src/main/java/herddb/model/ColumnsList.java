@@ -32,4 +32,6 @@ public interface ColumnsList {
     Column getColumn(String name);
 
     String[] getPrimaryKey();
+
+    boolean allowNullsForIndexedValues();
 }
