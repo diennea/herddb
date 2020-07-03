@@ -36,6 +36,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.IllegalDataAccessException;
 import herddb.utils.RawString;
@@ -294,6 +295,14 @@ public class AlterTableSQLTest {
             assertEquals(1, table.getColumn("n2").serialPosition);
             assertNull(table.getColumn("n2").defaultValue);
             assertEquals(2, table.getColumn("s1").serialPosition);
+
+            execute(manager, "ALTER TABLE tblspace1.tsql add mydate timestamp default CURRENT_TIMESTAMP", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n2").serialPosition);
+            assertNull(table.getColumn("n2").defaultValue);
+            assertEquals(3, table.getColumn("mydate").serialPosition);
+            assertEquals(Bytes.from_string("CURRENT_TIMESTAMP"), table.getColumn("mydate").defaultValue);
 
         }
     }
