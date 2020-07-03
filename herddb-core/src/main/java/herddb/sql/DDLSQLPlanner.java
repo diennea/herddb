@@ -433,9 +433,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String tableName = s.getTable().getName().toLowerCase();
+            tableSpace = fixMySqlBackTicks(tableSpace);
+            String tableName = fixMySqlBackTicks(s.getTable().getName().toLowerCase());
 
-            String indexName = s.getIndex().getName().toLowerCase();
+            String indexName = fixMySqlBackTicks(s.getIndex().getName().toLowerCase());
             String indexType = convertIndexType(s.getIndex().getType());
 
             herddb.model.Index.Builder builder = herddb.model.Index
@@ -451,7 +452,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
             }
             for (String columnName : s.getIndex().getColumnsNames()) {
-                columnName = columnName.toLowerCase();
+                columnName = fixMySqlBackTicks(columnName.toLowerCase());
                 Column column = tableDefinition.getTable().getColumn(columnName);
                 if (column == null) {
                     throw new StatementExecutionException(

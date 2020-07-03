@@ -247,7 +247,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
+        LOGGER.log(Level.INFO, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
 
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
 
@@ -256,7 +256,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             this.data.boot(BlockRangeIndexMetadata.empty());
-            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+            LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{index.name});
 
             return true;
         } else {
@@ -301,7 +301,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             recordInserted(key, indexKey);
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1}", new Object[]{index.name, (_stop - _start) + " ms"});
+        LOGGER.log(Level.INFO, "rebuilding index {0} took {1}", new Object[]{index.name, (_stop - _start) + " ms"});
     }
 
     @Override
@@ -418,11 +418,17 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void recordDeleted(Bytes key, Bytes indexKey) {
+        if (indexKey == null) {
+            return;
+        }
         data.delete(indexKey, key);
     }
 
     @Override
     public void recordInserted(Bytes key, Bytes indexKey) {
+        if (indexKey == null) {
+            return;
+        }
         data.put(indexKey, key);
     }
 

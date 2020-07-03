@@ -1095,7 +1095,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
-                    RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                 }
             } catch (IllegalArgumentException err) {
                 return FutureUtils.exception(new StatementExecutionException(err.getMessage(), err));
@@ -1230,7 +1230,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (indexes != null) {
                             DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
                             for (AbstractIndexManager index : indexes.values()) {
-                                RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                                RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                             }
                         }
                     } catch (IllegalArgumentException | StatementExecutionException err) {

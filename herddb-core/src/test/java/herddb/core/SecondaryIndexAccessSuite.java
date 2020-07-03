@@ -170,6 +170,8 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('c',2,5,'n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',2,5,'n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',3,5,'n2')", Collections.emptyList());
+            // since 0.17.0 NULL values are allowed in single-column indexes
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('f',null,5,'n2')", Collections.emptyList());
 
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
@@ -290,6 +292,65 @@ public abstract class SecondaryIndexAccessSuite {
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
                     assertEquals(5, scan1.consume().size());
+                }
+            }
+
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                // no index here
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is not null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                // no index here
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(5, scan1.consume().size());
+                }
+            }
+
+            // update NULL value, set a non null value
+            TestUtils.executeUpdate(manager, "UPSERT INTO tblspace1.t1(id,n1,n2,name) values('f',4,5,'n2')", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=4", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+            // set NULL again
+            TestUtils.executeUpdate(manager, "UPSERT INTO tblspace1.t1(id,n1,n2,name) values('f',null,5,'n2')", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+            // delete record that contains NULL
+            TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 where n1 is null", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(0, scan1.consume().size());
                 }
             }
         }

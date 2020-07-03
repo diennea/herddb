@@ -20,7 +20,6 @@
 
 package herddb.core;
 
-import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
@@ -2319,7 +2318,7 @@ public class RawSQLTest {
     }
 
     @Test
-    public void createNullNotIndexable() throws Exception {
+    public void allowNullsInSingleColumnSecondaryIndexes() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
@@ -2329,7 +2328,40 @@ public class RawSQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
 
-            execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+            execute(manager, "CREATE INDEX `ix1` ON tblspace1.tsql(`n1`)", Collections.emptyList());
+
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
+
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", 213));
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey2"));
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
+                assertEquals(0, scan.consume().size());
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 is null", Arrays.asList())) {
+                assertEquals(2, scan.consume().size());
+            }
+        }
+    }
+
+     @Test
+    public void createNullNotIndexableInMultiColumnIndex() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX `ix1` ON `tblspace1`.`tsql`(`n1`,`s1`)", Collections.emptyList());
+
 
             try {
                 executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
@@ -2337,31 +2369,16 @@ public class RawSQLTest {
             } catch (StatementExecutionException ok) {
             }
 
-            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", 213));
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", 213, "a"));
+
             try {
                 executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey"));
                 fail("nulls are not allowed on indexed columns");
             } catch (StatementExecutionException ok) {
             }
 
-            long tx = beginTransaction(manager, "tblspace1");
-            // now during a transaction
-            try {
-                executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", null), new TransactionContext(tx));
-                fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok) {
-            }
-
-            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", 213), new TransactionContext(tx));
-            try {
-                executeUpdate(manager, "UPDATE tblspace1.tsql set n1=null where k1 = ?", Arrays.asList("mykey2"), new TransactionContext(tx));
-                fail("nulls are not allowed on indexed columns");
-            } catch (StatementExecutionException ok) {
-            }
-            commitTransaction(manager, "tblspace1", tx);
-
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
-                assertEquals(2, scan.consume().size());
+                assertEquals(1, scan.consume().size());
             }
         }
     }

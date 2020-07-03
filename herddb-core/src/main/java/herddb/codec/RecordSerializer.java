@@ -826,6 +826,9 @@ public final class RecordSerializer {
             Column c = table.getColumn(pkColumn);
             Object v = record.get(c.name);
             if (v == null) {
+                if (table.allowNullsForIndexedValues()) {
+                    return null;
+                }
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
             byte[] fieldValue = serialize(v, c.type);
@@ -860,19 +863,19 @@ public final class RecordSerializer {
      * } but without return a value and/or creating temporary byte[]
      *
      * @param record
-     * @param table
+     * @param indexDefinition
      * @param columns
      */
-    public static void validatePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
-        String[] primaryKey = table.getPrimaryKey();
-        if (primaryKey.length == 1) {
-            String pkColumn = primaryKey[0];
+    public static void validateIndexableValue(DataAccessor record, ColumnsList indexDefinition, String[] columns) {
+        String[] columnListForIndex = indexDefinition.getPrimaryKey();
+        if (columnListForIndex.length == 1) {
+            String pkColumn = columnListForIndex[0];
             if (columns.length != 1 && !columns[0].equals(pkColumn)) {
                 throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(pkColumn));
             }
-            Column c = table.getColumn(pkColumn);
+            Column c = indexDefinition.getColumn(pkColumn);
             Object v = record.get(c.name);
-            if (v == null) {
+            if (v == null && !indexDefinition.allowNullsForIndexedValues()) {
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
             validate(v, c.type);
@@ -880,12 +883,12 @@ public final class RecordSerializer {
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
             int i = 0;
             for (String pkColumn : columns) {
-                if (!pkColumn.equals(primaryKey[i])) {
-                    throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(primaryKey));
+                if (!pkColumn.equals(columnListForIndex[i])) {
+                    throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(columnListForIndex));
                 }
-                Column c = table.getColumn(pkColumn);
+                Column c = indexDefinition.getColumn(pkColumn);
                 Object v = record.get(c.name);
-                if (v == null) {
+                if (v == null && !indexDefinition.allowNullsForIndexedValues()) {
                     throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
                 }
                 validate(v, c.type);
