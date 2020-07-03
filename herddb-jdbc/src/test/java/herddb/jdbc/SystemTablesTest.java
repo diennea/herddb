@@ -67,7 +67,7 @@ public class SystemTablesTest {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE INDEX mytableindex ON mytable(name)");
                     statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string not null, ts timestamp)");
-                    statement.execute("CREATE TABLE mytable3 (n2 int primary key auto_increment, age int not null, phone long not null, salary double, married bool)");
+                    statement.execute("CREATE TABLE mytable3 (n2 int primary key auto_increment, age int not null default 99, phone long not null, salary double, married bool)");
 
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
@@ -183,6 +183,7 @@ public class SystemTablesTest {
                         assertTrue(records.stream().filter(s
                                 -> s.contains("age") && s.contains(Types.INTEGER + "")
                                 && s.contains("integer not null")
+                                && s.contains("99")
                         ).findAny().isPresent());
 
                         assertTrue(records.stream().filter(s
