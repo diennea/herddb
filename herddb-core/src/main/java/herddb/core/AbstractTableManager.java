@@ -75,7 +75,7 @@ public interface AbstractTableManager extends AutoCloseable {
      */
     boolean isStarted();
 
-    void start() throws DataStorageManagerException;
+    void start(boolean created) throws DataStorageManagerException;
 
     @Override
     void close();

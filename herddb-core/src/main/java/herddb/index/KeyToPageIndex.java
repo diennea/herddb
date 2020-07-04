@@ -53,7 +53,7 @@ public interface KeyToPageIndex extends AutoCloseable {
     default void init() throws DataStorageManagerException {
     }
 
-    void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    void start(LogSequenceNumber sequenceNumber, boolean created) throws DataStorageManagerException;
 
     @Override
     void close();

@@ -488,7 +488,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
-    public void start() throws DataStorageManagerException {
+    public void start(boolean created) throws DataStorageManagerException {
 
         Map<Long, DataPageMetaData> activePagesAtBoot = new HashMap<>();
         dataStorageManager.initTable(tableSpaceUUID, table.uuid);
@@ -498,32 +498,42 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();
 
         if (requireLoadAtStartup) {
-            // non persistent primary key index, we need a full table scan
-            LOGGER.log(Level.INFO, "loading in memory all the keys for table {0}", new Object[]{table.name});
-            dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
-                    new FullTableScanConsumer() {
+            if (created) {
+                // this is a fresh new table, with in memory key-to-page
+                TableStatus tableStatus = new TableStatus(table.uuid, LogSequenceNumber.START_OF_TIME,
+                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
+                nextPageId = tableStatus.nextPageId;
+                bootSequenceNumber = tableStatus.sequenceNumber;
+                activePagesAtBoot.putAll(tableStatus.activePages);
+            } else {
+                // non persistent primary key index, we need a full table scan
+                LOGGER.log(Level.INFO, "loading in memory all the keys for table {0}", new Object[]{table.name});
+                dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
+                        new FullTableScanConsumer() {
 
-                        @Override
-                        public void acceptTableStatus(TableStatus tableStatus) {
-                            LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
-                            nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
-                            nextPageId = tableStatus.nextPageId;
-                            bootSequenceNumber = tableStatus.sequenceNumber;
-                            activePagesAtBoot.putAll(tableStatus.activePages);
+                    @Override
+                    public void acceptTableStatus(TableStatus tableStatus) {
+                        LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
+                        nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
+                        nextPageId = tableStatus.nextPageId;
+                        bootSequenceNumber = tableStatus.sequenceNumber;
+                        activePagesAtBoot.putAll(tableStatus.activePages);
+                    }
+
+                    @Override
+                    public void acceptPage(long pageId, List<Record> records) {
+                        for (Record record : records) {
+                            keyToPage.put(record.key.nonShared(), pageId, null /* PK is empty */);
                         }
+                    }
 
-                        @Override
-                        public void acceptPage(long pageId, List<Record> records) {
-                            for (Record record : records) {
-                                keyToPage.put(record.key.nonShared(), pageId, null /* PK is empty */);
-                            }
-                        }
+                    @Override
+                    public void endTable() {
+                    }
 
-                        @Override
-                        public void endTable() {
-                        }
-
-                    });
+                });
+            }
         } else {
             LOGGER.log(Level.INFO, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
@@ -535,16 +545,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             bootSequenceNumber = tableStatus.sequenceNumber;
             activePagesAtBoot.putAll(tableStatus.activePages);
         }
-        keyToPage.start(bootSequenceNumber);
+        keyToPage.start(bootSequenceNumber, created);
 
         dataStorageManager.cleanupAfterTableBoot(tableSpaceUUID, table.uuid, activePagesAtBoot.keySet());
 
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
         initNewPages();
-        LOGGER.log(Level.INFO, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
-                new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
-
+        if (!created) {
+            LOGGER.log(Level.INFO, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
+                    new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
+        }
         started = true;
     }
 

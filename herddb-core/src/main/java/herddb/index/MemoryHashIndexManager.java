@@ -130,7 +130,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
+        LOGGER.log(Level.INFO, "building index {0}", index.name);
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.clear();
         Table table = tableManager.getTable();
@@ -142,7 +142,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             recordInserted(key, indexKey);
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
+        LOGGER.log(Level.INFO, "building index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
     }
 
     @Override

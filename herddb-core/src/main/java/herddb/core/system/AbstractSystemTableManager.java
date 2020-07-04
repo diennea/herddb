@@ -137,7 +137,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void start() throws DataStorageManagerException {
+    public void start(boolean created) throws DataStorageManagerException {
     }
 
     @Override
