@@ -25,6 +25,7 @@ import herddb.network.SendResultCallback;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.local.LocalChannel;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
@@ -215,6 +216,11 @@ public class NettyChannel extends Channel {
     public boolean isValid() {
         io.netty.channel.Channel _socket = socket;
         return _socket != null && _socket.isOpen() && !ioErrors;
+    }
+
+    @Override
+    public boolean isLocalChannel() {
+        return socket instanceof LocalChannel;
     }
 
     private volatile boolean closed = false;

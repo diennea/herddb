@@ -43,7 +43,7 @@ public class JDBCBoostrapTest {
                 Statement statement = connection.createStatement();) {
             long _boot = System.currentTimeMillis();
             System.out.println("Total time BOOT: " + (_boot - _start) + " ms");
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 40; i++) {
                 String tableName = "tt" + i;
                 String indexName = tableName + "ix";
                 statement.execute("CREATE TABLE " + tableName + "(k1 string primary key, n1 int not null)");
@@ -52,5 +52,6 @@ public class JDBCBoostrapTest {
         }
         long _end = System.currentTimeMillis();
         System.out.println("Total time OVER: " + (_end - _start) + " ms");
+
     }
 }

@@ -248,7 +248,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
         });
         InetSocketAddress address = new InetSocketAddress(host, port);
-        LOGGER.log(Level.INFO, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
+        if (enableRealNetwork) {
+            LOGGER.log(Level.INFO, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
+        }
         if (enableRealNetwork && address.isUnresolved()) {
             throw new IOException("Bind address " + host + ":" + port + " cannot be resolved");
         }
@@ -295,8 +297,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         }
 
         if (enableJVMNetwork) {
-            localBossGroup = new DefaultEventLoopGroup(workerThreads);
-            localWorkerGroup = new DefaultEventLoopGroup(workerThreads);
+            localBossGroup = localWorkerGroup = new DefaultEventLoopGroup();
             ServerBootstrap b_local = new ServerBootstrap();
             b_local.group(localBossGroup, localWorkerGroup)
                     .channel(LocalServerChannel.class)

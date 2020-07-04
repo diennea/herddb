@@ -112,7 +112,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
         LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
         currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber, false);
         for (Index index : dumpedTable.indexes) {
-            tableSpaceManager.bootIndex(index, currentTable, 0, false, true);
+            tableSpaceManager.bootIndex(index, currentTable, false, 0, false, true);
         }
     }
 

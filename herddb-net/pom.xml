@@ -39,6 +39,9 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-epoll</artifactId>
+            <!-- must repeat version, otherwise NetBeans is not happy -->
+            <version>${libs.netty4}</version>
+            <classifier>linux-x86_64</classifier>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>

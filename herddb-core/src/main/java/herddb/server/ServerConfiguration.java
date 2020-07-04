@@ -409,13 +409,19 @@ public final class ServerConfiguration {
             set(PROPERTY_PORT, port);
         } else if (before.startsWith("jdbc:herddb:local")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
+            set(PROPERTY_NODEID, "local");
             if (before.startsWith("jdbc:herddb:local:")) {
                 String databaseId = before.substring("jdbc:herddb:local:".length() + 1).trim().toLowerCase();
                 if (!databaseId.isEmpty()) {
                     set(PROPERTY_HOST, databaseId);
                     set(PROPERTY_PORT, 0);
+                    set(PROPERTY_NODEID, databaseId);
                 }
             }
+            set(ServerConfiguration.PROPERTY_JMX_ENABLE, false);
+            set(PROPERTY_NETWORK_CALLBACK_THREADS, 4);
+            set(PROPERTY_NETWORK_WORKER_THREADS, 4);
+            set(PROPERTY_ASYNC_WORKER_THREADS, 4);
         }
         if (questionMark < url.length()) {
             String qs = url.substring(questionMark + 1);

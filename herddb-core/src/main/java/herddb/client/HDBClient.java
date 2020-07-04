@@ -72,6 +72,7 @@ public class HDBClient implements AutoCloseable {
         this.statsLogger = statsLogger.scope("hdbclient");
 
         int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT);
+        boolean connectRemoteServers = configuration.getBoolean(ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER_DEFAULT);
         this.maxOperationRetryCount = configuration.getInt(ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT, ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT_DEFAULT);
         this.operationRetryDelay = configuration.getInt(ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY, ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY_DEFAULT);
         this.thredpool = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE,
@@ -82,7 +83,7 @@ public class HDBClient implements AutoCloseable {
                     t.setDaemon(true);
                     return t;
                 });
-        this.networkGroup = NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
+        this.networkGroup = connectRemoteServers ? (NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup()) : null;
         this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {

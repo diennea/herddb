@@ -375,7 +375,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * @throws herddb.metadata.MetadataStorageManagerException
      */
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
-        LOGGER.log(Level.INFO, "Starting DBManager at {0}", nodeId);
+        LOGGER.log(Level.FINE, "Starting DBManager at {0}", nodeId);
         if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.registerDBManagerStatsMXBean(stats);
         }
@@ -426,7 +426,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 .ssl(hostData.isSsl())
                 .nodeId(nodeId)
                 .build();
-        LOGGER.log(Level.INFO, "Registering on metadata storage manager my data: {0}", nodeMetadata);
+        if (!serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE).equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+            LOGGER.log(Level.INFO, "Registering on metadata storage manager my data: {0}", nodeMetadata);
+        }
         metadataStorageManager.registerNode(nodeMetadata);
 
         try {
