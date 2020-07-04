@@ -500,8 +500,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (requireLoadAtStartup) {
             if (created) {
                 // this is a fresh new table, with in memory key-to-page
-                TableStatus tableStatus = new TableStatus(table.uuid, LogSequenceNumber.START_OF_TIME,
-                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                TableStatus tableStatus = TableStatus.buildTableStatusForNewCreatedTable(table.uuid);
                 nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
                 nextPageId = tableStatus.nextPageId;
                 bootSequenceNumber = tableStatus.sequenceNumber;

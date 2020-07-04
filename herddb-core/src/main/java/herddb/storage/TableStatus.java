@@ -23,10 +23,12 @@ package herddb.storage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.PageSet.DataPageMetaData;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -45,6 +47,11 @@ public class TableStatus {
     public final byte[] nextPrimaryKeyValue;
     public final Map<Long, DataPageMetaData> activePages;
     public final long nextPageId;
+
+    public static TableStatus buildTableStatusForNewCreatedTable(String tableUuid) {
+        return new TableStatus(tableUuid, LogSequenceNumber.START_OF_TIME,
+                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
+    }
 
     public TableStatus(
             String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, long nextPageId,

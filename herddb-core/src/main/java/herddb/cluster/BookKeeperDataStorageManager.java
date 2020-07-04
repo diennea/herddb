@@ -710,8 +710,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             String lastFile = getLastTableCheckpointFile(tableSpace, tableName);
             TableStatus latestStatus;
             if (lastFile == null) {
-                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                latestStatus = TableStatus.buildTableStatusForNewCreatedTable(tableName);
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
