@@ -55,6 +55,9 @@ import java.util.stream.Stream;
 public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     private static final Logger LOG = Logger.getLogger(Table.class.getName());
+    private static final int COLUMNVERSION_1 = 1;
+
+    private static final int COLUMNFLAGS_NO_FLAGS = 0;
     private static final int COLUMNFLAGS_HAS_DEFAULT_VALUE = 1;
 
     public final String uuid;
@@ -179,14 +182,16 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             for (int i = 0; i < ncols; i++) {
                 long cversion = dii.readVLong(); // version
                 long cflags = dii.readVLong(); // flags for future implementations
-                if (cversion != 1 || (cflags != 0 && cflags != COLUMNFLAGS_HAS_DEFAULT_VALUE)) {
+                if (cversion != COLUMNVERSION_1
+                        || (cflags != COLUMNFLAGS_NO_FLAGS
+                        && cflags != COLUMNFLAGS_HAS_DEFAULT_VALUE)) {
                     throw new IOException("corrupted table file");
                 }
                 String cname = dii.readUTF();
                 int type = dii.readVInt();
                 int serialPosition = dii.readVInt();
                 Bytes defaultValue = null;
-                if (cflags == 1) {
+                if ((cflags & COLUMNFLAGS_HAS_DEFAULT_VALUE) == COLUMNFLAGS_HAS_DEFAULT_VALUE) {
                     defaultValue = dii.readBytes();
                 }
                 columns[i] = Column.column(cname, type, serialPosition, defaultValue);
@@ -214,11 +219,11 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             doo.writeVInt(0); // flags for future implementations
             doo.writeVInt(columns.length);
             for (Column c : columns) {
-                doo.writeVLong(1); // version
+                doo.writeVLong(COLUMNVERSION_1); // version
                 if (c.defaultValue != null) {
                     doo.writeVLong(COLUMNFLAGS_HAS_DEFAULT_VALUE);
                 } else {
-                    doo.writeVLong(0); // flags for future implementations
+                    doo.writeVLong(COLUMNFLAGS_NO_FLAGS);
                 }
                 doo.writeUTF(c.name);
                 doo.writeVInt(c.type);
