@@ -338,7 +338,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
-                return new MemoryCommitLogManager();
+                return new MemoryCommitLogManager(false);
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
                 return new FileCommitLogManager(logDirectory,

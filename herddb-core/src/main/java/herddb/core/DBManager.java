@@ -480,7 +480,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         long now = System.currentTimeMillis();
         while (System.currentTimeMillis() - now <= millis) {
             TableSpaceManager manager = tablesSpaces.get(tableSpace);
-            LOGGER.log(Level.INFO,"waitForTablespace {0} {1}", new Object[] {tableSpace, manager});
             if (manager != null) {
                 if (checkLeader && manager.isLeader()) {
                     return true;
