@@ -148,7 +148,7 @@ public class RecordSerializerTest {
 
         byte[] doubleToByteArray = Bytes.doubleToByteArray(Double.valueOf(11.0120d));
         Double dValue = (Double) RecordSerializer.deserialize(doubleToByteArray, ColumnTypes.DOUBLE);
-        assertEquals(dValue,Double.valueOf(11.0120d));
+        assertEquals(dValue, Double.valueOf(11.0120d));
 
         dValue = (Double) RecordSerializer.deserialize(doubleToByteArray, ColumnTypes.NOTNULL_DOUBLE);
         assertEquals(dValue, Double.valueOf(11.0120d));

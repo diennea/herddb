@@ -31,7 +31,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.sql.TranslatedQuery;
-
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
@@ -238,7 +237,7 @@ public class CreateTableTest {
             }
 
             try {
-                TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name,salary,startdate) values(?,?,?)", Arrays.asList("John",40.99d,new Timestamp(System.currentTimeMillis())), true, true, false, -1);
+                TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name,salary,startdate) values(?,?,?)", Arrays.asList("John", 40.99d, new Timestamp(System.currentTimeMillis())), true, true, false, -1);
                 manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
             } catch (Exception e1) {
                 Assert.assertTrue(e1.getMessage().contains("Column 'marriage_status' has no default value and does not allow NULLs"));
