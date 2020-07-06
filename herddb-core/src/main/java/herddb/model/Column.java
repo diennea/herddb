@@ -102,6 +102,9 @@ public class Column {
             case ColumnTypes.DOUBLE:
             case ColumnTypes.NOTNULL_DOUBLE:
                 return c.defaultValue.to_double() + "";
+            case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
+                return "'" + c.defaultValue.to_string()+ "'";
             case ColumnTypes.TIMESTAMP:
             case ColumnTypes.NOTNULL_TIMESTAMP:
                 // expected only CURRENT_TIMESTAMP currently

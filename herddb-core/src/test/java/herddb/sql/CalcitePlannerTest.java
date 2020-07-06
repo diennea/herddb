@@ -37,11 +37,14 @@ import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
@@ -498,6 +501,11 @@ public class CalcitePlannerTest {
             execute(manager, "CREATE TABLE tblspace1.test (k1 string primary key,"
                     + "s1 string not null default 'mydefault')", Collections.emptyList());
 
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("test").getTable();
+            Column c = table.getColumn("s1");
+            assertEquals(ColumnTypes.NOTNULL_STRING, c.type);
+            assertEquals("mydefault", c.defaultValue.to_string());
+
             execute(manager, "CREATE TABLE tblspace1.test22 (k1 string not null ,"
                     + "s1 string not null, n1 int, primary key(k1,n1))", Collections.emptyList());
 
@@ -514,7 +522,7 @@ public class CalcitePlannerTest {
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple) records.get(0);
-                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null DEFAULT 'mydefault',PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+                assertTrue("unexpected CREATE TABLE "+values.get("tabledef").toString(), "CREATE TABLE tblspace1.test(k1 string,s1 string not null DEFAULT 'mydefault',PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
             translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test22", Collections.emptyList(),
