@@ -297,26 +297,6 @@ public class SystemTablesTest {
     }
 
     @Test
-    public void ensureWeThrowExceptionForNonSupportedNotNullTypes_Double() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.start();
-            server.waitForStandaloneBoot();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
-                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try {
-                    BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();
-                    statement.execute("CREATE TABLE mytable (key string primary key, name string,d1 double not null)");
-                } catch (SQLException ex) {
-                    assertTrue(ex.getMessage().contains("StatementExecutionException"));
-                    assertTrue(ex.getMessage().contains("Not null constraints not supported for column type 6"));
-                }
-            }
-        }
-    }
-
-    @Test
     public void ensureWeThrowAppropriateExceptionWhenNotNullConstraintViolated_AddBatch_ExecuteBatch() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();

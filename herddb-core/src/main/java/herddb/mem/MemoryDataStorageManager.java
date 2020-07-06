@@ -182,13 +182,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         TableStatus latestStatus;
         if (max == null) {
-            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.longToByteArray(1), 1, Collections.emptyMap());
+            latestStatus = TableStatus.buildTableStatusForNewCreatedTable(tableName);
         } else {
             byte[] data = tableStatuses.get(checkpointName(tableSpace, tableName, max));
             if (data == null) {
-                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.longToByteArray(1), 1, Collections.emptyMap());
+                latestStatus = TableStatus.buildTableStatusForNewCreatedTable(tableName);
             } else {
                 try {
                     try (InputStream input = new SimpleByteArrayInputStream(data);

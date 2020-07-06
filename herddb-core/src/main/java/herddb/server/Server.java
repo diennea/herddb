@@ -119,10 +119,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ServerConfiguration.PROPERTY_BASEDIR_DEFAULT)).toAbsolutePath();
-        try {
-            Files.createDirectories(this.baseDirectory);
-        } catch (IOException ignore) {
-            LOGGER.log(Level.SEVERE, "Cannot create baseDirectory " + this.baseDirectory, ignore);
+        if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+            try {
+                Files.createDirectories(this.baseDirectory);
+            } catch (IOException ignore) {
+                LOGGER.log(Level.SEVERE, "Cannot create baseDirectory " + this.baseDirectory, ignore);
+            }
         }
         this.dataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_DATADIR, ServerConfiguration.PROPERTY_DATADIR_DEFAULT));
         this.tmpDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_TMPDIR, ServerConfiguration.PROPERTY_TMPDIR_DEFAULT));
@@ -141,8 +143,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
-        LOGGER.log(Level.INFO, "Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "={0}, "
+        if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+            LOGGER.log(Level.INFO, "Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "={0}, "
                 + ServerConfiguration.PROPERTY_PORT + "={1}", new Object[]{host, port});
+        }
         if (host.trim().isEmpty()) {
             String _host = "0.0.0.0";
             LOGGER.log(Level.INFO, "As configuration parameter "
@@ -180,8 +184,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         HashMap<String, String> realData = new HashMap<>();
         realData.put(ServerConfiguration.PROPERTY_HOST, host);
         realData.put(ServerConfiguration.PROPERTY_PORT, port + "");
-        LOGGER.info("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_HOST + "=" + advertised_host
-                + ", Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_PORT + "=" + advertised_port);
+        if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+            LOGGER.info("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_HOST + "=" + advertised_host
+                    + ", Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_PORT + "=" + advertised_port);
+        }
         this.serverHostData = new ServerHostData(
                 advertised_host,
                 advertised_port,
@@ -201,7 +207,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                     // we need to eagerly start the metadataStorageManager, for instance to open the connection to ZK
                     metadataStorageManager.start();
                     nodeId = metadataStorageManager.generateNewNodeId(configuration);
-                    LOGGER.info("Generated new node id " + nodeId);
+                    if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+                        LOGGER.info("Generated new node id " + nodeId);
+                    }
                     localNodeIdManager.persistLocalNodeId(nodeId);
                 }
             } catch (IOException | MetadataStorageManagerException error) {
@@ -274,7 +282,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 !isLocal && ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
         if (!nextworkEnabled) {
             acceptor.setEnableRealNetwork(false);
-            LOGGER.log(Level.INFO, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
+            LOGGER.log(Level.FINE, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
                     new Object[]{realHost, realPort, serverHostData.isSsl()});
         } else {
             LOGGER.log(Level.INFO, "Binding network acceptor to {0}:{1} ssl:{2}",
@@ -338,7 +346,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
-                return new MemoryCommitLogManager();
+                return new MemoryCommitLogManager(false);
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
                 return new FileCommitLogManager(logDirectory,

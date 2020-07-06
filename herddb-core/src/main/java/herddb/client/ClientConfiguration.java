@@ -97,6 +97,10 @@ public class ClientConfiguration {
     public static final int PROPERTY_CLIENT_CALLBACKS_DEFAULT = 64;
     public static final String PROPERTY_CLIENT_CALLBACKS = "client.network.thread.callback";
 
+    public static final String PROPERTY_CLIENT_CONNECT_REMOTE_SERVER = "client.network.connect.remote";
+    public static final boolean PROPERTY_CLIENT_CONNECT_REMOTE_SERVER_DEFAULT = true;
+
+
     public ClientConfiguration(Properties properties) {
         this.properties = new Properties();
         this.properties.putAll(properties);
@@ -200,6 +204,9 @@ public class ClientConfiguration {
                     set(PROPERTY_SERVER_PORT, 0);
                 }
             }
+            set(PROPERTY_CLIENT_CALLBACKS, 4);
+            set(PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
+            set(PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, false);
         }
         if (questionMark < url.length()) {
             String qs = url.substring(questionMark + 1);

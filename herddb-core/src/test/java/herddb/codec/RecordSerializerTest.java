@@ -30,6 +30,7 @@ import herddb.model.Table;
 import herddb.utils.Bytes;
 import herddb.utils.RawString;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Map;
 import java.util.TimeZone;
@@ -92,6 +93,19 @@ public class RecordSerializerTest {
         byte[] sBytes = RecordSerializer.serialize("test", ColumnTypes.STRING);
         byte[] sBytesNonNullType = RecordSerializer.serialize("test", ColumnTypes.NOTNULL_STRING);
         assertArrayEquals(sBytes, sBytesNonNullType);
+
+        byte[] dBytes = RecordSerializer.serialize(10.01d, ColumnTypes.DOUBLE);
+        byte[] dBytesNonNullType = RecordSerializer.serialize(10.01d, ColumnTypes.NOTNULL_DOUBLE);
+        assertArrayEquals(dBytes, dBytesNonNullType);
+
+        byte[] bBytes = RecordSerializer.serialize(Boolean.TRUE, ColumnTypes.BOOLEAN);
+        byte[] bBytesNonNullType = RecordSerializer.serialize(Boolean.TRUE, ColumnTypes.NOTNULL_BOOLEAN);
+        assertArrayEquals(bBytes, bBytesNonNullType);
+
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        byte[] tBytes = RecordSerializer.serialize(timestamp, ColumnTypes.TIMESTAMP);
+        byte[] tBytesNonNullType = RecordSerializer.serialize(timestamp, ColumnTypes.NOTNULL_TIMESTAMP);
+        assertArrayEquals(tBytes, tBytesNonNullType);
     }
 
     @Test
@@ -124,11 +138,32 @@ public class RecordSerializerTest {
         RawString sValueNonNullType = (RawString) RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.NOTNULL_STRING);
         assertEquals(sValueNonNullType, "test");
 
+        byte[] booleanToByteArray = Bytes.booleanToByteArray(Boolean.TRUE);
+        Boolean bValue = (Boolean) RecordSerializer.deserialize(booleanToByteArray, ColumnTypes.BOOLEAN);
+        assertEquals(bValue, Boolean.TRUE);
+
+        booleanToByteArray = Bytes.booleanToByteArray(Boolean.FALSE);
+        bValue = (Boolean) RecordSerializer.deserialize(booleanToByteArray, ColumnTypes.NOTNULL_BOOLEAN);
+        assertEquals(bValue, Boolean.FALSE);
+
+        byte[] doubleToByteArray = Bytes.doubleToByteArray(Double.valueOf(11.0120d));
+        Double dValue = (Double) RecordSerializer.deserialize(doubleToByteArray, ColumnTypes.DOUBLE);
+        assertEquals(dValue, Double.valueOf(11.0120d));
+
+        dValue = (Double) RecordSerializer.deserialize(doubleToByteArray, ColumnTypes.NOTNULL_DOUBLE);
+        assertEquals(dValue, Double.valueOf(11.0120d));
+
+        Timestamp ts = Timestamp.valueOf("2020-07-04 13:17:47.221");
+        byte[] tsToByteArray = Bytes.timestampToByteArray(ts);
+        Timestamp tsValue = (Timestamp) RecordSerializer.deserialize(tsToByteArray, ColumnTypes.TIMESTAMP);
+        assertEquals(tsValue, ts);
+
+        tsValue = (Timestamp) RecordSerializer.deserialize(tsToByteArray, ColumnTypes.NOTNULL_TIMESTAMP);
+        assertEquals(tsValue, ts);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testSerializeThrowsExceptionOnUnknownType() {
         RecordSerializer.serialize("test", ColumnTypes.ANYTYPE);
     }
-
 }

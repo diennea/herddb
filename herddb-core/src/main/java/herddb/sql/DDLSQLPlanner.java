@@ -110,9 +110,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         cache.clear();
     }
 
-    public DDLSQLPlanner(DBManager manager, long maxPlanCacheSize) {
+    public DDLSQLPlanner(DBManager manager, PlansCache plansCache) {
         this.manager = manager;
-        this.cache = new PlansCache(maxPlanCacheSize);
+        this.cache = plansCache;
     }
 
     public static String rewriteExecuteSyntax(String query) {

@@ -81,7 +81,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
 
     @Override
     public void finish(LogSequenceNumber pos) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
+        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
         latch.complete("");
     }
 
@@ -91,7 +91,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable swallow data after leader side error");
             return;
         }
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
+        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
         currentTable = null;
     }
 
@@ -109,10 +109,10 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     @Override
     public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
         Table table = dumpedTable.table;
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
-        currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber);
+        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
+        currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber, false);
         for (Index index : dumpedTable.indexes) {
-            tableSpaceManager.bootIndex(index, currentTable, 0, false, true);
+            tableSpaceManager.bootIndex(index, currentTable, false, 0, false, true);
         }
     }
 

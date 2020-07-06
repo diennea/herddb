@@ -89,6 +89,7 @@ public final class RecordSerializer {
     public static Object deserialize(byte[] data, int type) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 return data;
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -100,12 +101,15 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_STRING:
                 return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 return Bytes.toTimestamp(data, 0);
             case ColumnTypes.NULL:
                 return null;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return Bytes.toBoolean(data, 0);
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 return Bytes.toDouble(data, 0);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
@@ -141,6 +145,7 @@ public final class RecordSerializer {
                 }
                 return SQLRecordPredicateFunctions.compare(Bytes.to_rawstring(data), cvalue);
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 return SQLRecordPredicateFunctions.compare(Bytes.toTimestamp(data, 0), cvalue);
             case ColumnTypes.NULL:
                 return SQLRecordPredicateFunctions.compareNullTo(cvalue);
@@ -205,6 +210,7 @@ public final class RecordSerializer {
         int type = dii.readVInt();
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 return dii.readArray();
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -216,12 +222,15 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_STRING:
                 return dii.readRawStringNoCopy();
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 return new java.sql.Timestamp(dii.readLong());
             case ColumnTypes.NULL:
                 return null;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return dii.readBoolean();
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 return dii.readDouble();
             default:
                 throw new IllegalArgumentException("bad column type " + type);
@@ -231,7 +240,8 @@ public final class RecordSerializer {
     public static int compareDeserializeTypeAndValue(ByteArrayCursor dii, Object cvalue) throws IOException {
         int type = dii.readVInt();
         switch (type) {
-            case ColumnTypes.BYTEARRAY: {
+            case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY: {
                 byte[] datum = dii.readArray();
                 return SQLRecordPredicateFunctions.compare(datum, cvalue);
             }
@@ -256,12 +266,15 @@ public final class RecordSerializer {
                 }
 
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 return SQLRecordPredicateFunctions.compare(new java.sql.Timestamp(dii.readLong()), cvalue);
             case ColumnTypes.NULL:
                 return SQLRecordPredicateFunctions.compareNullTo(cvalue);
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return SQLRecordPredicateFunctions.compare(dii.readBoolean(), cvalue);
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 return SQLRecordPredicateFunctions.compare(dii.readDouble(), cvalue);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
@@ -272,6 +285,7 @@ public final class RecordSerializer {
         int type = dii.readVInt();
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 dii.skipArray();
                 break;
             case ColumnTypes.INTEGER:
@@ -287,14 +301,17 @@ public final class RecordSerializer {
                 dii.skipArray();
                 break;
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 dii.skipLong();
                 break;
             case ColumnTypes.NULL:
                 break;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 dii.skipBoolean();
                 break;
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 dii.skipDouble();
                 break;
             default:
@@ -308,15 +325,9 @@ public final class RecordSerializer {
         }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 return (byte[]) v;
             case ColumnTypes.INTEGER:
-                if (v instanceof Integer) {
-                    return Bytes.intToByteArray((Integer) v);
-                } else if (v instanceof Number) {
-                    return Bytes.intToByteArray(((Number) v).intValue());
-                } else {
-                    return Bytes.intToByteArray(Integer.parseInt(v.toString()));
-                }
             case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Integer) {
                     return Bytes.intToByteArray((Integer) v);
@@ -326,13 +337,6 @@ public final class RecordSerializer {
                     return Bytes.intToByteArray(Integer.parseInt(v.toString()));
                 }
             case ColumnTypes.LONG:
-                if (v instanceof Long) {
-                    return Bytes.longToByteArray((Long) v);
-                } else if (v instanceof Number) {
-                    return Bytes.longToByteArray(((Number) v).longValue());
-                } else {
-                    return Bytes.longToByteArray(Long.parseLong(v.toString()));
-                }
             case ColumnTypes.NOTNULL_LONG:
                 if (v instanceof Long) {
                     return Bytes.longToByteArray((Long) v);
@@ -342,13 +346,6 @@ public final class RecordSerializer {
                     return Bytes.longToByteArray(Long.parseLong(v.toString()));
                 }
             case ColumnTypes.STRING:
-                if (v instanceof RawString) {
-                    RawString rs = (RawString) v;
-                    // this will potentially make a copy
-                    return rs.toByteArray();
-                } else {
-                    return Bytes.string_to_array(v.toString());
-                }
             case ColumnTypes.NOTNULL_STRING:
                 if (v instanceof RawString) {
                     RawString rs = (RawString) v;
@@ -358,12 +355,14 @@ public final class RecordSerializer {
                     return Bytes.string_to_array(v.toString());
                 }
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 if (v instanceof Boolean) {
                     return Bytes.booleanToByteArray((Boolean) v);
                 } else {
                     return Bytes.booleanToByteArray(Boolean.parseBoolean(v.toString()));
                 }
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 if (v instanceof Double) {
                     return Bytes.doubleToByteArray((Double) v);
                 } else if (v instanceof Long) {
@@ -374,6 +373,7 @@ public final class RecordSerializer {
                     return Bytes.doubleToByteArray(Double.parseDouble(v.toString()));
                 }
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 if (v instanceof Long) {
                     return Bytes.timestampToByteArray(new java.sql.Timestamp(((Long) v)));
                 }
@@ -394,6 +394,7 @@ public final class RecordSerializer {
         }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 out.writeArray((byte[]) v);
                 return;
             case ColumnTypes.INTEGER:
@@ -426,6 +427,7 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 if (v instanceof Boolean) {
                     out.writeArray(Bytes.booleanToByteArray((Boolean) v));
                 } else {
@@ -433,6 +435,7 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 if (v instanceof Double) {
                     out.writeArray(Bytes.doubleToByteArray((Double) v));
                 } else if (v instanceof Long) {
@@ -444,6 +447,7 @@ public final class RecordSerializer {
                 }
                 return;
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 if (v instanceof Long) {
                     out.writeArray(Bytes.timestampToByteArray(new java.sql.Timestamp(((Long) v))));
                     return;
@@ -472,6 +476,7 @@ public final class RecordSerializer {
         }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 if (!(v instanceof byte[])) {
                     throw new IllegalArgumentException();
                 }
@@ -494,14 +499,17 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_STRING:
                 return;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return;
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 if (v instanceof Number) {
                     return;
                 }
                 Double.parseDouble(v.toString());
                 return;
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 if (v instanceof Long || v instanceof java.sql.Timestamp) {
                     return;
                 }
@@ -526,6 +534,7 @@ public final class RecordSerializer {
         }
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 oo.writeArray((byte[]) v);
                 break;
             case ColumnTypes.INTEGER:
@@ -558,12 +567,14 @@ public final class RecordSerializer {
                 }
                 break;
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
                 }
                 oo.writeLong(((java.sql.Timestamp) v).getTime());
                 break;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 if (v instanceof Boolean) {
                     oo.writeBoolean((Boolean) v);
                 } else {
@@ -571,6 +582,7 @@ public final class RecordSerializer {
                 }
                 break;
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 if (v instanceof Integer) {
                     oo.writeDouble((Integer) v);
                 } else if (v instanceof Number) {
@@ -623,6 +635,10 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_INTEGER:
             case ColumnTypes.NOTNULL_STRING:
             case ColumnTypes.NOTNULL_LONG:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
+            case ColumnTypes.NOTNULL_BOOLEAN:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 if (value == null) {
                     throw new StatementExecutionException("Cannot have null value in non null type " + ColumnTypes.sqlDataType(type));
                 }

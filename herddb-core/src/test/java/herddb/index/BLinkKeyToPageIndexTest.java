@@ -101,8 +101,8 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
         }
 
         @Override
-        public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-            delegate.start(sequenceNumber);
+        public void start(LogSequenceNumber sequenceNumber, boolean created) throws DataStorageManagerException {
+            delegate.start(sequenceNumber, created);
         }
 
         @Override

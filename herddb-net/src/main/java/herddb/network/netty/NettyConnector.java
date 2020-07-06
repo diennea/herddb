@@ -74,6 +74,8 @@ public class NettyConnector {
                 channelType = LocalChannel.class;
                 address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
                 group = localEventsGroup;
+            } else if (networkGroup == null) {
+                throw new IOException("Connection using network is disabled");
             } else {
                 channelType = networkGroup instanceof EpollEventLoopGroup ? EpollSocketChannel.class : NioSocketChannel.class;
                 address = inet;

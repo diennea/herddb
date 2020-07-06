@@ -242,7 +242,7 @@ public class TableSpaceManager {
         } else {
             recover(tableSpaceInfo);
 
-            LOGGER.log(Level.INFO, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
+            LOGGER.log(Level.INFO, " after recovery of tableSpace {0}, actualLogSequenceNumber:{1}", new Object[]{tableSpaceName, actualLogSequenceNumber});
 
             tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
             if (tableSpaceInfo.leaderId.equals(nodeId)) {
@@ -271,13 +271,15 @@ public class TableSpaceManager {
             return t.name + " on table " + t.table;
         }).collect(Collectors.joining(","));
 
-        LOGGER.log(Level.INFO, "{0} {1} tablesAtBoot {2}, indexesAtBoot {3}", new Object[]{nodeId, tableSpaceName, tableNames, indexNames});
+        if (!tableNames.isEmpty()) {
+            LOGGER.log(Level.INFO, "{0} {1} tablesAtBoot: {2}, indexesAtBoot: {3}", new Object[]{nodeId, tableSpaceName, tableNames, indexNames});
+        }
 
         for (Table table : tablesAtBoot) {
-            TableManager tableManager = bootTable(table, 0, null);
+            TableManager tableManager = bootTable(table, 0, null, false);
             for (Index index : indexesAtBoot) {
                 if (index.table.equals(table.name)) {
-                    bootIndex(index, tableManager, 0, false, false);
+                    bootIndex(index, tableManager, false, 0, false, false);
                 }
             }
         }
@@ -288,7 +290,7 @@ public class TableSpaceManager {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
                         if (!tables.containsKey(table.name)) {
-                            bootTable(table, t.transactionId, null);
+                            bootTable(table, t.transactionId, null, false);
                         }
                     }
                 }
@@ -296,7 +298,7 @@ public class TableSpaceManager {
                     for (Index index : t.newIndexes.values()) {
                         if (!indexes.containsKey(index.name)) {
                             AbstractTableManager tableManager = tables.get(index.table);
-                            bootIndex(index, tableManager, t.transactionId, false, false);
+                            bootIndex(index, tableManager, false, t.transactionId, false, false);
                         }
                     }
                 }
@@ -321,8 +323,10 @@ public class TableSpaceManager {
             }
         }
         recoveryInProgress = false;
-        LOGGER.log(Level.INFO, "Recovery finished for {0}", tableSpaceName);
-        checkpoint(false, false, false);
+        if (!LogSequenceNumber.START_OF_TIME.equals(actualLogSequenceNumber)) {
+            LOGGER.log(Level.INFO, "Recovery finished for {0} seqNum {1}", new Object[]{tableSpaceName, actualLogSequenceNumber});
+            checkpoint(false, false, false);
+        }
 
     }
 
@@ -448,7 +452,7 @@ public class TableSpaceManager {
                     transaction.registerNewTable(table, position);
                 }
 
-                bootTable(table, entry.transactionId, null);
+                bootTable(table, entry.transactionId, null, true);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position, false);
                 }
@@ -465,7 +469,7 @@ public class TableSpaceManager {
                 if (tableManager == null) {
                     throw new RuntimeException("table " + index.table + " does not exists");
                 }
-                bootIndex(index, tableManager, entry.transactionId, true, false);
+                bootIndex(index, tableManager, true, entry.transactionId, true, false);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position, false);
                 }
@@ -891,7 +895,7 @@ public class TableSpaceManager {
             if (tables.containsKey(table.name)) {
                 throw new TableAlreadyExistsException(table.name);
             }
-            bootTable(table, 0, dumpLogSequenceNumber);
+            bootTable(table, 0, dumpLogSequenceNumber, true);
         } finally {
             releaseWriteLock(lockStamp, "beginRestoreTable " + table.name);
         }
@@ -902,7 +906,7 @@ public class TableSpaceManager {
         tableManager.restoreFinished();
 
         for (Index index : indexes) {
-            bootIndex(index, tableManager, 0, true, true);
+            bootIndex(index, tableManager, false, 0, true, true);
         }
     }
 
@@ -1608,9 +1612,11 @@ public class TableSpaceManager {
         }
     }
 
-    TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
+    TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber, boolean freshNew) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
+        if (!freshNew) {
+            LOGGER.log(Level.INFO, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
+        }
         AbstractTableManager prevTableManager = tables.remove(table.name);
         if (prevTableManager != null) {
             if (dumpLogSequenceNumber != null) {
@@ -1633,17 +1639,20 @@ public class TableSpaceManager {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
         tables.put(table.name, tableManager);
-        tableManager.start();
-        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
+        tableManager.start(freshNew);
+        if (!freshNew) {
+            LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
+        }
         dbmanager.getPlanner().clearCache();
         return tableManager;
     }
 
-    AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild, boolean restore) throws DataStorageManagerException {
+    AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, boolean created, long transaction, boolean rebuild, boolean restore) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
+        if (!created) {
+            LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4} - {5}",
                 new Object[] { nodeId, tableSpaceName, index.table, index.name, index.uuid, index.type });
-
+        }
         AbstractIndexManager prevIndexManager = indexes.remove(index.name);
         if (prevIndexManager != null) {
             if (restore) {
@@ -1685,11 +1694,12 @@ public class TableSpaceManager {
             return map;
         });
         indexManager.start(tableManager.getBootSequenceNumber());
-        long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
+        if (!created) {
+            long _stop = System.currentTimeMillis();
+            LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
+        }
         if (rebuild) {
             indexManager.rebuild();
-            LOGGER.log(Level.INFO, "bootIndex - rebuild {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (System.currentTimeMillis() - _stop) + ""});
         }
         dbmanager.getPlanner().clearCache();
         return indexManager;
