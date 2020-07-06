@@ -1095,8 +1095,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     }
 
     public void boot(BlockRangeIndexMetadata<K> metadata) throws DataStorageManagerException {
-        LOG.severe("boot index, with " + metadata.getBlocksMetadata().size() + " blocks");
-
+        if (metadata.getBlocksMetadata().size() > 0) {
+            LOG.info("boot index, with " + metadata.getBlocksMetadata().size() + " blocks");
+        }
         if (metadata.getBlocksMetadata().size() == 0) {
 
             reset();

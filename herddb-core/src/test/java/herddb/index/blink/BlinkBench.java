@@ -127,7 +127,7 @@ public class BlinkBench {
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
                      BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
 
-                    idx.start(LogSequenceNumber.START_OF_TIME);
+                    idx.start(LogSequenceNumber.START_OF_TIME, true);
 
                     ExecutorService ex = Executors.newFixedThreadPool(threads);
 

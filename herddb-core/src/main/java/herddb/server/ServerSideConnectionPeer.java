@@ -941,7 +941,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void channelClosed(Channel channel) {
-        LOGGER.log(Level.INFO, "channelClosed {0}", this);
+        if (!channel.isLocalChannel()) {
+            LOGGER.log(Level.INFO, "channelClosed {0}", this);
+        }
         freeResources();
         this.server.connectionClosed(this);
     }

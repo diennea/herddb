@@ -195,7 +195,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         this.manager = manager;
         this.cache = new PlansCache(maxPlanCacheSize);
         //used only for DDL
-        this.fallback = new DDLSQLPlanner(manager, maxPlanCacheSize);
+        this.fallback = new DDLSQLPlanner(manager, cache);
     }
 
     private final PlansCache cache;

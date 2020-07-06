@@ -247,7 +247,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
+        LOGGER.log(Level.FINE, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
 
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
 
@@ -256,7 +256,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             this.data.boot(BlockRangeIndexMetadata.empty());
-            LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{index.name});
+            LOGGER.log(Level.FINE, "loaded empty index {0}", new Object[]{index.name});
 
             return true;
         } else {
@@ -289,19 +289,23 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "rebuilding index {0}", index.name);
+        LOGGER.log(Level.FINE, "building index {0}", index.name);
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.reset();
         Table table = tableManager.getTable();
+        AtomicLong count = new AtomicLong();
         tableManager.scanForIndexRebuild(r -> {
             DataAccessor values = r.getDataAccessor(table);
             Bytes key = RecordSerializer.serializePrimaryKey(values, table, table.primaryKey);
             Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
 //            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
             recordInserted(key, indexKey);
+            count.incrementAndGet();
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "rebuilding index {0} took {1}", new Object[]{index.name, (_stop - _start) + " ms"});
+        if (count.intValue() > 0) {
+            LOGGER.log(Level.INFO, "building index {0} took {1}, scanned {2} records", new Object[]{index.name, (_stop - _start) + " ms", count});
+        }
     }
 
     @Override

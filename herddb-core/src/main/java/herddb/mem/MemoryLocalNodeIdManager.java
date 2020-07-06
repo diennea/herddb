@@ -40,4 +40,9 @@ public class MemoryLocalNodeIdManager extends LocalNodeIdManager {
         /* NOP */
     }
 
+    @Override
+    public String readLocalNodeId() throws IOException {
+        return null;
+    }
+
 }

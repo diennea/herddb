@@ -52,7 +52,7 @@ public abstract class KeyToPageIndexTest {
 
             final Bytes key = Bytes.from_int(1);
 
-            index.start(LogSequenceNumber.START_OF_TIME);
+            index.start(LogSequenceNumber.START_OF_TIME, true);
 
             Assert.assertEquals(0, index.getUsedMemory());
 
@@ -88,7 +88,7 @@ public abstract class KeyToPageIndexTest {
 
             final Bytes key = Bytes.from_int(1);
 
-            index.start(LogSequenceNumber.START_OF_TIME);
+            index.start(LogSequenceNumber.START_OF_TIME, true);
 
             Assert.assertEquals(0, index.size());
 
@@ -141,7 +141,7 @@ public abstract class KeyToPageIndexTest {
 
         try (KeyToPageIndex index = createIndex()) {
 
-            index.start(LogSequenceNumber.START_OF_TIME);
+            index.start(LogSequenceNumber.START_OF_TIME, true);
 
             for (int i = 0; i < entries; ++i) {
                 index.put(Bytes.from_int(i), 1L);
@@ -161,7 +161,7 @@ public abstract class KeyToPageIndexTest {
 
         try (KeyToPageIndex index = createIndex()) {
 
-            index.start(LogSequenceNumber.START_OF_TIME);
+            index.start(LogSequenceNumber.START_OF_TIME, true);
 
             for (int i = 0; i < entries; ++i) {
                 index.put(Bytes.from_int(i), 1L);
@@ -188,7 +188,7 @@ public abstract class KeyToPageIndexTest {
 
         try (KeyToPageIndex index = createIndex()) {
 
-            index.start(LogSequenceNumber.START_OF_TIME);
+            index.start(LogSequenceNumber.START_OF_TIME, true);
 
             for (int i = 0; i < jobs; ++i) {
                 index.put(Bytes.from_int(i), 0L);
