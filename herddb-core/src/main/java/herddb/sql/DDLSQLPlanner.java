@@ -48,6 +48,7 @@ import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.server.ServerConfiguration;
+import herddb.utils.Bytes;
 import herddb.utils.SQLUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -353,6 +354,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecs());
                 type = sqlDataTypeToColumnType(dataType,
                         cf.getColDataType().getArgumentsStringList(), columnSpecs);
+                Bytes defaultValue = decodeDefaultValue(cf, type);
 
                 if (!columnSpecs.isEmpty()) {
 
@@ -366,12 +368,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                 }
 
-                tablebuilder.column(columnName, type, position++);
+                tablebuilder.column(columnName, type, position++, defaultValue);
 
             }
 
             if (!foundPk) {
-                tablebuilder.column("_pk", ColumnTypes.LONG, position++);
+                tablebuilder.column("_pk", ColumnTypes.LONG, position++, null);
                 tablebuilder.primaryKey("_pk", true);
             }
 
@@ -907,11 +909,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
                     List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
-                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), sqlDataTypeToColumnType(
+                    int type = sqlDataTypeToColumnType(
                             cl.getColDataType().getDataType(),
                             cl.getColDataType().getArgumentsStringList(),
                             columnSpecs
-                    ));
+                    );
+                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), type, decodeDefaultValue(cl, type));
                     addColumns.add(newColumn);
                 }
             }
@@ -980,7 +983,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             changeAutoIncrement = new_auto_increment;
                         }
                     }
-                    Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                    Bytes newDefault = oldColumn.defaultValue;
+                    if (containsDefaultClause(cl)) {
+                        newDefault = decodeDefaultValue(cl, newType);
+                    }
+                    Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition, newDefault);
                     modifyColumns.add(newColumnDef);
                 }
             }
@@ -1048,7 +1055,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (renameTo != null) {
                     columnName = renameTo;
                 }
-                Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition, oldColumn.defaultValue);
                 modifyColumns.add(newColumnDef);
             }
 
@@ -1100,6 +1107,98 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
         String tableName = fixMySqlBackTicks(truncate.getTable().getName().toLowerCase());
         return new TruncateTableStatement(tableSpace, tableName);
+    }
+
+
+    private static boolean containsDefaultClause(ColumnDefinition cf) {
+        List<String> specs = cf.getColumnSpecs();
+        if (specs == null || specs.isEmpty()) {
+            return false;
+        }
+        for (String spec : specs) {
+            if (spec.equalsIgnoreCase("default")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Bytes decodeDefaultValue(ColumnDefinition cf, int type) {
+        List<String> specs = cf.getColumnSpecs();
+        if (specs == null || specs.isEmpty()) {
+            return null;
+        }
+        int defaultKeyWordPos = -1;
+        int i = 0;
+        for (String spec : specs) {
+            if (spec.equalsIgnoreCase("default")) {
+                defaultKeyWordPos = i;
+                break;
+            }
+            i++;
+        }
+        if (defaultKeyWordPos < 0) {
+            return null;
+        }
+        if (defaultKeyWordPos == specs.size() - 1) {
+            throw new StatementExecutionException("Bad default constraint specs: " + specs);
+        }
+        String defaultRepresentation = specs.get(defaultKeyWordPos + 1);
+        if (defaultRepresentation.isEmpty()) { // not possible
+            throw new StatementExecutionException("Bad default constraint specs: " + specs);
+        }
+        if (defaultRepresentation.equalsIgnoreCase("null")) {
+            return null;
+        }
+        try {
+            switch (type) {
+                case ColumnTypes.STRING:
+                case ColumnTypes.NOTNULL_STRING:
+                    if (defaultRepresentation.length() <= 1) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    if (!defaultRepresentation.startsWith("'") || !defaultRepresentation.endsWith("'")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    // TODO: unescape values
+                    return Bytes.from_string(defaultRepresentation.substring(1, defaultRepresentation.length() - 1));
+                case ColumnTypes.INTEGER:
+                case ColumnTypes.NOTNULL_INTEGER:
+                    return Bytes.from_int(Integer.parseInt(defaultRepresentation));
+                case ColumnTypes.LONG:
+                case ColumnTypes.NOTNULL_LONG:
+                    return Bytes.from_long(Long.parseLong(defaultRepresentation));
+                case ColumnTypes.DOUBLE:
+                case ColumnTypes.NOTNULL_DOUBLE:
+                    // TODO: deal with Java Locale
+                    return Bytes.from_double(Double.parseDouble(defaultRepresentation));
+                case ColumnTypes.BOOLEAN:
+                case ColumnTypes.NOTNULL_BOOLEAN:
+                    if (defaultRepresentation.length() <= 1) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    if (!defaultRepresentation.startsWith("'") || !defaultRepresentation.endsWith("'")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    defaultRepresentation = defaultRepresentation.substring(1, defaultRepresentation.length() - 1);
+                    if (!defaultRepresentation.equalsIgnoreCase("true")
+                            && !defaultRepresentation.equalsIgnoreCase("false")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    return Bytes.from_boolean(Boolean.parseBoolean(defaultRepresentation));
+                case ColumnTypes.TIMESTAMP:
+                case ColumnTypes.NOTNULL_TIMESTAMP:
+                    if (!defaultRepresentation.equalsIgnoreCase("current_timestamp")) {
+                        throw new StatementExecutionException("Bad default constraint specs: " + specs);
+                    }
+                    return Bytes.from_string("CURRENT_TIMESTAMP");
+                default:
+                    throw new StatementExecutionException("Default not yet supported for columns of type " + ColumnTypes.typeToString(type));
+            }
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException("Bad default constraint specs: " + specs, err);
+        }
+
     }
 
 }

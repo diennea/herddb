@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
 import herddb.sql.expressions.BindableTableScanColumnNameResolver;
+import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -53,6 +55,10 @@ import java.util.stream.Stream;
 public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     private static final Logger LOG = Logger.getLogger(Table.class.getName());
+    private static final int COLUMNVERSION_1 = 1;
+
+    private static final int COLUMNFLAGS_NO_FLAGS = 0;
+    private static final int COLUMNFLAGS_HAS_DEFAULT_VALUE = 1;
 
     public final String uuid;
     public final String name;
@@ -176,13 +182,19 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             for (int i = 0; i < ncols; i++) {
                 long cversion = dii.readVLong(); // version
                 long cflags = dii.readVLong(); // flags for future implementations
-                if (cversion != 1 || cflags != 0) {
+                if (cversion != COLUMNVERSION_1
+                        || (cflags != COLUMNFLAGS_NO_FLAGS
+                        && cflags != COLUMNFLAGS_HAS_DEFAULT_VALUE)) {
                     throw new IOException("corrupted table file");
                 }
                 String cname = dii.readUTF();
                 int type = dii.readVInt();
                 int serialPosition = dii.readVInt();
-                columns[i] = Column.column(cname, type, serialPosition);
+                Bytes defaultValue = null;
+                if ((cflags & COLUMNFLAGS_HAS_DEFAULT_VALUE) == COLUMNFLAGS_HAS_DEFAULT_VALUE) {
+                    defaultValue = dii.readBytes();
+                }
+                columns[i] = Column.column(cname, type, serialPosition, defaultValue);
             }
             return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
         } catch (IOException err) {
@@ -207,11 +219,18 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             doo.writeVInt(0); // flags for future implementations
             doo.writeVInt(columns.length);
             for (Column c : columns) {
-                doo.writeVLong(1); // version
-                doo.writeVLong(0); // flags for future implementations
+                doo.writeVLong(COLUMNVERSION_1); // version
+                if (c.defaultValue != null) {
+                    doo.writeVLong(COLUMNFLAGS_HAS_DEFAULT_VALUE);
+                } else {
+                    doo.writeVLong(COLUMNFLAGS_NO_FLAGS);
+                }
                 doo.writeUTF(c.name);
                 doo.writeVInt(c.type);
                 doo.writeVInt(c.serialPosition);
+                if (c.defaultValue != null) {
+                    doo.writeArray(c.defaultValue);
+                }
             }
         } catch (IOException ee) {
             throw new RuntimeException(ee);
@@ -291,7 +310,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             String lowercase = c.name.toLowerCase();
             if (!dropColumns.contains(lowercase)
                     && !changedColumns.contains(lowercase)) {
-                builder.column(c.name, c.type, c.serialPosition);
+                builder.column(c.name, c.type, c.serialPosition, c.defaultValue);
             }
             new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
         }
@@ -301,7 +320,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 if (getColumn(c.name) != null) {
                     throw new IllegalArgumentException("column " + c.name + " already found int table " + this.name);
                 }
-                builder.column(c.name, c.type, ++new_maxSerialPosition);
+                builder.column(c.name, c.type, ++new_maxSerialPosition, c.defaultValue);
             }
         }
         String[] newPrimaryKey = new String[primaryKey.length];
@@ -309,7 +328,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         if (alterTableStatement.getModifyColumns() != null) {
             for (Column c : alterTableStatement.getModifyColumns()) {
 
-                builder.column(c.name, c.type, c.serialPosition);
+                builder.column(c.name, c.type, c.serialPosition, c.defaultValue);
                 new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
 
                 // RENAME PK
@@ -419,18 +438,14 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         }
 
         public Builder column(String name, int type) {
-            if (name == null || name.isEmpty()) {
-                throw new IllegalArgumentException();
-            }
-            String _name = name.toLowerCase();
-            if (this.columns.stream().filter(c -> (c.name.equals(_name))).findAny().isPresent()) {
-                throw new IllegalArgumentException("column " + name + " already exists");
-            }
-            this.columns.add(Column.column(_name, type, maxSerialPosition++));
-            return this;
+            return column(name, type, maxSerialPosition++, null);
         }
 
-        public Builder column(String name, int type, int serialPosition) {
+        public Builder column(String name, int type, Bytes defaultValue) {
+            return column(name, type, maxSerialPosition++, defaultValue);
+        }
+
+        public Builder column(String name, int type, int serialPosition, Bytes defaultValue) {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException();
             }
@@ -438,7 +453,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             if (this.columns.stream().filter(c -> (c.name.equals(_name))).findAny().isPresent()) {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
-            this.columns.add(Column.column(_name, type, serialPosition));
+            this.columns.add(Column.column(_name, type, serialPosition, defaultValue));
             return this;
         }
 
@@ -503,4 +518,49 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             return this;
         }
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 23 * hash + Objects.hashCode(this.uuid);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Table other = (Table) obj;
+        if (this.auto_increment != other.auto_increment) {
+            return false;
+        }
+        if (this.maxSerialPosition != other.maxSerialPosition) {
+            return false;
+        }
+        if (!Objects.equals(this.uuid, other.uuid)) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.tablespace, other.tablespace)) {
+            return false;
+        }
+        if (!Arrays.deepEquals(this.columns, other.columns)) {
+            return false;
+        }
+        if (!Arrays.deepEquals(this.primaryKey, other.primaryKey)) {
+            return false;
+        }
+        return true;
+    }
+
+
 }

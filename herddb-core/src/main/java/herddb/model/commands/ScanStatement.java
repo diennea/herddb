@@ -105,7 +105,11 @@ public class ScanStatement extends TableAwareStatement {
 
     @Override
     public String toString() {
-        return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparator + ",limits=" + limits + '}';
+        if (limits != null) {
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparator + ",limits=" + limits.toStringForScan() + '}';
+        } else {
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparator + '}';
+        }
     }
 
     @Override

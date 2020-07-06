@@ -20,6 +20,9 @@
 
 package herddb.model;
 
+import herddb.utils.Bytes;
+import java.util.Objects;
+
 /**
  * Definition of a column
  *
@@ -44,19 +47,35 @@ public class Column {
      */
     public final int type;
 
-    private Column(String name, int type, int serialPosition) {
+    /**
+     * Default values, pre-encoded.
+     * For timestamp columns it may be the 'CURRENT_TIMESTAMP' string
+     */
+    public final Bytes defaultValue;
+
+    private Column(String name, int type, int serialPosition, Bytes defaultValue) {
         this.name = name;
         this.type = type;
         this.serialPosition = serialPosition;
+        this.defaultValue = defaultValue;
     }
 
     public static Column column(String name, int type) {
-        return new Column(name, type, -1);
+        return new Column(name, type, -1, null);
+    }
+
+    public static Column column(String name, int type, Bytes defaultValue) {
+        return new Column(name, type, -1, defaultValue);
     }
 
     public static Column column(String name, int type, int serialPosition) {
-        return new Column(name, type, serialPosition);
+        return new Column(name, type, serialPosition, null);
     }
+
+    public static Column column(String name, int type, int serialPosition, Bytes defaultValue) {
+        return new Column(name, type, serialPosition, defaultValue);
+    }
+
     public  String getName(){
         return name;
     }
@@ -64,6 +83,69 @@ public class Column {
     @Override
     public String toString() {
         return "{" + "name=" + name + ", type=" + type + '}';
+    }
+
+    public static String defaultValueToString(Column c) {
+        if (c.defaultValue == null) {
+            return "NULL";
+        }
+        switch (c.type) {
+            case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
+                return "'" + c.defaultValue.to_boolean() + "'";
+            case ColumnTypes.INTEGER:
+            case ColumnTypes.NOTNULL_INTEGER:
+                return c.defaultValue.to_int() + "";
+            case ColumnTypes.LONG:
+            case ColumnTypes.NOTNULL_LONG:
+                return c.defaultValue.to_long() + "";
+            case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
+                return c.defaultValue.to_double() + "";
+            case ColumnTypes.STRING:
+            case ColumnTypes.NOTNULL_STRING:
+                return "'" + c.defaultValue.to_string() + "'";
+            case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
+                // expected only CURRENT_TIMESTAMP currently
+                return c.defaultValue.to_string();
+            default:
+                return "NULL";
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 43 * hash + Objects.hashCode(this.name);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Column other = (Column) obj;
+        if (this.serialPosition != other.serialPosition) {
+            return false;
+        }
+        if (this.type != other.type) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.defaultValue, other.defaultValue)) {
+            return false;
+        }
+        return true;
     }
 
 }

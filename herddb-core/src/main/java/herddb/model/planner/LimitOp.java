@@ -121,6 +121,12 @@ public class LimitOp implements PlannerOp, ScanLimits {
 
     @Override
     public String toString() {
-        return String.format("LimitOp{value = %s input = {%s}}", this.maxRows.toString(), input.toString());
+        return String.format("LimitOp{maxRows = %s input = {%s}}", this.maxRows.toString(), input.toString());
     }
+
+    @Override
+    public String toStringForScan() {
+        return String.format("LimitOp{maxRows = %s}", this.maxRows.toString());
+    }
+
 }

@@ -61,6 +61,11 @@ public class ScanLimitsImpl implements ScanLimits {
     }
 
     @Override
+    public String toStringForScan() {
+        return toString();
+    }
+
+    @Override
     public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
         if (maxRowsJdbcParameterIndex <= 0) {
             return maxRows;

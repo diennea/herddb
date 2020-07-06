@@ -193,7 +193,6 @@ public class CreateTableTest {
         }
     }
 
-
     @Test
     public void weThrowExceptionOnNotNullInserts() throws Exception {
         String nodeId = "localhost";

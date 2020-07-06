@@ -93,6 +93,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -143,26 +144,35 @@ import org.apache.calcite.rel.rules.ReduceExpressionsRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeSystem;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.runtime.CalciteContextException;
+import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.schema.ModifiableTable;
 import org.apache.calcite.schema.ProjectableFilterableTable;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Statistic;
 import org.apache.calcite.schema.Statistics;
+import org.apache.calcite.schema.Wrapper;
 import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlExplainFormat;
 import org.apache.calcite.sql.SqlExplainLevel;
+import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlInsert;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
+import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.validate.SqlConformanceEnum;
+import org.apache.calcite.sql2rel.InitializerContext;
+import org.apache.calcite.sql2rel.InitializerExpressionFactory;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
@@ -190,6 +200,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private final AbstractSQLPlanner fallback;
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
+
+    private static final SqlTypeFactoryImpl SQL_TYPE_FACTORY_IMPL = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
+    private static final RexBuilder REX_BUILDER  = new RexBuilder(SQL_TYPE_FACTORY_IMPL);
 
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
@@ -1249,6 +1262,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             case TIMESTAMP:
                 return ColumnTypes.TIMESTAMP;
             case DECIMAL:
+            case DOUBLE:
                 return ColumnTypes.DOUBLE;
             case ANY:
                 return ColumnTypes.ANYTYPE;
@@ -1395,15 +1409,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static final class TableImpl extends AbstractTable
-            implements ModifiableTable, ScannableTable, ProjectableFilterableTable {
+            implements ModifiableTable, ScannableTable, ProjectableFilterableTable, InitializerExpressionFactory, Wrapper {
 
         final AbstractTableManager tableManager;
+        final Table table;
         final ImmutableList<ImmutableBitSet> keys;
+
 
         private TableImpl(AbstractTableManager tableManager) {
             this.tableManager = tableManager;
             ImmutableBitSet.Builder builder = ImmutableBitSet.builder();
-            Table table = tableManager.getTable();
+            this.table = tableManager.getTable();
             int index = 0;
             for (Column c : table.getColumns()) {
                 if (table.isPrimaryKeyColumn(c.name)) {
@@ -1416,6 +1432,71 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         private static boolean isColumnNullable(Column c, Table t) {
             return  (!t.isPrimaryKeyColumn(c.name) || t.auto_increment) && !ColumnTypes.isNotNullDataType(c.type);
+        }
+
+        @Override
+        public <C> C unwrap(Class<C> aClass) {
+            if (aClass == InitializerExpressionFactory.class) {
+                return (C) this;
+            }
+            return super.unwrap(aClass);
+        }
+
+        @Override
+        public boolean isGeneratedAlways(RelOptTable table, int iColumn) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
+        public ColumnStrategy generationStrategy(RelOptTable table, int iColumn) {
+            Column col = this.table.getColumn(iColumn);
+            if (col.defaultValue != null) {
+                return ColumnStrategy.DEFAULT;
+            } else if (!isColumnNullable(col, this.table)) {
+                return ColumnStrategy.NOT_NULLABLE;
+            } else {
+                return ColumnStrategy.NULLABLE;
+            }
+        }
+
+        @Override
+        public RexNode newColumnDefaultValue(RelOptTable table, int iColumn, InitializerContext context) {
+            Column col = this.table.getColumn(iColumn);
+            if (col.defaultValue != null) {
+                switch (col.type) {
+                    case ColumnTypes.NOTNULL_STRING:
+                    case ColumnTypes.STRING:
+                        return REX_BUILDER.makeLiteral(col.defaultValue.to_string());
+                    case ColumnTypes.NOTNULL_INTEGER:
+                    case ColumnTypes.INTEGER:
+                        return REX_BUILDER.makeLiteral(col.defaultValue.to_int(), SQL_TYPE_FACTORY_IMPL.createSqlType(SqlTypeName.INTEGER), true);
+                    case ColumnTypes.NOTNULL_LONG:
+                    case ColumnTypes.LONG:
+                        return REX_BUILDER.makeLiteral(col.defaultValue.to_long(), SQL_TYPE_FACTORY_IMPL.createSqlType(SqlTypeName.BIGINT), true);
+                    case ColumnTypes.NOTNULL_DOUBLE:
+                    case ColumnTypes.DOUBLE:
+                        return REX_BUILDER.makeLiteral(col.defaultValue.to_double(), SQL_TYPE_FACTORY_IMPL.createSqlType(SqlTypeName.DOUBLE), true);
+                    case ColumnTypes.NOTNULL_BOOLEAN:
+                    case ColumnTypes.BOOLEAN:
+                        return REX_BUILDER.makeLiteral(col.defaultValue.to_boolean());
+                    case ColumnTypes.NOTNULL_TIMESTAMP:
+                    case ColumnTypes.TIMESTAMP:
+                        return REX_BUILDER.makeCall(SqlStdOperatorTable.CURRENT_TIMESTAMP);
+                    default:
+                        throw new UnsupportedOperationException("Not supported for type " + ColumnTypes.typeToString(col.type));
+                }
+            }
+            return REX_BUILDER.makeNullLiteral(convertType(col.type, SQL_TYPE_FACTORY_IMPL, true));
+        }
+
+        @Override
+        public BiFunction<InitializerContext, RelNode, RelNode> postExpressionConversionHook() {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
+        public RexNode newAttributeInitializer(RelDataType type, SqlFunction constructor, int iAttribute, List<RexNode> constructorArgs, InitializerContext context) {
+            throw new UnsupportedOperationException("Not supported yet.");
         }
 
         @Override

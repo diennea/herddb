@@ -52,6 +52,7 @@ import herddb.model.MissingJDBCParameterException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.Transaction;
@@ -2540,6 +2541,106 @@ public class RawSQLTest {
                     assertArrayEquals(new Object[] {RawString.of("aaa"), 8, RawString.of("localhost"), 1 }, next.getValues());
                 }
             }
+
+        }
+    }
+
+    @Test
+    public void createDefaultWithDefaultValues() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key default 'defaultstring',"
+                    + "n1 int not null default 13,"
+                    + "l1 long not null default 13000000000,"
+                    + "f1 double default 12.5,"
+                    + "s1 string not null default 'text',"
+                    + "b1 boolean default 'true',"
+                    + "d1 timestamp default CURRENT_TIMESTAMP"
+                    + ")", Collections.emptyList());
+
+            long now = System.currentTimeMillis();
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,l1,f1,s1,b1,d1 from tblspace1.tsql where k1=?", Arrays.asList("a"));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertEquals("a", next.get(0).toString());
+                    assertEquals(13, next.get(1));
+                    assertEquals(13000000000L, next.get(2));
+                    assertEquals(12.5d, next.get(3));
+                    assertEquals("text", next.get(4).toString());
+                    assertEquals(Boolean.TRUE, next.get(5));
+                    java.sql.Timestamp ts = (java.sql.Timestamp) next.get(6);
+                    assertTrue("bad ts " + ts + " <> " + new java.sql.Timestamp(now), Math.abs(ts.getTime() - now) < 1000);
+                }
+            }
+
+            now = System.currentTimeMillis();
+            execute(manager, "UPSERT INTO tblspace1.tsql (k1) values('b')", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,l1,f1,s1,b1,d1 from tblspace1.tsql where k1=?", Arrays.asList("b"));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertEquals("b", next.get(0).toString());
+                    assertEquals(13, next.get(1));
+                    assertEquals(13000000000L, next.get(2));
+                    assertEquals(12.5d, next.get(3));
+                    assertEquals("text", next.get(4).toString());
+                    assertEquals(Boolean.TRUE, next.get(5));
+                    java.sql.Timestamp ts = (java.sql.Timestamp) next.get(6);
+                    assertTrue("bad ts " + ts + " <> " + new java.sql.Timestamp(now), Math.abs(ts.getTime() - now) < 1000);
+                }
+            }
+
+            // set n1 = 15, a value different from the DEFAULT (13)
+            execute(manager, "UPDATE tblspace1.tsql set n1=15 where k1='b'", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,l1,f1,s1,b1,d1 from tblspace1.tsql where k1=?", Arrays.asList("b"));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertEquals("b", next.get(0).toString());
+                    assertEquals(15, next.get(1));
+                    assertEquals(13000000000L, next.get(2));
+                    assertEquals(12.5d, next.get(3));
+                    assertEquals("text", next.get(4).toString());
+                    assertEquals(Boolean.TRUE, next.get(5));
+                    java.sql.Timestamp ts = (java.sql.Timestamp) next.get(6);
+                    assertTrue("bad ts " + ts + " <> " + new java.sql.Timestamp(now), Math.abs(ts.getTime() - now) < 1000);
+                }
+            }
+
+            now = System.currentTimeMillis();
+            // UPSERT RESETs values to the default value (13) ! This is Calcite behaviour, because UPSERT is a special case of INSERT
+            execute(manager, "UPSERT INTO tblspace1.tsql (k1,b1) values('b',false)", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,l1,f1,s1,b1,d1 from tblspace1.tsql where k1=?", Arrays.asList("b"));) {
+                while (scan.hasNext()) {
+                    DataAccessor next = scan.next();
+                    assertEquals("b", next.get(0).toString());
+                    // this value has been reset!
+                    assertEquals(13, next.get(1));
+                    assertEquals(13000000000L, next.get(2));
+                    assertEquals(12.5d, next.get(3));
+                    assertEquals("text", next.get(4).toString());
+                    // UPDATED value, different from the default
+                    assertEquals(Boolean.FALSE, next.get(5));
+                    java.sql.Timestamp ts = (java.sql.Timestamp) next.get(6);
+                    assertTrue("bad ts " + ts + " <> " + new java.sql.Timestamp(now), Math.abs(ts.getTime() - now) < 1000);
+                }
+            }
+
+            // handle "DEFAULT NULL" clause
+            execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key default 'defaultstring',"
+                    + "n1 int default null)", Collections.emptyList());
+            Table table2 = manager.getTableSpaceManager("tblspace1").getTableManager("tsql2").getTable();
+            assertEquals("defaultstring", table2.getColumn("k1").defaultValue.to_string());
+            assertNull(table2.getColumn("n1").defaultValue);
 
         }
     }

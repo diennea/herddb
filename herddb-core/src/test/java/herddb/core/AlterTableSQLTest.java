@@ -24,6 +24,7 @@ import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import herddb.mem.MemoryCommitLogManager;
@@ -35,6 +36,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.IllegalDataAccessException;
 import herddb.utils.RawString;
@@ -236,6 +238,71 @@ public class AlterTableSQLTest {
                 assertEquals("n1", tuples.get(0).getFieldNames()[1]);
                 assertEquals("s1", tuples.get(0).getFieldNames()[2]);
             }
+
+        }
+    }
+
+
+    @Test
+    public void modifyColumnWithDefaults() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 int primary key auto_increment,n1 int default 1234,s1 string)", Collections.emptyList());
+            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(1234, table.getColumn("n1").defaultValue.to_int());
+            assertEquals(2, table.getColumn("s1").serialPosition);
+
+            // keep default
+            execute(manager, "ALTER TABLE tblspace1.tsql modify column n1 int", Collections.emptyList());
+
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(1234, table.getColumn("n1").defaultValue.to_int());
+            assertEquals(2, table.getColumn("s1").serialPosition);
+
+            // alter default
+            execute(manager, "ALTER TABLE tblspace1.tsql modify column n1 int default 1255", Collections.emptyList());
+
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(1255, table.getColumn("n1").defaultValue.to_int());
+            assertEquals(2, table.getColumn("s1").serialPosition);
+
+            // rename, shuold keep default
+            execute(manager, "ALTER TABLE tblspace1.tsql change column n1 n2 int", Collections.emptyList());
+
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n2").serialPosition);
+            assertEquals(1255, table.getColumn("n2").defaultValue.to_int());
+            assertEquals(2, table.getColumn("s1").serialPosition);
+
+            // drop default
+            execute(manager, "ALTER TABLE tblspace1.tsql modify column n2 int default null", Collections.emptyList());
+
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n2").serialPosition);
+            assertNull(table.getColumn("n2").defaultValue);
+            assertEquals(2, table.getColumn("s1").serialPosition);
+
+            execute(manager, "ALTER TABLE tblspace1.tsql add mydate timestamp default CURRENT_TIMESTAMP", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n2").serialPosition);
+            assertNull(table.getColumn("n2").defaultValue);
+            assertEquals(3, table.getColumn("mydate").serialPosition);
+            assertEquals(Bytes.from_string("CURRENT_TIMESTAMP"), table.getColumn("mydate").defaultValue);
 
         }
     }

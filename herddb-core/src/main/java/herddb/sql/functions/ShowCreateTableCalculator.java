@@ -47,7 +47,7 @@ public class ShowCreateTableCalculator {
         StringBuilder sb = new StringBuilder("CREATE TABLE " + tableSpace + "." + tableName);
         StringJoiner joiner = new StringJoiner(",", "(", ")");
         for (Column c : t.getColumns()) {
-            joiner.add(c.name + " " + ColumnTypes.typeToString(c.type) + autoIncrementColumn(t, c));
+            joiner.add(c.name + " " + ColumnTypes.typeToString(c.type) + autoIncrementColumn(t, c) + defaultClause(c));
         }
 
         if (t.getPrimaryKey().length > 0) {
@@ -76,6 +76,13 @@ public class ShowCreateTableCalculator {
                 || c.type == ColumnTypes.LONG
                 || c.type == ColumnTypes.NOTNULL_LONG)) {
             return " auto_increment";
+        }
+        return "";
+    }
+
+    private static String defaultClause(Column c) {
+        if (c.defaultValue != null) {
+            return " DEFAULT " + Column.defaultValueToString(c);
         }
         return "";
     }
