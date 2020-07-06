@@ -91,6 +91,7 @@ public class Column {
         }
         switch (c.type) {
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return "'" + c.defaultValue.to_boolean() + "'";
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -99,8 +100,10 @@ public class Column {
             case ColumnTypes.NOTNULL_LONG:
                 return c.defaultValue.to_long() + "";
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 return c.defaultValue.to_double() + "";
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 // expected only CURRENT_TIMESTAMP currently
                 return c.defaultValue.to_string();
             default:

@@ -1169,9 +1169,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 case ColumnTypes.NOTNULL_LONG:
                     return Bytes.from_long(Long.parseLong(defaultRepresentation));
                 case ColumnTypes.DOUBLE:
+                case ColumnTypes.NOTNULL_DOUBLE:
                     // TODO: deal with Java Locale
                     return Bytes.from_double(Double.parseDouble(defaultRepresentation));
                 case ColumnTypes.BOOLEAN:
+                case ColumnTypes.NOTNULL_BOOLEAN:
                     if (defaultRepresentation.length() <= 1) {
                         throw new StatementExecutionException("Bad default constraint specs: " + specs);
                     }
@@ -1185,6 +1187,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                     return Bytes.from_boolean(Boolean.parseBoolean(defaultRepresentation));
                 case ColumnTypes.TIMESTAMP:
+                case ColumnTypes.NOTNULL_TIMESTAMP:
                     if (!defaultRepresentation.equalsIgnoreCase("current_timestamp")) {
                         throw new StatementExecutionException("Bad default constraint specs: " + specs);
                     }

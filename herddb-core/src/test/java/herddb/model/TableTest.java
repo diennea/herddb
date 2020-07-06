@@ -38,11 +38,14 @@ public class TableTest {
                 .column("l1", ColumnTypes.LONG)
                 .column("l3", ColumnTypes.NOTNULL_LONG)
                 .column("b1", ColumnTypes.BOOLEAN)
+                .column("b2", ColumnTypes.NOTNULL_BOOLEAN)
                 .column("d1", ColumnTypes.DOUBLE)
+                .column("d2", ColumnTypes.NOTNULL_DOUBLE)
                 .column("a1", ColumnTypes.BYTEARRAY)
                 .column("t1", ColumnTypes.TIMESTAMP)
+                .column("t2", ColumnTypes.NOTNULL_TIMESTAMP)
                 .build();
-        assertEquals(10, instance.maxSerialPosition);
+        assertEquals(13, instance.maxSerialPosition);
         Table deserialize = Table.deserialize(instance.serialize());
         assertEquals(deserialize, instance);
     }
@@ -60,11 +63,14 @@ public class TableTest {
                 .column("l1", ColumnTypes.LONG, Bytes.from_long(-242L))
                 .column("l3", ColumnTypes.NOTNULL_LONG, Bytes.from_long(12341L))
                 .column("b1", ColumnTypes.BOOLEAN, Bytes.from_boolean(true))
+                .column("b2", ColumnTypes.NOTNULL_BOOLEAN, Bytes.from_boolean(false))
                 .column("d1", ColumnTypes.DOUBLE, Bytes.from_double(12.3))
+                .column("d2", ColumnTypes.NOTNULL_DOUBLE, Bytes.from_double(1.3))
                 .column("a1", ColumnTypes.BYTEARRAY) // no default for byte[]
                 .column("t1", ColumnTypes.TIMESTAMP, Bytes.from_string("CURRENT_TIMESTAMP"))
+                .column("t2", ColumnTypes.NOTNULL_TIMESTAMP, Bytes.from_string("CURRENT_TIMESTAMP"))
                 .build();
-        assertEquals(10, instance.maxSerialPosition);
+        assertEquals(13, instance.maxSerialPosition);
         Table deserialize = Table.deserialize(instance.serialize());
         assertEquals(deserialize, instance);
     }

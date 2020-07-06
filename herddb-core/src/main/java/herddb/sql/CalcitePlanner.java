@@ -1473,10 +1473,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     case ColumnTypes.NOTNULL_LONG:
                     case ColumnTypes.LONG:
                         return REX_BUILDER.makeLiteral(col.defaultValue.to_long(), SQL_TYPE_FACTORY_IMPL.createSqlType(SqlTypeName.BIGINT), true);
+                    case ColumnTypes.NOTNULL_DOUBLE:
                     case ColumnTypes.DOUBLE:
                         return REX_BUILDER.makeLiteral(col.defaultValue.to_double(), SQL_TYPE_FACTORY_IMPL.createSqlType(SqlTypeName.DOUBLE), true);
+                    case ColumnTypes.NOTNULL_BOOLEAN:
                     case ColumnTypes.BOOLEAN:
                         return REX_BUILDER.makeLiteral(col.defaultValue.to_boolean());
+                    case ColumnTypes.NOTNULL_TIMESTAMP:
                     case ColumnTypes.TIMESTAMP:
                         return REX_BUILDER.makeCall(SqlStdOperatorTable.CURRENT_TIMESTAMP);
                     default:
