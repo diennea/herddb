@@ -347,7 +347,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public static boolean toBoolean(byte[] bytes, int offset) {
-        return bytes[offset] != 1;
+        return bytes[offset] == 1;
     }
 
     public static double toDouble(byte[] bytes, int offset) {

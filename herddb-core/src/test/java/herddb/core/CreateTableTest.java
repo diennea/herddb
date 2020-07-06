@@ -31,6 +31,7 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.sql.TranslatedQuery;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Assert;
@@ -189,6 +190,58 @@ public class CreateTableTest {
             // Try to update a non null string.
             TranslatedQuery queryUpdate = manager.getPlanner().translate("tblspace1", "Update t1 set name=? where id=?", Arrays.asList(null, "test"), true, true, false, -1);
             manager.executePlan(queryUpdate.plan, queryUpdate.context, TransactionContext.NO_TRANSACTION);
+        }
+    }
+
+
+    @Test
+    public void weThrowExceptionOnNotNullInserts() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t11")
+                    .column("id", ColumnTypes.LONG)
+                    .column("name", ColumnTypes.STRING)
+                    .column("salary", ColumnTypes.NOTNULL_DOUBLE)
+                    .column("startdate", ColumnTypes.NOTNULL_TIMESTAMP)
+                    .column("marriage_status", ColumnTypes.NOTNULL_BOOLEAN)
+                    .primaryKey("id", true)
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TranslatedQuery translated1 = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name, salary, startdate, marriage_status) values(?,?,?,?)", Arrays.asList("Joe", 38.0d,
+                    new Timestamp(System.currentTimeMillis()), false), true, true, false, -1);
+            manager.executePlan(translated1.plan, translated1.context, TransactionContext.NO_TRANSACTION);
+
+            try {
+                TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name) values(?)", Arrays.asList("John"), true, true, false, -1);
+                manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+            } catch (Exception e1) {
+                Assert.assertTrue(e1.getMessage().contains("Column 'salary' has no default value and does not allow NULLs"));
+            }
+
+            try {
+                TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name, salary) values(?,?)", Arrays.asList("John", 40.99d), true, true, false, -1);
+                manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+            } catch (Exception e1) {
+                Assert.assertTrue(e1.getMessage().contains("Column 'startdate' has no default value and does not allow NULLs"));
+            }
+
+            try {
+                TranslatedQuery translated = manager.getPlanner().translate("tblspace1", "INSERT INTO t11 (name,salary,startdate) values(?,?,?)", Arrays.asList("John", 40.99d, new Timestamp(System.currentTimeMillis())), true, true, false, -1);
+                manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+            } catch (Exception e1) {
+                Assert.assertTrue(e1.getMessage().contains("Column 'marriage_status' has no default value and does not allow NULLs"));
+            }
         }
     }
 }

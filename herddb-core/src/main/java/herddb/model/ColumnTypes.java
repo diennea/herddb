@@ -42,6 +42,10 @@ public class ColumnTypes {
     public static final int NOTNULL_STRING = 11;
     public static final int NOTNULL_INTEGER = 12;
     public static final int NOTNULL_LONG = 13;
+    public static final int NOTNULL_BYTEARRAY = 14;
+    public static final int NOTNULL_TIMESTAMP = 15;
+    public static final int NOTNULL_DOUBLE = 16;
+    public static final int NOTNULL_BOOLEAN = 17;
 
 
     public static String typeToString(int type) {
@@ -68,6 +72,14 @@ public class ColumnTypes {
                 return "integer not null";
             case NOTNULL_LONG:
                 return "long not null";
+            case NOTNULL_DOUBLE:
+                return "double not null";
+            case NOTNULL_BYTEARRAY:
+                return "bytearray not null";
+            case NOTNULL_TIMESTAMP:
+                return "timestamp not null";
+            case NOTNULL_BOOLEAN:
+                return "boolean not null";
             default:
                 return "type?" + type;
         }
@@ -78,6 +90,10 @@ public class ColumnTypes {
             case NOTNULL_INTEGER:
             case NOTNULL_LONG:
             case NOTNULL_STRING:
+            case NOTNULL_BOOLEAN:
+            case NOTNULL_BYTEARRAY:
+            case NOTNULL_DOUBLE:
+            case NOTNULL_TIMESTAMP:
                 return true;
             default:
                 return false;
@@ -101,9 +117,13 @@ public class ColumnTypes {
             case LONG:
                 return NOTNULL_LONG;
             case BYTEARRAY:
+                return NOTNULL_BYTEARRAY;
             case TIMESTAMP:
+                return NOTNULL_TIMESTAMP;
             case DOUBLE:
+                return NOTNULL_DOUBLE;
             case BOOLEAN:
+                return NOTNULL_BOOLEAN;
             case NULL:
             default:
                 throw new StatementExecutionException("Not null constraints not supported for column type " + type);
@@ -129,14 +149,18 @@ public class ColumnTypes {
             case NOTNULL_INTEGER:
                 return "integer";
             case BYTEARRAY:
+            case NOTNULL_BYTEARRAY:
                 return "bytearray";
             case TIMESTAMP:
+            case NOTNULL_TIMESTAMP:
                 return "timestamp";
             case NULL:
                 return "null";
             case DOUBLE:
+            case NOTNULL_DOUBLE:
                 return "double";
             case BOOLEAN:
+            case NOTNULL_BOOLEAN:
                 return "boolean";
             default:
                 return "type?" + type;
