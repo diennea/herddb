@@ -522,7 +522,7 @@ public class CalcitePlannerTest {
                 TuplesList tuplesList = new TuplesList(columns, records);
                 assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
                 Tuple values = (Tuple) records.get(0);
-                assertTrue("unexpected CREATE TABLE "+values.get("tabledef").toString(), "CREATE TABLE tblspace1.test(k1 string,s1 string not null DEFAULT 'mydefault',PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
+                assertTrue("CREATE TABLE tblspace1.test(k1 string,s1 string not null DEFAULT 'mydefault',PRIMARY KEY(k1))".equalsIgnoreCase(values.get("tabledef").toString()));
             }
 
             translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test22", Collections.emptyList(),
