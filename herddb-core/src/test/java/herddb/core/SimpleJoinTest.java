@@ -970,5 +970,81 @@ public class SimpleJoinTest {
             }
         }
     }
+
+    @Test
+    public void testNotExistsWithTransaction() throws Exception {
+        String nodeId = "localhost";
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        // this test is using FileDataStorageManager, because it sorts PK in a way that
+        // reproduces an error due to the order or elements returned during the scan
+        try (DBManager manager = new DBManager(nodeId,
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+            manager.start();
+            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+
+            execute(manager,
+                    "CREATE TABLE a (k1 int primary key, v1 int)",
+                    Collections.emptyList());
+            execute(manager,
+                    "CREATE TABLE b (k2 int primary key, v2 int)",
+                    Collections.emptyList());
+
+            execute(manager, "INSERT INTO a (k1,v1) values(1,1)", Collections.emptyList());
+            execute(manager, "INSERT INTO b (k2,v2) values(1,1)", Collections.emptyList());
+
+            {
+                try (DataScanner scan1 = scan(manager,
+                        " select k1 as kk, v1 as vv from a where 1=1 and ( NOT EXISTS (SELECT NULL FROM b WHERE b.v2=a.k1 AND  1=1  AND b.k2 = 2 ))", Collections.emptyList())) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+                    assertEquals(1, consume.size());
+
+                }
+            }
+
+            {
+                try (DataScanner scan1 = scan(manager,
+                        " select k1 as kk, v1 as vv from a where 1=1 and ( NOT EXISTS (SELECT NULL FROM b WHERE b.v2=a.k1 AND  1=1  AND b.k2 = 1 ))", Collections.emptyList())) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+                    assertEquals(0, consume.size());
+
+                }
+            }
+
+            // joins during transactions must release transaction resources properly
+            {
+                long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);
+                try (DataScanner scan1 = scan(manager,
+                        " select k1 as kk, v1 as vv from a where 1=1 and ( NOT EXISTS (SELECT NULL FROM b WHERE b.v2=a.k1 AND  1=1  AND b.k2 = 2 ))",
+                        Collections.emptyList(), new TransactionContext(tx));) {
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+                    assertEquals(1, consume.size());
+                }
+                TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
+            }
+        }
+    }
 }
+
 
