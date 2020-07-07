@@ -32,7 +32,7 @@ The system automatically replicates data between replicas and handles server fai
 
 ## Overview
 
-Intoducing HerdDB - Pulsar Summit 2020 - Enrico Olivelli
+[Intoducing HerdDB - Pulsar Summit 2020](https://www.youtube.com/watch?v=K7xQZ9V9Ml0) - Enrico Olivelli
 
 [![Intoducing HerdDB - Youtube link](https://img.youtube.com/vi/K7xQZ9V9Ml0/0.jpg)](https://www.youtube.com/watch?v=K7xQZ9V9Ml0)
 
