@@ -146,6 +146,15 @@ public class FilterOp implements PlannerOp {
             return inputScanner.isRewindSupported();
         }
 
+        @Override
+        public void close() throws DataScannerException {
+            try {
+                inputScanner.close();
+            } finally {
+                super.close();
+            }
+        }
+
 
     }
 
