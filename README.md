@@ -7,11 +7,11 @@ HerdDB is a **distributed Database**, data is distributed among a cluster of ser
 
 HerdDB primary language is **SQL** and clients are encouraged to use both the JDBC Driver API and the low level API.
 
-HerdDB is **embeddable** in any Java Virtual Machine, each node will access without network to local data.
+HerdDB is **embeddable** in any Java Virtual Machine, each node will access directly to local data without the use of the network.
 
-HerdDB replication functions are built upon **Apache ZooKeeper** and **Apache BookKeeper** projects.
+HerdDB replication functions are built upon **Apache ZooKeeper** and **Apache BookKeeper**.
 
-HerdDB is very similar to a NoSQL databases, in fact at the Low level is it basically a **key-value DB** with an SQL abstraction layer which enables every user to leverage existing known-how and to port existing applications to HerdDB.
+HerdDB is internally very similar to a NoSQL database and, basically, it is a **key-value DB** with an SQL abstraction layer which enables every user to leverage existing known-how and to port existing applications.
 
 *HerdDB has been designed for fast "writes" and for primary key read/update data access patterns.*
 
@@ -21,16 +21,22 @@ HerdDB uses **Apache Calcite** as SQL parser and SQL Planner
 
 ## Basic concepts
 
-Data, as in any **SQL database**, is organized in tables and, in order to leverage HerdDB replication function, tables are grouped inside **Tablespaces**.
+Data, as in any **SQL database**, is organized in tables and tables are grouped inside **Tablespaces**.
 
-A Tablespace is a logical set of tables that is the fundamental architectural brick upon which the replication is built.
-
-There are some DB features which are available only among tables of the same tablespace:
+A Tablespace is the fundamental architectural brick upon which the replication is built and some DB features are available only among tables of the same tablespace:
 - transactions may span only tables of the same tablespace
 - subqueries may span only tables of the same tablespace
 
-Replication is configured at tablespace level, so for each tablespace only one server is designed to be the 'leader' (manager) and then you may configure a set of 'replicas'.
-The system automatically replicates data between replicas and handles transparently server failures.
+Replication is configured at tablespace level, so for each tablespace only one server is designed to be the 'leader' (manager) at a specific point in time, then you may configure a set of 'replicas'.
+The system automatically replicates data between replicas and handles server failures transparently.
+
+## Overview
+
+[Intoducing HerdDB - Pulsar Summit 2020](https://www.youtube.com/watch?v=K7xQZ9V9Ml0) - Enrico Olivelli
+
+[![Intoducing HerdDB - Youtube link](https://img.youtube.com/vi/K7xQZ9V9Ml0/0.jpg)](https://www.youtube.com/watch?v=K7xQZ9V9Ml0)
+
+[Other talks and deep dives](https://github.com/diennea/herddb/wiki/Talks-&-Publications)
 
 ## Getting Involved
 
