@@ -36,6 +36,8 @@ Intoducing HerdDB - Pulsar Summit 2020 - Enrico Olivelli
 
 [![Intoducing HerdDB - Youtube link](https://img.youtube.com/vi/K7xQZ9V9Ml0/0.jpg)](https://www.youtube.com/watch?v=K7xQZ9V9Ml0)
 
+[Other talks and deep dives](https://github.com/diennea/herddb/wiki/Talks-&-Publications)
+
 ## Getting Involved
 
 Join the [mailing list](http://lists.herddb.org/mailman/listinfo)
