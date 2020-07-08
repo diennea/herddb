@@ -20,14 +20,14 @@
 
 package herddb.network.netty;
 
-import herddb.network.Channel;
-import herddb.network.ChannelEventListener;
-import herddb.network.ServerSideConnection;
 import static herddb.network.netty.Utils.buildAckRequest;
 import static herddb.network.netty.Utils.buildAckResponse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.DefaultEventLoopGroup;

@@ -321,7 +321,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         if (enableJVMNetwork && jvmhostAddress != null) {
             LocalServerRegistry.unregisterLocalServer(jvmhostAddress, port, ssl);
         }
-        if (localChannel != null) {            
+        if (localChannel != null) {
             localChannel.close();
         }
         if (workerGroup != null) {
