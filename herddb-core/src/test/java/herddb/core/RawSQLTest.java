@@ -1449,7 +1449,7 @@ public class RawSQLTest {
     }
 
     @Test
-    public void simpleSumTest() throws Exception {
+    public void simpleSumAvgTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
@@ -1464,92 +1464,119 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(5), "b")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
-            {
-
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
-                    List<DataAccessor> result = scan1.consume();
-                    assertEquals(1, result.size());
-                    assertEquals(Long.valueOf(8), result.get(0).get(0));
-                    assertEquals(Long.valueOf(8), result.get(0).get("cc"));
-                }
+            try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Long.valueOf(8), result.get(0).get(0));
+                assertEquals(Long.valueOf(8), result.get(0).get("cc"));
             }
 
-            {
+            try (DataScanner scan1 = scan(manager, "SELECT AVG(n1) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(3, result.size());
+               // AVG between integers is an integer, Calcite actually does SUM/COUNT cast to Integer
+//             EnumerableProject(CC=[CAST(/(CASE(=($2, 0), null:INTEGER, $1), $2)):INTEGER], S1=[$0]): rowcount = 1.0, cumulative cost = {4.25 rows, 4.0 cpu, 0.0 io}, id = 241
+//                EnumerableAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($1)]): rowcount = 1.0, cumulative cost = {3.25 rows, 2.0 cpu, 0.0 io}, id = 240
+                assertEquals(Integer.valueOf(1), result.get(0).get(0));
+                assertEquals(Integer.valueOf(1), result.get(0).get("cc"));
+                assertEquals(RawString.of("a"), result.get(0).get(1));
+                assertEquals(RawString.of("a"), result.get(0).get("s1"));
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
-                    List<DataAccessor> result = scan1.consume();
-                    assertEquals(3, result.size());
-                    assertEquals(Long.valueOf(3), result.get(0).get(0));
-                    assertEquals(Long.valueOf(3), result.get(0).get("cc"));
-                    assertEquals(RawString.of("a"), result.get(0).get(1));
-                    assertEquals(RawString.of("a"), result.get(0).get("s1"));
+                assertEquals(Integer.valueOf(5), result.get(1).get(0));
+                assertEquals(Integer.valueOf(5), result.get(1).get("cc"));
+                assertEquals(RawString.of("b"), result.get(1).get(1));
+                assertEquals(RawString.of("b"), result.get(1).get("s1"));
 
-                    assertEquals(Long.valueOf(5), result.get(1).get(0));
-                    assertEquals(Long.valueOf(5), result.get(1).get("cc"));
-                    assertEquals(RawString.of("b"), result.get(1).get(1));
-                    assertEquals(RawString.of("b"), result.get(1).get("s1"));
-
-                    assertEquals(Long.valueOf(0), result.get(2).get(0));
-                    assertEquals(Long.valueOf(0), result.get(2).get("cc"));
-                    assertEquals(null, result.get(2).get(1));
-                    assertEquals(null, result.get(2).get("s1"));
-                }
+                assertEquals(Integer.valueOf(0), result.get(2).get(0));
+                assertEquals(Integer.valueOf(0), result.get(2).get("cc"));
+                assertEquals(null, result.get(2).get(1));
+                assertEquals(null, result.get(2).get("s1"));
             }
 
-            {
+            try (DataScanner scan1 = scan(manager, "SELECT CAST(AVG(n1) as DOUBLE) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(3, result.size());
+               // you can require it as DOUBLE, then Calcite uses real AVG aggregator
+//             LogicalProject(CC=[CAST($1):DOUBLE], S1=[$0]): rowcount = 1.0, cumulative cost = {10.125 rows, 15.0 cpu, 0.0 io}, id = 254
+//                 LogicalAggregate(group=[{0}], agg#0=[AVG($1)]): rowcount = 1.0, cumulative cost = {9.125 rows, 13.0 cpu, 0.0 io}, id = 252
+                assertEquals(Double.valueOf(1.5), result.get(0).get(0));
+                assertEquals(Double.valueOf(1.5), result.get(0).get("cc"));
+                assertEquals(RawString.of("a"), result.get(0).get(1));
+                assertEquals(RawString.of("a"), result.get(0).get("s1"));
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
-                    List<DataAccessor> result = scan1.consume();
-                    assertEquals(3, result.size());
-                    assertEquals(Long.valueOf(3), result.get(0).get(0));
-                    assertEquals(Long.valueOf(3), result.get(0).get("asum"));
-                    assertEquals(RawString.of("a"), result.get(0).get(1));
-                    assertEquals(RawString.of("a"), result.get(0).get("s1"));
+                assertEquals(Double.valueOf(5), result.get(1).get(0));
+                assertEquals(Double.valueOf(5), result.get(1).get("cc"));
+                assertEquals(RawString.of("b"), result.get(1).get(1));
+                assertEquals(RawString.of("b"), result.get(1).get("s1"));
 
-                    assertEquals(Long.valueOf(5), result.get(1).get(0));
-                    assertEquals(Long.valueOf(5), result.get(1).get("asum"));
-                    assertEquals(RawString.of("b"), result.get(1).get(1));
-                    assertEquals(RawString.of("b"), result.get(1).get("s1"));
-
-                    assertEquals(Long.valueOf(0), result.get(2).get(0));
-                    assertEquals(Long.valueOf(0), result.get(2).get("asum"));
-                    assertEquals(null, result.get(2).get(1));
-                    assertEquals(null, result.get(2).get("s1"));
-                }
+                assertEquals(Double.valueOf(0), result.get(2).get(0));
+                assertEquals(Double.valueOf(0), result.get(2).get("cc"));
+                assertEquals(null, result.get(2).get(1));
+                assertEquals(null, result.get(2).get("s1"));
             }
 
-            {
-
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList())) {
-                    List<DataAccessor> result = scan1.consume();
-                    assertEquals(3, result.size());
-
-                    assertEquals(Long.valueOf(0), result.get(0).get(0));
-                    assertEquals(Long.valueOf(0), result.get(0).get("asum"));
-                    assertEquals(null, result.get(0).get(1));
-                    assertEquals(null, result.get(0).get("s1"));
-
-                    assertEquals(Long.valueOf(3), result.get(1).get(0));
-                    assertEquals(Long.valueOf(3), result.get(1).get("asum"));
-                    assertEquals(RawString.of("a"), result.get(1).get(1));
-                    assertEquals(RawString.of("a"), result.get(1).get("s1"));
-
-                    assertEquals(Long.valueOf(5), result.get(2).get(0));
-                    assertEquals(Long.valueOf(5), result.get(2).get("asum"));
-                    assertEquals(RawString.of("b"), result.get(2).get(1));
-                    assertEquals(RawString.of("b"), result.get(2).get("s1"));
-
-                }
+            try (DataScanner scan1 = scan(manager, "SELECT AVG(n1) as cc FROM tblspace1.tsql ", Collections.emptyList())) {
+                // AVG between integers is an integer
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Integer.valueOf(2), result.get(0).get(0));
+                assertEquals(Integer.valueOf(2), result.get(0).get("cc"));
             }
 
-            {
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
-                    List<DataAccessor> result = scan1.consume();
-                    assertEquals(1, result.size());
-                    assertEquals(Long.valueOf(4), result.get(0).get(0));
-                    assertEquals(Long.valueOf(4), result.get(0).get("cc"));
-                }
+            try (DataScanner scan1 = scan(manager, "SELECT AVG(CAST(n1 as DOUBLE)) as cc FROM tblspace1.tsql ", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Double.valueOf(2.0), result.get(0).get(0));
+                assertEquals(Double.valueOf(2.0), result.get(0).get("cc"));
             }
+
+            try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(3, result.size());
+                assertEquals(Long.valueOf(3), result.get(0).get(0));
+                assertEquals(Long.valueOf(3), result.get(0).get("asum"));
+                assertEquals(RawString.of("a"), result.get(0).get(1));
+                assertEquals(RawString.of("a"), result.get(0).get("s1"));
+
+                assertEquals(Long.valueOf(5), result.get(1).get(0));
+                assertEquals(Long.valueOf(5), result.get(1).get("asum"));
+                assertEquals(RawString.of("b"), result.get(1).get(1));
+                assertEquals(RawString.of("b"), result.get(1).get("s1"));
+
+                assertEquals(Long.valueOf(0), result.get(2).get(0));
+                assertEquals(Long.valueOf(0), result.get(2).get("asum"));
+                assertEquals(null, result.get(2).get(1));
+                assertEquals(null, result.get(2).get("s1"));
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(3, result.size());
+
+                assertEquals(Long.valueOf(0), result.get(0).get(0));
+                assertEquals(Long.valueOf(0), result.get(0).get("asum"));
+                assertEquals(null, result.get(0).get(1));
+                assertEquals(null, result.get(0).get("s1"));
+
+                assertEquals(Long.valueOf(3), result.get(1).get(0));
+                assertEquals(Long.valueOf(3), result.get(1).get("asum"));
+                assertEquals(RawString.of("a"), result.get(1).get(1));
+                assertEquals(RawString.of("a"), result.get(1).get("s1"));
+
+                assertEquals(Long.valueOf(5), result.get(2).get(0));
+                assertEquals(Long.valueOf(5), result.get(2).get("asum"));
+                assertEquals(RawString.of("b"), result.get(2).get(1));
+                assertEquals(RawString.of("b"), result.get(2).get("s1"));
+
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Long.valueOf(4), result.get(0).get(0));
+                assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+            }
+
 
         }
     }
