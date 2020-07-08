@@ -73,6 +73,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private EventLoopGroup localWorkerGroup;
     private int port = 7000;
     private String host = "localhost";
+    private String jvmhostAddress;
     private boolean ssl;
     private ServerSideConnectionAcceptor acceptor;
     private SslContext sslCtx;
@@ -303,10 +304,10 @@ public class NettyChannelAcceptor implements AutoCloseable {
                     .channel(LocalServerChannel.class)
                     .childHandler(channelInitialized);
 
-            String hostAddress = NetworkUtils.getAddress(address);
-            LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);
+            jvmhostAddress = NetworkUtils.getAddress(address);
+            LocalServerRegistry.registerLocalServer(jvmhostAddress, port, ssl);
 
-            ChannelFuture local_f = b_local.bind(new LocalAddress(hostAddress + ":" + port + ":" + ssl)).sync();
+            ChannelFuture local_f = b_local.bind(new LocalAddress(jvmhostAddress + ":" + port + ":" + ssl)).sync();
             this.localChannel = local_f.channel();
         }
 
@@ -316,6 +317,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
     public void close() {
         if (channel != null) {
             channel.close();
+        }
+        if (enableJVMNetwork && jvmhostAddress != null) {
+            LocalServerRegistry.unregisterLocalServer(jvmhostAddress, port, ssl);
         }
         if (localChannel != null) {
             localChannel.close();

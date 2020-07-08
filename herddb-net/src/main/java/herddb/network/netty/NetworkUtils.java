@@ -37,19 +37,22 @@ import java.util.logging.Logger;
 public class NetworkUtils {
 
     private static final Logger LOG = Logger.getLogger(NetworkUtils.class.getName());
-    private static final boolean ENABLE_EPOOL_NATIVE =
-            System.getProperty("os.name").equalsIgnoreCase("linux")
+
+    // computed lazily, in order not to force loading of Netty EPoll if not needed
+    private static Boolean nettyEpoolNativeAvailable;
+
+    public static synchronized boolean isEnableEpoolNative() {
+        if (nettyEpoolNativeAvailable == null) {
+            nettyEpoolNativeAvailable =
+                    System.getProperty("os.name").equalsIgnoreCase("linux")
                     && !Boolean.getBoolean("herddb.network.disablenativeepoll")
                     && Epoll.isAvailable();
-    static {
-        if (!ENABLE_EPOOL_NATIVE && !Epoll.isAvailable()) {
-            LOG.log(Level.INFO, "Netty Epoll is not enabled, os.name {0}, Epoll.isAvailable(): {1} cause: {2}",
-                    new Object[]{System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause()});
+            if (!nettyEpoolNativeAvailable && !Epoll.isAvailable()) {
+                LOG.log(Level.INFO, "Netty Epoll is not enabled, os.name {0}, Epoll.isAvailable(): {1} cause: {2}",
+                        new Object[]{System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause()});
+            }
         }
-    }
-
-    public static boolean isEnableEpoolNative() {
-        return ENABLE_EPOOL_NATIVE;
+        return nettyEpoolNativeAvailable;
     }
 
     public static String getAddress(InetSocketAddress address) {

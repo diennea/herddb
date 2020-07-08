@@ -18,27 +18,33 @@
 
 */
 
-package herddb.network;
+package herddb.network.netty;
 
-import static herddb.network.Utils.buildAckRequest;
-import static herddb.network.Utils.buildAckResponse;
+import static herddb.network.netty.Utils.buildAckRequest;
+import static herddb.network.netty.Utils.buildAckResponse;
 import static org.junit.Assert.assertEquals;
-import herddb.network.netty.NettyChannelAcceptor;
-import herddb.network.netty.NettyConnector;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.junit.Test;
 
-public class ChannelBenchTest {
+public class LocalChannelTest {
 
     @Test
     public void test() throws Exception {
-        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
+        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
+        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
+            acceptor.setEnableRealNetwork(false);
             acceptor.setAcceptor((Channel channel) -> {
                 channel.setMessagesReceiver(new ChannelEventListener() {
                     @Override
@@ -56,8 +62,9 @@ public class ChannelBenchTest {
                 return (ServerSideConnection) () -> new Random().nextLong();
             });
             acceptor.start();
+            assertTrue(LocalServerRegistry.isLocalServer(NetworkUtils.getAddress(addr), addr.getPort(), true));
             ExecutorService executor = Executors.newCachedThreadPool();
-            try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
+            try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
 
                 @Override
                 public void channelClosed(Channel channel) {
@@ -74,8 +81,8 @@ public class ChannelBenchTest {
             } finally {
                 executor.shutdown();
             }
+
         }
-
+        assertFalse(LocalServerRegistry.isLocalServer(NetworkUtils.getAddress(addr), addr.getPort(), true));
     }
-
 }

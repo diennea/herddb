@@ -18,7 +18,7 @@
 
 */
 
-package herddb.network;
+package herddb.network.netty;
 
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
