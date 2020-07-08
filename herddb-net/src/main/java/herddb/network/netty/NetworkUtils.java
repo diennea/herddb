@@ -37,18 +37,21 @@ import java.util.logging.Logger;
 public class NetworkUtils {
 
     private static final Logger LOG = Logger.getLogger(NetworkUtils.class.getName());
-    private static final boolean ENABLE_EPOOL_NATIVE =
-            System.getProperty("os.name").equalsIgnoreCase("linux")
-                    && !Boolean.getBoolean("herddb.network.disablenativeepoll")
-                    && Epoll.isAvailable();
-    static {
-        if (!ENABLE_EPOOL_NATIVE && !Epoll.isAvailable()) {
-            LOG.log(Level.INFO, "Netty Epoll is not enabled, os.name {0}, Epoll.isAvailable(): {1} cause: {2}",
-                    new Object[]{System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause()});
-        }
-    }
+
+    // computed lazily, in order not to force loading of Netty EPoll if not needed
+    private static volatile Boolean ENABLE_EPOOL_NATIVE;
 
     public static boolean isEnableEpoolNative() {
+        if (ENABLE_EPOOL_NATIVE == null) {
+            ENABLE_EPOOL_NATIVE =
+                    System.getProperty("os.name").equalsIgnoreCase("linux")
+                    && !Boolean.getBoolean("herddb.network.disablenativeepoll")
+                    && Epoll.isAvailable();
+            if (!ENABLE_EPOOL_NATIVE && !Epoll.isAvailable()) {
+                LOG.log(Level.INFO, "Netty Epoll is not enabled, os.name {0}, Epoll.isAvailable(): {1} cause: {2}",
+                        new Object[]{System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause()});
+            }
+        }
         return ENABLE_EPOOL_NATIVE;
     }
 
