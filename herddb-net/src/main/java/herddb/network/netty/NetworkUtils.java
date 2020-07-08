@@ -39,9 +39,9 @@ public class NetworkUtils {
     private static final Logger LOG = Logger.getLogger(NetworkUtils.class.getName());
 
     // computed lazily, in order not to force loading of Netty EPoll if not needed
-    private static volatile Boolean nettyEpoolNativeAvailable;
+    private static Boolean nettyEpoolNativeAvailable;
 
-    public static boolean isEnableEpoolNative() {
+    public static synchronized boolean isEnableEpoolNative() {
         if (nettyEpoolNativeAvailable == null) {
             nettyEpoolNativeAvailable =
                     System.getProperty("os.name").equalsIgnoreCase("linux")
