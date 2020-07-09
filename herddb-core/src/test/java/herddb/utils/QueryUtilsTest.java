@@ -22,6 +22,10 @@ package herddb.utils;
 
 import static org.junit.Assert.assertEquals;
 import herddb.model.TableSpace;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -41,6 +45,7 @@ public class QueryUtilsTest {
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "select a.b from myts.test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "select a.b from myts.test where foo='bar'"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "select * from myts.test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "SELECT COUNT(M.id) FROM myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='From' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
 
     @Test
@@ -61,7 +66,16 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into test values(?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test(a,b) values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test values(?,?,?,?)"));
-
+    }
+    
+    @Test
+    public void testDiscoverTablespaceFromUpsert() {
+        String defaultTableSpace = TableSpace.DEFAULT;
+        String theTableSpace = "myts";
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into test(a,b) values(?,?,?)"));
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into test values(?,?,?)"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test(a,b) values(?,?,?,?)"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test values(?,?,?,?)"));
     }
 
     @Test

@@ -46,6 +46,11 @@ public class QueryUtils {
      * Prefix for INSERT before tablespace.tablename
      */
     private static final String PREFIX_INSERT = "insert\\W+into\\W+";
+    
+    /**
+     * Prefix for UPSERT before tablespace.tablename
+     */
+    private static final String PREFIX_UPSERT = "upsert\\W+into\\W+";
 
     /**
      * Prefix for DELETE before tablespace.tablename
@@ -90,6 +95,7 @@ public class QueryUtils {
             "(?:" + PREFIX_SELECT
                     + "|" + PREFIX_UPDATE
                     + "|" + PREFIX_INSERT
+                    + "|" + PREFIX_UPSERT
                     + "|" + PREFIX_DELETE
                     + "|" + PREFIX_TABLE_CREATE
                     + "|" + PREFIX_TABLE_DROP
