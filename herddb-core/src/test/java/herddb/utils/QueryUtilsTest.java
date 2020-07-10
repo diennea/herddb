@@ -66,9 +66,9 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into test values(?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test(a,b) values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test values(?,?,?,?)"));
-	assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "INSERT INTO myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "INSERT INTO myts.a SELECT * FROM myts.c M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
-    
+ 
     @Test
     public void testDiscoverTablespaceFromUpsert() {
         String defaultTableSpace = TableSpace.DEFAULT;
@@ -77,7 +77,7 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into test values(?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test(a,b) values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test values(?,?,?,?)"));
-	assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "UPSERT INTO myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "UPSERT INTO myts.a SELECT * FROM myts.c M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
 
     @Test
