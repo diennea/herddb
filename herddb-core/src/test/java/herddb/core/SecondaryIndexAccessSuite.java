@@ -357,6 +357,345 @@ public abstract class SecondaryIndexAccessSuite {
 
     }
 
+
+    @Test
+    public void twoColumnIndexPlansTests() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .build();
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('c',2,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',2,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',3,5,'n2')", Collections.emptyList());
+            // since 0.17.0 NULL values are allowed in multi-column indexes
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('f',null,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',4,null,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('h',null,null,'n2')", Collections.emptyList());
+
+            // create index, it will be built using existing data
+            CreateIndexStatement st3 = new CreateIndexStatement(index);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(3, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n2=5", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(6, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    //  NULL is greater then other values
+                    assertEquals(8, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(4, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>= 1 and n1<=2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(4, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    // null is greater then any other value
+                    assertEquals(7, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n2 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    // null is greater then any other value
+                    assertEquals(7, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(4, scan1.consume().size());
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(0, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1> 1 and n1<3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(3, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(6, scan1.consume().size());
+                }
+            }
+
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is not null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(6, scan1.consume().size());
+                }
+            }
+
+            // update NULL value, set a non null value
+            TestUtils.executeUpdate(manager, "UPSERT INTO tblspace1.t1(id,n1,n2,name) values('f',4,5,'n2')", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=4", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            // set NULL again
+            TestUtils.executeUpdate(manager, "UPSERT INTO tblspace1.t1(id,n1,n2,name) values('f',null,5,'n2')", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            // delete records that contains NULL
+            TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 where n1 is null", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1 is null", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(0, scan1.consume().size());
+                }
+            }
+        }
+
+    }
+
+    @Test
+    public void threeColumnIndexPlansTests() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .build();
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('c',2,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',2,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',3,5,'n2')", Collections.emptyList());
+            // since 0.17.0 NULL values are allowed in multi-column indexes
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('f',null,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',4,null,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('h',null,null,'n3')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('i',5,null,null)", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('k',5,9,null)", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('m',null,null,null)", Collections.emptyList());
+
+            // create index, it will be built using existing data
+            CreateIndexStatement st3 = new CreateIndexStatement(index);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(3, scan1.consume().size());
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=5 and n2=9", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=3 and n2=5 and name='n2'", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n3'", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertNull(scan.getPredicate().getIndexOperation());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+        }
+    }
+
     @Test
     public void createIndexOnTableWithData() throws Exception {
         String nodeId = "localhost";
