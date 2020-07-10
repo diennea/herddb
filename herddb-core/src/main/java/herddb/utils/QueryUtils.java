@@ -35,58 +35,58 @@ public class QueryUtils {
     /**
      * Prefix for SELECT before tablespace.tablename
      */
-    private static final String PREFIX_SELECT = "select.+\\W+from\\W+";
+    private static final String PREFIX_SELECT = "(?i)select.+[^a-zA-Z_0-9'\"]+from[^a-zA-Z_0-9'\"]+";
 
     /**
      * Prefix for UPDATE before tablespace.tablename
      */
-    private static final String PREFIX_UPDATE = "update\\W+";
+    private static final String PREFIX_UPDATE = "(?i)update\\W+";
 
     /**
      * Prefix for INSERT before tablespace.tablename
      */
-    private static final String PREFIX_INSERT = "insert\\W+into\\W+";
+    private static final String PREFIX_INSERT = "(?i)insert\\W+into\\W+";
     
     /**
      * Prefix for UPSERT before tablespace.tablename
      */
-    private static final String PREFIX_UPSERT = "upsert\\W+into\\W+";
+    private static final String PREFIX_UPSERT = "(?i)upsert\\W+into\\W+";
 
     /**
      * Prefix for DELETE before tablespace.tablename
      */
-    private static final String PREFIX_DELETE = "delete\\W+from\\W+";
+    private static final String PREFIX_DELETE = "(?i)delete.+[^a-zA-Z_0-9'\"]+from[^a-zA-Z_0-9'\"]+";
 
     /**
      * Prefix for TABLE CREATE before tablespace.tablename
      */
-    private static final String PREFIX_TABLE_CREATE = "create\\W+table\\W+";
+    private static final String PREFIX_TABLE_CREATE = "(?i)create\\W+table\\W+";
 
     /**
      * Prefix for TABLE DROP before tablespace.tablename
      */
-    private static final String PREFIX_TABLE_DROP = "drop\\W+table\\W+";
+    private static final String PREFIX_TABLE_DROP = "(?i)drop\\W+table\\W+";
 
     /**
      * Prefix for TRUNCATE TABLE before tablespace.tablename
      */
-    private static final String PREFIX_TABLE_TRUNCATE = "truncate\\W+table\\W+";
+    private static final String PREFIX_TABLE_TRUNCATE = "(?i)truncate\\W+table\\W+";
 
     /**
      * Prefix for TABLE ALTER before tablespace.tablename
      */
-    private static final String PREFIX_TABLE_ALTER = "alter\\W+table\\W+";
+    private static final String PREFIX_TABLE_ALTER = "(?i)alter\\W+table\\W+";
 
     /**
      * Prefix for INDEX CREATE before tablespace.tablename
      */
     private static final String PREFIX_INDEX_CREATE =
-            "create\\W+(?:(" + Index.TYPE_HASH + "|" + Index.TYPE_BRIN + ")\\W+)?index\\W+.+\\W+on\\W+";
+            "(?i)create\\W+(?:(" + Index.TYPE_HASH + "|" + Index.TYPE_BRIN + ")\\W+)?index\\W+.+\\W+on\\W+";
 
     /**
      * Prefix for INDEX DROP before tablespace.tablename
      */
-    private static final String PREFIX_INDEX_DROP = "drop\\W+index\\W+";
+    private static final String PREFIX_INDEX_DROP = "(?i)drop\\W+index\\W+";
 
     /**
      * Combines prefixes and add tablespace.tablename groups

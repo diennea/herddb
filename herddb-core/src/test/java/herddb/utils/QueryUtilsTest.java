@@ -66,6 +66,7 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into test values(?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test(a,b) values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test values(?,?,?,?)"));
+	assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "INSERT INTO myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
     
     @Test
@@ -76,6 +77,20 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into test values(?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test(a,b) values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "upsert into myts.test values(?,?,?,?)"));
+	assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "UPSERT INTO myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
+    }
+
+    @Test
+    public void testDiscoverTablespaceFromDelete() {
+        String defaultTableSpace = TableSpace.DEFAULT;
+        String theTableSpace = "myts";
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "delete * from test"));
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, ""));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "delete a from myts.test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "delete a.b from myts.test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "delete a.b from myts.test where foo='bar'"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "delete * from myts.test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "DELTE FROM myts.a M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='From' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
 
     @Test
