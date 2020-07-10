@@ -1742,7 +1742,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* If there are indexes e have already forced a page load and previous record has been loaded */
             DataAccessor values = previous.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
-                Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
                 index.recordDeleted(key, indexKey);
             }
         }
@@ -1880,8 +1880,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             for (AbstractIndexManager index : indexes.values()) {
                 Index indexDef = index.getIndex();
                 String[] indexColumnNames = index.getColumnNames();
-                Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(prevValues, indexDef, indexColumnNames);
-                Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, indexDef, indexColumnNames);
+                Bytes indexKeyRemoved = RecordSerializer.serializeIndexKey(prevValues, indexDef, indexColumnNames);
+                Bytes indexKeyAdded = RecordSerializer.serializeIndexKey(newValues, indexDef, indexColumnNames);
                 index.recordUpdated(key, indexKeyRemoved, indexKeyAdded);
             }
         }
@@ -2038,7 +2038,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Standard insert */
             DataAccessor values = record.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
-                Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
                 index.recordInserted(key, indexKey);
             }
         }

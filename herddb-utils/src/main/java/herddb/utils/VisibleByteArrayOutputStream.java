@@ -106,6 +106,11 @@ public class VisibleByteArrayOutputStream extends OutputStream {
         count += len;
     }
 
+    @Override
+    public void write(byte b[]) {
+        write(b, 0, b.length);
+    }
+
     public void writeTo(OutputStream out) throws IOException {
         out.write(buf, 0, count);
     }

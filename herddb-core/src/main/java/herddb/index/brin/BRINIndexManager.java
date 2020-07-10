@@ -296,8 +296,8 @@ public class BRINIndexManager extends AbstractIndexManager {
         AtomicLong count = new AtomicLong();
         tableManager.scanForIndexRebuild(r -> {
             DataAccessor values = r.getDataAccessor(table);
-            Bytes key = RecordSerializer.serializePrimaryKey(values, table, table.primaryKey);
-            Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
+            Bytes key = RecordSerializer.serializeIndexKey(values, table, table.primaryKey);
+            Bytes indexKey = RecordSerializer.serializeIndexKey(values, index, index.columnNames);
 //            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
             recordInserted(key, indexKey);
             count.incrementAndGet();

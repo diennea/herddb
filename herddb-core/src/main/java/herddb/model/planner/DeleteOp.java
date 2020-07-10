@@ -85,7 +85,7 @@ public class DeleteOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                Bytes key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
+                Bytes key = RecordSerializer.serializeIndexKey(row, table, table.getPrimaryKey());
                 DMLStatement deleteStatement = new DeleteStatement(tableSpace, tableName,
                         null, new RawKeyEquals(key));
 

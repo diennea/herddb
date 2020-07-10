@@ -60,36 +60,48 @@ public interface SQLRecordPredicateFunctions {
         } else if (b == null) {
             return -1;
         }
-        if (a instanceof RawString && b instanceof RawString) {
-            return ((RawString) a).compareTo((RawString) b);
-        }
-        if (a instanceof RawString && b instanceof String) {
-            return ((RawString) a).compareToString((String) b);
+        if (a instanceof RawString) {
+            if (b instanceof RawString) {
+                return ((RawString) a).compareTo((RawString) b);
+            }
+            if (b instanceof String) {
+                return ((RawString) a).compareToString((String) b);
+            }
         }
         if (a instanceof String && b instanceof RawString) {
             return -((RawString) b).compareToString((String) a);
         }
-        if (a instanceof Integer && b instanceof Integer) {
-            return (Integer) a - (Integer) b;
+        if (a instanceof Integer) {
+            if (b instanceof Integer) {
+                return (Integer) a - (Integer) b;
+            }
+            if (b instanceof Long) {
+                long delta = (Integer) a - (Long) b;
+                return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            }
         }
-        if (a instanceof Long && b instanceof Long) {
-            double delta = (Long) a - (Long) b;
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+        if (a instanceof Long) {
+            if (b instanceof Long) {
+                long delta = (Long) a - (Long) b;
+                return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            }
+            if (b instanceof java.util.Date) {
+                long delta = ((Long) a) - ((java.util.Date) b).getTime();
+                return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            }
         }
         if (a instanceof Number && b instanceof Number) {
             return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
         }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof java.util.Date && b instanceof java.lang.Long) {
-            long delta = ((java.util.Date) a).getTime() - ((Long) b);
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof Long && b instanceof java.util.Date) {
-            long delta = ((Long) a) - ((java.util.Date) b).getTime();
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+        if (a instanceof java.util.Date) {
+            if (b instanceof java.util.Date) {
+                long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
+                return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            }
+            if (b instanceof java.lang.Long) {
+                long delta = ((java.util.Date) a).getTime() - ((Long) b);
+                return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            }
         }
         if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
             return ((Comparable) a).compareTo(b);

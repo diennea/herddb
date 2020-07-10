@@ -93,7 +93,7 @@ public class UpdateOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                Bytes key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
+                Bytes key = RecordSerializer.serializeIndexKey(row, table, table.getPrimaryKey());
                 Predicate pred = new RawKeyEquals(key);
                 DMLStatement updateStatement = new UpdateStatement(tableSpace, tableName,
                         null, this.recordFunction, pred)

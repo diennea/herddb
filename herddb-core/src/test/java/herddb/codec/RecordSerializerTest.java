@@ -17,21 +17,27 @@
  under the License.
 
  */
-
 package herddb.codec;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.ColumnsList;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.MapDataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 import org.junit.Test;
@@ -122,14 +128,12 @@ public class RecordSerializerTest {
         int iValueNonNullType = (int) RecordSerializer.deserialize(byteValueForInt, ColumnTypes.NOTNULL_INTEGER);
         assertEquals(iValueNonNullType, 1000);
 
-
         byte[] byteValueForLong = Bytes.from_long(99999).to_array();
         long lValue = (long) RecordSerializer.deserialize(byteValueForLong, ColumnTypes.LONG);
         assertEquals(lValue, 99999);
 
         long lValueNonNullType = (long) RecordSerializer.deserialize(byteValueForLong, ColumnTypes.NOTNULL_LONG);
         assertEquals(lValueNonNullType, 99999);
-
 
         byte[] strValueAsByteArray = Bytes.from_string("test").to_array();
         RawString sValue = (RawString) RecordSerializer.deserialize(strValueAsByteArray, ColumnTypes.STRING);
@@ -166,4 +170,108 @@ public class RecordSerializerTest {
     public void testSerializeThrowsExceptionOnUnknownType() {
         RecordSerializer.serialize("test", ColumnTypes.ANYTYPE);
     }
+
+    @Test
+    public void testSerializeIndexKey() throws Exception {
+        Map<String, Object> data = new HashMap<>();
+        data.put("k1", "key1");
+        data.put("n1", 1);
+        data.put("l1", 9L);
+        data.put("s1", "aa");
+        data.put("n2", null);
+        data.put("s2", null);
+        MapDataAccessor map = new MapDataAccessor(data, new String[]{"k1", "n1", "l1", "s1", "n2", "s2"});
+
+        testSerializeIndexKey(map, Bytes.from_string("key1"), Column.column("k1", ColumnTypes.STRING));
+        testSerializeIndexKey(map, Bytes.from_int(1), Column.column("n1", ColumnTypes.INTEGER));
+        testSerializeIndexKey(map, Bytes.from_long(9), Column.column("l1", ColumnTypes.LONG));
+        testSerializeIndexKey(map, Bytes.from_string("aa"), Column.column("s1", ColumnTypes.STRING));
+
+        // composite keys without nulls
+        testSerializeIndexKey(map, concat(varInt(4), Bytes.from_string("key1"), varInt(4), Bytes.from_int(1)),
+                Column.column("k1", ColumnTypes.STRING), Column.column("n1", ColumnTypes.INTEGER));
+        testSerializeIndexKey(map, concat(varInt(4), Bytes.from_string("key1"), varInt(4), Bytes.from_int(1), varInt(2), Bytes.from_string("aa")),
+                Column.column("k1", ColumnTypes.STRING), Column.column("n1", ColumnTypes.INTEGER), Column.column("s1", ColumnTypes.STRING));
+        testSerializeIndexKey(map, concat(varInt(4), Bytes.from_string("key1"), varInt(4), Bytes.from_int(1), varInt(2), Bytes.from_string("aa")),
+                Column.column("k1", ColumnTypes.STRING), Column.column("n1", ColumnTypes.INTEGER), Column.column("s1", ColumnTypes.STRING));
+
+        // single null value
+        testSerializeIndexKey(map, null, Column.column("s2", ColumnTypes.STRING));
+
+        // multicolumn, first column is a null
+        testSerializeIndexKey(map, null, Column.column("s2", ColumnTypes.STRING), Column.column("k1", ColumnTypes.STRING));
+
+        // multicolumn, two null columns
+        testSerializeIndexKey(map, null, Column.column("s2", ColumnTypes.STRING), Column.column("n1", ColumnTypes.INTEGER));
+
+        // multicolumn, first column is not null, second column is NULL
+        testSerializeIndexKey(map, concat(varInt(4), Bytes.from_string("key1")), Column.column("k1", ColumnTypes.STRING), Column.column("s2", ColumnTypes.STRING));
+
+        // multicolumn, first and second columns are not null, the third is null
+        testSerializeIndexKey(map, concat(varInt(4), Bytes.from_string("key1"), varInt(4), Bytes.from_int(1)),
+                Column.column("k1", ColumnTypes.STRING), Column.column("n1", ColumnTypes.INTEGER), Column.column("s2", ColumnTypes.STRING));
+
+    }
+
+    private static Bytes varInt(int i) throws Exception {
+        VisibleByteArrayOutputStream res = new VisibleByteArrayOutputStream(1);
+        ExtendedDataOutputStream oo = new ExtendedDataOutputStream(res);
+        oo.writeVInt(i);
+        return Bytes.from_array(res.toByteArrayNoCopy());
+    }
+
+    private static Bytes concat(Bytes... arrays) {
+        VisibleByteArrayOutputStream res = new VisibleByteArrayOutputStream();
+        for (Bytes a : arrays) {
+            res.write(a.getBuffer(), a.getOffset(), a.getLength());
+        }
+        return Bytes.from_array(res.toByteArrayNoCopy());
+    }
+
+    private void testSerializeIndexKey(DataAccessor record, Bytes expectedResult, Column... indexedColumns) {
+        ColumnsList index = new ColumnsListImpl(indexedColumns);
+        Bytes result = RecordSerializer.serializeIndexKey(record, index, index.getPrimaryKey());
+        assertEquals(expectedResult, result);
+    }
+
+    private class ColumnsListImpl implements ColumnsList {
+
+        private final Column[] indexedColumns;
+        private final String[] primaryKey;
+
+        public ColumnsListImpl(Column[] indexedColumns) {
+            this.indexedColumns = indexedColumns;
+            String[] newPrimaryKey = new String[indexedColumns.length];
+            for (int i = 0; i < indexedColumns.length; i++) {
+                newPrimaryKey[i] = indexedColumns[i].name;
+            }
+            this.primaryKey = newPrimaryKey;
+        }
+
+        @Override
+        public Column[] getColumns() {
+            return indexedColumns;
+        }
+
+        @Override
+        public Column getColumn(String name) {
+            for (Column c : getColumns()) {
+                if (c.getName().equals(name)) {
+                    return c;
+                }
+            }
+            throw new IllegalArgumentException(name);
+        }
+
+        @Override
+        public String[] getPrimaryKey() {
+            return primaryKey;
+        }
+
+        @Override
+        public boolean allowNullsForIndexedValues() {
+            return true;
+        }
+    }
+
 }
