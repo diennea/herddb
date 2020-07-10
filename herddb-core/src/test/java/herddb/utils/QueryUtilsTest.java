@@ -64,7 +64,7 @@ public class QueryUtilsTest {
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into myts.test values(?,?,?,?)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "INSERT INTO myts.a SELECT * FROM myts.c M WHERE 1=1 AND (M.id IN (SELECT H.id FROM myts.b AS H WHERE H.FIELD_NAME='Into' AND H.FIELD_VALUE LIKE 'aaa'))"));
     }
- 
+
     @Test
     public void testDiscoverTablespaceFromUpsert() {
         String defaultTableSpace = TableSpace.DEFAULT;
