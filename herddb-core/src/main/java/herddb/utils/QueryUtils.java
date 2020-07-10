@@ -46,7 +46,7 @@ public class QueryUtils {
      * Prefix for INSERT before tablespace.tablename
      */
     private static final String PREFIX_INSERT = "(?i)insert\\W+into\\W+";
-    
+
     /**
      * Prefix for UPSERT before tablespace.tablename
      */
