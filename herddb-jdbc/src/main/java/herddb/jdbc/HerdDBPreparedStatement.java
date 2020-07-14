@@ -170,7 +170,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        throw new SQLException("setTime Not supported yet");
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+        } else {
+            // this is intentionally converted to java.sql.Timestamp
+            setTimestamp(parameterIndex, new java.sql.Timestamp(x.getTime()));
+        }
     }
 
     @Override
@@ -304,7 +309,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw new SQLException("setTime not supported yet.");
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+        } else {
+            // this is intentionally converted to java.sql.Timestamp
+            setTimestamp(parameterIndex, new java.sql.Timestamp(x.getTime()), cal);
+        }
     }
 
     @Override
@@ -648,5 +658,8 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         return res;
     }
 
+    public boolean isPoolable() throws SQLException {
+        return true;
+    }
 
 }

@@ -53,4 +53,9 @@ public class EmptyScanResultSet extends ScanResultSet {
         throw new HDBException("this is an empty result set");
     }
 
+    @Override
+    public String getCursorName() {
+        return "<empty>";
+    }
+
 }

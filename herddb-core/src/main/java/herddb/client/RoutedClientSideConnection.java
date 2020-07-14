@@ -1006,6 +1006,11 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             return _next;
         }
 
+        @Override
+        public String getCursorName() {
+            return "<scanner-" + scannerId + "-@tx" + transactionId + ">";
+        }
+
     }
 
 }
