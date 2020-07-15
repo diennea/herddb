@@ -1481,7 +1481,7 @@ public final class HerdDBResultSet implements ResultSet {
         return id;
     }
 
-    private class ClobImpl implements Clob {
+    private static class ClobImpl implements Clob {
 
         private final String string;
 
