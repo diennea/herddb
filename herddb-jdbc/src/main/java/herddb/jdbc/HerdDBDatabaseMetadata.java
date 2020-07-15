@@ -176,8 +176,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean storesMixedCaseQuotedIdentifiers() throws SQLException {
-        // important for OpenJPA
-        return true;
+        return false;
     }
 
     @Override
