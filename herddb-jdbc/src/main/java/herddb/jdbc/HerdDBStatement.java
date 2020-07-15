@@ -194,7 +194,7 @@ public class HerdDBStatement implements java.sql.Statement {
     public void setFetchDirection(int direction) throws SQLException {
         if (direction != ResultSet.FETCH_FORWARD
                 && direction != ResultSet.FETCH_UNKNOWN) {
-            LOG.log(Level.INFO, "setFetchDirection "+direction+" is not really supported");
+            throw new SQLFeatureNotSupportedException("setFetchDirection " + direction);
         }
     }
 
@@ -339,7 +339,7 @@ public class HerdDBStatement implements java.sql.Statement {
     }
 
     @Override
-    public void setPoolable(boolean poolable) throws SQLException {        
+    public void setPoolable(boolean poolable) throws SQLException {
     }
 
     @Override

@@ -754,7 +754,6 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
             query = query + " WHERE lower(table_name) LIKE '" + SQLUtils.escape(tableNamePattern.toLowerCase()) + "'";
         }
-        System.out.println("query: "+query);
         try (Statement statement = con.createStatement();
              ResultSet rs = statement.executeQuery(query)) {
 

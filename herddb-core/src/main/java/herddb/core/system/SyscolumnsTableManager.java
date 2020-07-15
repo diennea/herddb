@@ -61,10 +61,8 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
         List<Table> tables = tableSpaceManager.getAllCommittedTables();
         List<Record> result = new ArrayList<>();
         for (Table t : tables) {
-            System.out.println("FOUND "+t);
             int pos = 1;
             for (Column c : t.columns) {
-                System.out.println("FOUND COL "+c);
                 boolean pk = t.isPrimaryKeyColumn(c.name);
                 boolean nonNullCType = pk || ColumnTypes.isNotNullDataType(c.type);
                 String defaultValue = Column.defaultValueToString(c);
@@ -78,7 +76,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
                         "type_name", ColumnTypes.typeToString(c.type),
                         "auto_increment", (pk && t.auto_increment) ? 1 : 0,
                         "default_value", defaultValue
-                ));               
+                ));
             }
         }
         return result;

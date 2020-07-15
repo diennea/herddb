@@ -518,7 +518,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 break;
             case "timestamp":
             case "timestamptz":
-            case "timestamp with time zone":    
+            case "timestamp with time zone":
             case "datetime":
             case "date":
             case "time":

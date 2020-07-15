@@ -194,7 +194,7 @@ public final class HerdDBResultSet implements ResultSet {
 
     @Override
     public InputStream getUnicodeStream(String columnIndex) throws SQLException {
-        return getUnicodeStream(resolveColumnIndexByName(columnIndex));        
+        return getUnicodeStream(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
@@ -265,7 +265,7 @@ public final class HerdDBResultSet implements ResultSet {
                 return ((Number) lastValue).intValue();
             }
             if (lastValue instanceof Boolean) {
-                return ((Boolean) lastValue) ? 1: 0;
+                return ((Boolean) lastValue) ? 1 : 0;
             }
             try {
                 return Integer.parseInt(lastValue.toString());
@@ -393,10 +393,10 @@ public final class HerdDBResultSet implements ResultSet {
         fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
-            if (lastValue instanceof java.sql.Timestamp) {
+            if (lastValue instanceof java.sql.Time) {
                 return (java.sql.Time) lastValue;
             }
-            if (lastValue instanceof java.util.Date) {
+            if (lastValue instanceof java.util.Date) { // usually it will be a java.sql.Timestamp
                 return new java.sql.Time(((java.util.Date) lastValue).getTime());
             }
             try {
@@ -1503,10 +1503,10 @@ public final class HerdDBResultSet implements ResultSet {
         public Reader getCharacterStream() throws SQLException {
             return new StringReader(string);
         }
-                
+
         public InputStream getUnicodeStream() throws SQLException {
             return new ByteArrayInputStream(string.getBytes(StandardCharsets.UTF_8));
-        }                
+        }
 
         @Override
         public InputStream getAsciiStream() throws SQLException {
@@ -1573,7 +1573,7 @@ public final class HerdDBResultSet implements ResultSet {
 
         @Override
         public byte[] getBytes(long pos, int length) throws SQLException {
-            if (pos <0 || pos + length > bytes.length || pos >= Integer.MAX_VALUE) {
+            if (pos < 0 || pos + length > bytes.length || pos >= Integer.MAX_VALUE) {
                 throw new SQLException("invalid parameters");
             }
             return Arrays.copyOfRange(bytes, (int) pos, length);

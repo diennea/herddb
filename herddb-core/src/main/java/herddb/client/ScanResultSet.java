@@ -47,7 +47,7 @@ public abstract class ScanResultSet implements AutoCloseable {
     @Override
     public void close() {
     }
-    
+
     public List<Map<String, Object>> consume() throws HDBException {
         List<Map<String, Object>> result = new ArrayList<>();
         while (hasNext()) {
@@ -57,7 +57,7 @@ public abstract class ScanResultSet implements AutoCloseable {
         this.close();
         return result;
     }
-    
+
     /**
      * Used only by JDBC API
      * @return some id of this ResultSet

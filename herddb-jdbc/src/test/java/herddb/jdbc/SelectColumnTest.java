@@ -20,7 +20,11 @@
 
 package herddb.jdbc;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
@@ -28,6 +32,7 @@ import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Connection;
@@ -35,12 +40,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -76,11 +82,23 @@ public class SelectColumnTest {
                 new Object[][]{{new Timestamp(1), null}, {new Timestamp(0), new Timestamp(0)},
                         {new Timestamp(Long.MAX_VALUE), new Timestamp(Long.MAX_VALUE)}}));
 
-        /* I tipi seguenti non supportano gli id */
+        data.add(new TestData("time", SelectColumnTest::checkTime,
+                new Object[][]{{new Time(1), null}, {new Time(0), new Time(0)},
+                        {new Time(Long.MAX_VALUE), new Time(Long.MAX_VALUE)}}));
+
+        data.add(new TestData("date", SelectColumnTest::checkDate,
+                new Object[][]{{new java.sql.Date(1), null}, {new java.sql.Date(0), new java.sql.Date(0)},
+                        {new java.sql.Date(Long.MAX_VALUE), new java.sql.Date(Long.MAX_VALUE)}}));
+
+        /* PK not suported for these types, using 'int' */
 
         data.add(new TestData("int", "double", null, SelectColumnTest::checkDouble,
                 new Object[][]{{1, 1d}, {0, null}, {2, 2.2d}, {Integer.MAX_VALUE, Double.POSITIVE_INFINITY},
                         {Integer.MIN_VALUE, Double.NEGATIVE_INFINITY}, {-1, Double.NaN}}));
+
+         data.add(new TestData("int", "double", null, SelectColumnTest::checkBigDecimal,
+                new Object[][]{{1, BigDecimal.valueOf(1d)}, {0, null}, {2, BigDecimal.valueOf(2.2d)}, {Integer.MAX_VALUE, BigDecimal.TEN},
+                        {Integer.MIN_VALUE, BigDecimal.TEN}, {-1, BigDecimal.ONE}}));
 
         data.add(new TestData("int", "boolean", null, SelectColumnTest::checkBoolean,
                 new Object[][]{{0, true}, {1, false}, {2, null}}));
@@ -111,7 +129,7 @@ public class SelectColumnTest {
                     try (PreparedStatement insert = con.prepareStatement("INSERT INTO mytable (key,val) values(?,?)")) {
                         for (Object[] odata : data.data) {
                             insert.setObject(1, odata[0]);
-                            insert.setObject(2, odata[1]);
+                            setParameterAccordingToJavaType(insert, 2, odata[1]);
 
                             assertEquals(1, insert.executeUpdate());
                         }
@@ -156,6 +174,34 @@ public class SelectColumnTest {
         }
     }
 
+    private void setParameterAccordingToJavaType(final PreparedStatement insert, int index, Object odata) throws SQLException {
+        if (odata instanceof String) {
+            insert.setString(index, (String) odata);
+        } else if (odata instanceof java.sql.Time) {
+            insert.setTime(index, (java.sql.Time) odata);
+        } else if (odata instanceof java.sql.Date) {
+            insert.setDate(index, (java.sql.Date) odata);
+        } else if (odata instanceof java.sql.Timestamp) {
+            insert.setTimestamp(index, (java.sql.Timestamp) odata);
+        } else if (odata instanceof Long) {
+            insert.setLong(index, (Long) odata);
+        } else if (odata instanceof Double) {
+            insert.setDouble(index, (Double) odata);
+        } else if (odata instanceof Integer) {
+            insert.setInt(index, (Integer) odata);
+        } else if (odata instanceof Boolean) {
+            insert.setBoolean(index, (Boolean) odata);
+        } else if (odata instanceof byte[]) {
+            insert.setBytes(index, (byte[]) odata);
+        } else if (odata instanceof BigDecimal) {
+            insert.setBigDecimal(index, (BigDecimal) odata);
+        } else if (odata == null) {
+            insert.setNull(index, Types.NULL);
+        } else {
+            fail(odata.getClass().toString());
+        }
+    }
+
     public static final class TestData {
 
         private final String keyType;
@@ -195,10 +241,10 @@ public class SelectColumnTest {
             if (rs.wasNull()) {
                 actual = null;
             }
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -210,10 +256,10 @@ public class SelectColumnTest {
             if (rs.wasNull()) {
                 actual = null;
             }
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -225,10 +271,28 @@ public class SelectColumnTest {
             if (rs.wasNull()) {
                 actual = null;
             }
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkBigDecimal(ResultSet rs, Object expected) {
+        try {
+            BigDecimal actual = rs.getBigDecimal(1);
+            Object object = rs.getObject(1);
+            if (expected != null) {
+                // BigDecimal.equals considers 'scale' and so 10.0 != 10
+                assertTrue(actual.compareTo((BigDecimal) expected) == 0);
+                // getObject returns double
+                assertEquals(((BigDecimal) expected).doubleValue(), object);
+            } else {
+                assertNull(actual);
+                assertNull(object);
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -240,10 +304,10 @@ public class SelectColumnTest {
             if (rs.wasNull()) {
                 actual = null;
             }
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -252,10 +316,44 @@ public class SelectColumnTest {
     private static void checkTimestamp(ResultSet rs, Object expected) {
         try {
             Timestamp actual = rs.getTimestamp(1);
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkTime(ResultSet rs, Object expected) {
+        try {
+            Time actual = rs.getTime(1);
+            assertEquals(expected, actual);
+
+            Object object = rs.getObject(1);
+            // getObject will return java.sql.Timestamp
+            if (expected != null) {
+                assertEquals(new java.sql.Timestamp(((java.sql.Time) expected).getTime()), object);
+            } else {
+                assertNull(object);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkDate(ResultSet rs, Object expected) {
+        try {
+            java.sql.Date actual = rs.getDate(1);
+            assertEquals(expected, actual);
+
+            Object object = rs.getObject(1);
+            // getObject will return java.sql.Timestamp
+            if (expected != null) {
+                assertEquals(new java.sql.Timestamp(((java.sql.Date) expected).getTime()), object);
+            } else {
+                assertNull(object);
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -264,10 +362,10 @@ public class SelectColumnTest {
     private static void checkString(ResultSet rs, Object expected) {
         try {
             String actual = rs.getString(1);
-            Assert.assertEquals(expected, actual);
+            assertEquals(expected, actual);
 
             Object object = rs.getObject(1);
-            Assert.assertEquals(expected, object);
+            assertEquals(expected, object);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -276,13 +374,13 @@ public class SelectColumnTest {
     private static void checkBlob(ResultSet rs, Object expected) {
         try {
             byte[] actual = rs.getBytes(1);
-            Assert.assertArrayEquals((byte[]) expected, actual);
+            assertArrayEquals((byte[]) expected, actual);
 
             if (expected != null) {
                 DataInputStream dataInputStream = new DataInputStream(rs.getBinaryStream(1));
                 byte[] actualFromStream = new byte[actual.length];
                 dataInputStream.readFully(actualFromStream);
-                Assert.assertArrayEquals((byte[]) expected, actualFromStream);
+                assertArrayEquals((byte[]) expected, actualFromStream);
 
                 Blob blob = rs.getBlob(1);
                 assertEquals(blob.length(), actual.length);
@@ -290,11 +388,11 @@ public class SelectColumnTest {
                 DataInputStream dataInputStream2 = new DataInputStream(blob.getBinaryStream());
                 byte[] actualFromStream2 = new byte[actual.length];
                 dataInputStream2.readFully(actualFromStream2);
-                Assert.assertArrayEquals((byte[]) expected, actualFromStream2);
+                assertArrayEquals((byte[]) expected, actualFromStream2);
             }
 
             byte[] object = (byte[]) rs.getObject(1);
-            Assert.assertArrayEquals((byte[]) expected, object);
+            assertArrayEquals((byte[]) expected, object);
         } catch (SQLException | IOException e) {
             throw new RuntimeException(e);
         }
