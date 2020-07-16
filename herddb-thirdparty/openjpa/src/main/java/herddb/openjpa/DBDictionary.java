@@ -16,10 +16,6 @@
 package herddb.openjpa;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.Set;
-import java.util.TreeSet;
-import org.apache.openjpa.jdbc.identifier.DBIdentifier;
-import org.apache.openjpa.jdbc.identifier.DBIdentifierRule;
 
 /**
  * OpenJPA DBDictionary for HerdDB.
