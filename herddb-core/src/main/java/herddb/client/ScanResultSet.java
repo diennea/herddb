@@ -57,4 +57,12 @@ public abstract class ScanResultSet implements AutoCloseable {
         this.close();
         return result;
     }
+
+    /**
+     * Used only by JDBC API
+     * @return some id of this ResultSet
+     */
+    public String getCursorName() {
+        return "<unnamed-" + System.identityHashCode(this) + "@tx" + transactionId + ">";
+    }
 }

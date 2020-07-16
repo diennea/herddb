@@ -235,7 +235,7 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public String getCatalog() throws SQLException {
-        return "default_catalog";
+        return null;
     }
 
     @Override

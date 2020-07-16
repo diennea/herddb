@@ -518,7 +518,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 break;
             case "timestamp":
             case "timestamptz":
+            case "timestamp with time zone":
             case "datetime":
+            case "date":
+            case "time":
+            case "time with time zone":
                 type = ColumnTypes.TIMESTAMP;
                 break;
             case "boolean":
@@ -528,6 +532,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 break;
             case "double":
             case "float":
+            case "real":
                 type = ColumnTypes.DOUBLE;
                 break;
             case "numeric":

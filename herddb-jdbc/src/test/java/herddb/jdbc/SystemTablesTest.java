@@ -132,38 +132,12 @@ public class SystemTablesTest {
                         assertEquals(3, records.size());
                     }
 
-                    try (ResultSet rs = metaData.getColumns(null, null, "mytable2", null)) {
-                        List<List<String>> records = new ArrayList<>();
-                        while (rs.next()) {
-                            List<String> record = new ArrayList<>();
-                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
-                                String value = rs.getString(i + 1);
-                                record.add(value);
-                                // Assert that name column has the appropriate data type and type names
-                                if (value != null && value.equalsIgnoreCase("name")) {
-                                    assertEquals(Types.VARCHAR, rs.getInt("DATA_TYPE"));
-                                    assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
-                                }
-                            }
-                            records.add(record);
-                        }
-                        assertEquals(3, records.size());
-                        assertTrue(records.stream().filter(s -> s.contains("n2")
-                                && s.contains("integer")
-                        ).findAny().isPresent());
-                        assertTrue(records.stream().filter(s
-                                -> s.contains("name") && s.contains(Types.VARCHAR + "")
-                        ).findAny().isPresent());
-
-                        assertTrue(records.stream().filter(s
-                                -> s.contains("name") && s.contains(Types.VARCHAR + "")
-                                && s.contains("string not null")
-                        ).findAny().isPresent());
-
-                        assertTrue(records.stream().filter(s
-                                -> s.contains("ts") && s.contains("timestamp")
-                        ).findAny().isPresent());
-                    }
+                    List<List<String>> records1 = new ArrayList<>();
+                    validateColumnsOfTable2(metaData, "mytable2", records1);
+                    List<List<String>> records2 = new ArrayList<>();
+                    validateColumnsOfTable2(metaData, "MyTable2", records2);
+                    // getColumns must be non case sensitive
+                    assertEquals(records1, records2);
 
                     try (ResultSet rs = metaData.getColumns(null, null, "mytable3", null)) {
                         List<List<String>> records = new ArrayList<>();
@@ -293,6 +267,42 @@ public class SystemTablesTest {
                     }
                 }
             }
+        }
+    }
+
+    private void validateColumnsOfTable2(DatabaseMetaData metaData, String tableName, List<List<String>> records1) throws SQLException {
+        try (ResultSet rs = metaData.getColumns(null, null, tableName, null)) {
+            while (rs.next()) {
+                List<String> record = new ArrayList<>();
+                for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                    String value = rs.getString(i + 1);
+                    record.add(value);
+                    // Assert that name column has the appropriate data type and type names
+                    if (value != null && value.equalsIgnoreCase("name")) {
+                        assertEquals(Types.VARCHAR, rs.getInt("DATA_TYPE"));
+                        assertTrue(rs.getString("TYPE_NAME").equalsIgnoreCase("string not null"));
+                        // TABLE_NAME is always reported as lowercase
+                        assertEquals(tableName.toLowerCase(), rs.getString("TABLE_NAME"));
+                    }
+                }
+                records1.add(record);
+            }
+            assertEquals(3, records1.size());
+            assertTrue(records1.stream().filter(s -> s.contains("n2")
+                    && s.contains("integer")
+            ).findAny().isPresent());
+            assertTrue(records1.stream().filter(s
+                    -> s.contains("name") && s.contains(Types.VARCHAR + "")
+            ).findAny().isPresent());
+
+            assertTrue(records1.stream().filter(s
+                    -> s.contains("name") && s.contains(Types.VARCHAR + "")
+                            && s.contains("string not null")
+            ).findAny().isPresent());
+
+            assertTrue(records1.stream().filter(s
+                    -> s.contains("ts") && s.contains("timestamp")
+            ).findAny().isPresent());
         }
     }
 

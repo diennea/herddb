@@ -151,12 +151,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean storesLowerCaseIdentifiers() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean storesMixedCaseIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -181,7 +181,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getIdentifierQuoteString() throws SQLException {
-        return "'";
+        return "`";
     }
 
     @Override
@@ -261,7 +261,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsExpressionsInOrderBy() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -286,7 +286,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsLikeEscapeClause() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -296,12 +296,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsMultipleTransactions() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsNonNullableColumns() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -346,7 +346,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsFullOuterJoins() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -751,7 +751,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         String query = "SELECT table_name FROM SYSTABLES";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
-            query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
+            query = query + " WHERE lower(table_name) LIKE '" + SQLUtils.escape(tableNamePattern.toLowerCase()) + "'";
         }
         try (Statement statement = con.createStatement();
              ResultSet rs = statement.executeQuery(query)) {
@@ -763,7 +763,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 Map<String, Object> data = new HashMap<>();
                 data.put("TABLE_CAT", null);
                 data.put("TABLE_SCHEM", tableSpace);
-                data.put("TABLE_NAME", table_name);
+                data.put("TABLE_NAME", table_name.toLowerCase());
                 data.put("TABLE_TYPE", "TABLE");
                 data.put("REMARKS", "");
                 data.put("TYPE_CAT", null);
@@ -772,7 +772,6 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 data.put("SELF_REFERENCING_COL_NAME", null);
                 data.put("REF_GENERATION", null);
                 results.add(data);
-
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_TABLES_SCHEMA);
             return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_TABLES_SCHEMA, results));
@@ -962,10 +961,10 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         // using "select * " in order to be compatible with old versions
         String query = "SELECT * FROM SYSCOLUMNS WHERE 1=1 ";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
-            query = query + " AND table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
+            query = query + " AND lower(table_name) LIKE '" + SQLUtils.escape(tableNamePattern.toLowerCase()) + "'";
         }
         if (columnNamePattern != null && !columnNamePattern.isEmpty()) {
-            query = query + " AND column_name LIKE '" + SQLUtils.escape(columnNamePattern) + "'";
+            query = query + " AND lower(column_name) LIKE '" + SQLUtils.escape(columnNamePattern.toLowerCase()) + "'";
         }
         try (Statement statement = con.createStatement();
              ResultSet rs = statement.executeQuery(query)) {
@@ -987,8 +986,8 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 Map<String, Object> data = new HashMap<>();
                 data.put("TABLE_CAT", null);
                 data.put("TABLE_SCHEM", tableSpace);
-                data.put("TABLE_NAME", table_name);
-                data.put("COLUMN_NAME", column_name);
+                data.put("TABLE_NAME", table_name.toLowerCase());
+                data.put("COLUMN_NAME", column_name.toLowerCase());
                 data.put("TYPE_NAME", type_name);
                 data.put("DATA_TYPE", ColumnTypes.sqlDataTypeToJdbcType(data_type));
                 data.put("COLUMN_SIZE", 0);
@@ -1072,7 +1071,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
         String query = "SELECT * FROM SYSINDEXCOLUMNS WHERE index_type='pk' ";
         if (table != null && !table.isEmpty()) {
-            query = query + " AND table_name = '" + SQLUtils.escape(table) + "'";
+            query = query + " AND lower(table_name) = '" + SQLUtils.escape(table.toLowerCase()) + "'";
         }
         try (Statement statement = con.createStatement();
              ResultSet rs = statement.executeQuery(query)) {
@@ -1085,8 +1084,8 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 Map<String, Object> data = new HashMap<>();
                 data.put("TABLE_CAT", null);
                 data.put("TABLE_SCHEM", tableSpace);
-                data.put("TABLE_NAME", table_name);
-                data.put("COLUMN_NAME", column_name);
+                data.put("TABLE_NAME", table_name.toLowerCase());
+                data.put("COLUMN_NAME", column_name.toLowerCase());
                 data.put("KEY_SEQ", ordinal_position);
                 results.add(data);
 
@@ -1202,16 +1201,16 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 Map<String, Object> data = new HashMap<>();
                 data.put("TABLE_CAT", null);
                 data.put("TABLE_SCHEM", tableSpace);
-                data.put("TABLE_NAME", table_name);
+                data.put("TABLE_NAME", table_name.toLowerCase());
                 data.put("NON_UNIQUE", !uniqueValues);
                 data.put("INDEX_QUALIFIER", null);
 
-                data.put("INDEX_NAME", index_name);
+                data.put("INDEX_NAME", index_name.toLowerCase());
                 data.put("TYPE", clustered ? DatabaseMetaData.tableIndexClustered : DatabaseMetaData.tableIndexOther);
 
                 data.put("ORDINAL_POSITION", ordinal_position);
 
-                data.put("COLUMN_NAME", column_name);
+                data.put("COLUMN_NAME", column_name.toLowerCase());
                 data.put("ASC_OR_DESC", null);
                 data.put("CARDINALITY", null);
                 data.put("FILTER_CONDITION", null);
@@ -1340,12 +1339,14 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        return 0;
+        // returning version of the client
+        return Version.getJDBC_DRIVER_MAJOR_VERSION();
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return 0;
+        // returning version of the client
+        return Version.getJDBC_DRIVER_MINOR_VERSION();
     }
 
     @Override
