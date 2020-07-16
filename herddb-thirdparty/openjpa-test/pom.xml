@@ -40,8 +40,8 @@
         </dependency>
         <dependency>
             <groupId>org.apache.openjpa</groupId>
-            <artifactId>openjpa-persistence-jdbc</artifactId>
-            <version>3.1.3-SNAPSHOT</version>
+            <artifactId>openjpa</artifactId>
+            <version>3.1.1</version>
         </dependency>
         <dependency>
             <groupId>org.herddb</groupId>
