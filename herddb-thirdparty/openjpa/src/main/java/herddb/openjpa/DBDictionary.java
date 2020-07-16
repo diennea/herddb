@@ -29,57 +29,20 @@ public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
 
     private static final String DELIMITER_BACK_TICK = "`";
 
-    private Set<String> nonCaseSensitiveReservedWords;
-
     public DBDictionary() {
         platform = "HerdDB";
         databaseProductName = "HerdDB";
         supportsForeignKeys = false;
         supportsUniqueConstraints = false;
         supportsCascadeDeleteAction = false;
-        reservedWordSet.add("USER");
-        reservedWordSet.add("VALUE");
+        schemaCase = SCHEMA_CASE_LOWER;
+        delimitedCase = SCHEMA_CASE_LOWER;
+
+        // make OpenJPA escape everything, because Apache Calcite has a lot of reserved words, like 'User', 'Value'...
+        setDelimitIdentifiers(true);
         setSupportsDelimitedIdentifiers(true);
         setLeadingDelimiter(DELIMITER_BACK_TICK);
         setTrailingDelimiter(DELIMITER_BACK_TICK);
-    }
-
-    @Override
-    protected void configureNamingRules() {
-        super.configureNamingRules();
-        // the DBIdentifierRule must receive a non case-sensitive set of reserved words
-        // because the database uses lowercase identifiers
-        nonCaseSensitiveReservedWords = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        nonCaseSensitiveReservedWords.addAll(reservedWordSet);
-        DBIdentifierRule defRule = new DBIdentifierRule(DBIdentifier.DBIdentifierType.DEFAULT, nonCaseSensitiveReservedWords);
-        defRule.setDelimitReservedWords(true);
-        getIdentifierRules().put(defRule.getName(), defRule);
-    }
-
-    @Override
-    public void endConfiguration() {
-        super.endConfiguration();
-        // sync nonCaseSensitiveReservedWords with selectWordSet, that is filled in in super.endConfiguration()
-        nonCaseSensitiveReservedWords.addAll(selectWordSet);
-    }
-
-    @Override
-    public String toDBName(DBIdentifier name, boolean delimit) {
-        String result = super.toDBName(name, delimit);
-        // force delimiter on reservedWords
-        if (result != null && nonCaseSensitiveReservedWords.contains(result)) {
-            return getNamingUtil().delimit(name.getType().name(), result);
-        }
-        return result;
-    }
-
-    @Override
-    public String toDBName(DBIdentifier name) {
-        String result = super.toDBName(name);
-        if (result != null && nonCaseSensitiveReservedWords.contains(result)) {
-            return getNamingUtil().delimit(name.getType().name(), result);
-        }
-        return result;
     }
 
 }
