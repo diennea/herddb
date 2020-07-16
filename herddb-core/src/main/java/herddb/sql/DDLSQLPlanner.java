@@ -225,6 +225,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
 
         query = rewriteExecuteSyntax(query);
+        System.out.println("QUERY: "+query);
         String cacheKey = "scan:" + scan
                 + ",defaultTableSpace:" + defaultTableSpace
                 + ",query:" + query
