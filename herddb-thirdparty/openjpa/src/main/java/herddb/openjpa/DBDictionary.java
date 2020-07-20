@@ -32,7 +32,7 @@ public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
         supportsUniqueConstraints = false;
         supportsCascadeDeleteAction = false;
         schemaCase = SCHEMA_CASE_LOWER;
-        delimitedCase = SCHEMA_CASE_LOWER;
+        delimitedCase = SCHEMA_CASE_PRESERVE;
 
         // make OpenJPA escape everything, because Apache Calcite has a lot of reserved words, like 'User', 'Value'...
         setDelimitIdentifiers(true);
