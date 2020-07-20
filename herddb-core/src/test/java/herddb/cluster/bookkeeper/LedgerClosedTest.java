@@ -110,7 +110,7 @@ public class LedgerClosedTest extends BookkeeperFailuresBase {
 
             // set server2 as new leader
             server.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0),
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0),
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             // stop server1

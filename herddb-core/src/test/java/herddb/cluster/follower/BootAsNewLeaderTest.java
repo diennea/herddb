@@ -107,7 +107,7 @@ public class BootAsNewLeaderTest extends MultiServerBase {
 
             // set forcibly server2 as new leader
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         }
 
@@ -212,7 +212,7 @@ public class BootAsNewLeaderTest extends MultiServerBase {
                     DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             TranslatedQuery translated = server_1.getManager().getPlanner().translate(TableSpace.DEFAULT,
                     "SELECT * FROM " + TableSpace.DEFAULT + ".t1 WHERE s=1",
@@ -319,7 +319,7 @@ public class BootAsNewLeaderTest extends MultiServerBase {
             // but server1 is not writing so it won't know from BK
             // it will see his new role from zookeeper (with a 'watch' notification)
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             // data should  be downloaded again from the other server,
             // but the new leader is server_2 itself
@@ -336,7 +336,7 @@ public class BootAsNewLeaderTest extends MultiServerBase {
 
             // make server_1 leader again
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             // now server_2 must be able to boot, downloading data from server_1 and easing local state
             try (Server server_2 = new Server(serverconfig_2)) {
@@ -349,7 +349,7 @@ public class BootAsNewLeaderTest extends MultiServerBase {
 
             // make server_2 leader again
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             // stop server_1
             server_1.close();
