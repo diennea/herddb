@@ -55,6 +55,9 @@ public abstract class CommitLog implements AutoCloseable {
         return true;
     }
 
+    public void metadataUpdated(int expectedReplicaCount) {
+    }
+
     public interface FollowerContext extends AutoCloseable {
 
         @Override
@@ -79,7 +82,7 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract LogSequenceNumber getLastSequenceNumber();
 
-    public abstract void startWriting() throws LogNotAvailableException;
+    public abstract void startWriting(int expectedReplicaCount) throws LogNotAvailableException;
 
     public abstract void clear() throws LogNotAvailableException;
 
