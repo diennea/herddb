@@ -101,7 +101,7 @@ public class TablespaceReplicasStateTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -174,7 +174,7 @@ public class TablespaceReplicasStateTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
