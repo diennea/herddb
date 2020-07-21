@@ -33,10 +33,6 @@ jobs:
           key: 'cache'
           restore-keys: 'cache'
       - name: 'Build with Maven'
-        run: mvn checkstyle:check verify -B --file pom.xml -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false jacoco:report spotbugs:check apache-rat:check
-      - name: Coveralls
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn checkstyle:check verify -B --file pom.xml -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false jacoco:report spotbugs:check apache-rat:check coveralls:report
       - name: 'Remove Snapshots Before Caching'
         run: find ~/.m2 -name '*SNAPSHOT' | xargs rm -Rf
