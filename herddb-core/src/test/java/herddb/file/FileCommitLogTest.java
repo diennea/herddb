@@ -60,7 +60,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 10_000; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
                     writeCount++;
@@ -98,7 +98,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 100; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
                     writeCount++;
@@ -160,7 +160,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 100; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
                     writeCount++;
@@ -214,7 +214,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 100; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), true);
                     writeCount++;
@@ -257,7 +257,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 10_000; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
                     writeCount++;
@@ -309,7 +309,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 10_000; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
                     writeCount++;
@@ -360,7 +360,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 log.log(LogEntryFactory.beginTransaction(0), true).getLogSequenceNumber();
                 writeCount = 1;
             }
@@ -401,7 +401,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 CopyOnWriteArrayList<LogSequenceNumber> completed = new CopyOnWriteArrayList<>();
 
                 CommitLogResult future = log.log(LogEntryFactory.beginTransaction(0), true);
@@ -459,7 +459,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 CopyOnWriteArrayList<LogSequenceNumber> completed = new CopyOnWriteArrayList<>();
 
                 CommitLogResult future = log.log(LogEntryFactory.beginTransaction(0), true);
@@ -517,7 +517,7 @@ public class FileCommitLogTest {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid")) {
-                log.startWriting();
+                log.startWriting(1);
                 for (int i = 0; i < 10_000; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
                     writeCount++;

@@ -42,7 +42,7 @@ public abstract class ReplicatedLogtestcase {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
-    private ZKTestEnv testEnv;
+    protected ZKTestEnv testEnv;
 
     @Before
     public void beforeSetup() throws Exception {

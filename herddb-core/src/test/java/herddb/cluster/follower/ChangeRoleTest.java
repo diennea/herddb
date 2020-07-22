@@ -101,7 +101,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             // set forcibly server2 as new follower
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             assertEquals(0, server2MemoryManager.getDataPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getPKPageReplacementPolicy().size());
@@ -130,7 +130,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             // start tablespace on server2, as let it become leader
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
 

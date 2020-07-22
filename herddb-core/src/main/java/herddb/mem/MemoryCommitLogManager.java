@@ -107,7 +107,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
             }
 
             @Override
-            public void startWriting() throws LogNotAvailableException {
+            public void startWriting(int expectedReplicaCount) throws LogNotAvailableException {
             }
 
             @Override

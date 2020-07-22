@@ -88,7 +88,7 @@ public class BookKeeperCommitLogTest {
             LogSequenceNumber lsn2;
             LogSequenceNumber lsn3;
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
                 lsn1 = writer.log(LogEntryFactory.beginTransaction(1), true).getLogSequenceNumber();
                 lsn2 = writer.log(LogEntryFactory.beginTransaction(2), true).getLogSequenceNumber();
                 lsn3 = writer.log(LogEntryFactory.beginTransaction(3), true).getLogSequenceNumber();
@@ -129,14 +129,14 @@ public class BookKeeperCommitLogTest {
             LogSequenceNumber lsn2;
             LogSequenceNumber lsn3;
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
                 lsn1 = writer.log(LogEntryFactory.beginTransaction(1), true).getLogSequenceNumber();
                 lsn2 = writer.log(LogEntryFactory.beginTransaction(2), true).getLogSequenceNumber();
 
                 // a new leader starts, from START_OF_TIME
                 try (BookkeeperCommitLog writer2 = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                     writer2.recovery(LogSequenceNumber.START_OF_TIME, (a, b) -> {}, true);
-                    writer2.startWriting();
+                    writer2.startWriting(1);
                     lsn3 = writer2.log(LogEntryFactory.beginTransaction(3), true).getLogSequenceNumber();
                 }
 
@@ -185,7 +185,7 @@ public class BookKeeperCommitLogTest {
             CommitLogResult res3;
 
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
                 res1 = writer.log(LogEntryFactory.beginTransaction(1), false);
                 res2 = writer.log(LogEntryFactory.beginTransaction(2), false);
                 res3 = writer.log(LogEntryFactory.beginTransaction(3), true);
@@ -230,7 +230,7 @@ public class BookKeeperCommitLogTest {
             logManager.start();
 
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
 
                 writer.log(LogEntryFactory.beginTransaction(1), true).getLogSequenceNumber();
 
@@ -286,7 +286,7 @@ public class BookKeeperCommitLogTest {
             logManager.start();
 
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
 
                 // many async writes
                 writer.log(LogEntryFactory.beginTransaction(1), false).getLogSequenceNumber();
@@ -352,7 +352,7 @@ public class BookKeeperCommitLogTest {
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 // do not pollute the count with NOOP entries
                 writer.setWriteLedgerHeader(false);
-                writer.startWriting();
+                writer.startWriting(1);
                 for (int i = 0; i < numberOfEntries; i++) {
                     writer.log(entry, false);
                 }
@@ -399,7 +399,7 @@ public class BookKeeperCommitLogTest {
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
                 // do not pollute the count with NOOP entries
                 writer.setWriteLedgerHeader(false);
-                writer.startWriting();
+                writer.startWriting(1);
                 for (int i = 0; i < numberOfEntries; i++) {
                     writer.log(entry, false);
                     if (i == 70) {
@@ -445,7 +445,7 @@ public class BookKeeperCommitLogTest {
             logManager.start();
 
             try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
-                writer.startWriting();
+                writer.startWriting(1);
 
                 // create a ledger, up to 0.14.x no "logical" write happens, so Bookies are not aware of the
                 // the ledger

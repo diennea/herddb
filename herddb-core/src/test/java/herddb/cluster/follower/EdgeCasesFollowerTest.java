@@ -114,7 +114,7 @@ public class EdgeCasesFollowerTest extends MultiServerBase {
                     DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             TranslatedQuery translated = server_1.getManager().getPlanner().translate(TableSpace.DEFAULT,
                     "SELECT * FROM " + TableSpace.DEFAULT + ".t1 WHERE s=1",
@@ -280,7 +280,7 @@ public class EdgeCasesFollowerTest extends MultiServerBase {
                     TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
 
         String tableSpaceUUID;

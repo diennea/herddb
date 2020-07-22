@@ -739,7 +739,7 @@ public class FileCommitLog extends CommitLog {
     }
 
     @Override
-    public void startWriting() throws LogNotAvailableException {
+    public void startWriting(int expectedReplicaCount) throws LogNotAvailableException {
         ensureDirectories();
         this.spool.start();
     }

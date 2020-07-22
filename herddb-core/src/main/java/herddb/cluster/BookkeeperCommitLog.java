@@ -88,6 +88,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private volatile long lastLedgerId = -1;
     private final AtomicLong lastSequenceNumber = new AtomicLong(-1);
     private LedgersInfo actualLedgersList;
+    private int expectedReplicaCount;
     private int ensemble = 1;
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
@@ -142,17 +143,21 @@ public class BookkeeperCommitLog extends CommitLog {
                 metadata.put("leader", localNodeId.getBytes(StandardCharsets.UTF_8));
                 metadata.put("application", "herddb".getBytes(StandardCharsets.UTF_8));
                 metadata.put("component", "commitlog".getBytes(StandardCharsets.UTF_8));
+                int actualEnsembleSize = Math.max(expectedReplicaCount, ensemble);
+                int actualWriteQuorumSize = Math.max(expectedReplicaCount, writeQuorumSize);
+                int actualAckQuorumSize = Math.max(expectedReplicaCount, ackQuorumSize);
+
                 this.out = FutureUtils.result(bookKeeper.
                         newCreateLedgerOp()
-                        .withEnsembleSize(ensemble)
-                        .withWriteQuorumSize(writeQuorumSize)
-                        .withAckQuorumSize(ackQuorumSize)
+                        .withEnsembleSize(actualEnsembleSize)
+                        .withWriteQuorumSize(actualWriteQuorumSize)
+                        .withAckQuorumSize(actualAckQuorumSize)
                         .withDigestType(DigestType.CRC32C)
                         .withPassword(SHARED_SECRET.getBytes(StandardCharsets.UTF_8))
                         .withCustomMetadata(metadata)
                         .execute(), BKException.HANDLER);
                 this.ledgerId = this.out.getId();
-                LOGGER.log(Level.INFO, "{0} created ledger {1} (" + ensemble + "/" + writeQuorumSize + "/" + ackQuorumSize + ") bookies: {2}",
+                LOGGER.log(Level.INFO, "{0} created ledger {1} (" + actualEnsembleSize + "/" + actualWriteQuorumSize + "/" + actualAckQuorumSize + ") bookies: {2}",
                         new Object[]{tableSpaceDescription(), ledgerId, this.out.getLedgerMetadata().getAllEnsembles()});
                 lastLedgerId = ledgerId;
                 lastSequenceNumber.set(-1);
@@ -457,8 +462,8 @@ public class BookkeeperCommitLog extends CommitLog {
             writer.writeLedgerHeader();
             pendingLedgerId = null;
             currentLedgerId = writer.getLedgerId();
-            LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}",
-                    new Object[]{currentLedgerId, tableSpaceDescription()});
+            LOGGER.log(Level.INFO, "Tablespace {1}, opened new ledger:{0}, expectedReplicaCount {2}",
+                    new Object[]{currentLedgerId, tableSpaceDescription(), expectedReplicaCount});
             if (actualLedgersList.getFirstLedger() < 0) {
                 actualLedgersList.setFirstLedger(currentLedgerId);
             }
@@ -470,17 +475,26 @@ public class BookkeeperCommitLog extends CommitLog {
             throw err;
         } finally {
             if (pendingLedgerId != null) {
-                LOGGER.log(Level.SEVERE, "Trying to delete bad ledge from metadata {0}", pendingLedgerId);
+                LOGGER.log(Level.SEVERE, tableSpaceDescription() + " Trying to delete bad ledge from metadata {0}", pendingLedgerId);
                 try {
                     bookKeeper.deleteLedger(pendingLedgerId);
                 } catch (InterruptedException ex) {
-                    LOGGER.log(Level.SEVERE, "Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
+                    LOGGER.log(Level.SEVERE, tableSpaceDescription() + " Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
                     Thread.currentThread().interrupt();
                 } catch (BKException ex) {
-                    LOGGER.log(Level.SEVERE, "Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
+                    LOGGER.log(Level.SEVERE, tableSpaceDescription() + " Cannot delete bad ledge from metadata " + pendingLedgerId, ex);
                 }
             }
             lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public void metadataUpdated(int expectedReplicaCount) {
+        if (this.expectedReplicaCount != expectedReplicaCount) {
+            LOGGER.log(Level.INFO, "{0} Expected replica count changed from {1} to {2}", new Object[]{tableSpaceDescription(), this.expectedReplicaCount, expectedReplicaCount});
+            this.expectedReplicaCount = expectedReplicaCount;
+            rollNewLedger();
         }
     }
 
@@ -681,9 +695,10 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void startWriting() throws LogNotAvailableException {
+    public void startWriting(int expectedReplicaCount) throws LogNotAvailableException {
         lock.writeLock().lock();
         try {
+            this.expectedReplicaCount = expectedReplicaCount;
             startWritingCalled = true;
         } finally {
             lock.writeLock().unlock();

@@ -262,6 +262,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private final boolean keyToPageSortedAscending;
 
+    private volatile boolean closed;
+
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
                 + "done at external logPosition " + dumpLogSequenceNumber);
@@ -292,6 +294,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         @Override
         public long getTablesize() {
+            if (closed)  {
+                // the keyToPage has been disposed
+                return 0;
+            }
+            // please note that this method is called very often
+            // by Calcite to have a statistic about the size of the table
             return keyToPage.size();
         }
 
@@ -2057,6 +2065,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void close() {
+
+        closed = true;
 
         // unload all pages
         final List<DataPage> unload = pages.values().stream()

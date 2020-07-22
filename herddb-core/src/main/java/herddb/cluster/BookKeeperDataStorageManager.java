@@ -102,6 +102,8 @@ import org.apache.zookeeper.data.Stat;
 public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private static final Logger LOGGER = Logger.getLogger(BookKeeperDataStorageManager.class.getName());
+    private static final byte[] EMPTY_PASSWORD = new byte[0];
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final Path tmpDirectory;
     private final int swapThreshold;
@@ -117,6 +119,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     private final String nodeId;
 
     private final ConcurrentHashMap<String, TableSpacePagesMapping> tableSpaceMappings = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> tableSpaceExpectedReplicaCount = new ConcurrentHashMap<>();
 
     private final String rootZkNode;
     private final String baseZkNode;
@@ -1049,13 +1052,17 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 metadata.put("component", "datastore".getBytes(StandardCharsets.UTF_8));
                 metadata.put("table", tableName.getBytes(StandardCharsets.UTF_8));
                 metadata.put("type", "datapage".getBytes(StandardCharsets.UTF_8));
+                int expectedReplicaCount = tableSpaceExpectedReplicaCount.getOrDefault(tableSpace, 1);
+                int actualEnsembleSize = Math.max(expectedReplicaCount, bk.getEnsemble());
+                int actualWriteQuorumSize = Math.max(expectedReplicaCount, bk.getWriteQuorumSize());
+                int actualAckQuorumSize = Math.max(expectedReplicaCount, bk.getAckQuorumSize());
                 try (WriteHandle result =
                          FutureUtils.result(bk.getBookKeeper()
                                 .newCreateLedgerOp()
-                                .withEnsembleSize(bk.getEnsemble())
-                                .withWriteQuorumSize(bk.getWriteQuorumSize())
-                                .withAckQuorumSize(bk.getAckQuorumSize())
-                                .withPassword(new byte[0])
+                                .withEnsembleSize(actualEnsembleSize)
+                                .withWriteQuorumSize(actualWriteQuorumSize)
+                                .withAckQuorumSize(actualAckQuorumSize)
+                                .withPassword(EMPTY_PASSWORD)
                                 .withDigestType(DigestType.CRC32C)
                                 .withCustomMetadata(metadata)
                                 .execute(), BKException.HANDLER);) {
@@ -1115,19 +1122,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 metadata.put("component", "datastore".getBytes(StandardCharsets.UTF_8));
                 metadata.put("index", indexName.getBytes(StandardCharsets.UTF_8));
                 metadata.put("type", "indexpage".getBytes(StandardCharsets.UTF_8));
-                try (WriteHandle result =
-                        FutureUtils.result(bk.getBookKeeper()
-                                .newCreateLedgerOp()
-                                .withEnsembleSize(bk.getEnsemble())
-                                .withWriteQuorumSize(bk.getWriteQuorumSize())
-                                .withAckQuorumSize(bk.getAckQuorumSize())
-                                .withPassword(new byte[0])
-                                .withDigestType(DigestType.CRC32C)
-                                .withCustomMetadata(metadata)
-                                .execute(), BKException.HANDLER);) {
-                    result.append(buffer.getBuffer(), 0, buffer.size());
-                    ledgerId = result.getId();
-                }
+                ledgerId = writeToLedger(tableSpace, metadata, buffer);
             }
 
         } catch (IOException | org.apache.bookkeeper.client.api.BKException err) {
@@ -1145,6 +1140,28 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", delta + ""});
         }
         indexPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
+    }
+
+    private long writeToLedger(String tableSpace, Map<String, byte[]> metadata, final VisibleByteArrayOutputStream buffer) throws InterruptedException, org.apache.bookkeeper.client.api.BKException {
+        long ledgerId;
+        int expectedReplicaCount = tableSpaceExpectedReplicaCount.getOrDefault(tableSpace, 1);
+        int actualEnsembleSize = Math.max(expectedReplicaCount, bk.getEnsemble());
+        int actualWriteQuorumSize = Math.max(expectedReplicaCount, bk.getWriteQuorumSize());
+        int actualAckQuorumSize = Math.max(expectedReplicaCount, bk.getAckQuorumSize());
+        try (WriteHandle result =
+                FutureUtils.result(bk.getBookKeeper()
+                        .newCreateLedgerOp()
+                        .withEnsembleSize(actualEnsembleSize)
+                        .withWriteQuorumSize(actualWriteQuorumSize)
+                        .withAckQuorumSize(actualAckQuorumSize)
+                        .withPassword(EMPTY_PASSWORD)
+                        .withDigestType(DigestType.CRC32C)
+                        .withCustomMetadata(metadata)
+                        .execute(), BKException.HANDLER);) {
+            result.append(buffer.getBuffer(), 0, buffer.size());
+            ledgerId = result.getId();
+        }
+        return ledgerId;
     }
 
     private static LogSequenceNumber readLogSequenceNumberFromTablesMetadataFile(String tableSpace, byte[] data, String znode) throws DataStorageManagerException {
@@ -1591,6 +1608,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+    }
+
+    @Override
+    public void tableSpaceMetadataUpdated(String tableSpace, int expectedReplicaCount) {
+        tableSpaceExpectedReplicaCount.put(tableSpace, expectedReplicaCount);
     }
 
     @Override

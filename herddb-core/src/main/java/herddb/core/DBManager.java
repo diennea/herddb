@@ -432,7 +432,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         metadataStorageManager.registerNode(nodeMetadata);
 
         try {
-            TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);
+            TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId,
+                    virtualTableSpaceId, 1 /* expectedreplicacount*/,
+                    metadataStorageManager, dataStorageManager, null, this, true);
             tablesSpaces.put(virtualTableSpaceId, local_node_virtual_tables_manager);
             local_node_virtual_tables_manager.start();
         } catch (DDLException | DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException error) {
@@ -541,7 +543,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.INFO, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
             long _start = System.currentTimeMillis();
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);
-            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, metadataStorageManager, dataStorageManager, commitLog, this, false);
+            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, tableSpace.expectedReplicaCount, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
                 LOGGER.log(Level.INFO, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms leader:{4}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + "", manager.isLeader()});
@@ -596,6 +598,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     LOGGER.log(Level.SEVERE, "updating tableSpace {0} metadata failed, someone else altered metadata", tableSpaceName);
                 }
             }
+        }
+
+        if (actual_manager != null && !actual_manager.isFailed() && actual_manager.isLeader()) {
+            actual_manager.metadataUpdated(tableSpace);
         }
 
     }

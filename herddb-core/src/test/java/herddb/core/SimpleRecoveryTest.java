@@ -950,7 +950,7 @@ public class SimpleRecoveryTest {
                 log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
                 }, false);
 
-                log.startWriting();
+                log.startWriting(1);
 
                 /* Insert an entry for a unknown transaction id */
                 LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.INSERT, 1024, "t1", key, value);
@@ -1034,7 +1034,7 @@ public class SimpleRecoveryTest {
                 log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
                 }, false);
 
-                log.startWriting();
+                log.startWriting(1);
 
                 /* Insert an entry for a unknown transaction id */
                 LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.DELETE, 1024, "t1", key, null);
@@ -1120,7 +1120,7 @@ public class SimpleRecoveryTest {
                 log.recovery(LogSequenceNumber.START_OF_TIME, (n, e) -> {
                 }, false);
 
-                log.startWriting();
+                log.startWriting(1);
 
                 /* Insert an entry for a unknown transaction id */
                 LogEntry entry = new LogEntry(System.currentTimeMillis(), LogEntryType.UPDATE, 1024, "t1", key, value2);

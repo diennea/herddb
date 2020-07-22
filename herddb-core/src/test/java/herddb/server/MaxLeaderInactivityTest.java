@@ -53,6 +53,8 @@ public class MaxLeaderInactivityTest {
     public void beforeSetup() throws Exception {
         testEnv = new ZKTestEnv(folder.newFolder().toPath());
         testEnv.startBookieAndInitCluster();
+        // as expectedreplicacount is 2 we need at least two bookies
+        testEnv.startNewBookie();
     }
 
     @After

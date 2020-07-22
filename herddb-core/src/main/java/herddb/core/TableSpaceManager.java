@@ -194,7 +194,12 @@ public class TableSpaceManager {
         return tableSpaceUUID;
     }
 
-    public TableSpaceManager(String nodeId, String tableSpaceName, String tableSpaceUUID, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
+    public TableSpaceManager(String nodeId, String tableSpaceName,
+                             String tableSpaceUUID,
+                             int expectedReplicaCount,
+                             MetadataStorageManager metadataStorageManager,
+                             DataStorageManager dataStorageManager,
+                             CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
         this.dbmanager = manager;
         this.callbacksExecutor = dbmanager.getCallbacksExecutor();
@@ -206,6 +211,7 @@ public class TableSpaceManager {
         this.virtual = virtual;
         this.tablespaceStasLogger = this.dbmanager.getStatsLogger().scope(this.tableSpaceName);
         this.checkpointTimeStats = this.tablespaceStasLogger.getOpStatsLogger("checkpointTime");
+        this.dataStorageManager.tableSpaceMetadataUpdated(tableSpaceUUID, expectedReplicaCount);
     }
 
     private void bootSystemTables() {
@@ -238,7 +244,7 @@ public class TableSpaceManager {
 
         bootSystemTables();
         if (virtual) {
-            startAsLeader();
+            startAsLeader(1);
         } else {
             recover(tableSpaceInfo);
 
@@ -246,7 +252,7 @@ public class TableSpaceManager {
 
             tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
             if (tableSpaceInfo.leaderId.equals(nodeId)) {
-                startAsLeader();
+                startAsLeader(tableSpaceInfo.expectedReplicaCount);
             } else {
                 startAsFollower();
             }
@@ -785,6 +791,14 @@ public class TableSpaceManager {
         return result;
     }
 
+    void metadataUpdated(TableSpace tableSpace) {
+        if (!tableSpace.uuid.equals(this.tableSpaceUUID)) {
+            throw new IllegalArgumentException();
+        }
+        log.metadataUpdated(tableSpace.expectedReplicaCount);
+        dataStorageManager.tableSpaceMetadataUpdated(tableSpace.uuid, tableSpace.expectedReplicaCount);
+    }
+
     private static class CheckpointFuture extends CompletableFuture {
 
         private final String tableName;
@@ -1149,7 +1163,7 @@ public class TableSpaceManager {
         dbmanager.submit(followerThread);
     }
 
-    void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
+    void startAsLeader(int expectedReplicaCount) throws DataStorageManagerException, DDLException, LogNotAvailableException {
         if (virtual) {
 
         } else {
@@ -1159,7 +1173,7 @@ public class TableSpaceManager {
 
             // every pending transaction MUST be rollback back
             List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
-            log.startWriting();
+            log.startWriting(expectedReplicaCount);
             LOGGER.log(Level.INFO, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
                 forceTransactionRollback(tx);
@@ -1774,6 +1788,10 @@ public class TableSpaceManager {
         if (useJmx) {
             JMXUtils.unregisterTableSpaceManagerStatsMXBean(tableSpaceName);
         }
+    }
+
+    public boolean isClosed() {
+        return closed;
     }
 
     private static class TableSpaceCheckpoint {
