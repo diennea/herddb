@@ -37,8 +37,13 @@ public class UnderreplicationTest extends ReplicatedLogtestcase {
 
     @Test
     public void test() throws Exception {
+        // we want replication factor = 2, we need two bookies
+        testEnv.startNewBookie();
+
         final String tableSpaceName = "t2";
         try (DBManager manager1 = startDBManager("node1")) {
+            // setting expectedReplicaCount = 2
+            // the system will automatically add node2 as soon as it is available
             manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1")), "node1", 2, 0, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
             try (DBManager manager2 = startDBManager("node2")) {
