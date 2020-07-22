@@ -1776,6 +1776,10 @@ public class TableSpaceManager {
         }
     }
 
+    public boolean isClosed() {
+        return closed;
+    }
+
     private static class TableSpaceCheckpoint {
 
         private final LogSequenceNumber sequenceNumber;
