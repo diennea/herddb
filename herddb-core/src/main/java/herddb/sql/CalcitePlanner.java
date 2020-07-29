@@ -140,7 +140,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
-import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -573,7 +573,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelOptCluster cluster = logicalPlan.getCluster();
             final RelOptPlanner optPlanner = cluster.getPlanner();
 
-            optPlanner.addRule(ReduceExpressionsRule.FILTER_INSTANCE);
+            optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
             RelTraitSet desiredTraits =
                     cluster.traitSet()
                             .replace(EnumerableConvention.INSTANCE);
