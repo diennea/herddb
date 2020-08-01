@@ -23,6 +23,7 @@ package herddb.sql.expressions;
 import herddb.model.Predicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.utils.ObjectSizeUtils;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Collections;
 import java.util.List;
@@ -33,11 +34,6 @@ import java.util.List;
  * @author enrico.olivelli
  */
 public interface CompiledSQLExpression {
-
-    interface BinaryExpressionBuilder {
-
-        CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
-    }
 
     /**
      * Evaluates the expression
@@ -105,5 +101,13 @@ public interface CompiledSQLExpression {
      */
     default CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         throw new IllegalStateException("not implemented for " + this.getClass());
+    }
+
+    /**
+     * Estimate Object size for the PlanCache.
+     * see {@link ObjectSizeUtils} for the limitations of this computation.
+     */
+    default int estimateObjectSizeForCache() {
+        return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
     }
 }

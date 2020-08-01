@@ -20,6 +20,8 @@
 
 package herddb.model;
 
+import static herddb.utils.ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
+import herddb.utils.ObjectSizeUtils;
 import herddb.utils.Wrapper;
 
 /**
@@ -45,6 +47,14 @@ public abstract class Statement implements Wrapper {
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+    }
+
+    /**
+     * Estimate Object size for the PlanCache.
+     * see {@link ObjectSizeUtils} for the limitations of this computation.
+     */
+    public int estimateObjectSizeForCache() {
+        return DEFAULT_OBJECT_SIZE_OVERHEAD + ObjectSizeUtils.stringSize(tableSpace);
     }
 
 }

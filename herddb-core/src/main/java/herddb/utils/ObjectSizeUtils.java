@@ -17,26 +17,27 @@
  under the License.
 
  */
-
-package herddb.model;
-
-import herddb.utils.ObjectSizeUtils;
+package herddb.utils;
 
 /**
- * Generic representation of a value computed on a Record
- *
- * @author enrico.olivelli
+ * Simple utilities for dealing with Object sizes. <br>
+ * Please note that this is only used as an estimate of the actual memory used
+ * by a plan. We are not computing an exact size: <ul>
+ * <li>there is no way to do it in Java currently
+ * <li>even if it was possible we should not take into account references to
+ * objects that are already retained by the system, like refs to Table
+ * definitions or cached constants
+ * </ul>
  */
-public abstract class RecordFunction {
+public final class ObjectSizeUtils {
 
-    public abstract byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException;
+    public static final int DEFAULT_OBJECT_SIZE_OVERHEAD = 16;
+    public static final int BOOLEAN_FIELD_SIZE = 4;
 
-    /**
-     * Estimate Object size for the PlanCache.
-     * see {@link ObjectSizeUtils} for the limitations of this computation.
-     */
-    public int estimateObjectSizeForCache() {
-        return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
+    public static int stringSize(String s) {
+        return DEFAULT_OBJECT_SIZE_OVERHEAD + (s != null ? s.length() : 0);
     }
 
+    private ObjectSizeUtils() {
+    }
 }

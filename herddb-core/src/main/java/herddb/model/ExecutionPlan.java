@@ -21,6 +21,7 @@
 package herddb.model;
 
 import herddb.model.planner.PlannerOp;
+import herddb.utils.ObjectSizeUtils;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -28,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author enrico.olivelli
  */
-public class ExecutionPlan {
+public final class ExecutionPlan {
 
     private static final AtomicLong ID = new AtomicLong();
     private final long id = ID.incrementAndGet();
@@ -54,14 +55,21 @@ public class ExecutionPlan {
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
-        if (mainStatement != null) {
-            mainStatement.validateContext(context);
-        }
+        mainStatement.validateContext(context);
     }
 
     @Override
     public String toString() {
         return "Plan" + id;
+    }
+
+    /**
+     * Estimate Object size for the PlanCache.
+     * see {@link ObjectSizeUtils} for the limitations of this computation.
+     */
+    public int estimateObjectSizeForCache() {
+        // ignore Calcite object
+        return mainStatement.estimateObjectSizeForCache();
     }
 
 }

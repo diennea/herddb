@@ -24,6 +24,7 @@ import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
+import herddb.utils.ObjectSizeUtils;
 
 /**
  * Insert a new record
@@ -66,5 +67,11 @@ public final class InsertStatement extends DMLStatement {
     public String toString() {
         return String.format("InsertStatement={ keyfunction=%s valuesFunction=%s}",
                              keyFunction.toString(), valuesFunction.toString());
+    }
+
+    @Override
+    public int estimateObjectSizeForCache() {
+        return super.estimateObjectSizeForCache() + ObjectSizeUtils.BOOLEAN_FIELD_SIZE
+                + keyFunction.estimateObjectSizeForCache() + valuesFunction.estimateObjectSizeForCache();
     }
 }

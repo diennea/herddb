@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.model.commands;
 
 import herddb.index.PrimaryIndexSeek;
@@ -28,6 +27,7 @@ import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.utils.ObjectSizeUtils;
 
 /**
  * Update an existing record
@@ -48,12 +48,8 @@ public class UpdateStatement extends DMLStatement {
         super(table, tableSpace);
         this.function = function;
         if (predicate == null) {
-            predicate = new Predicate() {
-                @Override
-                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-                    return true;
-                }
-            };
+            // please not that we are mutating this predicate below, this cannot be a constant
+            predicate = new EmptyPredicate();
         }
         if (key != null) {
             predicate.setIndexOperation(new PrimaryIndexSeek(key));
@@ -80,4 +76,17 @@ public class UpdateStatement extends DMLStatement {
         predicate.validateContext(context);
     }
 
+    @Override
+    public int estimateObjectSizeForCache() {
+        return super.estimateObjectSizeForCache() + ObjectSizeUtils.BOOLEAN_FIELD_SIZE
+                + function.estimateObjectSizeForCache() + predicate.estimateObjectSizeForCache();
+    }
+
+    private static class EmptyPredicate extends Predicate {
+
+        @Override
+        public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+            return true;
+        }
+    }
 }

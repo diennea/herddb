@@ -23,6 +23,7 @@ package herddb.sql.expressions;
 import herddb.model.Column;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.utils.ObjectSizeUtils;
 import java.util.Collections;
 import java.util.List;
 
@@ -86,6 +87,11 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         throw new IllegalStateException("no implemented");
+    }
+
+    @Override
+    public int estimateObjectSizeForCache() {
+        return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD + right.estimateObjectSizeForCache() + left.estimateObjectSizeForCache();
     }
 
 }

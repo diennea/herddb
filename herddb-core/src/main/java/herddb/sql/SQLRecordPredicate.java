@@ -159,4 +159,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         return super.unwrap(clazz);
     }
 
+    @Override
+    public int estimateObjectSizeForCache() {
+        return where.estimateObjectSizeForCache();
+    }
+
 }

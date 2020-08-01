@@ -22,6 +22,7 @@ package herddb.model;
 
 import herddb.index.IndexOperation;
 import herddb.utils.Bytes;
+import herddb.utils.ObjectSizeUtils;
 import herddb.utils.Wrapper;
 
 /**
@@ -54,6 +55,14 @@ public abstract class Predicate implements Wrapper {
 
     public PrimaryKeyMatchOutcome matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
         return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+    }
+
+    protected final int indexOperationObjectSizeForCache() {
+        return indexOperation != null ? indexOperation.estimateObjectSizeForCache() : 0;
+    }
+
+    public int estimateObjectSizeForCache() {
+        return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
     }
 
     public enum PrimaryKeyMatchOutcome {
