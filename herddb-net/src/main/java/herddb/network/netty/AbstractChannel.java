@@ -168,7 +168,7 @@ public abstract class AbstractChannel extends Channel {
     protected abstract void doClose();
 
     @Override
-    public void close() {
+    public final void close() {
         if (closed) {
             return;
         }

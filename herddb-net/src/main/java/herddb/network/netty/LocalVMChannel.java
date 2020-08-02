@@ -63,16 +63,13 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
     }
 
     @Override
-    public void close() {
-    }
-
-    @Override
     protected String describeSocket() {
         return "jvm-local";
     }
 
     @Override
     protected void doClose() {
+        this.messagesReceiver.channelClosed(this);
     }
 
     @Override
@@ -144,6 +141,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
         @Override
         protected void doClose() {
+            this.messagesReceiver.channelClosed(this);
         }
 
         @Override
