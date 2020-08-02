@@ -35,10 +35,11 @@ import java.util.concurrent.ExecutorService;
 public class LocalVMChannel extends AbstractChannel implements Comparable<LocalVMChannel> {
 
     private ChannelEventListener serverSideViewOfChannel;
-    private final Channel serverSideChannel = new ServerSideLocalVMChannel(ADDRESS_JVM_LOCAL);
+    private final Channel serverSideChannel;
 
     LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
         super(name, ADDRESS_JVM_LOCAL, executorService);
+        serverSideChannel = new ServerSideLocalVMChannel(ADDRESS_JVM_LOCAL, ADDRESS_JVM_LOCAL, executorService);
     }
 
     public Channel getServerSideChannel() {
@@ -47,6 +48,11 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     @Override
     public void sendOneWayMessage(ByteBuf message, SendResultCallback callback) {
+        if (isClosed()) {
+            ReferenceCountUtil.safeRelease(message);
+            callback.messageSent(new IOException("channel closed"));
+            return;
+        }
         try {
             Pdu pdu = PduCodec.decodePdu(message);
             serverSideViewOfChannel.requestReceived(pdu, serverSideChannel);
@@ -109,15 +115,21 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         return Long.compare(this.getId(), o.getId());
     }
 
-    private class ServerSideLocalVMChannel extends Channel {
+    private class ServerSideLocalVMChannel extends AbstractChannel {
 
-        public ServerSideLocalVMChannel(String string) {
-            super(string);
+        public ServerSideLocalVMChannel(String name, String remoteAddress, ExecutorService executor) {
+            super(name, remoteAddress, executor);
         }
 
         @Override
         public void sendOneWayMessage(ByteBuf message, SendResultCallback callback) {
-            throw new UnsupportedOperationException("Not supported");
+            try {
+                Pdu pdu = PduCodec.decodePdu(message);
+                LocalVMChannel.this.pduReceived(pdu);
+            } catch (IOException ex) {
+                ReferenceCountUtil.safeRelease(message);
+                callback.messageSent(ex);
+            }
         }
 
         @Override
@@ -126,31 +138,12 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         }
 
         @Override
-        public void sendReplyMessage(long inAnswerTo, ByteBuf message) {
-            try {
-                Pdu pdu = PduCodec.decodePdu(message);
-                LocalVMChannel.this.pduReceived(pdu);
-            } catch (IOException ex) {
-                ReferenceCountUtil.safeRelease(message);
-            }
+        protected String describeSocket() {
+            return LocalVMChannel.this.describeSocket();
         }
 
         @Override
-        public void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback) {
-            throw new UnsupportedOperationException("Not supported");
-        }
-
-        @Override
-        public void channelIdle() {
-        }
-
-        @Override
-        public String getRemoteAddress() {
-            return ADDRESS_JVM_LOCAL;
-        }
-
-        @Override
-        public void close() {
+        protected void doClose() {
         }
 
         @Override

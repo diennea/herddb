@@ -65,7 +65,7 @@ public class ChannelBenchTest {
                     System.out.println("client channelClosed");
 
                 }
-            }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
+            }, executor, new NioEventLoopGroup(10, executor))) {
                 for (int i = 0; i < 100; i++) {
                     ByteBuf buffer = buildAckRequest(i);
                     try (Pdu result = client.sendMessageWithPduReply(i, buffer, 10000)) {

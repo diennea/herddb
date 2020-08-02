@@ -55,8 +55,7 @@ public class NettyConnector {
 
     public static herddb.network.Channel connect(
             String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup,
-            final DefaultEventLoopGroup localEventsGroup
+            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup
     ) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();

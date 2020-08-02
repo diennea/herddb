@@ -57,8 +57,7 @@ public class HDBClient implements AutoCloseable {
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
     private final ExecutorService thredpool;
-    private final MultithreadEventLoopGroup networkGroup;
-    private final DefaultEventLoopGroup localEventsGroup;
+    private final MultithreadEventLoopGroup networkGroup;;
     private final StatsLogger statsLogger;
     private final int maxOperationRetryCount;
     private final int operationRetryDelay;
@@ -84,7 +83,6 @@ public class HDBClient implements AutoCloseable {
                     return t;
                 });
         this.networkGroup = connectRemoteServers ? (NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup()) : null;
-        this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
@@ -136,9 +134,6 @@ public class HDBClient implements AutoCloseable {
         if (networkGroup != null) {
             networkGroup.shutdownGracefully();
         }
-        if (localEventsGroup != null) {
-            localEventsGroup.shutdownGracefully();
-        }
         if (thredpool != null) {
             thredpool.shutdown();
         }
@@ -163,7 +158,7 @@ public class HDBClient implements AutoCloseable {
         int timeoutms = configuration.getInt(ClientConfiguration.PROPERTY_NETWORK_TIMEOUT, ClientConfiguration.PROPERTY_NETWORK_TIMEOUT_DEFAULT);
         int timeouts = (int) TimeUnit.MILLISECONDS.toSeconds(timeoutms);
         return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeoutms, timeouts, eventReceiver, thredpool,
-                networkGroup, localEventsGroup);
+                networkGroup);
     }
 
     StatsLogger getStatsLogger() {
