@@ -48,7 +48,6 @@ public class LocalVMChannelAcceptor {
         acceptor.createConnection(channel.getServerSideChannel());
         channels.add(channel);
         return channel;
-
     }
 
 }

@@ -29,7 +29,6 @@ import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import java.util.Random;

@@ -178,7 +178,7 @@ public abstract class AbstractChannel extends Channel {
         doClose();
         failPendingMessages(socketDescription);
     }
-   
+
     @Override
     public final boolean isClosed() {
         return closed;

@@ -26,7 +26,6 @@ import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
 import herddb.network.netty.NetworkUtils;
 import herddb.server.StaticClientSideMetadataProvider;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.MultithreadEventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;

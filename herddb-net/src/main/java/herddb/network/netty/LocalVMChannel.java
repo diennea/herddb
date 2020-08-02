@@ -37,7 +37,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     private final ServerSideLocalVMChannel serverSideChannel;
     LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
-        super(name, ADDRESS_JVM_LOCAL, executorService);;
+        super(name, ADDRESS_JVM_LOCAL, executorService);
         setMessagesReceiver(clientSidePeer);
         serverSideChannel = new ServerSideLocalVMChannel(ADDRESS_JVM_LOCAL, ADDRESS_JVM_LOCAL, executorService);
     }
@@ -69,6 +69,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     @Override
     protected void doClose() {
+        // emulate Netty on channel close
         if (messagesReceiver != null) {
             this.messagesReceiver.channelClosed(this);
         }
@@ -139,6 +140,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
         @Override
         protected void doClose() {
+            // emulate Netty on channel close
             if (this.messagesReceiver != null) {
                 this.messagesReceiver.channelClosed(this);
             }

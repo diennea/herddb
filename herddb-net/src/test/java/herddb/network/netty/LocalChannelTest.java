@@ -23,6 +23,9 @@ package herddb.network.netty;
 import static herddb.network.netty.Utils.buildAckRequest;
 import static herddb.network.netty.Utils.buildAckResponse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
@@ -33,9 +36,6 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public class LocalChannelTest {
@@ -85,8 +85,8 @@ public class LocalChannelTest {
         }
         assertNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
     }
-    
-    
+
+
     @Test
     public void testCloseServer() throws Exception {
         InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
@@ -100,7 +100,7 @@ public class LocalChannelTest {
             server.start();
             assertNotNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
             ExecutorService executor = Executors.newCachedThreadPool();
-            
+
             AtomicBoolean closeNotificationReceived = new AtomicBoolean();
             try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
 
