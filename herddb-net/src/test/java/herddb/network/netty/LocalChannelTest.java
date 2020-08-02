@@ -28,14 +28,14 @@ import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.DefaultEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public class LocalChannelTest {
@@ -78,6 +78,43 @@ public class LocalChannelTest {
                         assertEquals(Pdu.TYPE_ACK, result.type);
                     }
                 }
+            } finally {
+                executor.shutdown();
+            }
+
+        }
+        assertNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
+    }
+    
+    
+    @Test
+    public void testCloseServer() throws Exception {
+        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
+        try (NettyChannelAcceptor server = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
+            server.setEnableRealNetwork(false);
+            server.setAcceptor((Channel channel) -> {
+                channel.setMessagesReceiver(new ChannelEventListener() {
+                });
+                return (ServerSideConnection) () -> new Random().nextLong();
+            });
+            server.start();
+            assertNotNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
+            ExecutorService executor = Executors.newCachedThreadPool();
+            
+            AtomicBoolean closeNotificationReceived = new AtomicBoolean();
+            try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
+
+                @Override
+                public void channelClosed(Channel channel) {
+                    System.out.println("client channelClosed");
+                    closeNotificationReceived.set(true);
+
+                }
+            }, executor, null)) {
+                //  closing the server should close the client
+                server.close();
+                assertTrue(client.isClosed());
+                assertTrue(closeNotificationReceived.get());
             } finally {
                 executor.shutdown();
             }

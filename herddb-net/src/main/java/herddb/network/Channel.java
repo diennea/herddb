@@ -103,6 +103,8 @@ public abstract class Channel implements AutoCloseable {
     }
 
     public abstract boolean isValid();
+    
+    public abstract boolean isClosed();
 
     public abstract boolean isLocalChannel();
 

@@ -36,9 +36,9 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     private ChannelEventListener serverSideViewOfChannel;
     private final Channel serverSideChannel;
-
     LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
-        super(name, ADDRESS_JVM_LOCAL, executorService);
+        super(name, ADDRESS_JVM_LOCAL, executorService);;
+        setMessagesReceiver(clientSidePeer);
         serverSideChannel = new ServerSideLocalVMChannel(ADDRESS_JVM_LOCAL, ADDRESS_JVM_LOCAL, executorService);
     }
 
@@ -69,7 +69,13 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     @Override
     protected void doClose() {
-        this.messagesReceiver.channelClosed(this);
+        if (messagesReceiver != null) {
+            this.messagesReceiver.channelClosed(this);
+        }
+        if (serverSideViewOfChannel != null) {
+            serverSideViewOfChannel.channelClosed(this);
+        }
+        serverSideChannel.close();
     }
 
     @Override
@@ -141,7 +147,10 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
         @Override
         protected void doClose() {
-            this.messagesReceiver.channelClosed(this);
+            if (this.messagesReceiver != null) {
+                this.messagesReceiver.channelClosed(this);
+            }
+            LocalVMChannel.this.close();
         }
 
         @Override
