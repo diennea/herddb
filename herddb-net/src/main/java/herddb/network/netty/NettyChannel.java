@@ -17,106 +17,41 @@
  under the License.
 
  */
-
 package herddb.network.netty;
 
-import herddb.network.Channel;
 import herddb.network.SendResultCallback;
-import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.channel.local.LocalChannel;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.util.collections.ConcurrentLongHashMap;
-import org.apache.bookkeeper.util.collections.ConcurrentLongLongHashMap;
 
 /**
  * Channel implemented on Netty
  *
  * @author enrico.olivelli
  */
-public class NettyChannel extends Channel {
+public class NettyChannel extends AbstractChannel {
 
     volatile io.netty.channel.Channel socket;
+    protected final AtomicInteger unflushedWrites = new AtomicInteger();
     private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
-    public static final String ADDRESS_JVM_LOCAL = "jvm-local";
-    private static final AtomicLong idGenerator = new AtomicLong();
-
-    private final ConcurrentLongHashMap<PduCallback> callbacks = new ConcurrentLongHashMap<>();
-    private final ConcurrentLongLongHashMap pendingReplyMessagesDeadline = new ConcurrentLongLongHashMap();
-    private final ExecutorService callbackexecutor;
-    private boolean ioErrors = false;
-    private final long id = idGenerator.incrementAndGet();
-    private final String remoteAddress;
-    private final AtomicInteger unflushedWrites = new AtomicInteger();
 
     @Override
     public String toString() {
-        return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + callbacks.size() + " msgs}";
+        return "NettyChannel{name=" + getName() + ", id=" + getId() + ", socket=" + socket + " pending " + pendingCallbacks() + " msgs}";
     }
 
     public NettyChannel(
             String name, io.netty.channel.Channel socket,
             ExecutorService callbackexecutor
     ) {
-        this.name = name;
+        super(name, ((SocketChannel) socket).remoteAddress() + "", callbackexecutor);
         this.socket = socket;
-        this.callbackexecutor = callbackexecutor;
-        if (socket instanceof SocketChannel) {
-            this.remoteAddress = ((SocketChannel) socket).remoteAddress() + "";
-        } else {
-            this.remoteAddress = ADDRESS_JVM_LOCAL;
-        }
-    }
-
-    public long getId() {
-        return id;
-    }
-
-    public void pduReceived(Pdu message) {
-        if (message.isRequest()) {
-            handlePduRequest(message);
-        } else {
-            handlePduResponse(message);
-        }
-    }
-
-    private void handlePduRequest(Pdu request) {
-        submitCallback(() -> {
-            try {
-                messagesReceiver.requestReceived(request, this);
-            } catch (Throwable t) {
-                LOGGER.log(Level.SEVERE, this + ": error " + t, t);
-                close();
-            }
-        });
-    }
-
-    private void handlePduResponse(Pdu pdu) {
-        long replyMessageId = pdu.messageId;
-        if (replyMessageId < 0) {
-            LOGGER.log(Level.SEVERE, "{0}: received response without replyId: type {1}", new Object[]{this, pdu.messageId});
-            pdu.close();
-            return;
-        }
-        final PduCallback callback = callbacks.remove(replyMessageId);
-        pendingReplyMessagesDeadline.remove(replyMessageId);
-        if (callback != null) {
-            submitCallback(() -> {
-                callback.responseReceived(pdu, null);
-            });
-        }
     }
 
     @Override
@@ -149,70 +84,6 @@ public class NettyChannel extends Channel {
     }
 
     @Override
-    public void sendReplyMessage(long inAnswerTo, ByteBuf message) {
-
-        if (this.socket == null) {
-            LOGGER.log(Level.SEVERE, this + " channel not active, discarding reply message " + message);
-            return;
-        }
-
-        sendOneWayMessage(message, new SendResultCallback() {
-
-            @Override
-            public void messageSent(Throwable error) {
-                if (error != null) {
-                    LOGGER.log(Level.SEVERE, this + " error:" + error, error);
-                }
-            }
-        });
-    }
-
-    private void processPendingReplyMessagesDeadline() {
-        List<Long> messagesWithNoReply = new ArrayList<>();
-        long now = System.currentTimeMillis();
-        pendingReplyMessagesDeadline.forEach((messageId, deadline) -> {
-            if (deadline < now) {
-                messagesWithNoReply.add(messageId);
-            }
-        });
-        if (messagesWithNoReply.isEmpty()) {
-            return;
-        }
-        LOGGER.log(Level.SEVERE, "{0} found {1} without reply, channel will be closed", new Object[]{this, messagesWithNoReply});
-        ioErrors = true;
-        for (long messageId : messagesWithNoReply) {
-            PduCallback callback = callbacks.remove(messageId);
-            if (callback != null) {
-                submitCallback(() -> {
-                    callback.responseReceived(null, new IOException(this + " reply timeout expired, channel will be closed"));
-                });
-            }
-        }
-        close();
-    }
-
-    @Override
-    public void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback) {
-
-        if (!isValid()) {
-            callback.responseReceived(null, new Exception(this + " connection is not active"));
-            return;
-        }
-        pendingReplyMessagesDeadline.put(id, System.currentTimeMillis() + timeout);
-        callbacks.put(id, callback);
-        sendOneWayMessage(message, new SendResultCallback() {
-
-            @Override
-            public void messageSent(Throwable error) {
-                if (error != null) {
-                    LOGGER.log(Level.SEVERE, this + ": error while sending reply message to " + message, error);
-                    callback.responseReceived(null, new Exception(this + ": error while sending reply message to " + message, error));
-                }
-            }
-        });
-    }
-
-    @Override
     public boolean isValid() {
         io.netty.channel.Channel _socket = socket;
         return _socket != null && _socket.isOpen() && !ioErrors;
@@ -220,19 +91,11 @@ public class NettyChannel extends Channel {
 
     @Override
     public boolean isLocalChannel() {
-        return socket instanceof LocalChannel;
+        return false;
     }
 
-    private volatile boolean closed = false;
-
     @Override
-    public void close() {
-        if (closed) {
-            return;
-        }
-        closed = true;
-        LOGGER.log(Level.FINE, "{0}: closing", this);
-        String socketDescription = socket + "";
+    public void doClose() {
         if (socket != null) {
             try {
                 socket.close().await();
@@ -242,73 +105,16 @@ public class NettyChannel extends Channel {
                 socket = null;
             }
         }
-        failPendingMessages(socketDescription);
     }
 
-    private void failPendingMessages(String socketDescription) {
-
-        callbacks.forEach((key, callback) -> {
-            pendingReplyMessagesDeadline.remove(key);
-            LOGGER.log(Level.SEVERE, "{0} message {1} was not replied callback:{2}", new Object[]{this, key, callback});
-            submitCallback(() -> {
-                callback.responseReceived(null, new IOException("comunication channel is closed. Cannot wait for pending messages, socket=" + socketDescription));
-            });
-        });
-        pendingReplyMessagesDeadline.clear();
-        callbacks.clear();
-    }
-
-    void exceptionCaught(Throwable cause) {
-        LOGGER.log(Level.SEVERE, this + " io-error " + cause, cause);
-        ioErrors = true;
-    }
-
-    void channelClosed() {
-        failPendingMessages(socket + "");
-        submitCallback(() -> {
-            if (this.messagesReceiver != null) {
-                this.messagesReceiver.channelClosed(this);
-            }
-        });
-    }
-
-    private void submitCallback(Runnable runnable) {
-        try {
-            callbackexecutor.submit(runnable);
-        } catch (RejectedExecutionException stopped) {
-            LOGGER.log(Level.SEVERE, this + " rejected runnable " + runnable + ":" + stopped);
-            try {
-                runnable.run();
-            } catch (Throwable error) {
-                LOGGER.log(Level.SEVERE, this + " error on rejected runnable " + runnable + ":" + error);
-            }
-        }
-    }
-
-    @Override
-    public String getRemoteAddress() {
-        return remoteAddress;
-    }
-
-    @Override
-    public void channelIdle() {
-        LOGGER.log(Level.FINEST, "{0} channelIdle", this);
-        processPendingReplyMessagesDeadline();
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    // visible for testing only
+// visible for testing only
     public io.netty.channel.Channel getSocket() {
         return socket;
+    }
+
+    @Override
+    protected String describeSocket() {
+        return socket + "";
     }
 
 }

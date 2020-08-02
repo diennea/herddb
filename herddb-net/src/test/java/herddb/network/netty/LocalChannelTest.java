@@ -24,7 +24,6 @@ import static herddb.network.netty.Utils.buildAckRequest;
 import static herddb.network.netty.Utils.buildAckResponse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
@@ -36,6 +35,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import static org.junit.Assert.assertNotNull;
 import org.junit.Test;
 
 public class LocalChannelTest {
@@ -62,7 +62,7 @@ public class LocalChannelTest {
                 return (ServerSideConnection) () -> new Random().nextLong();
             });
             acceptor.start();
-            assertTrue(LocalServerRegistry.isLocalServer(NetworkUtils.getAddress(addr), addr.getPort(), true));
+            assertNotNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
             ExecutorService executor = Executors.newCachedThreadPool();
             try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
 
@@ -83,6 +83,6 @@ public class LocalChannelTest {
             }
 
         }
-        assertFalse(LocalServerRegistry.isLocalServer(NetworkUtils.getAddress(addr), addr.getPort(), true));
+        assertNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
     }
 }
