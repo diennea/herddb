@@ -29,7 +29,6 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
-import herddb.proto.PduCodec;
 import io.netty.buffer.ByteBuf;
 import java.net.InetSocketAddress;
 import java.util.Random;
@@ -38,8 +37,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.junit.Test;
 
 public class LocalChannelTest {
