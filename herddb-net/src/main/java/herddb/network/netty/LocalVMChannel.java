@@ -34,8 +34,8 @@ import java.util.concurrent.ExecutorService;
  */
 public class LocalVMChannel extends AbstractChannel implements Comparable<LocalVMChannel> {
 
-    private ChannelEventListener serverSideViewOfChannel;
-    private final Channel serverSideChannel;
+
+    private final ServerSideLocalVMChannel serverSideChannel;
     LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
         super(name, ADDRESS_JVM_LOCAL, executorService);;
         setMessagesReceiver(clientSidePeer);
@@ -55,7 +55,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         }
         try {
             Pdu pdu = PduCodec.decodePdu(message);
-            serverSideViewOfChannel.requestReceived(pdu, serverSideChannel);
+            serverSideChannel.pduReceived(pdu);
         } catch (IOException ex) {
             ReferenceCountUtil.safeRelease(message);
             callback.messageSent(ex);
@@ -71,9 +71,6 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
     protected void doClose() {
         if (messagesReceiver != null) {
             this.messagesReceiver.channelClosed(this);
-        }
-        if (serverSideViewOfChannel != null) {
-            serverSideViewOfChannel.channelClosed(this);
         }
         serverSideChannel.close();
     }
@@ -133,11 +130,6 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
                 ReferenceCountUtil.safeRelease(message);
                 callback.messageSent(ex);
             }
-        }
-
-        @Override
-        public void setMessagesReceiver(ChannelEventListener messagesReceiver) {
-            serverSideViewOfChannel = messagesReceiver;
         }
 
         @Override

@@ -68,7 +68,10 @@ public class NettyConnector {
 
             LocalVMChannelAcceptor localVm = LocalServerRegistry.getLocalServer(hostAddress, port);
             MultithreadEventLoopGroup group;
-            if (localVm != null) {
+            if (localVm != null && socketTimeout <= 0) {
+                // if socketTimeout is greater than zero we cannot use our local transport implement
+                // that timeout would need a timer
+                // it is useful only to detect stuck network problems
                 return localVm.connect(host + ":" + port, receiver, callbackExecutor);
             } else if (networkGroup == null) {
                 throw new IOException("Connection using network is disabled, cannot connect to " + host + ":" + port);
