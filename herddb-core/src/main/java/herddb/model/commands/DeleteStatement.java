@@ -79,4 +79,9 @@ public class DeleteStatement extends DMLStatement {
         return "DeleteStatement{" + "predicate=" + predicate + '}';
     }
 
+    @Override
+    public int estimateObjectSizeForCache() {
+        return super.estimateObjectSizeForCache() + predicate.estimateObjectSizeForCache();
+    }
+
 }

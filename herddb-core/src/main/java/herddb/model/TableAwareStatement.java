@@ -20,6 +20,8 @@
 
 package herddb.model;
 
+import herddb.utils.ObjectSizeUtils;
+
 /**
  * Statements on a single table
  *
@@ -42,6 +44,11 @@ public abstract class TableAwareStatement extends Statement {
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will autocreate a transaction if issued */
         return true;
+    }
+
+    @Override
+    public int estimateObjectSizeForCache() {
+        return super.estimateObjectSizeForCache() + ObjectSizeUtils.stringSize(table);
     }
 
 }

@@ -20,6 +20,8 @@
 
 package herddb.model;
 
+import herddb.utils.ObjectSizeUtils;
+
 /**
  * Data manimulation statementns
  *
@@ -42,4 +44,8 @@ public abstract class DMLStatement extends TableAwareStatement {
         return this;
     }
 
+    @Override
+    public int estimateObjectSizeForCache() {
+        return super.estimateObjectSizeForCache() + ObjectSizeUtils.BOOLEAN_FIELD_SIZE;
+    }
 }

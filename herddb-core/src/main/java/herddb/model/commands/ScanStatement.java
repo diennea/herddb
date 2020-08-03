@@ -28,6 +28,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TupleComparator;
+import herddb.utils.ObjectSizeUtils;
 
 /**
  * Lookup a bunch record with a condition
@@ -122,4 +123,26 @@ public class ScanStatement extends TableAwareStatement {
     public void setTableDef(Table table) {
         this.tableDef = table;
     }
+
+    @Override
+    public int estimateObjectSizeForCache() {
+        int res = super.estimateObjectSizeForCache() + ObjectSizeUtils.BOOLEAN_FIELD_SIZE;
+        if (predicate != null) {
+            res += predicate.estimateObjectSizeForCache();
+        }
+        // tableDef is a shared object, it does not have a real impact
+        // on heap usage for the cache
+        if (limits != null) {
+            res += ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
+        }
+        if (comparator != null) {
+            res += ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
+        }
+        if (projection != null) {
+            res += ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
+        }
+        return res;
+    }
+
+
 }

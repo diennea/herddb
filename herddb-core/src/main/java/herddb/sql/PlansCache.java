@@ -20,16 +20,10 @@
 
 package herddb.sql;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Output;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import herddb.model.ExecutionPlan;
-import herddb.utils.IntHolder;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,20 +38,6 @@ public class PlansCache {
 
     private final Cache<String, ExecutionPlanContainer> cache;
 
-    private static final boolean KRYO_AVAILABLE;
-
-    static {
-        boolean _KRYO_AVAILABLE;
-        try {
-            new Kryo().writeObject(new Output(new ByteArrayOutputStream()), "");
-            _KRYO_AVAILABLE = true;
-        } catch (Throwable t) {
-            LOG.log(Level.SEVERE, "Kryo is not available", t);
-            _KRYO_AVAILABLE = false;
-        }
-        KRYO_AVAILABLE = _KRYO_AVAILABLE;
-    }
-
     private static class ExecutionPlanContainer {
 
         private final ExecutionPlan plan;
@@ -65,37 +45,8 @@ public class PlansCache {
 
         public ExecutionPlanContainer(ExecutionPlan plan) {
             this.plan = plan;
-            this.weight = computeWeigth(plan);
-        }
-
-        private int computeWeigth(ExecutionPlan plan) {
-
-            if (!KRYO_AVAILABLE) {
-                return 1;
-            }
-
-            final Kryo kryo = new Kryo();
-            IntHolder res = new IntHolder();
-            try (Output oo = new Output(new OutputStream() {
-                @Override
-                public void write(int b) throws IOException {
-                    res.value++;
-                }
-
-                @Override
-                public void write(byte[] b, int off, int len) throws IOException {
-                    res.value += len;
-                }
-
-                @Override
-                public void write(byte[] b) throws IOException {
-                    res.value += b.length;
-                }
-
-            })) {
-                kryo.writeObject(oo, plan);
-            }
-            return res.value;
+            // see ObjectSizeUtils about the limitation of this computation
+            this.weight = plan.estimateObjectSizeForCache();
         }
 
     }

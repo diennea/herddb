@@ -17,8 +17,9 @@
  under the License.
 
  */
-
 package herddb.index;
+
+import herddb.utils.ObjectSizeUtils;
 
 /**
  * Models the usage of a index
@@ -28,4 +29,8 @@ package herddb.index;
 public interface IndexOperation {
 
     String getIndexName();
+
+    default int estimateObjectSizeForCache() {
+        return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD + ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD /*value*/;
+    }
 }
