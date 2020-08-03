@@ -102,6 +102,7 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
+import herddb.utils.Futures;
 import herddb.utils.KeyValue;
 import herddb.utils.SystemProperties;
 import java.io.EOFException;
@@ -134,7 +135,6 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -622,7 +622,7 @@ public class TableSpaceManager {
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
             try {
                 // sync on beginTransaction
-                StatementExecutionResult newTransaction = FutureUtils.result(beginTransactionAsync(context, true));
+                StatementExecutionResult newTransaction = Futures.result(beginTransactionAsync(context, true));
                 transactionContext = new TransactionContext(newTransaction.transactionId);
                 rollbackOnError = true;
             } catch (Exception err) {
@@ -1264,12 +1264,12 @@ public class TableSpaceManager {
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null
                 && !transaction.tableSpace.equals(tableSpaceName)) {
-            return FutureUtils.exception(
+            return Futures.exception(
                     new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName));
         }
         if (transactionContext.transactionId > 0
                 && transaction == null) {
-            return FutureUtils.exception(
+            return Futures.exception(
                     new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName));
         }
         boolean isTransactionCommand = statement instanceof CommitTransactionStatement
@@ -1288,7 +1288,7 @@ public class TableSpaceManager {
                 res = executePlannedOperationStatement(statement, transactionContext, context);
             } else if (statement instanceof BeginTransactionStatement) {
                 if (transaction != null) {
-                    res = FutureUtils.exception(new StatementExecutionException("transaction already started"));
+                    res = Futures.exception(new StatementExecutionException("transaction already started"));
                 } else {
                     res = beginTransactionAsync(context, true);
                 }
@@ -1307,11 +1307,11 @@ public class TableSpaceManager {
             } else if (statement instanceof AlterTableStatement) {
                 res = CompletableFuture.completedFuture(alterTable((AlterTableStatement) statement, transactionContext, context));
             } else {
-                res = FutureUtils.exception(new StatementExecutionException("unsupported statement " + statement)
+                res = Futures.exception(new StatementExecutionException("unsupported statement " + statement)
                         .fillInStackTrace());
             }
         } catch (StatementExecutionException error) {
-            res = FutureUtils.exception(error);
+            res = Futures.exception(error);
         }
         if (transaction != null && !isTransactionCommand) {
             res = res.whenComplete((a, b) -> {
@@ -1382,10 +1382,10 @@ public class TableSpaceManager {
         AbstractTableManager manager = tables.get(table);
         CompletableFuture<StatementExecutionResult> res;
         if (manager == null) {
-            res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName));
+            res = Futures.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName));
         } else if (manager.getCreatedInTransaction() > 0
                 && (transaction == null || transaction.transactionId != manager.getCreatedInTransaction())) {
-            res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
+            res = Futures.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
         } else {
             res = manager.executeStatementAsync(statement, transaction, context);
         }

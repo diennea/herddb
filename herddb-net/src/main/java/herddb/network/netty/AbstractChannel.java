@@ -26,13 +26,12 @@ import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.util.collections.ConcurrentLongHashMap;
-import org.apache.bookkeeper.util.collections.ConcurrentLongLongHashMap;
 
 /**
  * Common implementation.
@@ -44,8 +43,8 @@ public abstract class AbstractChannel extends Channel {
     public static final String ADDRESS_JVM_LOCAL = "jvm-local";
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final ConcurrentLongHashMap<PduCallback> callbacks = new ConcurrentLongHashMap<>();
-    private final ConcurrentLongLongHashMap pendingReplyMessagesDeadline = new ConcurrentLongLongHashMap();
+    private final ConcurrentHashMap<Long, PduCallback> callbacks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Long> pendingReplyMessagesDeadline = new ConcurrentHashMap<>();
     private final ExecutorService callbackexecutor;
     protected boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
@@ -134,7 +133,7 @@ public abstract class AbstractChannel extends Channel {
         }
         LOGGER.log(Level.SEVERE, "{0} found {1} without reply, channel will be closed", new Object[]{this, messagesWithNoReply});
         ioErrors = true;
-        for (long messageId : messagesWithNoReply) {
+        for (Long messageId : messagesWithNoReply) {
             PduCallback callback = callbacks.remove(messageId);
             if (callback != null) {
                 submitCallback(() -> {

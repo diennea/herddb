@@ -87,7 +87,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.1.1</version>
+                <version>3.2.4</version>
                 <executions>
                     <execution>
                         <id>make-uber</id>
@@ -150,6 +150,95 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>make-thin</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>thin</shadedClassifierName>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <dependencyReducedPomLocation>${basedir}/thin-dependency-reduced-pom.xml</dependencyReducedPomLocation>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>jline:jline</exclude>
+                                    <exclude>com.google.protobuf:*</exclude>
+                                    <exclude>org.apache.bookkeeper:*</exclude>
+                                    <exclude>org.apache.zookeeper:*</exclude>
+                                    <exclude>commons-configuration:*</exclude>                                                                        
+                                    <exclude>org.bouncycastle:*</exclude>                                    
+                                    <exclude>net.java.dev.jna:*</exclude>                                    
+                                    <exclude>org.apache.httpcomponents</exclude>
+                                    <exclude>org.jctools:*</exclude>
+                                    <exclude>net.jpountz.lz4:*</exclude>
+                                </excludes>
+                            </artifactSet>                            
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>herddb.org.apache</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>io.netty</pattern>
+                                    <shadedPattern>herddb.io.netty</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.fasterxml</pattern>
+                                    <shadedPattern>herddb.com.fasterxml</shadedPattern>                                    
+                                </relocation>                               
+                                <relocation>
+                                    <pattern>com.google</pattern>
+                                    <shadedPattern>herddb.com.google</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.slf4j</pattern>
+                                    <shadedPattern>herddb.org.slf4j</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>net.jcp</pattern>
+                                    <shadedPattern>herddb.net.jcp</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>net.sf.jsqlparser</pattern>
+                                    <shadedPattern>herddb.net.sf.jsqlparser</shadedPattern>                                    
+                                </relocation>
+                                <relocation>
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>herddb.net.jpountz</shadedPattern>                                    
+                                </relocation>   
+                                <relocation>
+                                    <!-- Calcite stuff -->
+                                    <pattern>com.jayway.jsonpath</pattern>
+                                    <shadedPattern>herddb.com.jayway.jsonpath</shadedPattern>                                    
+                                </relocation>                      
+                                
+                                <!-- Cannot relocate org.codehaus.commons.compiler stuff, needed by Calcite
+                                    <relocation>
+                                    <pattern>org.codehaus</pattern>
+                                    <shadedPattern>herddb.org.codehaus</shadedPattern>                                    
+                                </relocation> -->
+                            </relocations>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Multi-Release>true</Multi-Release>
+                                    </manifestEntries>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>                                        
                                     </excludes>
                                 </filter>
                             </filters>

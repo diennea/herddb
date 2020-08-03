@@ -44,10 +44,28 @@
             <version>3.1.1</version>
         </dependency>
         <dependency>
+            <!-- use 'thin' driver, we want OpenJPA users to be able to run tests
+                 using a minimum set of dependencies -->
             <groupId>org.herddb</groupId>
             <artifactId>herddb-jdbc</artifactId>
             <version>${project.version}</version>
+            <classifier>thin</classifier>
+            <exclusions>
+                <!-- workaround to Maven dependency bug,
+                     we don't want to import dependencies of herddb-jdbc project here -->
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+            <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-dbcp2</artifactId>
+            <version>2.7.0</version>
+             <scope>test</scope>
+        </dependency>        
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>

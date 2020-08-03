@@ -76,6 +76,7 @@ import herddb.sql.NullSQLPlanner;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
+import herddb.utils.Futures;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import java.io.IOException;
@@ -108,7 +109,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -632,40 +632,40 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 //        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
-            return FutureUtils.exception(new StatementExecutionException("invalid null tableSpace"));
+            return Futures.exception(new StatementExecutionException("invalid null tableSpace"));
         }
         if (statement instanceof CreateTableSpaceStatement) {
             if (transactionContext.transactionId > 0) {
-                return FutureUtils.exception(new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction"));
+                return Futures.exception(new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction"));
             }
             return CompletableFuture.completedFuture(createTableSpace((CreateTableSpaceStatement) statement));
         }
 
         if (statement instanceof AlterTableSpaceStatement) {
             if (transactionContext.transactionId > 0) {
-                return FutureUtils.exception(new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction"));
+                return Futures.exception(new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction"));
             }
             return CompletableFuture.completedFuture(alterTableSpace((AlterTableSpaceStatement) statement));
         }
         if (statement instanceof DropTableSpaceStatement) {
             if (transactionContext.transactionId > 0) {
-                return FutureUtils.exception(new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction"));
+                return Futures.exception(new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction"));
             }
             return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
         }
         if (statement instanceof TableSpaceConsistencyCheckStatement) {
             if (transactionContext.transactionId > 0) {
-                return FutureUtils.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
+                return Futures.exception(new StatementExecutionException("TABLESPACECONSISTENCYCHECK cannot be issue inside a transaction"));
             }
             return  CompletableFuture.completedFuture(createTableSpaceCheckSum((TableSpaceConsistencyCheckStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
-            return FutureUtils.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
+            return Futures.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
                     + "Maybe the server is starting "));
         }
         if (errorIfNotLeader && !manager.isLeader()) {
-            return FutureUtils.exception(new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace));
+            return Futures.exception(new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace));
         }
         CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, context, transactionContext);
         if (statement instanceof DDLStatement) {
@@ -728,10 +728,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } catch (herddb.model.NotLeaderException err) {
             LOGGER.log(Level.INFO, "not-leader", err);
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         } catch (Throwable err) {
             LOGGER.log(Level.SEVERE, "uncaught error", err);
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         }
     }
 

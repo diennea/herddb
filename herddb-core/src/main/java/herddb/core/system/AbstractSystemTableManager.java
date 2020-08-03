@@ -44,6 +44,7 @@ import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
+import herddb.utils.Futures;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * System tables
@@ -71,7 +71,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     @Override
     public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
-        return FutureUtils.exception(new StatementExecutionException("not supported on system tables"));
+        return Futures.exception(new StatementExecutionException("not supported on system tables"));
     }
 
     @Override
