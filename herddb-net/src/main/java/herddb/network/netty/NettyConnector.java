@@ -25,12 +25,9 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.MultithreadEventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
-import io.netty.channel.local.LocalAddress;
-import io.netty.channel.local.LocalChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
@@ -47,7 +44,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Worker-side connector
+ * Client-side connector
  *
  * @author enrico.olivelli
  */
@@ -55,10 +52,9 @@ public class NettyConnector {
 
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
-    public static NettyChannel connect(
+    public static herddb.network.Channel connect(
             String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup,
-            final DefaultEventLoopGroup localEventsGroup
+            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup
     ) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
@@ -69,13 +65,15 @@ public class NettyConnector {
             SocketAddress address;
             String hostAddress = NetworkUtils.getAddress(inet);
 
+            LocalVMChannelAcceptor localVm = LocalServerRegistry.getLocalServer(hostAddress, port);
             MultithreadEventLoopGroup group;
-            if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
-                channelType = LocalChannel.class;
-                address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
-                group = localEventsGroup;
+            if (localVm != null && socketTimeout <= 0) {
+                // if socketTimeout is greater than zero we cannot use our local transport implement
+                // that timeout would need a timer
+                // it is useful only to detect stuck network problems
+                return localVm.connect(host + ":" + port, receiver, callbackExecutor);
             } else if (networkGroup == null) {
-                throw new IOException("Connection using network is disabled");
+                throw new IOException("Connection using network is disabled, cannot connect to " + host + ":" + port);
             } else {
                 channelType = networkGroup instanceof EpollEventLoopGroup ? EpollSocketChannel.class : NioSocketChannel.class;
                 address = inet;

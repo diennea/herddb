@@ -28,7 +28,6 @@ import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -65,7 +64,7 @@ public class ChannelBenchTest {
                     System.out.println("client channelClosed");
 
                 }
-            }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
+            }, executor, new NioEventLoopGroup(10, executor))) {
                 for (int i = 0; i < 100; i++) {
                     ByteBuf buffer = buildAckRequest(i);
                     try (Pdu result = client.sendMessageWithPduReply(i, buffer, 10000)) {

@@ -42,9 +42,10 @@ public abstract class Channel implements AutoCloseable {
     }
 
     protected ChannelEventListener messagesReceiver;
-    protected String name = "unnamed";
+    private final String name;
 
-    public Channel() {
+    public Channel(String name) {
+        this.name = name;
     }
 
     public ChannelEventListener getMessagesReceiver() {
@@ -103,15 +104,13 @@ public abstract class Channel implements AutoCloseable {
 
     public abstract boolean isValid();
 
+    public abstract boolean isClosed();
+
     public abstract boolean isLocalChannel();
 
 
     public String getName() {
         return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
 }

@@ -26,12 +26,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
-import io.netty.channel.local.LocalAddress;
-import io.netty.channel.local.LocalServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -59,7 +56,7 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
- * Accepts connections from workers
+ * Accepts connections from clients.
  *
  * @author enrico.olivelli
  */
@@ -69,8 +66,6 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
-    private EventLoopGroup localBossGroup;
-    private EventLoopGroup localWorkerGroup;
     private int port = 7000;
     private String host = "localhost";
     private String jvmhostAddress;
@@ -87,6 +82,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private BlockingQueue callbackExecutorQueue;
     private boolean enableRealNetwork = true;
     private boolean enableJVMNetwork = true;
+    private final LocalVMChannelAcceptor localVMChannelAcceptor;
 
     public boolean isEnableRealNetwork() {
         return enableRealNetwork;
@@ -177,7 +173,6 @@ public class NettyChannelAcceptor implements AutoCloseable {
     }
 
     private Channel channel;
-    private Channel localChannel;
     private StatsLogger statsLogger;
 
     private static final ThreadFactory threadFactory = new ThreadFactory() {
@@ -198,6 +193,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         this.port = port;
         this.ssl = ssl;
         this.statsLogger = statsLogger;
+        this.localVMChannelAcceptor = new LocalVMChannelAcceptor();
     }
 
     public void start() throws Exception {
@@ -298,17 +294,8 @@ public class NettyChannelAcceptor implements AutoCloseable {
         }
 
         if (enableJVMNetwork) {
-            localBossGroup = localWorkerGroup = new DefaultEventLoopGroup();
-            ServerBootstrap b_local = new ServerBootstrap();
-            b_local.group(localBossGroup, localWorkerGroup)
-                    .channel(LocalServerChannel.class)
-                    .childHandler(channelInitialized);
-
             jvmhostAddress = NetworkUtils.getAddress(address);
-            LocalServerRegistry.registerLocalServer(jvmhostAddress, port, ssl);
-
-            ChannelFuture local_f = b_local.bind(new LocalAddress(jvmhostAddress + ":" + port + ":" + ssl)).sync();
-            this.localChannel = local_f.channel();
+            LocalServerRegistry.registerLocalServer(jvmhostAddress, port, localVMChannelAcceptor);
         }
 
     }
@@ -319,22 +306,15 @@ public class NettyChannelAcceptor implements AutoCloseable {
             channel.close();
         }
         if (enableJVMNetwork && jvmhostAddress != null) {
-            LocalServerRegistry.unregisterLocalServer(jvmhostAddress, port, ssl);
+            LocalServerRegistry.unregisterLocalServer(jvmhostAddress, port);
         }
-        if (localChannel != null) {
-            localChannel.close();
-        }
+        localVMChannelAcceptor.close();
+
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
-        }
-        if (localWorkerGroup != null) {
-            localWorkerGroup.shutdownGracefully();
-        }
-        if (localBossGroup != null) {
-            localBossGroup.shutdownGracefully();
         }
         if (callbackExecutor != null) {
             callbackExecutor.shutdown();
@@ -347,6 +327,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
     public void setAcceptor(ServerSideConnectionAcceptor acceptor) {
         this.acceptor = acceptor;
+        this.localVMChannelAcceptor.setAcceptor(acceptor);
     }
 
 }

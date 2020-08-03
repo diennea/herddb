@@ -20,8 +20,7 @@
 
 package herddb.network.netty;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Registry for Local Servers, to bypass network
@@ -30,21 +29,21 @@ import java.util.concurrent.ConcurrentSkipListSet;
  */
 public class LocalServerRegistry {
 
-    private static final Set<String> localServers = new ConcurrentSkipListSet<>();
+    private static final ConcurrentHashMap<String, LocalVMChannelAcceptor> localServers = new ConcurrentHashMap<>();
 
-    static void registerLocalServer(String host, int port, boolean ssl) {
-        localServers.add(composeServerKey(host, port, ssl));
+    static void registerLocalServer(String host, int port, LocalVMChannelAcceptor acceptor) {
+        localServers.put(composeServerKey(host, port), acceptor);
     }
 
-    private static String composeServerKey(String host, int port, boolean ssl) {
-        return host + ":" + port + ":" + ssl;
+    private static String composeServerKey(String host, int port) {
+        return host + ":" + port;
     }
 
-    static void unregisterLocalServer(String host, int port, boolean ssl) {
-        localServers.remove(composeServerKey(host, port, ssl));
+    static void unregisterLocalServer(String host, int port) {
+        localServers.remove(composeServerKey(host, port));
     }
 
-    static boolean isLocalServer(String host, int port, boolean ssl) {
-        return localServers.contains(composeServerKey(host, port, ssl));
+    static LocalVMChannelAcceptor getLocalServer(String host, int port) {
+        return localServers.get(composeServerKey(host, port));
     }
 }
