@@ -52,14 +52,14 @@ public class Futures {
                         .map(CompletableFuture::join)
                         .collect(Collectors.toList()));
     }
-    
+
     public static <T, ExceptionT extends Throwable> T result(
-            CompletableFuture<T> future,            
+            CompletableFuture<T> future,
             long timeout,
             TimeUnit timeUnit) throws ExceptionT, TimeoutException, InterruptedException, Exception {
         return result(future, DEFAULT_EXCEPTION_HANDLER, timeout, timeUnit);
     }
-    
+
      public static <T, ExceptionT extends Throwable> T result(
             CompletableFuture<T> future) throws ExceptionT, TimeoutException, InterruptedException, Exception {
         return result(future, DEFAULT_EXCEPTION_HANDLER);
@@ -84,7 +84,7 @@ public class Futures {
             }
         }
     }
-        
+
     public static <T, ExceptionT extends Throwable> T result(
         CompletableFuture<T> future, Function<Throwable, ExceptionT> exceptionHandler) throws ExceptionT, InterruptedException {
         try {
