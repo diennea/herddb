@@ -59,7 +59,9 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         }
         try {
             Pdu pdu = PduCodec.decodePdu(message);
-            serverSideChannel.pduReceived(pdu);
+            // execute server side code in this thread
+            serverSideChannel.directProcessPdu(pdu);
+
         } catch (IOException ex) {
             ReferenceCountUtil.safeRelease(message);
             callback.messageSent(ex);
@@ -74,9 +76,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
     @Override
     protected void doClose() {
         // emulate Netty on channel close
-        if (messagesReceiver != null) {
-            this.messagesReceiver.channelClosed(this);
-        }
+        channelClosed();
         serverSideChannel.close();
     }
 
@@ -135,7 +135,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
             }
             try {
                 Pdu pdu = PduCodec.decodePdu(message);
-                LocalVMChannel.this.pduReceived(pdu);
+                LocalVMChannel.this.directProcessPdu(pdu);
             } catch (IOException ex) {
                 ReferenceCountUtil.safeRelease(message);
                 callback.messageSent(ex);
@@ -150,9 +150,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         @Override
         protected void doClose() {
             // emulate Netty on channel close
-            if (this.messagesReceiver != null) {
-                this.messagesReceiver.channelClosed(this);
-            }
+            channelClosed();
             LocalVMChannel.this.close();
         }
 
