@@ -25,6 +25,7 @@ import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
 import herddb.model.TransactionContext;
 import herddb.network.ServerHostData;
+import herddb.utils.Futures;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.Counter;
 
 /**
@@ -205,7 +205,7 @@ public class HDBConnection implements AutoCloseable {
             tableSpace = discoverTablespace(tableSpace, query);
         }
         if (closed) {
-            return FutureUtils.exception(new HDBException("client is closed"));
+            return Futures.exception(new HDBException("client is closed"));
         }
         CompletableFuture<DMLResult> res = new CompletableFuture<>();
 
@@ -308,7 +308,7 @@ public class HDBConnection implements AutoCloseable {
             tableSpace = discoverTablespace(tableSpace, query);
         }
         if (closed) {
-            return FutureUtils.exception(new HDBException("client is closed"));
+            return Futures.exception(new HDBException("client is closed"));
         }
         CompletableFuture<List<DMLResult>> res = new CompletableFuture<>();
 

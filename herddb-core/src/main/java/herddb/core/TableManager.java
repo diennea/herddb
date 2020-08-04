@@ -76,6 +76,7 @@ import herddb.utils.BooleanHolder;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
+import herddb.utils.Futures;
 import herddb.utils.Holder;
 import herddb.utils.ILocalLockManager;
 import herddb.utils.LocalLockManager;
@@ -112,7 +113,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -588,13 +588,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
             } catch (StatementExecutionException err) {
                 LOGGER.log(Level.SEVERE, "Truncate table failed", err);
-                res = FutureUtils.exception(err);
+                res = Futures.exception(err);
             }
         } else if (statement instanceof TableConsistencyCheckStatement) {
             DBManager manager = this.tableSpaceManager.getDbmanager();
             res = CompletableFuture.completedFuture(manager.createTableCheckSum((TableConsistencyCheckStatement) statement, context));
         } else {
-            res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
+            res = Futures.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
         res = res.whenComplete((r, error) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
@@ -1106,7 +1106,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             key = Bytes.from_array(insert.getKeyFunction().computeNewValue(null, context, tableContext));
             value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
         } catch (StatementExecutionException validationError) {
-            return FutureUtils.exception(validationError);
+            return Futures.exception(validationError);
         }
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
@@ -1116,14 +1116,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                 }
             } catch (IllegalArgumentException err) {
-                return FutureUtils.exception(new StatementExecutionException(err.getMessage(), err));
+                return Futures.exception(new StatementExecutionException(err.getMessage(), err));
             }
         }
 
 
         final long size = DataPage.estimateEntrySize(key, value);
         if (size > maxLogicalPageSize) {
-            return FutureUtils
+            return Futures
                     .exception(new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize));
         }
 
@@ -1135,19 +1135,19 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 // OK, INSERT on a DELETED record inside this transaction
             } else if (transaction.recordInserted(table.name, key) != null) {
                 // ERROR, INSERT on a INSERTED record inside this transaction
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
                 if (insert.isUpsert()) {
                     fallbackToUpsert = true;
                 } else {
-                    res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
                 }
             }
         } else if (keyToPage.containsKey(key)) {
             if (insert.isUpsert()) {
                 fallbackToUpsert = true;
             } else {
-                res = FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
+                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
             }
         }
 
@@ -1253,14 +1253,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     } catch (IllegalArgumentException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                        writes.add(Futures.exception(new StatementExecutionException(err.getMessage(), err)));
                         return;
                     }
 
                     final long size = DataPage.estimateEntrySize(actual.key, newValue);
                     if (size > maxLogicalPageSize) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
+                        writes.add(Futures.exception(new RecordTooBigException("New version of record " + actual.key
                                 + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
                                 + ", max size " + maxLogicalPageSize)));
                         return;
@@ -1276,7 +1276,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
             LOGGER.log(Level.SEVERE, "bad error during an update", err);
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         }
 
         if (writes.isEmpty()) {
@@ -1302,7 +1302,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
                     });
         } else {
-            return FutureUtils
+            return Futures
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
@@ -1367,7 +1367,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
             LOGGER.log(Level.SEVERE, "bad error during a delete", err);
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         }
         if (writes.isEmpty()) {
             return CompletableFuture
@@ -1392,7 +1392,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 delete.isReturnValues() ? lastValue.value : null);
                     });
         } else {
-            return FutureUtils
+            return Futures
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
@@ -2086,7 +2086,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             key = Bytes.from_nullable_array(get.getKey().computeNewValue(null, context, tableContext));
         } catch (StatementExecutionException validationError) {
-            return FutureUtils.exception(validationError);
+            return Futures.exception(validationError);
         }
         Predicate predicate = get.getPredicate();
         boolean requireLock = get.isRequireLock();
@@ -2138,7 +2138,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             return res;
         } catch (HerdDBInternalException err) {
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         }
     }
 

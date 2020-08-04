@@ -42,6 +42,7 @@ import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.Futures;
 import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
 
@@ -137,7 +137,7 @@ public class InsertOp implements PlannerOp {
                 return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
             }
             if (returnValues) {
-                return FutureUtils.exception(new StatementExecutionException("cannot 'return values' on multi-values insert"));
+                return Futures.exception(new StatementExecutionException("cannot 'return values' on multi-values insert"));
             }
             CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
 

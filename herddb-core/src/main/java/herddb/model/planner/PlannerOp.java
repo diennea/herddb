@@ -26,10 +26,10 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.utils.Futures;
 import herddb.utils.Wrapper;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Generic step of planned operation
@@ -74,9 +74,9 @@ public interface PlannerOp extends Wrapper {
         try {
             return CompletableFuture.completedFuture(execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite));
         } catch (StatementExecutionException err) {
-            return FutureUtils.exception(err);
+            return Futures.exception(err);
         } catch (RuntimeException err) {
-            return FutureUtils.exception(new StatementExecutionException(err));
+            return Futures.exception(new StatementExecutionException(err));
         }
     }
 
