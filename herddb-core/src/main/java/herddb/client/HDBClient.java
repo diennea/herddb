@@ -156,7 +156,7 @@ public class HDBClient implements AutoCloseable {
     Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
         final int timeoutms = configuration.getInt(ClientConfiguration.PROPERTY_NETWORK_TIMEOUT, ClientConfiguration.PROPERTY_NETWORK_TIMEOUT_DEFAULT);
         final int timeouts = (int) TimeUnit.MILLISECONDS.toSeconds(timeoutms);
-        final boolean connectLocalVmAllowed = configuration.getBoolean(ClientConfiguration.PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER, false);
+        final boolean connectLocalVmAllowed = configuration.getBoolean(ClientConfiguration.PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER, ClientConfiguration.PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER_DEFAULT);
         if (!connectLocalVmAllowed) {
             return NettyConnector.connectUsingNetwork(server.getHost(), server.getPort(), server.isSsl(), timeoutms, timeouts, eventReceiver, thredpool,
                     networkGroup);

@@ -101,7 +101,7 @@ public class ClientConfiguration {
     public static final boolean PROPERTY_CLIENT_CONNECT_REMOTE_SERVER_DEFAULT = true;
 
     public static final String PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER = "client.network.connect.localvm";
-    public static final boolean PROPERTY_CLIENT_CONNECT_REMOTE_LOCALVM_DEFAULT = true;
+    public static final boolean PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER_DEFAULT = true;
 
 
     public ClientConfiguration(Properties properties) {
