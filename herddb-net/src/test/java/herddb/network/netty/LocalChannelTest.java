@@ -21,6 +21,7 @@ package herddb.network.netty;
 
 import static herddb.network.netty.Utils.buildAckRequest;
 import static herddb.network.netty.Utils.buildAckResponse;
+import static herddb.utils.TestUtils.NOOP;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -29,6 +30,7 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
+import herddb.utils.TestUtils;
 import io.netty.buffer.ByteBuf;
 import java.net.InetSocketAddress;
 import java.util.Random;
@@ -114,7 +116,7 @@ public class LocalChannelTest {
                 //  closing the server should close the client
                 server.close();
                 assertTrue(client.isClosed());
-                assertTrue(closeNotificationReceived.get());
+                TestUtils.waitForCondition(() -> closeNotificationReceived.get(), NOOP, 100);
             } finally {
                 executor.shutdown();
             }

@@ -711,6 +711,8 @@ public class TableSpaceManager {
         ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
         clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, dbmanager.getServerToServerPassword());
+        // always use network, we want to run tests with this case
+        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER, false);
         try (HDBClient client = new HDBClient(clientConfiguration)) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override

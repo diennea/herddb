@@ -67,26 +67,46 @@ public abstract class AbstractChannel extends Channel {
         return id;
     }
 
+    /**
+     * This method is intended to be used while serving a PDU coming from Network
+     * @param message
+     */
     public final void pduReceived(Pdu message) {
         if (message.isRequest()) {
             handlePduRequest(message);
         } else {
-            handlePduResponse(message);
+            processPduResponse(message);
+        }
+    }
+
+    /**
+     * Esecute processing (mostly) in the same thread
+     * @param message
+     */
+    public final void directProcessPdu(Pdu message) {
+        if (message.isRequest()) {
+            processRequest(message);
+        } else {
+            processPduResponse(message);
+        }
+    }
+
+    private void processRequest(Pdu request) {
+        try {
+            messagesReceiver.requestReceived(request, this);
+        } catch (Throwable t) {
+            LOGGER.log(Level.SEVERE, this + ": error " + t, t);
+            close();
         }
     }
 
     private void handlePduRequest(Pdu request) {
         submitCallback(() -> {
-            try {
-                messagesReceiver.requestReceived(request, this);
-            } catch (Throwable t) {
-                LOGGER.log(Level.SEVERE, this + ": error " + t, t);
-                close();
-            }
+            processRequest(request);
         });
     }
 
-    private void handlePduResponse(Pdu pdu) {
+    private void processPduResponse(Pdu pdu) {
         long replyMessageId = pdu.messageId;
         if (replyMessageId < 0) {
             LOGGER.log(Level.SEVERE, "{0}: received response without replyId: type {1}", new Object[]{this, pdu.messageId});
@@ -102,6 +122,7 @@ public abstract class AbstractChannel extends Channel {
         }
     }
 
+    @Override
     public final void sendReplyMessage(long inAnswerTo, ByteBuf message) {
 
         if (!isValid()) {
