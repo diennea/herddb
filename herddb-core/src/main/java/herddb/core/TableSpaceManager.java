@@ -1466,7 +1466,7 @@ public class TableSpaceManager {
             } catch (Exception err) {
                 throw new StatementExecutionException(err);
             }
-            // HERE tranactionId will be always 0, because transaction is implicitly committed
+            // Here transactionId is always 0, because transaction is implicitly committed
             return new DDLStatementExecutionResult(transactionContext.transactionId);
         } finally {
             if (lockAcquired) {
