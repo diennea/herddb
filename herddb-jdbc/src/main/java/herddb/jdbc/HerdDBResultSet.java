@@ -235,7 +235,11 @@ public final class HerdDBResultSet implements ResultSet {
         fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
-            return Boolean.parseBoolean(lastValue.toString());
+            if (lastValue instanceof Number) {
+                return ((Number) lastValue).intValue() == 1;
+            } else {
+                return Boolean.parseBoolean(lastValue.toString());
+            }
         } else {
             wasNull = true;
             return false;

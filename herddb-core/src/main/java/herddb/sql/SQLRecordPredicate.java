@@ -137,11 +137,20 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             switch (type) {
                 case ColumnTypes.INTEGER:
                 case ColumnTypes.NOTNULL_INTEGER:
+                    if (value instanceof Boolean) {
+                        return ((Boolean) value) ? 1 : 0;
+                    }
                     return ((Number) value).intValue();
                 case ColumnTypes.LONG:
                 case ColumnTypes.NOTNULL_LONG:
+                    if (value instanceof Boolean) {
+                        return ((Boolean) value) ? 1L : 0L;
+                    }
                     return ((Number) value).longValue();
                 case ColumnTypes.DOUBLE:
+                    if (value instanceof Boolean) {
+                        return ((Boolean) value) ? 1d : 0d;
+                    }
                     return ((Number) value).doubleValue();
                 default:
                     return value;
