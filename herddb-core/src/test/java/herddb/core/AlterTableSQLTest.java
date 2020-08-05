@@ -346,4 +346,53 @@ public class AlterTableSQLTest {
         }
     }
 
+    @Test
+    public void alterTableImplitlyCommitsTransaction() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.getColumn("s1").serialPosition);
+            long tx = TestUtils.beginTransaction(manager, "tblspace1");
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values('a',1,'b')", Collections.emptyList(), new TransactionContext(tx));
+
+            {
+                // record not visible outside transaction
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), TransactionContext.NO_TRANSACTION).consumeAndClose();
+                assertEquals(0, tuples.size());
+            }
+
+            {
+                // record visible inside transaction
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+                assertEquals(RawString.of("b"), tuples.get(0).get("s1"));
+            }
+            execute(manager, "ALTER TABLE tblspace1.tsql drop column s1", Collections.emptyList(), new TransactionContext(tx));
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.columns.length);
+
+            // transaction no more exists (it has been committed)
+            assertNull(manager.getTableSpaceManager("tblspace1").getTransaction(tx));
+
+            // record is visible out of the transaction, but with only 2 columns
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList(), TransactionContext.NO_TRANSACTION).consumeAndClose();
+                assertEquals(1, tuples.size());
+                assertEquals(2, tuples.get(0).getFieldNames().length);
+            }
+
+        }
+    }
+
 }

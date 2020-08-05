@@ -1275,7 +1275,8 @@ public class TableSpaceManager {
                     new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName));
         }
         boolean isTransactionCommand = statement instanceof CommitTransactionStatement
-                || statement instanceof RollbackTransactionStatement;
+                || statement instanceof RollbackTransactionStatement
+                || statement instanceof AlterTableStatement; // AlterTable implictly commits the transaction
         if (transaction != null) {
             transaction.touch();
             if (!isTransactionCommand) {
@@ -1430,7 +1431,16 @@ public class TableSpaceManager {
         }
         try {
             if (transactionContext.transactionId > 0) {
-                throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
+                Transaction transaction = transactions.get(transactionContext.transactionId);
+                if (transactionContext.transactionId > 0 && transaction == null) {
+                    throw new StatementExecutionException("transaction " + transactionContext.transactionId + " does not exist on tablespace " + tableSpaceName);
+                }
+                if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
+                    throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
+                }
+                LOGGER.log(Level.INFO, "Implicitly committing transaction " + transactionContext.transactionId + " due to an ALTER TABLE statement in tablespace " + tableSpaceName);
+                commitTransaction(new CommitTransactionStatement(tableSpaceName, transactionContext.transactionId), context).join();
+                transactionContext = TransactionContext.NO_TRANSACTION;
             }
             AbstractTableManager tableManager = tables.get(statement.getTable());
             if (tableManager == null) {
@@ -1452,6 +1462,7 @@ public class TableSpaceManager {
             } catch (Exception err) {
                 throw new StatementExecutionException(err);
             }
+            // HERE tranactionId will be always 0, because transaction is implicitly committed
             return new DDLStatementExecutionResult(transactionContext.transactionId);
         } finally {
             if (lockAcquired) {
