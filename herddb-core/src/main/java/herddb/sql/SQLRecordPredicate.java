@@ -148,9 +148,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     }
                     return ((Number) value).longValue();
                 case ColumnTypes.DOUBLE:
-                    if (value instanceof Boolean) {
-                        return ((Boolean) value) ? 1d : 0d;
-                    }
                     return ((Number) value).doubleValue();
                 default:
                     return value;
