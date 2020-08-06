@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
@@ -176,7 +175,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     }
                     throw new IllegalArgumentException("Value " + value + " (" + value.getClass() + ") cannot be converted to a Boolean");
                 case ColumnTypes.INTEGER:
-                case ColumnTypes.NOTNULL_INTEGER:
+                case ColumnTypes.NOTNULL_INTEGER: {
                     if (value instanceof Boolean) {
                         return ((Boolean) value) ? 1 : 0;
                     }
@@ -190,11 +189,13 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                         return Integer.parseInt(((String) value));
                     }
                     throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to INTEGER");
+                }
                 case ColumnTypes.LONG:
-                case ColumnTypes.NOTNULL_LONG:
+                case ColumnTypes.NOTNULL_LONG: {
                     if (value instanceof Boolean) {
                         return ((Boolean) value) ? 1L : 0L;
                     }
+
                     if (value instanceof Number) {
                         return ((Number) value).longValue();
                     }
@@ -205,8 +206,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                         return Long.parseLong(((String) value));
                     }
                     throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to LONG");
+                }
                 case ColumnTypes.DOUBLE:
-                case ColumnTypes.NOTNULL_DOUBLE:
+                case ColumnTypes.NOTNULL_DOUBLE: {
                     if (value instanceof Number) {
                         return ((Number) value).doubleValue();
                     }
@@ -220,8 +222,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                         return ((Boolean) value) ? 1d : 0d;
                     }
                     throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to DOUBLE");
+                }
                 case ColumnTypes.TIMESTAMP:
-                case ColumnTypes.NOTNULL_TIMESTAMP:
+                case ColumnTypes.NOTNULL_TIMESTAMP: {
                     if (value instanceof java.sql.Timestamp) {
                         return (java.sql.Timestamp) value;
                     }
@@ -235,6 +238,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                         return java.sql.Timestamp.valueOf(((String) value));
                     }
                     throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to TIMESTAMP");
+                }
                 default:
                     return value;
             }
