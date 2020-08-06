@@ -173,7 +173,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                             || value instanceof Boolean) {
                         return value.toString();
                     }
-                    throw new IllegalArgumentException("Value " + value + " (" + value.getClass() + ") cannot be converted to a Boolean");
+                    throw new IllegalArgumentException("Value " + value + " (" + value.getClass() + ") cannot be converted to a STRING");
                 case ColumnTypes.INTEGER:
                 case ColumnTypes.NOTNULL_INTEGER: {
                     if (value instanceof Boolean) {
