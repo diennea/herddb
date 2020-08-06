@@ -33,6 +33,7 @@ import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
@@ -135,20 +136,105 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         }
         try {
             switch (type) {
+                case ColumnTypes.BOOLEAN:
+                case ColumnTypes.NOTNULL_BOOLEAN: {
+                    if (value instanceof Boolean) {
+                        return ((Boolean) value);
+                    }
+                    if (value instanceof Number) {
+                        int asInt = ((Number) value).intValue();
+                        switch (asInt) {
+                            case 1:
+                                return Boolean.TRUE;
+                            case 0:
+                                return Boolean.FALSE;
+                            default:
+                                throw new IllegalArgumentException("Numeric value " + value + " cannot be converted to a Boolean");
+                        }
+                    }
+                    String s = value.toString();
+                    switch (s) {
+                        case "true":
+                        case "1":
+                            return Boolean.TRUE;
+                        case "0":
+                        case "false":
+                            return Boolean.FALSE;
+                        default:
+                            throw new IllegalArgumentException("Value " + value + " cannot be converted to a Boolean");
+                    }
+                }
+                case ColumnTypes.STRING:
+                case ColumnTypes.NOTNULL_STRING:
+                    if (value instanceof RawString
+                            || value instanceof String) {
+                        return value;
+                    }
+                    if (value instanceof Number
+                            || value instanceof Boolean) {
+                        return value.toString();
+                    }
+                    throw new IllegalArgumentException("Value " + value + " (" + value.getClass() + ") cannot be converted to a Boolean");
                 case ColumnTypes.INTEGER:
                 case ColumnTypes.NOTNULL_INTEGER:
                     if (value instanceof Boolean) {
                         return ((Boolean) value) ? 1 : 0;
                     }
-                    return ((Number) value).intValue();
+                    if (value instanceof Number) {
+                        return ((Number) value).intValue();
+                    }
+                    if (value instanceof RawString) {
+                        return Integer.parseInt(((RawString) value).toString());
+                    }
+                    if (value instanceof String) {
+                        return Integer.parseInt(((String) value));
+                    }
+                    throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to INTEGER");
                 case ColumnTypes.LONG:
                 case ColumnTypes.NOTNULL_LONG:
                     if (value instanceof Boolean) {
                         return ((Boolean) value) ? 1L : 0L;
                     }
-                    return ((Number) value).longValue();
+                    if (value instanceof Number) {
+                        return ((Number) value).longValue();
+                    }
+                    if (value instanceof RawString) {
+                        return Long.parseLong(((RawString) value).toString());
+                    }
+                    if (value instanceof String) {
+                        return Long.parseLong(((String) value));
+                    }
+                    throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to LONG");
                 case ColumnTypes.DOUBLE:
-                    return ((Number) value).doubleValue();
+                case ColumnTypes.NOTNULL_DOUBLE:
+                    if (value instanceof Number) {
+                        return ((Number) value).doubleValue();
+                    }
+                    if (value instanceof RawString) {
+                        return Double.parseDouble(((RawString) value).toString());
+                    }
+                    if (value instanceof String) {
+                        return Double.parseDouble(((String) value));
+                    }
+                    if (value instanceof Boolean) {
+                        return ((Boolean) value) ? 1d : 0d;
+                    }
+                    throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to DOUBLE");
+                case ColumnTypes.TIMESTAMP:
+                case ColumnTypes.NOTNULL_TIMESTAMP:
+                    if (value instanceof java.sql.Timestamp) {
+                        return (java.sql.Timestamp) value;
+                    }
+                    if (value instanceof Number) {
+                        return new java.sql.Timestamp(((Number) value).longValue());
+                    }
+                    if (value instanceof RawString) {
+                        return java.sql.Timestamp.valueOf(((RawString) value).toString());
+                    }
+                    if (value instanceof String) {
+                        return java.sql.Timestamp.valueOf(((String) value));
+                    }
+                    throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to TIMESTAMP");
                 default:
                     return value;
             }
