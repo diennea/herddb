@@ -21,7 +21,9 @@
 package herddb.cluster;
 
 import static herddb.core.TestUtils.scan;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
@@ -33,12 +35,15 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
+import herddb.storage.DataStorageManagerException;
 import herddb.utils.DataAccessor;
+import herddb.utils.TestUtils;
 import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -183,6 +188,8 @@ public class TablespaceReplicasStateTest {
                     assertEquals(2, results.size());
                 }
 
+                // test that server2 even if it is a follower it starts the TableSpaceManager
+                // and it writing its state to metadata
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
                         + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
@@ -211,6 +218,53 @@ public class TablespaceReplicasStateTest {
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='stopped'", Collections.emptyList())) {
                     assertEquals(1, scan.consume().size());
                 }
+
+                // add again server2 as follower
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                for (int i = 0; i < 100; i++) {
+                    try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
+                        if (scan.consume().size() > 0) {
+                            break;
+                        }
+                    }
+                }
+
+                // make server2 leader
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+
+                server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+                server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, false);
+
+                for (int i = 0; i < 100; i++) {
+                    try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='leader'", Collections.emptyList())) {
+                        if (scan.consume().size() > 0) {
+                            break;
+                        }
+                    }
+                }
+
+
+                for (int i = 0; i < 100; i++) {
+                    try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_1.getNodeId() + "' and mode='follower'", Collections.emptyList())) {
+                        if (scan.consume().size() > 0) {
+                            break;
+                        }
+                    }
+                }
+
+                // the TableSpaceManager for a follower must not be able to perform a checkpoint
+                DataStorageManagerException err = TestUtils.expectThrows(DataStorageManagerException.class,
+                        () -> {
+                            server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).checkpoint(true, false, false);
+                        });
+                // ZooKeeper BadVersionException is expected because
+                // server1 is not holding the expected version of znode metdata
+                assertThat(err.getCause(), instanceOf(KeeperException.BadVersionException.class));
+
             }
         }
     }

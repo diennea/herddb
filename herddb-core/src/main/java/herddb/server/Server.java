@@ -196,10 +196,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 realData);
 
         if (nodeId.isEmpty()) {
-            if (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode)) {
-                throw new RuntimeException("With " + ServerConfiguration.PROPERTY_MODE + "="
-                        + mode + " you must assign " + ServerConfiguration.PROPERTY_NODEID + " explicitly in your server configuration file");
-            }
             LocalNodeIdManager localNodeIdManager = buildLocalNodeIdManager();
             try {
                 nodeId = localNodeIdManager.readLocalNodeId();

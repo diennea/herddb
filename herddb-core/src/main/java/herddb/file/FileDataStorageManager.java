@@ -286,6 +286,17 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    @Override
+    public void initTablespace(String tableSpace) throws DataStorageManagerException {
+        Path tablespaceDir = getTablespaceDirectory(tableSpace);
+        LOGGER.log(Level.FINE, "initTablespace {0} at {1}", new Object[]{tableSpace, tablespaceDir});
+        try {
+            Files.createDirectories(tablespaceDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
 
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {

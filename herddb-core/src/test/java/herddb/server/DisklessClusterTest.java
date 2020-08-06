@@ -20,6 +20,9 @@
 package herddb.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import herddb.cluster.BookkeeperCommitLog;
 import herddb.codec.RecordSerializer;
 import herddb.core.TestUtils;
 import herddb.model.ColumnTypes;
@@ -61,21 +64,138 @@ public class DisklessClusterTest {
     }
 
     @Test
-    public void testCannotBootWithoutNodeId() throws Exception {
+    public void testSwitchServerWithoutInitialServerLostAndNoRecoveryFromLog() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        // do not keep transaction log
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 500);
+        // not automatic checkpoint
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
 
+        // second server, new disk
+        ServerConfiguration serverconfig_2 = serverconfig_1.copy()
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
+
+        String nodeId1;
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
-        } catch (RuntimeException err) {
-            assertEquals("With server.mode=diskless-cluster you must assign server.node.id explicitly in your server configuration file", err.getMessage());
+            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+            nodeId1 = server_1.getNodeId();
+            TestUtils.execute(server_1.getManager(), "CREATE TABLE tt(n1 string primary key, n2 int)", Collections.emptyList());
+            TestUtils.execute(server_1.getManager(), "CREATE INDEX aa ON tt(n2)", Collections.emptyList());
+            TestUtils.execute(server_1.getManager(), "INSERT INTO tt(n1,n2) values('a',1)", Collections.emptyList());
+
+            // start new ledger
+            BookkeeperCommitLog log = (BookkeeperCommitLog) server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog();
+            log.rollNewLedger();
+
+            Thread.sleep(1000);
+
+            // flush to "disk" (Bookkeeper)
+            // the first ledger can be thrown away
+            server_1.getManager().checkpoint();
+
+            // assert that it is not possible to boot just by reading from the log
+            assertFalse(log.getActualLedgersList().getActiveLedgers().contains(log.getActualLedgersList().getFirstLedger()));
+
+            // scan (with index)
+            assertEquals(1, TestUtils.scan(server_1.getManager(), "SELECT * FROM tt where n2=1", Collections.emptyList()).consumeAndClose().size());
+
+        }
+
+        // now we totally lose server1 and start a new server
+        // data is stored on ZK + BK, so no data loss
+        // start server_2
+        try (Server server_2 = new Server(serverconfig_2)) {
+            server_2.start();
+            // ensure that we are running with a different server identity
+            assertNotEquals(server_2.getNodeId(), nodeId1);
+
+            // assign default table space to the new server
+            TestUtils.execute(server_2.getManager(),
+                    server_2.getNodeId(),
+                    "ALTER TABLESPACE '" + TableSpace.DEFAULT + "','leader:" + server_2.getNodeId() + "','replica:" + server_2.getNodeId() + "'", Collections.emptyList(),
+                    TransactionContext.NO_TRANSACTION);
+
+            // recovery will start from checkpoint, not from the log
+            server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+
+            // scan (with index)
+            assertEquals(1, TestUtils.scan(server_2.getManager(), "SELECT * FROM tt where n2=1", Collections.emptyList()).consumeAndClose().size());
         }
     }
 
+    @Test
+    public void testSwitchServerAutoMatic() throws Exception {
+
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        // do not keep transaction log
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 500);
+        // not automatic checkpoint
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+
+        // second server, new disk
+        ServerConfiguration serverconfig_2 = serverconfig_1.copy()
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
+
+        String nodeId1;
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+            nodeId1 = server_1.getNodeId();
+            TestUtils.execute(server_1.getManager(),
+                    server_1.getNodeId(),
+                    "ALTER TABLESPACE '" + TableSpace.DEFAULT + "','replica:*','maxLeaderInactivityTime:5000'", Collections.emptyList(),
+                    TransactionContext.NO_TRANSACTION);
+
+            TestUtils.execute(server_1.getManager(), "CREATE TABLE tt(n1 string primary key, n2 int)", Collections.emptyList());
+            TestUtils.execute(server_1.getManager(), "CREATE INDEX aa ON tt(n2)", Collections.emptyList());
+            TestUtils.execute(server_1.getManager(), "INSERT INTO tt(n1,n2) values('a',1)", Collections.emptyList());
+
+            // start new ledger
+            BookkeeperCommitLog log = (BookkeeperCommitLog) server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog();
+            log.rollNewLedger();
+
+            Thread.sleep(1000);
+
+            // flush to "disk" (Bookkeeper)
+            // the first ledger can be thrown away
+            server_1.getManager().checkpoint();
+
+            // assert that it is not possible to boot just by reading from the log
+            assertFalse(log.getActualLedgersList().getActiveLedgers().contains(log.getActualLedgersList().getFirstLedger()));
+
+            // scan (with index)
+            assertEquals(1, TestUtils.scan(server_1.getManager(), "SELECT * FROM tt where n2=1", Collections.emptyList()).consumeAndClose().size());
+
+        }
+
+        // now we totally lose server1 and start a new server
+        // data is stored on ZK + BK, so no data loss
+        // the new server will auto assign itself to the tablespace and become leader
+        // because we have replica=* (any server) and maxLeaderInactivityTime=5000
+        // start server_2
+        try (Server server_2 = new Server(serverconfig_2)) {
+            server_2.start();
+            // ensure that we are running with a different server identity
+            assertNotEquals(server_2.getNodeId(), nodeId1);
+
+            // recovery will start from checkpoint, not from the log
+            server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+
+            // scan (with index)
+            assertEquals(1, TestUtils.scan(server_2.getManager(), "SELECT * FROM tt where n2=1", Collections.emptyList()).consumeAndClose().size());
+        }
+    }
 
     @Test
     public void testRestartWithCheckpoint() throws Exception {

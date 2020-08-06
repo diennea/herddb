@@ -81,6 +81,10 @@ public class TableSpace {
         this.metadataStorageCreationTime = metadataStorageCreationTime;
     }
 
+    public boolean isNodeAssignedToTableSpace(String nodeId) {
+        return this.replicas.contains(nodeId) || this.replicas.contains("*");
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -205,7 +209,7 @@ public class TableSpace {
             if (leaderId == null || leaderId.isEmpty()) {
                 leaderId = replicas.iterator().next();
             }
-            if (!replicas.contains(leaderId)) {
+            if (!replicas.contains(leaderId) && !replicas.contains("*")) {
                 throw new IllegalArgumentException("leader " + leaderId + " must be in replica list " + replicas);
             }
             if (expectedReplicaCount <= 0) {

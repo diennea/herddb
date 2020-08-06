@@ -137,6 +137,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void initTablespace(String tableSpace) throws DataStorageManagerException {
+    }
+
+    @Override
     public void initIndex(String tableSpace, String indexName) throws DataStorageManagerException {
     }
 

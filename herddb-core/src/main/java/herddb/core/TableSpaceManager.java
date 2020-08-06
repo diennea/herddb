@@ -246,6 +246,7 @@ public class TableSpaceManager {
         if (virtual) {
             startAsLeader(1);
         } else {
+            dataStorageManager.initTablespace(tableSpaceUUID);
             recover(tableSpaceInfo);
 
             LOGGER.log(Level.INFO, " after recovery of tableSpace {0}, actualLogSequenceNumber:{1}", new Object[]{tableSpaceName, actualLogSequenceNumber});
@@ -1160,12 +1161,16 @@ public class TableSpaceManager {
         return failed || log.isFailed();
     }
 
-    void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
-        followerThread = new FollowerThread();
-        dbmanager.submit(followerThread);
+    private void startAsFollower() throws DataStorageManagerException, LogNotAvailableException {
+        if (dbmanager.getMode().equals(ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER)) {
+            // in diskless cluster mode there is no need to really 'follow' the leader
+        } else {
+            followerThread = new FollowerThread();
+            dbmanager.submit(followerThread);
+        }
     }
 
-    void startAsLeader(int expectedReplicaCount) throws DataStorageManagerException, DDLException, LogNotAvailableException {
+    private void startAsLeader(int expectedReplicaCount) throws DataStorageManagerException, DDLException, LogNotAvailableException {
         if (virtual) {
 
         } else {
@@ -1865,7 +1870,8 @@ public class TableSpaceManager {
         }
     }
 
-    TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
+    // visible for testing
+    public TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
         }

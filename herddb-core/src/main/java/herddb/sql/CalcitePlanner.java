@@ -918,7 +918,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             predicate = new SQLRecordPredicate(table, null, where);
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-
+            if (tableSpaceManager == null) {
+                throw new StatementExecutionException("tablespace " + tableSpace + " is not ready");
+            }
             IndexOperation op = scanForIndexAccess(where, table, tableSpaceManager);
             predicate.setIndexOperation(op);
             CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
