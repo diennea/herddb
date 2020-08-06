@@ -43,7 +43,11 @@ public class CastExpression implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return SQLRecordPredicate.cast(wrapped.evaluate(bean, context), type);
+        try {
+            return SQLRecordPredicate.cast(wrapped.evaluate(bean, context), type);
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException(err);
+        }
     }
 
     @Override

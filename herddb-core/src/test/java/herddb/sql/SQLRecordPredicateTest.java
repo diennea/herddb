@@ -36,6 +36,7 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.utils.RawString;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
@@ -93,4 +94,55 @@ public class SQLRecordPredicateTest {
         }
     }
 
+    @Test
+    public void testCast() throws Exception {
+        testCast(null, null, ColumnTypes.INTEGER);
+
+        testCast(1, 1L, ColumnTypes.INTEGER);
+        testCast(1, 1d, ColumnTypes.INTEGER);
+        testCast(1, true, ColumnTypes.INTEGER);
+        testCast(0, false, ColumnTypes.INTEGER);
+        testCast(-1, "-1", ColumnTypes.INTEGER);
+        testCast(-1, RawString.of("-1"), ColumnTypes.INTEGER);
+
+        testCast(1L, 1L, ColumnTypes.LONG);
+        testCast(1L, 1d, ColumnTypes.LONG);
+        testCast(1L, true, ColumnTypes.LONG);
+        testCast(0L, false, ColumnTypes.LONG);
+        testCast(-1L, "-1", ColumnTypes.LONG);
+        testCast(-1L, RawString.of("-1"), ColumnTypes.LONG);
+
+        testCast(1d, 1L, ColumnTypes.DOUBLE);
+        testCast(1d, 1d, ColumnTypes.DOUBLE);
+        testCast(1d, true, ColumnTypes.DOUBLE);
+        testCast(0d, false, ColumnTypes.DOUBLE);
+        testCast(-1d, "-1", ColumnTypes.DOUBLE);
+        testCast(-1d, RawString.of("-1"), ColumnTypes.DOUBLE);
+
+        testCast(true, 1L, ColumnTypes.BOOLEAN);
+        testCast(true, 1d, ColumnTypes.BOOLEAN);
+        testCast(true, true, ColumnTypes.BOOLEAN);
+        testCast(false, false, ColumnTypes.BOOLEAN);
+        testCast(true, "1", ColumnTypes.BOOLEAN);
+        testCast(false, "0", ColumnTypes.BOOLEAN);
+
+        testCast("1", 1L, ColumnTypes.STRING);
+        testCast("1.0", 1d, ColumnTypes.STRING);
+        testCast("true", true, ColumnTypes.STRING);
+        testCast("false", false, ColumnTypes.STRING);
+        testCast("-1", "-1", ColumnTypes.STRING);
+        testCast(RawString.of("-1"), RawString.of("-1"), ColumnTypes.STRING);
+
+        long now = System.currentTimeMillis();
+        testCast(new java.sql.Timestamp(1), 1L, ColumnTypes.TIMESTAMP);
+        testCast(new java.sql.Timestamp(now), new java.sql.Timestamp(now), ColumnTypes.TIMESTAMP);
+        testCast(new java.sql.Timestamp(now), RawString.of(new java.sql.Timestamp(now).toString()), ColumnTypes.TIMESTAMP);
+        testCast(new java.sql.Timestamp(now), new java.sql.Timestamp(now).toString(), ColumnTypes.TIMESTAMP);
+    }
+
+    private void testCast(Object expected, Object value, int type) {
+        assertEquals(expected, SQLRecordPredicate.cast(value, type));
+        // test the same type and the 'NOT NULL' type
+        assertEquals(expected, SQLRecordPredicate.cast(value, ColumnTypes.getNonNullTypeForPrimitiveType(type)));
+    }
 }
