@@ -103,6 +103,13 @@ public class SelectColumnTest {
         data.add(new TestData("int", "boolean", null, SelectColumnTest::checkBoolean,
                 new Object[][]{{0, true}, {1, false}, {2, null}}));
 
+         // use getBoolean on "int" column
+        data.add(new TestData("int", "int", null, SelectColumnTest::checkBooleanOnIntColumn,
+                new Object[][]{{0, true}, {1, false}, {2, null}}));
+
+        data.add(new TestData("int", "long", null, SelectColumnTest::checkBooleanOnLongColumn,
+                new Object[][]{{0L, true}, {1L, false}, {2L, null}}));
+
         return data;
 
     }
@@ -292,6 +299,45 @@ public class SelectColumnTest {
             } else {
                 assertNull(actual);
                 assertNull(object);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+     private static void checkBooleanOnIntColumn(ResultSet rs, Object expected) {
+        try {
+            Boolean actual = rs.getBoolean(1);
+            if (rs.wasNull()) {
+                actual = null;
+            }
+            assertEquals(expected, actual);
+
+            // getObject will return a java.lang.Integer
+            Object object = rs.getObject(1);
+            if (actual == null) {
+                assertNull(object);
+            } else {
+                assertEquals(actual ? 1 : 0, object);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+     }
+     private static void checkBooleanOnLongColumn(ResultSet rs, Object expected) {
+        try {
+            Boolean actual = rs.getBoolean(1);
+            if (rs.wasNull()) {
+                actual = null;
+            }
+            assertEquals(expected, actual);
+
+            // getObject will return a java.lang.Integer
+            Object object = rs.getObject(1);
+            if (actual == null) {
+                assertNull(object);
+            } else {
+                assertEquals(actual ? 1L : 0L, object);
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
