@@ -64,7 +64,7 @@ public class DisklessClusterTest {
     }
 
     @Test
-    public void testSwitchServerWithoutInitialServerLostAndNoRecoveryFromLog() throws Exception {
+    public void testSwitchServerWithFirstServerLostAndNoRecoveryFromLog() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
@@ -130,7 +130,7 @@ public class DisklessClusterTest {
     }
 
     @Test
-    public void testSwitchServerAutoMatic() throws Exception {
+    public void testSwitchServerAutomatically() throws Exception {
 
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
