@@ -553,12 +553,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
                     JMXUtils.registerTableSpaceManagerStatsMXBean(tableSpaceName, manager.getStats());
                 }
-                planner.clearCache();
             } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
                 LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
                 LOGGER.log(Level.SEVERE, "Error", t);
                 tablesSpaces.remove(tableSpaceName);
-                planner.clearCache();
                 try {
                     manager.close();
                 } catch (Throwable t2) {
@@ -1325,7 +1323,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "node " + nodeId + " cannot close for reboot tablespace " + tableSpace, err);
         }
         tablesSpaces.remove(tableSpace);
-        planner.clearCache();
         if (uuid != null) {
             metadataStorageManager.updateTableSpaceReplicaState(
                     TableSpaceReplicaState
