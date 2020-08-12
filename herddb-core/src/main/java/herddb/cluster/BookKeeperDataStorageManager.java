@@ -643,6 +643,21 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         }
     }
 
+    private void deleteZNodeEnforceOwnership(String tableSpace, String path) throws DataStorageManagerException {
+        try {
+            zkWrites.inc();
+            Op opUpdateRoot = createUpdateTableSpaceRootOp(tableSpace);
+            Op opDelete = Op.delete(path, -1);
+            List<OpResult> multi = zk.ensureZooKeeper().multi(Arrays.asList(opUpdateRoot, opDelete));
+            updateRootZkNodeVersion(tableSpace, multi.get(0));
+        } catch (IOException | KeeperException err) {
+            throw new DataStorageManagerException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new DataStorageManagerException(err);
+        }
+    }
+
     private void writeZNodeEnforceOwnership(String tableSpace, String path, byte[] content, Stat stat) throws DataStorageManagerException {
         try {
             zkWrites.inc();
@@ -929,8 +944,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
-                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p + ". will be deleted after checkpoint end");
-                        result.add(new DeleteZNodeAction(tableName, "delete checkpoint metadata file " + p, p));
+                        LOGGER.log(Level.FINEST, "checkpoint metadata znode " + p + ". will be deleted after checkpoint end");
+                        result.add(new DeleteZNodeAction(tableSpace, tableName, "delete checkpoint metadata znode " + p, p));
                     }
                 }
             }
@@ -1010,7 +1025,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                 IndexStatus status = readIndexStatusFromFile(p);
                 if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                     LOGGER.log(Level.FINEST, "checkpoint metadata file " + p + ". will be deleted after checkpoint end");
-                    result.add(new DeleteZNodeAction(indexName, "delete checkpoint metadata file " + p, p));
+                    result.add(new DeleteZNodeAction(tableSpace, indexName, "delete checkpoint metadata file " + p, p));
                 }
             }
         }
@@ -1428,12 +1443,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, content, p);
                             if (sequenceNumber.after(logPositionInFile)) {
                                 LOGGER.log(Level.FINEST, "indexes metadata file " + p + ". will be deleted after checkpoint end");
-                                result.add(new DeleteZNodeAction("indexes", "delete indexesmetadata file " + p, p));
+                                result.add(new DeleteZNodeAction(tableSpace, "indexes", "delete indexesmetadata file " + p, p));
                             }
                         }
                     } catch (DataStorageManagerException ignore) {
                         LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p, ignore);
-                        result.add(new DeleteZNodeAction("indexes", "delete unparsable indexesmetadata file " + p, p));
+                        result.add(new DeleteZNodeAction(tableSpace, "indexes", "delete unparsable indexesmetadata file " + p, p));
                     }
                 } else if (isTablespaceTablesMetadataFile(p)) {
                     try {
@@ -1442,12 +1457,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, content, p);
                             if (sequenceNumber.after(logPositionInFile)) {
                                 LOGGER.log(Level.FINEST, "tables metadata file " + p + ". will be deleted after checkpoint end");
-                                result.add(new DeleteZNodeAction("tables", "delete tablesmetadata file " + p, p));
+                                result.add(new DeleteZNodeAction(tableSpace, "tables", "delete tablesmetadata file " + p, p));
                             }
                         }
                     } catch (DataStorageManagerException ignore) {
                         LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p, ignore);
-                        result.add(new DeleteZNodeAction("transactions", "delete unparsable tablesmetadata file " + p, p));
+                        result.add(new DeleteZNodeAction(tableSpace, "transactions", "delete unparsable tablesmetadata file " + p, p));
                     }
                 }
             }
@@ -1491,7 +1506,7 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromCheckpointInfoFile(tableSpace, content, p);
                         if (sequenceNumber.after(logPositionInFile)) {
                             LOGGER.log(Level.FINEST, "checkpoint info file " + p + ". will be deleted after checkpoint end");
-                            result.add(new DeleteZNodeAction("checkpoint", "delete checkpoint info file " + p, p));
+                            result.add(new DeleteZNodeAction(tableSpace, "checkpoint", "delete checkpoint info file " + p, p));
                         }
                     }
                 } catch (DataStorageManagerException | IOException ignore) {
@@ -1704,12 +1719,12 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTransactionsFile(tableSpace, content, p);
                         if (sequenceNumber.after(logPositionInFile)) {
                             LOGGER.log(Level.FINEST, "transactions metadata file " + p + ". will be deleted after checkpoint end");
-                            result.add(new DeleteZNodeAction("transactions", "delete transactions file " + p, p));
+                            result.add(new DeleteZNodeAction(tableSpace, "transactions", "delete transactions file " + p, p));
                         }
                     }
                 } catch (DataStorageManagerException ignore) {
                     LOGGER.log(Level.SEVERE, "Unparsable transactions file " + p, ignore);
-                    result.add(new DeleteZNodeAction("transactions", "delete unparsable transactions file " + p, p));
+                    result.add(new DeleteZNodeAction(tableSpace, "transactions", "delete unparsable transactions file " + p, p));
                 }
             }
         }
@@ -1721,8 +1736,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
         private final String znode;
 
-        public DeleteZNodeAction(String tableName, String description, String znode) {
-            super(tableName, description);
+        public DeleteZNodeAction(String tableSpace, String tableName, String description, String znode) {
+            super(tableSpace, tableName, description);
             this.znode = znode;
         }
 
@@ -1730,11 +1745,8 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
         public void run() {
             try {
                 LOGGER.log(Level.FINE, description);
-                zk.ensureZooKeeper().delete(znode, -1);
-            } catch (InterruptedException err) {
-                Thread.currentThread().interrupt();
-                LOGGER.log(Level.SEVERE, "Could not delete znode " + znode + ":" + err, err);
-            } catch (IOException | KeeperException err) {
+                deleteZNodeEnforceOwnership(tableSpace, znode);
+            } catch (DataStorageManagerException err) {
                 LOGGER.log(Level.SEVERE, "Could not delete znode " + znode + ":" + err, err);
             }
         }
@@ -1778,13 +1790,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private class DropLedgerForTableAction extends PostCheckpointAction {
 
-        private final String tableSpace;
         private final long ledgerId;
         private final long pageId;
 
         public DropLedgerForTableAction(String tableSpace, String tableName, String description, long pageId, long ledgerId) {
-            super(tableName, description);
-            this.tableSpace = tableSpace;
+            super(tableSpace, tableName, description);
             this.pageId = pageId;
             this.ledgerId = ledgerId;
         }
@@ -1797,13 +1807,11 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
 
     private class DropLedgerForIndexAction extends PostCheckpointAction {
 
-        private final String tableSpace;
         private final long ledgerId;
         private final long pageId;
 
         public DropLedgerForIndexAction(String tableSpace, String tableName, String description, long pageId, long ledgerId) {
-            super(tableName, description);
-            this.tableSpace = tableSpace;
+            super(tableSpace, tableName, description);
             this.pageId = pageId;
             this.ledgerId = ledgerId;
         }

@@ -27,17 +27,19 @@ package herddb.core;
  */
 public abstract class PostCheckpointAction implements Runnable {
 
+    public final String tableSpace;
     public final String tableName;
     public final String description;
 
-    public PostCheckpointAction(String tableName, String description) {
+    public PostCheckpointAction(String tableSpace, String tableName, String description) {
+        this.tableSpace = tableSpace;
         this.tableName = tableName;
         this.description = description;
     }
 
     @Override
     public String toString() {
-        return "PostCheckpointAction on " + tableName + ": " + description;
+        return "PostCheckpointAction on " + tableSpace + "." + tableName + ": " + description;
     }
 
 }
