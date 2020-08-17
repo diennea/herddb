@@ -61,9 +61,13 @@ public class TestUtils {
         return execute(manager, query, parameters, TransactionContext.NO_TRANSACTION);
     }
 
-    public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
+    public static StatementExecutionResult execute(DBManager manager, String tableSpace, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
+        TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, parameters, true, true, false, -1);
         return manager.executePlan(translated.plan, translated.context, transactionContext);
+    }
+
+    public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
+        return execute(manager, TableSpace.DEFAULT, query, parameters, transactionContext);
     }
 
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {

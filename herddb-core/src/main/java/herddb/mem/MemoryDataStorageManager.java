@@ -137,6 +137,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void initTablespace(String tableSpace) throws DataStorageManagerException {
+    }
+
+    @Override
     public void initIndex(String tableSpace, String indexName) throws DataStorageManagerException {
     }
 
@@ -322,7 +326,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         List<PostCheckpointAction> result = new ArrayList<>();
 
         for (long pageId : pagesForTable) {
-            result.add(new PostCheckpointAction(tableName, "drop page " + pageId) {
+            result.add(new PostCheckpointAction(tableSpace, tableName, "drop page " + pageId) {
                 @Override
                 public void run() {
                     // remove only after checkpoint completed
@@ -344,7 +348,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
                     }
                 }
 
-                result.add(new PostCheckpointAction(tableName, "drop table checkpoint " + oldStatus) {
+                result.add(new PostCheckpointAction(tableSpace, tableName, "drop table checkpoint " + oldStatus) {
                     @Override
                     public void run() {
                         // remove only after checkpoint completed
@@ -391,7 +395,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         List<PostCheckpointAction> result = new ArrayList<>();
 
         for (long pageId : pagesForIndex) {
-            result.add(new PostCheckpointAction(indexName, "drop page " + pageId) {
+            result.add(new PostCheckpointAction(tableSpace, indexName, "drop page " + pageId) {
                 @Override
                 public void run() {
                     // remove only after checkpoint completed
@@ -412,7 +416,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
                     }
                 }
 
-                result.add(new PostCheckpointAction(indexName, "drop index checkpoint " + oldStatus) {
+                result.add(new PostCheckpointAction(tableSpace, indexName, "drop index checkpoint " + oldStatus) {
                     @Override
                     public void run() {
                         // remove only after checkpoint completed

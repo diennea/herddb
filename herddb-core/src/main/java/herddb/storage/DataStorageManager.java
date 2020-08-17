@@ -70,6 +70,8 @@ public abstract class DataStorageManager implements AutoCloseable {
     public void tableSpaceMetadataUpdated(String tableSpace, int expectedReplicaCount) {
     }
 
+    public abstract void initTablespace(String tableSpace) throws DataStorageManagerException;
+
     @FunctionalInterface
     public interface DataReader<X> {
 

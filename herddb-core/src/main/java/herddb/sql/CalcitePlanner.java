@@ -918,7 +918,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             predicate = new SQLRecordPredicate(table, null, where);
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-
             IndexOperation op = scanForIndexAccess(where, table, tableSpaceManager);
             predicate.setIndexOperation(op);
             CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
@@ -1335,7 +1334,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
         }
 
-        if (result == null) {
+        if (result == null && tableSpaceManager != null) {
             Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
             if (indexes != null) {
                 // TODO: use some kind of statistics, maybe using an index is more expensive than a full table scan

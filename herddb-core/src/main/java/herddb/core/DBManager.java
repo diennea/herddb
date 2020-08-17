@@ -141,6 +141,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
     private final ServerConfiguration serverConfiguration;
+    private final String mode;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
     private long abandonedTransactionsTimeout;
@@ -185,6 +186,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             StatsLogger statsLogger
     ) {
         this.serverConfiguration = configuration;
+        this.mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.tmpDirectory = tmpDirectory;
         int asyncWorkerThreads = configuration.getInt(ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS,
                 ServerConfiguration.PROPERTY_ASYNC_WORKER_THREADS_DEFAULT);
@@ -426,7 +428,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 .ssl(hostData.isSsl())
                 .nodeId(nodeId)
                 .build();
-        if (!serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE).equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
+        if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
             LOGGER.log(Level.INFO, "Registering on metadata storage manager my data: {0}", nodeMetadata);
         }
         metadataStorageManager.registerNode(nodeMetadata);
@@ -539,7 +541,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return;
         }
 
-        if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
+        if (tableSpace.isNodeAssignedToTableSpace(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
             LOGGER.log(Level.INFO, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
             long _start = System.currentTimeMillis();
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);
@@ -559,19 +561,21 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     manager.close();
                 } catch (Throwable t2) {
                     LOGGER.log(Level.SEVERE, "Other Error", t2);
+                    t.addSuppressed(t2);
                 }
                 throw t;
             }
             return;
         }
 
-        if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
+        if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.isNodeAssignedToTableSpace(nodeId)) {
             LOGGER.log(Level.INFO, "Tablespace {0} on {1} is not more in replica list {3}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, tableSpace.replicas + ""});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
             return;
         }
 
-        if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
+        if (!tableSpace.isNodeAssignedToTableSpace("*")
+                && tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
             List<NodeMetadata> nodes = metadataStorageManager.listNodes();
             LOGGER.log(Level.WARNING, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
             List<String> availableOtherNodes = nodes.stream().map(n -> {
@@ -857,6 +861,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public String getVirtualTableSpaceId() {
         return virtualTableSpaceId;
+    }
+
+    public String getMode() {
+        return mode;
     }
 
     void submit(Runnable runnable) {

@@ -286,6 +286,17 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    @Override
+    public void initTablespace(String tableSpace) throws DataStorageManagerException {
+        Path tablespaceDir = getTablespaceDirectory(tableSpace);
+        LOGGER.log(Level.FINE, "initTablespace {0} at {1}", new Object[]{tableSpace, tablespaceDir});
+        try {
+            Files.createDirectories(tablespaceDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
 
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
@@ -649,7 +660,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     && !tableStatus.activePages.containsKey(pageId)
                     && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new DeleteFileAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
+                result.add(new DeleteFileAction(tableSpace, tableName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
         }
 
@@ -659,7 +670,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                        result.add(new DeleteFileAction(tableName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
+                        result.add(new DeleteFileAction(tableSpace, tableName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
                     }
                 }
             }
@@ -727,7 +738,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     && !indexStatus.activePages.contains(pageId)
                     && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new DeleteFileAction(indexName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
+                result.add(new DeleteFileAction(tableSpace, indexName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
         }
 
@@ -737,7 +748,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     IndexStatus status = readIndexStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                        result.add(new DeleteFileAction(indexName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
+                        result.add(new DeleteFileAction(tableSpace, indexName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
                     }
                 }
             }
@@ -1209,22 +1220,22 @@ public class FileDataStorageManager extends DataStorageManager {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, p);
                             if (sequenceNumber.after(logPositionInFile)) {
                                 LOGGER.log(Level.FINEST, "indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                                result.add(new DeleteFileAction("indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
+                                result.add(new DeleteFileAction(tableSpace, "indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
                             }
                         } catch (DataStorageManagerException ignore) {
                             LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
-                            result.add(new DeleteFileAction("indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
+                            result.add(new DeleteFileAction(tableSpace, "indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
                         }
                     } else if (isTablespaceTablesMetadataFile(p)) {
                         try {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
                             if (sequenceNumber.after(logPositionInFile)) {
                                 LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                                result.add(new DeleteFileAction("tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
+                                result.add(new DeleteFileAction(tableSpace, "tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
                             }
                         } catch (DataStorageManagerException ignore) {
                             LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
-                            result.add(new DeleteFileAction("transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
+                            result.add(new DeleteFileAction(tableSpace, "transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
                         }
                     }
                 }
@@ -1277,7 +1288,7 @@ public class FileDataStorageManager extends DataStorageManager {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromCheckpointInfoFile(tableSpace, p);
                         if (sequenceNumber.after(logPositionInFile)) {
                             LOGGER.log(Level.FINEST, "checkpoint info file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("checkpoint", "delete checkpoint info file " + p.toAbsolutePath(), p));
+                            result.add(new DeleteFileAction(tableSpace, "checkpoint", "delete checkpoint info file " + p.toAbsolutePath(), p));
                         }
                     } catch (DataStorageManagerException ignore) {
                         LOGGER.log(Level.SEVERE, "unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
@@ -1518,11 +1529,11 @@ public class FileDataStorageManager extends DataStorageManager {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTransactionsFile(tableSpace, p);
                         if (sequenceNumber.after(logPositionInFile)) {
                             LOGGER.log(Level.FINEST, "transactions metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("transactions", "delete transactions file " + p.toAbsolutePath(), p));
+                            result.add(new DeleteFileAction(tableSpace, "transactions", "delete transactions file " + p.toAbsolutePath(), p));
                         }
                     } catch (DataStorageManagerException ignore) {
                         LOGGER.log(Level.SEVERE, "Unparsable transactions file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("transactions", "delete unparsable transactions file " + p.toAbsolutePath(), p));
+                        result.add(new DeleteFileAction(tableSpace, "transactions", "delete unparsable transactions file " + p.toAbsolutePath(), p));
                     }
                 }
             }
@@ -1536,8 +1547,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
         private final Path p;
 
-        public DeleteFileAction(String tableName, String description, Path p) {
-            super(tableName, description);
+        public DeleteFileAction(String tableSpace, String tableName, String description, Path p) {
+            super(tableSpace, tableName, description);
             this.p = p;
         }
 
