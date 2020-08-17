@@ -1271,9 +1271,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     @Override
     public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
         try {
-//            TODO
-//            String tableSpaceDirectory = getTableSpaceZNode(tableSpace);
-//            ensureZNodeDirectory(tableSpace, tableSpaceDirectory);
             String file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
             LOGGER.log(Level.INFO, "loadTables for tableSpace " + tableSpace + " from " + file + ", sequenceNumber:" + sequenceNumber);
             byte[] content = readZNode(file, new Stat());
@@ -1324,9 +1321,6 @@ public class BookKeeperDataStorageManager extends DataStorageManager {
     @Override
     public List<Index> loadIndexes(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
         try {
-//          TODO
-//          String tableSpaceDirectory = getTableSpaceZNode(tableSpace);
-//          ensureZNodeDirectory(tableSpaceDirectory);
             String file = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
 
             LOGGER.log(Level.INFO, "loadIndexes for tableSpace " + tableSpace + " from " + file + ", sequenceNumber:" + sequenceNumber);

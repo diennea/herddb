@@ -40,7 +40,8 @@ import java.util.UUID;
 public class TableSpace {
 
     public static final String DEFAULT = "herd";
-
+    public static final String ANY_NODE = "*";
+    
     public final String uuid;
 
     public final String name;
@@ -82,7 +83,7 @@ public class TableSpace {
     }
 
     public boolean isNodeAssignedToTableSpace(String nodeId) {
-        return this.replicas.contains(nodeId) || this.replicas.contains("*");
+        return this.replicas.contains(nodeId) || this.replicas.contains(ANY_NODE);
     }
 
     public static Builder builder() {
@@ -209,7 +210,7 @@ public class TableSpace {
             if (leaderId == null || leaderId.isEmpty()) {
                 leaderId = replicas.iterator().next();
             }
-            if (!replicas.contains(leaderId) && !replicas.contains("*")) {
+            if (!replicas.contains(leaderId) && !replicas.contains(ANY_NODE)) {
                 throw new IllegalArgumentException("leader " + leaderId + " must be in replica list " + replicas);
             }
             if (expectedReplicaCount <= 0) {
