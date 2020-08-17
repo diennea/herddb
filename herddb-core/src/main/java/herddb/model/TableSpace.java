@@ -41,7 +41,7 @@ public class TableSpace {
 
     public static final String DEFAULT = "herd";
     public static final String ANY_NODE = "*";
-    
+
     public final String uuid;
 
     public final String name;
