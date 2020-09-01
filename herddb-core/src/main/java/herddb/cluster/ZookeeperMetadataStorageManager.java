@@ -324,15 +324,17 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException {
+    public void ensureDefaultTableSpace(String localNodeId,
+                                        String initialReplicaList,
+                                        long maxLeaderInactivityTime) throws MetadataStorageManagerException {
         try {
             TableSpaceList list = listTablesSpaces();
             if (!list.tableSpaces.contains(TableSpace.DEFAULT)) {
                 TableSpace tableSpace = TableSpace.builder()
                         .leader(localNodeId)
-                        .replica(localNodeId)
+                        .replica(initialReplicaList)
                         .expectedReplicaCount(1)
-                        .maxLeaderInactivityTime(0)
+                        .maxLeaderInactivityTime(maxLeaderInactivityTime)
                         .name(TableSpace.DEFAULT)
                         .build();
                 createTableSpaceNode(tableSpace);

@@ -443,7 +443,18 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new IllegalStateException("cannot boot local virtual tablespace manager");
         }
 
-        metadataStorageManager.ensureDefaultTableSpace(nodeId);
+        String initialDefaultTableSpaceLeader = nodeId;
+        String initialDefaultTableSpaceReplicaNode = initialDefaultTableSpaceLeader;
+        long initialDefaultTableSpaceMaxLeaderInactivityTime = 0; // disabled
+
+        // try to be more fault tolerant in case of DISKLESSCLUSTER
+        // setting replica = * and maxLeaderInactivityTime = 1 minutes means
+        // that if you lose the node with the server you will have at most 1 minute of unavailability (no leader)
+        if (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode)) {
+            initialDefaultTableSpaceReplicaNode = TableSpace.ANY_NODE;
+            initialDefaultTableSpaceMaxLeaderInactivityTime = 60_000; // 1 minute
+        }
+        metadataStorageManager.ensureDefaultTableSpace(initialDefaultTableSpaceLeader, initialDefaultTableSpaceReplicaNode, initialDefaultTableSpaceMaxLeaderInactivityTime);
 
         commitLogManager.start();
 

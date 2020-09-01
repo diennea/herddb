@@ -41,7 +41,7 @@ public abstract class MetadataStorageManager implements AutoCloseable {
 
     public abstract void start() throws MetadataStorageManagerException;
 
-    public abstract void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException;
+    public abstract void ensureDefaultTableSpace(String localNodeId, String initialReplicaList, long maxLeaderInactivityTime) throws MetadataStorageManagerException;
 
     public abstract void close() throws MetadataStorageManagerException;
 
