@@ -35,6 +35,8 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.utils.DataAccessor;
+import herddb.utils.RawString;
 import herddb.utils.ZKTestEnv;
 import java.util.Collections;
 import org.junit.After;
@@ -85,6 +87,13 @@ public class DisklessClusterTest {
             server_1.start();
             server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
             nodeId1 = server_1.getNodeId();
+
+            // ensure that only node1 is assigned as replica (from 0.19.0 by default 'replica' is '*')
+            TestUtils.execute(server_1.getManager(),
+                    server_1.getNodeId(),
+                    "ALTER TABLESPACE '" + TableSpace.DEFAULT + "','leader:" + nodeId1 + "','replica:" + nodeId1 + "'", Collections.emptyList(),
+                    TransactionContext.NO_TRANSACTION);
+
             TestUtils.execute(server_1.getManager(), "CREATE TABLE tt(n1 string primary key, n2 int)", Collections.emptyList());
             TestUtils.execute(server_1.getManager(), "CREATE INDEX aa ON tt(n2)", Collections.emptyList());
             TestUtils.execute(server_1.getManager(), "INSERT INTO tt(n1,n2) values('a',1)", Collections.emptyList());
@@ -152,9 +161,16 @@ public class DisklessClusterTest {
             server_1.start();
             server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, true);
             nodeId1 = server_1.getNodeId();
+
+            DataAccessor tablespace = TestUtils.scan(server_1.getManager(), "SELECT * FROM systablespaces", Collections.emptyList()).consumeAndClose().get(0);
+            assertEquals(60_000L, (long) tablespace.get("maxleaderinactivitytime"));
+            assertEquals(RawString.of("*"), tablespace.get("replica"));
+            assertEquals(RawString.of(server_1.getNodeId()), tablespace.get("leader"));
+
+            // speed up recovery, the default of maxLeaderInactivityTime is 1 minute, set it to 5 seconds
             TestUtils.execute(server_1.getManager(),
                     server_1.getNodeId(),
-                    "ALTER TABLESPACE '" + TableSpace.DEFAULT + "','replica:*','maxLeaderInactivityTime:5000'", Collections.emptyList(),
+                    "ALTER TABLESPACE '" + TableSpace.DEFAULT + "','maxLeaderInactivityTime:5000'", Collections.emptyList(),
                     TransactionContext.NO_TRANSACTION);
 
             TestUtils.execute(server_1.getManager(), "CREATE TABLE tt(n1 string primary key, n2 int)", Collections.emptyList());

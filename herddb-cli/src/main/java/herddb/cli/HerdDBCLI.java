@@ -432,14 +432,17 @@ public class HerdDBCLI {
         }
     }
 
-    private static boolean checkNodeExistence(
+    private static boolean checkNodeExistenceUsingClusterMetadataStorageManager(
             ZookeeperMetadataStorageManager metadataStorageManager,
-            String nodeId
+            String nodeId, boolean allowStar
     ) throws MetadataStorageManagerException {
+        if (allowStar && TableSpace.ANY_NODE.equals(nodeId)) {
+            return true;
+        }
         return metadataStorageManager.listNodes().stream().anyMatch(n -> n.nodeId.equals(nodeId));
     }
 
-    private static boolean checkNodeExistence(
+    private static boolean checkNodeExistenceUsingQuery(
             boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
             String nodeId
     ) throws SQLException, ScriptException {
@@ -454,7 +457,7 @@ public class HerdDBCLI {
             String newschema, String leader
     ) throws SQLException, ScriptException {
 
-        if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, leader)) {
+        if (!checkNodeExistenceUsingQuery(verbose, ignoreerrors, statement, tableSpaceMapper, leader)) {
             println("Unknown node " + leader);
             exitCode = 1;
             System.exit(exitCode);
@@ -683,7 +686,7 @@ public class HerdDBCLI {
             System.exit(exitCode);
             return;
         }
-        if (!checkNodeExistence(clusterManager, nodeId)) {
+        if (!checkNodeExistenceUsingClusterMetadataStorageManager(clusterManager, nodeId, false)) {
             println("Unknown node " + nodeId);
             exitCode = 1;
             System.exit(exitCode);
@@ -722,7 +725,7 @@ public class HerdDBCLI {
             exitCode = 1;
             System.exit(exitCode);
         }
-        if (!checkNodeExistence(clusterManager, nodeId)) {
+        if (!checkNodeExistenceUsingClusterMetadataStorageManager(clusterManager, nodeId, true)) {
             println("Unknown node " + nodeId);
             exitCode = 1;
             System.exit(exitCode);

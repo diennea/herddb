@@ -142,7 +142,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             recordInserted(key, indexKey);
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "building index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
+        LOGGER.log(Level.INFO, "building index {0} took {1}", new Object[]{index.name, (_stop - _start) + " ms"});
     }
 
     @Override
