@@ -152,9 +152,10 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void ensureDefaultTableSpace(String localNodeId,
+    public boolean ensureDefaultTableSpace(String localNodeId,
                                         String initialReplicaList,
-                                        long maxLeaderInactivityTime) throws MetadataStorageManagerException {
+                                        long maxLeaderInactivityTime,
+                                        int expectedReplicaCount) throws MetadataStorageManagerException {
         lock.writeLock().lock();
         try {
             TableSpace exists = tableSpaces.get(TableSpace.DEFAULT);
@@ -166,6 +167,9 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
                         .name(TableSpace.DEFAULT)
                         .build();
                 registerTableSpace(defaultTableSpace);
+                return true;
+            } else {
+                return false;
             }
         } catch (DDLException err) {
             throw new MetadataStorageManagerException(err);

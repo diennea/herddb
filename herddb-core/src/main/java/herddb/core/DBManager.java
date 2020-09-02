@@ -446,6 +446,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         String initialDefaultTableSpaceLeader = nodeId;
         String initialDefaultTableSpaceReplicaNode = initialDefaultTableSpaceLeader;
         long initialDefaultTableSpaceMaxLeaderInactivityTime = 0; // disabled
+        int expectedreplicacount = 1;
 
         // try to be more fault tolerant in case of DISKLESSCLUSTER
         // setting replica = * and maxLeaderInactivityTime = 1 minutes means
@@ -453,8 +454,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         if (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode)) {
             initialDefaultTableSpaceReplicaNode = TableSpace.ANY_NODE;
             initialDefaultTableSpaceMaxLeaderInactivityTime = 60_000; // 1 minute
+            expectedreplicacount = serverConfiguration.getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
         }
-        metadataStorageManager.ensureDefaultTableSpace(initialDefaultTableSpaceLeader, initialDefaultTableSpaceReplicaNode, initialDefaultTableSpaceMaxLeaderInactivityTime);
+        boolean created = metadataStorageManager.ensureDefaultTableSpace(initialDefaultTableSpaceLeader, initialDefaultTableSpaceReplicaNode,
+                initialDefaultTableSpaceMaxLeaderInactivityTime, expectedreplicacount);
+        if (created && !ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+            LOGGER.log(Level.INFO, "Created default tablespace " + TableSpace.DEFAULT
+                    + " with expectedreplicacount={0}, leader={1}, replica={2}, maxleaderinactivitytime={3}",
+                    new Object[]{expectedreplicacount, initialDefaultTableSpaceLeader,
+                        initialDefaultTableSpaceReplicaNode,
+                        initialDefaultTableSpaceMaxLeaderInactivityTime});
+        }
 
         commitLogManager.start();
 
