@@ -324,9 +324,10 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void ensureDefaultTableSpace(String localNodeId,
+    public boolean ensureDefaultTableSpace(String localNodeId,
                                         String initialReplicaList,
-                                        long maxLeaderInactivityTime) throws MetadataStorageManagerException {
+                                        long maxLeaderInactivityTime,
+                                        int expectedReplicaCount) throws MetadataStorageManagerException {
         try {
             TableSpaceList list = listTablesSpaces();
             if (!list.tableSpaces.contains(TableSpace.DEFAULT)) {
@@ -335,12 +336,17 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                         .replica(initialReplicaList)
                         .expectedReplicaCount(1)
                         .maxLeaderInactivityTime(maxLeaderInactivityTime)
+                        .expectedReplicaCount(expectedReplicaCount)
                         .name(TableSpace.DEFAULT)
                         .build();
                 createTableSpaceNode(tableSpace);
+                return true;
+            } else {
+                return false;
             }
         } catch (TableSpaceAlreadyExistsException err) {
             // not a problem
+            return false;
         } catch (InterruptedException | KeeperException | IOException err) {
             handleSessionExpiredError(err);
             throw new MetadataStorageManagerException(err);
