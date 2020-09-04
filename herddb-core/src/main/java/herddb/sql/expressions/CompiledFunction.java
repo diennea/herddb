@@ -166,4 +166,13 @@ public class CompiledFunction implements CompiledSQLExpression {
         }
     }
 
+    @Override
+    public String toString() {
+        if (roundMultiplier > 0) {
+            return "CompiledFunction{" + "name=" + name + ", parameters=" + parameters + ", roundMultiplier=" + roundMultiplier + ", roundSign=" + roundSign + '}';
+        } else {
+            return "CompiledFunction{" + "name=" + name + ", parameters=" + parameters + '}';
+        }
+    }
+
 }

@@ -145,6 +145,39 @@ public interface SQLRecordPredicateFunctions {
 
         throw new IllegalArgumentException("cannot add " + a + " and " + b);
     }
+    
+    static Object modulo(Object a, Object b) throws IllegalArgumentException {
+        if (a == null && b == null) {
+            return null;
+        }
+        if (a == null) {
+            a = 0;
+        }
+        if (b == null) {
+            b = 0;
+        }
+        if (a instanceof Long && b instanceof Long) {
+            return (Long) a % (Long) b;
+        }
+        if (a instanceof Integer && b instanceof Integer) {
+            return (long) ((Integer) a % (Integer) b);
+        }
+        if (a instanceof Integer && b instanceof Long) {
+            return ((Integer) a % (Long) b);
+        }
+        if (a instanceof Long && b instanceof Integer) {
+            return ((Long) a % (Integer) b);
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).doubleValue() % ((Number) b).doubleValue();
+        }
+        if (a instanceof java.sql.Timestamp && b instanceof Long) {
+            // TIMESTAMPADD
+            return new java.sql.Timestamp(((java.sql.Timestamp) a).getTime() % ((Long) b));
+        }
+
+        throw new IllegalArgumentException("cannot perform modulo on " + a + " and " + b);
+    }
 
     static Object subtract(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {

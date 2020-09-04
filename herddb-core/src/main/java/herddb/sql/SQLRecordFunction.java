@@ -21,6 +21,7 @@
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
+import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -80,7 +81,11 @@ public class SQLRecordFunction extends RecordFunction {
                         if (column == null) {
                             throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
                         }
-                        return RecordSerializer.convert(column.type, e.evaluate(bean, context));
+                        try {
+                            return RecordSerializer.convert(column.type, e.evaluate(bean, context));
+                        } catch (StatementExecutionException err) {
+                            throw new StatementExecutionException("error on column " + column.name + " (" + ColumnTypes.typeToString(column.type) + "):" + err.getMessage(), err);
+                        }
                     }
                 };
                 return RecordSerializer.buildRecord(previous.value != null ? previous.value.getLength() : 0, table, fieldValueComputer);
@@ -94,7 +99,11 @@ public class SQLRecordFunction extends RecordFunction {
                         if (column == null) {
                             throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
                         }
-                        return RecordSerializer.convert(column.type, e.evaluate(DataAccessor.NULL, context));
+                        try {
+                            return RecordSerializer.convert(column.type, e.evaluate(DataAccessor.NULL, context));
+                        } catch (StatementExecutionException err) {
+                            throw new StatementExecutionException("error on column " + column.name + " (" + ColumnTypes.typeToString(column.type) + "):" + err.getMessage(), err);
+                        }
                     }
                 };
                 return RecordSerializer.buildRecord(0, table, fieldValueComputer);

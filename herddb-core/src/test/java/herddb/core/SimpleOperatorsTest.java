@@ -286,6 +286,9 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' ILIKE '%AbBbCc%'", Collections.emptyList())) {
+                assertEquals(1, scan1.consume().size());
+            }
 
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"))) {

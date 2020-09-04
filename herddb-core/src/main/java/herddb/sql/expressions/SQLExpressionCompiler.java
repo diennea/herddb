@@ -90,6 +90,8 @@ public class SQLExpressionCompiler {
                     return new CompiledMinorThenEqualsExpression(operands[0], operands[1]);
                 case "+":
                     return new CompiledAddExpression(operands[0], operands[1]);
+                case "MOD":
+                    return new CompiledModuloExpression(operands[0], operands[1]);
                 case "-":
                     if (operands.length == 1) {
                         return new CompiledSignedExpression('-', operands[0]);
