@@ -210,7 +210,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     if (value instanceof String) {
                         return Long.parseLong(((String) value));
                     }
-                    new Exception("type " + value.getClass() + " (value  " + value + ") cannot be cast to LONG").printStackTrace();
                     throw new IllegalArgumentException("type " + value.getClass() + " (value  " + value + ") cannot be cast to LONG");
                 }
                 case ColumnTypes.DOUBLE:
