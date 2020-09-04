@@ -34,6 +34,7 @@ import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
+import java.sql.Timestamp;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -171,6 +172,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     }
                     if (value instanceof Number
                             || value instanceof Boolean) {
+                        return value.toString();
+                    }
+                    if (value instanceof Timestamp) {
+                        // convert to something like '1970-01-01 01:00:00.0'
                         return value.toString();
                     }
                     throw new IllegalArgumentException("Value " + value + " (" + value.getClass() + ") cannot be converted to a STRING");

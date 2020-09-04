@@ -73,7 +73,7 @@ public abstract class SimpleScanOp implements PlannerOp {
             StatementEvaluationContext context, boolean lockRequired, boolean forWrite
     ) throws StatementExecutionException {
         DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
-        return new ScanResult(transactionContext.transactionId, scan);
+        return new ScanResult(scan.getTransactionId(), scan);
     }
 
 }
