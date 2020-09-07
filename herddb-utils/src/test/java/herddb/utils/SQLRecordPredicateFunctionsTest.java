@@ -33,47 +33,47 @@ public class SQLRecordPredicateFunctionsTest {
 
     @Test
     public void testCompareAndLike() throws Exception {
-        assertTrue(SQLRecordPredicateFunctions.like("test", "test"));
-        assertFalse(SQLRecordPredicateFunctions.like("test", "est"));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "test", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("test", "est", '\\'));
 
 
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%%"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "____"));
-        assertFalse(SQLRecordPredicateFunctions.like("test", "___"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "_%"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%_"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "_%_"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%_%"));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "____", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("test", "___", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "_%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%_", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "_%_", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%_%", '\\'));
 
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%est"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "test%"));
-        assertFalse(SQLRecordPredicateFunctions.like("test", "a%"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%test%"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "%es%"));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%est", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "test%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("test", "a%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%test%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "%es%", '\\'));
 
-        assertFalse(SQLRecordPredicateFunctions.like("tesst", "te_t"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "te_t"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "_est"));
-        assertTrue(SQLRecordPredicateFunctions.like("test", "tes_"));
-        assertFalse(SQLRecordPredicateFunctions.like("test", "tes__"));
-        assertFalse(SQLRecordPredicateFunctions.like("test", "__est"));
+        assertFalse(SQLRecordPredicateFunctions.like("tesst", "te_t", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "te_t", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "_est", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("test", "tes_", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("test", "tes__", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("test", "__est", '\\'));
 
-        assertTrue(SQLRecordPredicateFunctions.like("bar (foo)", "%(foo)%"));
-        assertFalse(SQLRecordPredicateFunctions.like("bar (foo)", "%(fo"));
-        assertFalse(SQLRecordPredicateFunctions.like("bar (foo)", "oo)%"));
-        assertTrue(SQLRecordPredicateFunctions.like("bar [foo]", "%[foo]%"));
-        assertFalse(SQLRecordPredicateFunctions.like("bar [foo]", "%[foo"));
-        assertFalse(SQLRecordPredicateFunctions.like("bar [foo]", "foo]%"));
-        assertTrue(SQLRecordPredicateFunctions.like("bar+foo", "%+%"));
+        assertTrue(SQLRecordPredicateFunctions.like("bar (foo)", "%(foo)%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("bar (foo)", "%(fo", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("bar (foo)", "oo)%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("bar [foo]", "%[foo]%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("bar [foo]", "%[foo", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("bar [foo]", "foo]%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("bar+foo", "%+%", '\\'));
 
-        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "a%"));
-        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%b"));
-        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%"));
-        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "x%"));
-        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "x%"));
-        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "%x"));
-        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "%x"));
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "a%", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%b", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("a\nb", "%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "x%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "x%", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("ax\nb", "%x", '\\'));
+        assertFalse(SQLRecordPredicateFunctions.like("a\nxb", "%x", '\\'));
 
         assertTrue(SQLRecordPredicateFunctions.compare(1, 2) < 0);
         assertTrue(SQLRecordPredicateFunctions.compare(1, 1) == 0);
@@ -92,6 +92,10 @@ public class SQLRecordPredicateFunctionsTest {
         assertTrue(SQLRecordPredicateFunctions.compare(RawString.of("a"), "a") == 0);
         assertTrue(SQLRecordPredicateFunctions.compare(RawString.of("a"), "b") < 0);
         assertTrue(SQLRecordPredicateFunctions.compare(RawString.of("c"), "a") > 0);
+
+        assertTrue(SQLRecordPredicateFunctions.like("te_st", "te\\_st", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("teast", "te_st", '\\'));
+        assertTrue(SQLRecordPredicateFunctions.like("teaaast", "te%st", '\\'));
 
     }
 

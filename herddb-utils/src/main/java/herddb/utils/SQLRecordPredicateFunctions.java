@@ -145,7 +145,7 @@ public interface SQLRecordPredicateFunctions {
 
         throw new IllegalArgumentException("cannot add " + a + " and " + b);
     }
-    
+
     static Object modulo(Object a, Object b) throws IllegalArgumentException {
         if (a == null && b == null) {
             return null;
@@ -290,7 +290,7 @@ public interface SQLRecordPredicateFunctions {
         return !objectEquals(a, b);
     }
 
-    static Pattern compileLikePattern(String b) throws HerdDBInternalException {
+    static Pattern compileLikePattern(String b, char escapeChar) throws HerdDBInternalException {
 
         /*
          * We presume that in string there will be 1 or 2 '%' or '_' characters. To avoid multiple array
@@ -303,8 +303,16 @@ public interface SQLRecordPredicateFunctions {
         builder.append("\\Q");
 
         int limit = b.length();
+        boolean escaping = false;
         for (int idx = 0; idx < limit; ++idx) {
             char ch = b.charAt(idx);
+            if (ch == escapeChar) {
+                escaping = true;
+            } else {
+                if (escaping) {
+                    builder.append(ch);
+                    escaping = false;
+                } else {
             switch (ch) {
                 case '%':
                     builder.append("\\E.*\\Q");
@@ -315,6 +323,8 @@ public interface SQLRecordPredicateFunctions {
                 default:
                     builder.append(ch);
                     break;
+            }
+                }
             }
         }
 
@@ -328,11 +338,11 @@ public interface SQLRecordPredicateFunctions {
         }
     }
 
-    static boolean like(Object a, Object b) {
+    static boolean like(Object a, Object b, char escape) {
         if (a == null || b == null) {
             return false;
         }
-        Pattern pattern = compileLikePattern(b.toString());
+        Pattern pattern = compileLikePattern(b.toString(), escape);
         return matches(a, pattern);
     }
 

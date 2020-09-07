@@ -106,7 +106,12 @@ public class SQLExpressionCompiler {
                 case "/INT":
                     return new CompiledDivideIntExpression(operands[0], operands[1]);
                 case "LIKE":
-                    return new CompiledLikeExpression(operands[0], operands[1]);
+                    if (operands.length == 2) {
+                        return new CompiledLikeExpression(operands[0], operands[1]);
+                    } else{
+                        // ESCAPE
+                        return new CompiledLikeExpression(operands[0], operands[1], operands[2]);
+                    }
                 case "AND":
                     return new CompiledMultiAndExpression(operands);
                 case "OR":
