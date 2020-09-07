@@ -24,6 +24,7 @@ import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import herddb.file.FileCommitLogManager;
@@ -33,11 +34,15 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
+import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.planner.NestedLoopJoinOp;
+import herddb.model.planner.SimpleScanOp;
 import herddb.sql.CalcitePlanner;
+import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
@@ -56,6 +61,52 @@ import org.junit.rules.TemporaryFolder;
  */
 public class SimpleJoinTest {
 
+    @Test
+    public void testStartTransactionInJoinBranch() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.table1 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.table2 (k2 string primary key,n2 int,s2 string)", Collections.emptyList());
+     
+            execute(manager, "INSERT INTO tblspace1.table1 (k1,n1,s1) values('a',1,'A')", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.table1 (k1,n1,s1) values('b',2,'B')", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('c',3,'A')", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('d',4,'A')", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " JOIN tblspace1.table2 t2"
+                    + " ON t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
+                assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
+                NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                // we want that the left branch of the join starts the transactoion
+                ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));                        
+                List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose(); 
+                assertTrue(scanResult.transactionId > 0);
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+                TestUtils.commitTransaction(manager, "tblspace1", scanResult.transactionId);
+            }
+        }
+    }
     @Test
     public void testSimpleJoinNoWhere() throws Exception {
         String nodeId = "localhost";
@@ -82,7 +133,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
                     assertEquals(6, t.getFieldNames().length);
@@ -126,7 +177,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1 "
                     + " NATURAL JOIN tblspace1.table2 t2 "
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(2, t.getFieldNames().length);
@@ -166,7 +217,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1 "
                     + " NATURAL JOIN tblspace1.table2 t2 "
                     + " WHERE t1.n1 >= 2"
-                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(2, t.getFieldNames().length);
@@ -188,7 +239,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -232,7 +283,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(3, t.getFieldNames().length);
@@ -269,7 +320,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(3, t.getFieldNames().length);
@@ -306,7 +357,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(1, t.getFieldNames().length);
@@ -341,7 +392,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 4", Collections.emptyList()).consume();
+                    + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -372,7 +423,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                     + " tblspace1.table1 t1"
                     + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consume();
+                    + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -416,7 +467,7 @@ public class SimpleJoinTest {
                     + " tblspace1.table1 t1 "
                     + " NATURAL JOIN tblspace1.table2 t2 "
                     + " WHERE t1.n1 <= t2.n2 "
-                    + "and t2.n2 <= 3", Collections.emptyList()).consume();
+                    + "and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -447,7 +498,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
                     + " tblspace1.table1 t1 "
                     + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
-                    + " and t2.n2 <= 3", Collections.emptyList()).consume();
+                    + " and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -941,7 +992,7 @@ public class SimpleJoinTest {
                         "SELECT t0.license_id,c.customer_id FROM license t0, customer c WHERE c.customer_id = 3 AND t0.customer_id = 3 AND c.customer_id = t0.customer_id",
                         Collections.emptyList())) {
 
-                    List<DataAccessor> consume = scan1.consume();
+                    List<DataAccessor> consume = scan1.consumeAndClose();
                     System.out.println("NUM " + consume.size());
                     assertEquals(9, consume.size());
                     for (DataAccessor r : consume) {
