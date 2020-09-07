@@ -837,13 +837,24 @@ public class RawSQLTest {
             fmt.setTimeZone(TimeZone.getDefault());
             String formattedInLocalServerTime = fmt.format(timestamp);
 
-            // literals are expressed in UTC
-            try (DataScanner scanner = scan(manager, "SELECT cast(t1 as varchar) as ss FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList())) {
+            // literals are expressed in UTC in WHERE (this is Calcite....)
+            // but the CAST operation uses local server side Timezone, this is done in SQLRecordPredicate
+            try (DataScanner scanner = scan(manager, "SELECT cast(t1 as varchar) FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList())) {
                 int count = 0;
                 for (DataAccessor da : scanner.consume()) {
-                    // the CAST operation is actually executed when we call "get(0)", not during query execution
-                    // this is really cool, we are not spending CPU during query execution, but only when needed
                     assertEquals(formattedInLocalServerTime, da.get(0));
+                    count++;
+                }
+                assertEquals(1, count);
+            }
+            // use JDBC syntax, always use UTC timezone
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey4',1,'c',{ts '2012-12-13 10:34:33.15'})", Collections.emptyList()).getUpdateCount());
+            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+            timestamp = fmt.parse("2012-12-13 10:34:33.0");
+            try (DataScanner scanner = scan(manager, "SELECT t1 FROM tblspace1.tsql where t1={ts '2012-12-13 10:34:33.0'}", Collections.emptyList())) {
+                int count = 0;
+                for (DataAccessor da : scanner.consume()) {
+                    assertEquals(new java.sql.Timestamp(timestamp.getTime()), da.get(0));
                     count++;
                 }
                 assertEquals(1, count);
