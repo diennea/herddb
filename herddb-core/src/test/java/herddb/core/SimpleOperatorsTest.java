@@ -286,11 +286,16 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE '%AbBbCc%'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' ILIKE '%AbBbCc%'", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBb_c' LIKE '%AbBb+_c%' ESCAPE '+'", Collections.emptyList())) {
                 assertEquals(1, scan1.consume().size());
             }
-
-
+            // default ESCAPE char is '\'
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBb_c' LIKE '%AbBb\\_c%'", Collections.emptyList())) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbdc' LIKE '%AbBb\\_c%'", Collections.emptyList())) {
+                assertEquals(0, scan1.consume().size());
+            }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 'AbBbCc' LIKE ?", Arrays.asList("%AbBbCc%"))) {
                 assertEquals(1, scan1.consume().size());
             }
