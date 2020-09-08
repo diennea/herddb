@@ -28,6 +28,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
@@ -73,11 +74,14 @@ import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -415,11 +419,9 @@ public class RawSQLTest {
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
 
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
-            if (manager.getPlanner() instanceof DDLSQLPlanner) {
-                // non standard syntax, needs a decoding
-                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
+            // non standard syntax, needs a decoding
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
                         .format(now.toInstant()) + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
-            }
             java.sql.Timestamp now2 = new java.sql.Timestamp(now.getTime() + 1000);
             // standard syntax, but timezone dependant
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,{ts '" + now2 + "'})", Arrays.asList("mykey3", Integer.valueOf(1234))).getUpdateCount());
@@ -823,6 +825,40 @@ public class RawSQLTest {
 
             assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consumeAndClose().size());
 
+            execute(manager, "ALTER TABLE tblspace1.tsql add (t1 timestamp)", Collections.emptyList());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey3',1,'c','1970-01-01 01:00:00.0')", Collections.emptyList()).getUpdateCount());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList()).consumeAndClose().size());
+
+            // cast timestamp to string
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+            Date timestamp = fmt.parse("1970-01-01 01:00:00.0");
+            fmt.setTimeZone(TimeZone.getDefault());
+            String formattedInLocalServerTime = fmt.format(timestamp);
+
+            // literals are expressed in UTC in WHERE (this is Calcite....)
+            // but the CAST operation uses local server side Timezone, this is done in SQLRecordPredicate
+            try (DataScanner scanner = scan(manager, "SELECT cast(t1 as varchar) FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList())) {
+                int count = 0;
+                for (DataAccessor da : scanner.consume()) {
+                    assertEquals(formattedInLocalServerTime, da.get(0));
+                    count++;
+                }
+                assertEquals(1, count);
+            }
+            // use JDBC syntax, always use UTC timezone
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey4',1,'c',{ts '2012-12-13 10:34:33.15'})", Collections.emptyList()).getUpdateCount());
+            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+            timestamp = fmt.parse("2012-12-13 10:34:33.0");
+            try (DataScanner scanner = scan(manager, "SELECT t1 FROM tblspace1.tsql where t1={ts '2012-12-13 10:34:33.0'}", Collections.emptyList())) {
+                int count = 0;
+                for (DataAccessor da : scanner.consume()) {
+                    assertEquals(new java.sql.Timestamp(timestamp.getTime()), da.get(0));
+                    count++;
+                }
+                assertEquals(1, count);
+            }
+
         }
     }
 
@@ -890,6 +926,33 @@ public class RawSQLTest {
             java.sql.Timestamp midnightOfTomorrow = new java.sql.Timestamp(cal.getTimeInMillis());
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql"
                     + " where TIMESTAMPADD(DAY, 1, CAST(? AS TIMESTAMP)) = CAST(? AS TIMESTAMP)", Arrays.asList(midnight, midnightOfTomorrow)).consumeAndClose().size());
+
+        }
+    }
+
+
+    @Test
+    public void randomFunctionTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,d1 timestamp)", Collections.emptyList());
+
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey", now)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey2", now)).getUpdateCount());
+
+            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql"
+                    + " order by rand()", Collections.emptyList()).consumeAndClose().size());
+            List<DataAccessor> c = scan(manager, "SELECT k1, rand() as ss  FROM tblspace1.tsql"
+                    + " order by rand()", Collections.emptyList()).consumeAndClose();
+            assertEquals(2, c.size());
+            // verify we don't get the same record twice
+            assertNotEquals(c.get(0).get(0), c.get(1).get(0));
 
         }
     }
@@ -1575,6 +1638,14 @@ public class RawSQLTest {
                 assertEquals(1, result.size());
                 assertEquals(Long.valueOf(4), result.get(0).get(0));
                 assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+            }
+
+            // test "modulo" operator
+            try (DataScanner scan1 = scan(manager, "SELECT n1 % 4 as cc FROM tblspace1.tsql where n1 % 4 = 1 and k1='mykey3'", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Long.valueOf(1), result.get(0).get(0));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
 
 

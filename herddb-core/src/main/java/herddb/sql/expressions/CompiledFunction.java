@@ -27,6 +27,7 @@ import herddb.utils.DataAccessor;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.calcite.avatica.util.TimeUnitRange;
 
 public class CompiledFunction implements CompiledSQLExpression {
@@ -93,6 +94,8 @@ public class CompiledFunction implements CompiledSQLExpression {
             }
             case BuiltinFunctions.CURRENT_TIMESTAMP:
                 return context.getCurrentTimestamp();
+            case BuiltinFunctions.RAND:
+                return ThreadLocalRandom.current().nextInt();
             case BuiltinFunctions.ROUND: {
                 Object parValue = parameters.get(0).evaluate(bean, context);
                 if (roundSign == 0) {
@@ -163,6 +166,15 @@ public class CompiledFunction implements CompiledSQLExpression {
             parameters.forEach((expression) -> {
                 expression.validate(context);
             });
+        }
+    }
+
+    @Override
+    public String toString() {
+        if (roundMultiplier > 0) {
+            return "CompiledFunction{" + "name=" + name + ", parameters=" + parameters + ", roundMultiplier=" + roundMultiplier + ", roundSign=" + roundSign + '}';
+        } else {
+            return "CompiledFunction{" + "name=" + name + ", parameters=" + parameters + '}';
         }
     }
 

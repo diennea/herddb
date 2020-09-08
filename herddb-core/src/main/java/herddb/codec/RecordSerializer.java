@@ -568,6 +568,10 @@ public final class RecordSerializer {
                 break;
             case ColumnTypes.TIMESTAMP:
             case ColumnTypes.NOTNULL_TIMESTAMP:
+                if (v instanceof Long) {
+                    //  INSERT INTO TT values"(1, {ts '2012-12-13 10:34:33.15'}, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0)",
+                    v = new java.sql.Timestamp((Long) v);
+                }
                 if (!(v instanceof java.sql.Timestamp)) {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
                 }

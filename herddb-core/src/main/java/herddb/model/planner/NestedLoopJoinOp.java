@@ -167,5 +167,12 @@ public class NestedLoopJoinOp implements PlannerOp {
                 + "\n, condition=" + condition + '}';
     }
 
+    public PlannerOp getLeft() {
+        return left;
+    }
+
+    public PlannerOp getRight() {
+        return right;
+    }
 
 }
