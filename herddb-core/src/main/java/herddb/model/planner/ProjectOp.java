@@ -81,7 +81,8 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "BasicProjection{" + "columns=" + columns + ", fieldNames=" + fieldNames + ", fields=" + fields + '}';
+            return "BasicProjection{" + "columns=" + Arrays.toString(columns)
+                    + ", fieldNames=" + Arrays.toString(fieldNames) + ", fields=" + fields + '}';
         }
 
         @Override
