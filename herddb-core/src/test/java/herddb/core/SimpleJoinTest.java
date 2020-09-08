@@ -72,7 +72,7 @@ public class SimpleJoinTest {
 
             execute(manager, "CREATE TABLE tblspace1.table1 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "CREATE TABLE tblspace1.table2 (k2 string primary key,n2 int,s2 string)", Collections.emptyList());
-     
+
             execute(manager, "INSERT INTO tblspace1.table1 (k1,n1,s1) values('a',1,'A')", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.table1 (k1,n1,s1) values('b',2,'B')", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('c',3,'A')", Collections.emptyList());
@@ -89,8 +89,8 @@ public class SimpleJoinTest {
                 assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
                 assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
                 // we want that the left branch of the join starts the transactoion
-                ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));                        
-                List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose(); 
+                ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
+                List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
                 assertTrue(scanResult.transactionId > 0);
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);

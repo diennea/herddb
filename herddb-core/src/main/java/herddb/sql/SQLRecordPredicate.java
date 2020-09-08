@@ -35,8 +35,6 @@ import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;

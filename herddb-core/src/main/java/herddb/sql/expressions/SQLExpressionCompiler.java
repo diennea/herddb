@@ -108,7 +108,7 @@ public class SQLExpressionCompiler {
                 case "LIKE":
                     if (operands.length == 2) {
                         return new CompiledLikeExpression(operands[0], operands[1]);
-                    } else{
+                    } else {
                         // ESCAPE
                         return new CompiledLikeExpression(operands[0], operands[1], operands[2]);
                     }
