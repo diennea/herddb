@@ -943,7 +943,6 @@ public class RawSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,d1 timestamp)", Collections.emptyList());
 
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
-            java.sql.Timestamp nowPlusOneDayInMillis = new java.sql.Timestamp(now.getTime() + 1000 * 60 * 60 * 24);
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey", now)).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey2", now)).getUpdateCount());
 
