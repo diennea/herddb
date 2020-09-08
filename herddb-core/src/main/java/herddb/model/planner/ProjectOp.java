@@ -80,6 +80,12 @@ public class ProjectOp implements PlannerOp {
         }
 
         @Override
+        public String toString() {
+            return "BasicProjection{" + "columns=" + Arrays.toString(columns)
+                    + ", fieldNames=" + Arrays.toString(fieldNames) + ", fields=" + fields + '}';
+        }
+
+        @Override
         public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
             return new RuntimeProjectedDataAccessor(tuple, context);
         }

@@ -23,6 +23,7 @@ package herddb.sql.expressions;
 import static herddb.utils.SQLRecordPredicateFunctions.like;
 import static herddb.utils.SQLRecordPredicateFunctions.matches;
 import herddb.core.HerdDBInternalException;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
@@ -35,17 +36,25 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
 
     public CompiledLikeExpression(CompiledSQLExpression left, CompiledSQLExpression right) throws HerdDBInternalException {
         super(left, right);
-        this.rightConstantPattern = compilePattern(right);
+        this.rightConstantPattern = compilePattern(right, '\\');
     }
 
-    private static Pattern compilePattern(CompiledSQLExpression exp) throws HerdDBInternalException {
+    public CompiledLikeExpression(CompiledSQLExpression left,    CompiledSQLExpression right, CompiledSQLExpression escape) throws HerdDBInternalException {
+        super(left, right);
+        this.rightConstantPattern = compilePattern(right,
+                ((String) escape.cast(ColumnTypes.STRING).evaluate(DataAccessor.NULL, null)).charAt(0)
+        );
+    }
+
+    private static Pattern compilePattern(CompiledSQLExpression exp, char escapeChar) throws HerdDBInternalException {
         if (exp instanceof ConstantExpression) {
             ConstantExpression ce = (ConstantExpression) exp;
             if (ce.isNull()) {
                 return null;
             }
             return SQLRecordPredicateFunctions.compileLikePattern(
-                    ce.evaluate(DataAccessor.NULL, null).toString()
+                    ce.evaluate(DataAccessor.NULL, null).toString(),
+                    escapeChar
             );
         } else {
             return null;
@@ -60,7 +69,7 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
             ok = matches(leftValue, rightConstantPattern);
         } else {
             Object rightValue = right.evaluate(bean, context);
-            ok = like(leftValue, rightValue);
+            ok = like(leftValue, rightValue, '\\');
         }
         return ok;
     }

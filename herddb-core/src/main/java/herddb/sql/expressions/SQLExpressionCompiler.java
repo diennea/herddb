@@ -90,6 +90,8 @@ public class SQLExpressionCompiler {
                     return new CompiledMinorThenEqualsExpression(operands[0], operands[1]);
                 case "+":
                     return new CompiledAddExpression(operands[0], operands[1]);
+                case "MOD":
+                    return new CompiledModuloExpression(operands[0], operands[1]);
                 case "-":
                     if (operands.length == 1) {
                         return new CompiledSignedExpression('-', operands[0]);
@@ -104,7 +106,12 @@ public class SQLExpressionCompiler {
                 case "/INT":
                     return new CompiledDivideIntExpression(operands[0], operands[1]);
                 case "LIKE":
-                    return new CompiledLikeExpression(operands[0], operands[1]);
+                    if (operands.length == 2) {
+                        return new CompiledLikeExpression(operands[0], operands[1]);
+                    } else {
+                        // ESCAPE
+                        return new CompiledLikeExpression(operands[0], operands[1], operands[2]);
+                    }
                 case "AND":
                     return new CompiledMultiAndExpression(operands);
                 case "OR":
@@ -142,6 +149,8 @@ public class SQLExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.EXTRACT, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_FLOOR:
                     return new CompiledFunction(BuiltinFunctions.FLOOR, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_RAND:
+                    return new CompiledFunction(BuiltinFunctions.RAND, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_REINTERPRET:
                     if (operands.length != 1) {
                         throw new StatementExecutionException("unsupported use of Reinterpret with " + Arrays.toString(operands));

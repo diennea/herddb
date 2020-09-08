@@ -20,13 +20,10 @@
 
 package herddb.sql.functions;
 
-import herddb.model.Column;
-import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.expressions.CompiledSQLExpression;
-import net.sf.jsqlparser.expression.Function;
 import org.apache.calcite.sql.fun.SqlSingleValueAggFunction;
 import org.apache.calcite.sql.fun.SqlSumEmptyIsZeroAggFunction;
 
@@ -57,6 +54,7 @@ public class BuiltinFunctions {
     public static final String ROUND = "round";
     public static final String EXTRACT = "extract";
     public static final String FLOOR = "floor";
+    public static final String RAND = "rand";
 
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
@@ -75,26 +73,11 @@ public class BuiltinFunctions {
     public static final String NAME_ROUND = "ROUND";
     public static final String NAME_EXTRACT = "EXTRACT";
     public static final String NAME_FLOOR = "FLOOR";
+    public static final String NAME_RAND = "RAND";
 
     public static final String NAME_REINTERPRET = "Reinterpret";
     // special
     public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
-
-    public static Column toAggregatedOutputColumn(String fieldName, Function f) {
-        if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
-            return Column.column(fieldName, ColumnTypes.LONG);
-        }
-        if (f.getName().equalsIgnoreCase(BuiltinFunctions.SUM) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
-            return Column.column(fieldName, ColumnTypes.LONG);
-        }
-        if (f.getName().equalsIgnoreCase(BuiltinFunctions.MIN) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
-            return Column.column(fieldName, ColumnTypes.LONG);
-        }
-        if (f.getName().equalsIgnoreCase(BuiltinFunctions.MAX) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
-            return Column.column(fieldName, ColumnTypes.LONG);
-        }
-        return null;
-    }
 
     public static AggregatedColumnCalculator getColumnCalculator(
             String functionName, String fieldName,

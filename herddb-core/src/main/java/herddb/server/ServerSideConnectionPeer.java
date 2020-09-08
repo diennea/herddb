@@ -470,8 +470,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 if (!last) {
                     scanners.put(scannerId, scanner);
                 }
-                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
-                channel.sendReplyMessage(message.messageId, result);
+                try {
+                    ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
+                    channel.sendReplyMessage(message.messageId, result);
+                } catch (HerdDBInternalException err) {
+                    // do not leak an unserializable scanner
+                    scanner.close();
+                    throw err;
+                }
                 if (last) {
                     // no need to hold the scanner anymore
                     scanner.close();
@@ -516,12 +522,19 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     last = true;
                 }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
-                channel.sendReplyMessage(message.messageId, result);
+                try {
+                    ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
+                    channel.sendReplyMessage(message.messageId, result);
+                } catch (HerdDBInternalException err) {
+                    // do not leak an unserializable scanner
+                    scanners.remove(scannerId);
+                    scanner.close();
+                    throw err;
+                }
                 if (last) {
                     dataScanner.close();
                 }
-            } catch (DataScannerException err) {
+            } catch (DataScannerException | StatementExecutionException err) {
                 ByteBuf error = composeErrorResponse(message.messageId, err);
                 channel.sendReplyMessage(message.messageId, error);
             }
