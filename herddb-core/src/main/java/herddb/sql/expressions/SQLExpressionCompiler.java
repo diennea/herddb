@@ -149,6 +149,8 @@ public class SQLExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.EXTRACT, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_FLOOR:
                     return new CompiledFunction(BuiltinFunctions.FLOOR, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_RAND:
+                    return new CompiledFunction(BuiltinFunctions.RAND, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_REINTERPRET:
                     if (operands.length != 1) {
                         throw new StatementExecutionException("unsupported use of Reinterpret with " + Arrays.toString(operands));

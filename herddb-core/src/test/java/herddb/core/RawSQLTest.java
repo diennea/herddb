@@ -28,6 +28,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
@@ -418,11 +419,9 @@ public class RawSQLTest {
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
 
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
-            if (manager.getPlanner() instanceof DDLSQLPlanner) {
-                // non standard syntax, needs a decoding
-                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
+            // non standard syntax, needs a decoding
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
                         .format(now.toInstant()) + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
-            }
             java.sql.Timestamp now2 = new java.sql.Timestamp(now.getTime() + 1000);
             // standard syntax, but timezone dependant
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,{ts '" + now2 + "'})", Arrays.asList("mykey3", Integer.valueOf(1234))).getUpdateCount());
@@ -927,6 +926,34 @@ public class RawSQLTest {
             java.sql.Timestamp midnightOfTomorrow = new java.sql.Timestamp(cal.getTimeInMillis());
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql"
                     + " where TIMESTAMPADD(DAY, 1, CAST(? AS TIMESTAMP)) = CAST(? AS TIMESTAMP)", Arrays.asList(midnight, midnightOfTomorrow)).consumeAndClose().size());
+
+        }
+    }
+
+
+    @Test
+    public void randomFunctionTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,d1 timestamp)", Collections.emptyList());
+
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+            java.sql.Timestamp nowPlusOneDayInMillis = new java.sql.Timestamp(now.getTime() + 1000 * 60 * 60 * 24);
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey", now)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey2", now)).getUpdateCount());
+
+            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql"
+                    + " order by rand()", Collections.emptyList()).consumeAndClose().size());
+            List<DataAccessor> c = scan(manager, "SELECT k1, rand() as ss  FROM tblspace1.tsql"
+                    + " order by rand()", Collections.emptyList()).consumeAndClose();
+            assertEquals(2, c.size());
+            // verify we don't get the same record twice
+            assertNotEquals(c.get(0).get(0), c.get(1).get(0));
 
         }
     }
