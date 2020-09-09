@@ -23,6 +23,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Arrays;
 
 /**
@@ -56,8 +57,11 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public int opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+    public SQLRecordPredicateFunctions.CompareResult opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
+        }
         return bean.fieldCompareTo(index, rightValue);
     }
 

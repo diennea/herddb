@@ -34,6 +34,7 @@ import herddb.model.TransactionContext;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.Wrapper;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -293,7 +294,7 @@ public class ProjectOp implements PlannerOp {
             }
 
             @Override
-            public int fieldCompareTo(int index, Object value) {
+            public SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
                 return wrapped.fieldCompareTo(zeroCopyProjections[index], value);
             }
 

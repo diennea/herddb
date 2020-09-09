@@ -61,9 +61,12 @@ public interface DataAccessor {
         return SQLRecordPredicateFunctions.objectNotEquals(val, value);
     }
 
-    default int fieldCompareTo(int index, Object value) {
+    default SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
         Object val = get(index);
-        return SQLRecordPredicateFunctions.compare(val, value);
+        if (val == null) {
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
+        }
+        return SQLRecordPredicateFunctions.compareConsiderNull(val, value);
     }
 
     default Object[] getValues() {
@@ -98,8 +101,8 @@ public interface DataAccessor {
         }
 
         @Override
-        public int fieldCompareTo(int index, Object value) {
-            return SQLRecordPredicateFunctions.compareNullTo(value);
+        public SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
         }
 
 

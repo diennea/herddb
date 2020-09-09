@@ -28,6 +28,8 @@ import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ByteArrayCursor;
 import herddb.utils.Bytes;
 import herddb.utils.RawString;
+import herddb.utils.SQLRecordPredicateFunctions;
+import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -72,18 +74,20 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
     @Override
     public boolean fieldEqualsTo(int index, Object value) {
         try {
+            SQLRecordPredicateFunctions.CompareResult res;
             if (table.isPrimaryKeyColumn(index)) {
-                return RecordSerializer.compareRawDataFromPrimaryKey(index, record.key, table, value) == 0;
+                res = RecordSerializer.compareRawDataFromPrimaryKey(index, record.key, table, value);
             } else {
-                return RecordSerializer.compareRawDataFromValue(index, record.value, table, value) == 0;
+                res = RecordSerializer.compareRawDataFromValue(index, record.value, table, value);
             }
+            return res == CompareResult.EQUALS;
         } catch (IOException err) {
             throw new IllegalStateException("bad data:" + err, err);
         }
     }
 
     @Override
-    public int fieldCompareTo(int index, Object value) {
+    public SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
         try {
             if (table.isPrimaryKeyColumn(index)) {
                 return RecordSerializer.compareRawDataFromPrimaryKey(index, record.key, table, value);

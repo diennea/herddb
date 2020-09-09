@@ -49,7 +49,77 @@ public interface SQLRecordPredicateFunctions {
             return 1;
         }
     }
-
+    static enum CompareResult {
+        GREATER,
+        MINOR,
+        EQUALS,
+        NULL;
+        public static CompareResult fromInt(int i) {
+            if (i == 0) {
+                return EQUALS;
+            } else if (i > 0) {
+                return GREATER;
+            } else {
+                return MINOR;
+            }
+        }
+    }
+    static CompareResult compareConsiderNull(Object a, Object b) {
+        if (a == null || b == null) {
+            return CompareResult.NULL;
+        }
+        if (a instanceof RawString) {
+            if (b instanceof RawString) {
+                return CompareResult.fromInt(((RawString) a).compareTo((RawString) b));
+            }
+            if (b instanceof String) {
+                return CompareResult.fromInt(((RawString) a).compareToString((String) b));
+            }
+        }
+        if (a instanceof String && b instanceof RawString) {
+            return CompareResult.fromInt(-((RawString) b).compareToString((String) a));
+        }
+        if (a instanceof Integer) {
+            if (b instanceof Integer) {
+                return CompareResult.fromInt((Integer) a - (Integer) b);
+            }
+            if (b instanceof Long) {
+                long delta = (Integer) a - (Long) b;
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+        }
+        if (a instanceof Long) {
+            if (b instanceof Long) {
+                long delta = (Long) a - (Long) b;
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+            if (b instanceof java.util.Date) {
+                long delta = ((Long) a) - ((java.util.Date) b).getTime();
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return CompareResult.fromInt(Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue()));
+        }
+        if (a instanceof java.util.Date) {
+            if (b instanceof java.util.Date) {
+                long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+            if (b instanceof java.lang.Long) {
+                long delta = ((java.util.Date) a).getTime() - ((Long) b);
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+        }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return CompareResult.fromInt(((Comparable) a).compareTo(b));
+        }
+        if (a instanceof byte[] && b instanceof byte[]) {
+            return CompareResult.fromInt(Bytes.compare((byte[]) a, (byte[]) b));
+        }
+        throw new IllegalArgumentException(
+                "uncomparable objects " + a.getClass() + " ('" + a + "') vs " + b.getClass() + " ('" + b + "')");
+    }
     static int compare(Object a, Object b) {
         if (a == null) {
             if (b == null) {

@@ -22,6 +22,8 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.utils.SQLRecordPredicateFunctions;
+import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 
 public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpression {
 
@@ -31,7 +33,8 @@ public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpres
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return left.opCompareTo(bean, context, right) >= 0;
+        SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
+        return res == CompareResult.GREATER || res == CompareResult.EQUALS;
     }
 
     @Override

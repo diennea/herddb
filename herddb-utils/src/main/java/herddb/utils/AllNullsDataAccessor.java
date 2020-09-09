@@ -72,8 +72,8 @@ public class AllNullsDataAccessor extends AbstractDataAccessor {
     }
 
     @Override
-    public int fieldCompareTo(int index, Object value) {
-        return SQLRecordPredicateFunctions.compareNullTo(value);
+    public SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
+        return SQLRecordPredicateFunctions.CompareResult.NULL;
     }
 
     @Override
