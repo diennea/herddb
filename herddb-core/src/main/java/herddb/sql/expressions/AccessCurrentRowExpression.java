@@ -49,7 +49,6 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
         Object rightValue = right.evaluate(bean, context);
         if (rightValue == null) {
             // NULL is never equal to any other value, even NULL is not equal to NULL
-            System.out.println("opEqualsTo ? " + this.getClass() + " NULL -> false");
             return false;
         }
         return bean.fieldEqualsTo(index, rightValue);

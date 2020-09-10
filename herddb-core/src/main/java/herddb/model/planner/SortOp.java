@@ -163,52 +163,56 @@ public class SortOp implements PlannerOp, TupleComparator {
             int index = fields[i];
             Object value1 = o1.get(index);
             Object value2 = o2.get(index);
-            // this version of compare sorts NULL BEFORE all other values
-            boolean nullLastDirection = nullLastDirections[i];
-            if (nullLastDirection) { // NULL AST
-                // NULL LAST is preferred for us, as it is the default
-                int result = SQLRecordPredicateFunctions.compare(value1, value2);
-                if (result != 0) {
-                    if (directions[i]) { // ASC/DESC
-                        return result;
-                    } else {
-                        return -result;
-                    }
-                }
-                return 0;
-            } else { // NULL FIRST
-                SQLRecordPredicateFunctions.CompareResult resWithNull = SQLRecordPredicateFunctions.compareConsiderNull(value1, value2);
-                if (directions[i]) { // ASC/DEC
-                    switch (resWithNull) {
-                        case EQUALS:
-                            return 0;
-                        case NULL: // ASC NULL FIRST
-                            return -1;
-                        case GREATER:
-                            return 1;
-                        case MINOR:
-                            return -1;
-                        default:
-                            throw new IllegalStateException(resWithNull + "");
-                    }
-                } else {
-                    switch (resWithNull) {
-                        case EQUALS:
-                            return 0;
-                        case NULL: // DESC NULL FIRST
-                            return 1;
-                        case GREATER:
-                            return -1;
-                        case MINOR:
-                            return 1;
-                        default:
-                            throw new IllegalStateException(resWithNull + "");
-                    }
-                }
-            }
+            return compareValues(i, value1, value2);
         }
         // no columns ?
         return 0;
+    }
+
+    private int compareValues(int i, Object value1, Object value2) throws IllegalStateException {
+        // this version of compare sorts NULL BEFORE all other values
+        boolean nullLastDirection = nullLastDirections[i];
+        if (nullLastDirection) { // NULL AST
+            // NULL LAST is preferred for us, as it is the default
+            int result = SQLRecordPredicateFunctions.compare(value1, value2);
+            if (result != 0) {
+                if (directions[i]) { // ASC/DESC
+                    return result;
+                } else {
+                    return -result;
+                }
+            }
+            return 0;
+        } else { // NULL FIRST
+            SQLRecordPredicateFunctions.CompareResult resWithNull = SQLRecordPredicateFunctions.compareConsiderNull(value1, value2);
+            if (directions[i]) { // ASC/DEC
+                switch (resWithNull) {
+                    case EQUALS:
+                        return 0;
+                    case NULL: // ASC NULL FIRST
+                        return -1;
+                    case GREATER:
+                        return 1;
+                    case MINOR:
+                        return -1;
+                    default:
+                        throw new IllegalStateException(resWithNull + "");
+                }
+            } else {
+                switch (resWithNull) {
+                    case EQUALS:
+                        return 0;
+                    case NULL: // DESC NULL FIRST
+                        return 1;
+                    case GREATER:
+                        return -1;
+                    case MINOR:
+                        return 1;
+                    default:
+                        throw new IllegalStateException(resWithNull + "");
+                }
+            }
+        }
     }
 
     @Override

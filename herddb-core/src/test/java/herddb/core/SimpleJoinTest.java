@@ -1023,7 +1023,7 @@ public class SimpleJoinTest {
     }
 
     @Test
-    public void testNotExistsWithTransaction() throws Exception {
+    public void testExists() throws Exception {
         String nodeId = "localhost";
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
@@ -1094,7 +1094,24 @@ public class SimpleJoinTest {
                 }
                 TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
             }
+
+            {
+                long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);
+                try (DataScanner scan1 = scan(manager,
+                        " select k1 as kk, v1 as vv from a where 1=1 and ( EXISTS (SELECT 1 FROM b WHERE b.v2=a.k1 AND b.k2 = 1 ))", Collections.emptyList(),
+                        new TransactionContext(tx))) {
+
+                    List<DataAccessor> consume = scan1.consume();
+                    System.out.println("NUM " + consume.size());
+                    for (DataAccessor r : consume) {
+                        System.out.println("RECORD " + r.toMap());
+                    }
+                    assertEquals(1, consume.size());
+                }
+                TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
+            }
         }
+
     }
 }
 

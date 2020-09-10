@@ -47,19 +47,15 @@ public interface CompiledSQLExpression {
     default boolean opEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         if (leftValue == null) {
-            System.out.println("opEqualsTo NULL " + this.getClass() + " ? -> false");
             // NULL is never equal to any other value, even NULL is not equal to NULL
             return false;
         }
         Object rightValue = right.evaluate(bean, context);
         if (rightValue == null) {
-            System.out.println("opEqualsTo " + leftValue + " " + this.getClass() + " NULL -> false");
             // NULL is never equal to any other value, even NULL is not equal to NULL
             return false;
         }
-        boolean res = SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
-        System.out.println("opEqualsTo " + leftValue + " " + this.getClass() + " " + rightValue + " -> " + res);
-        return res;
+        return SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
     }
 
     default boolean opNotEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
@@ -79,9 +75,7 @@ public interface CompiledSQLExpression {
     default SQLRecordPredicateFunctions.CompareResult opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
-        SQLRecordPredicateFunctions.CompareResult res = SQLRecordPredicateFunctions.compareConsiderNull(leftValue, rightValue);
-        System.out.println("opCompareTo " + leftValue + " " + this.getClass() + " " + rightValue + " -> " + res);
-        return res;
+        return SQLRecordPredicateFunctions.compareConsiderNull(leftValue, rightValue);
     }
 
     /**
