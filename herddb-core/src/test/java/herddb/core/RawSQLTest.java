@@ -2417,6 +2417,93 @@ public class RawSQLTest {
     }
 
     @Test
+    public void compareToNull() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", null));
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", 213));
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", 214));
+
+            // comparing with NULLs return NULL, not "false" or "true"
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=213", Arrays.asList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 = NULL", Arrays.asList())) {
+                assertEquals(0, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 IS NULL", Arrays.asList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 IS NOT NULL", Arrays.asList())) {
+                assertEquals(2, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE NOT n1 IS NULL", Arrays.asList())) {
+                assertEquals(2, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE NOT n1 <= 213", Arrays.asList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 <= 214", Arrays.asList())) {
+                assertEquals(2, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 > 213", Arrays.asList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1 >= 213", Arrays.asList())) {
+                assertEquals(2, scan.consume().size());
+            }
+
+            // In sorts NULL is greater than other values
+             try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY n1 ASC NULLS LAST", Arrays.asList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(3, consume.size());
+                int i = 0;
+                assertEquals(RawString.of("mykey2"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey3"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey"), consume.get(i++).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY n1 DESC NULLS LAST", Arrays.asList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(3, consume.size());
+                int i = 0;
+                assertEquals(RawString.of("mykey"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey3"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey2"), consume.get(i++).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY n1 ASC", Arrays.asList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(3, consume.size());
+                int i = 0;
+                assertEquals(RawString.of("mykey2"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey3"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey"), consume.get(i++).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY n1 DESC", Arrays.asList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(3, consume.size());
+                int i = 0;
+                assertEquals(RawString.of("mykey"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey3"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey2"), consume.get(i++).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY n1 ASC NULLS FIRST", Arrays.asList())) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(3, consume.size());
+                int i = 0;
+                assertEquals(RawString.of("mykey"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey2"), consume.get(i++).get(0));
+                assertEquals(RawString.of("mykey3"), consume.get(i++).get(0));
+            }
+        }
+    }
+
+    @Test
     public void allowNullsInSingleColumnSecondaryIndexes() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {

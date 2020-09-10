@@ -52,13 +52,15 @@ public class SortOp implements PlannerOp, TupleComparator {
 
     private final PlannerOp input;
     private final boolean[] directions;
+    private final boolean[] nullLastDirections;
     private final int[] fields;
     private boolean onlyPrimaryKeyAndAscending;
 
-    public SortOp(PlannerOp input, boolean[] directions, int[] fields) {
+    public SortOp(PlannerOp input, boolean[] directions, int[] fields, boolean[] nullLastDirections) {
         this.input = input.optimize();
         this.directions = directions;
         this.fields = fields;
+        this.nullLastDirections = nullLastDirections;
     }
 
     @Override
@@ -162,15 +164,50 @@ public class SortOp implements PlannerOp, TupleComparator {
             Object value1 = o1.get(index);
             Object value2 = o2.get(index);
             // this version of compare sorts NULL BEFORE all other values
-            int result = SQLRecordPredicateFunctions.compare(value1, value2);
-            if (result != 0) {
-                if (directions[i]) {
-                    return result;
+            boolean nullLastDirection = nullLastDirections[i];
+            if (nullLastDirection) { // NULL AST
+                // NULL LAST is preferred for us, as it is the default
+                int result = SQLRecordPredicateFunctions.compare(value1, value2);
+                if (result != 0) {
+                    if (directions[i]) { // ASC/DESC
+                        return result;
+                    } else {
+                        return -result;
+                    }
+                }
+                return 0;
+            } else { // NULL FIRST
+                SQLRecordPredicateFunctions.CompareResult resWithNull = SQLRecordPredicateFunctions.compareConsiderNull(value1, value2);
+                if (directions[i]) { // ASC/DEC
+                    switch (resWithNull) {
+                        case EQUALS:
+                            return 0;
+                        case NULL: // ASC NULL FIRST
+                            return -1;
+                        case GREATER:
+                            return 1;
+                        case MINOR:
+                            return -1;
+                        default:
+                            throw new IllegalStateException(resWithNull + "");
+                    }
                 } else {
-                    return -result;
+                    switch (resWithNull) {
+                        case EQUALS:
+                            return 0;
+                        case NULL: // DESC NULL FIRST
+                            return 1;
+                        case GREATER:
+                            return -1;
+                        case MINOR:
+                            return 1;
+                        default:
+                            throw new IllegalStateException(resWithNull + "");
+                    }
                 }
             }
         }
+        // no columns ?
         return 0;
     }
 
@@ -185,7 +222,7 @@ public class SortOp implements PlannerOp, TupleComparator {
 
     @Override
     public String toString() {
-        return "SortOp{fields=" + Arrays.toString(fields) + ", onlyPrimaryKeyAndAscending=" + onlyPrimaryKeyAndAscending + '}';
+        return "SortOp{fields=" + Arrays.toString(fields) + ", dirs=" + Arrays.toString(directions) + ",nullDirs=" + Arrays.toString(nullLastDirections) + ", onlyPrimaryKeyAndAscending=" + onlyPrimaryKeyAndAscending + '}';
     }
 
 }

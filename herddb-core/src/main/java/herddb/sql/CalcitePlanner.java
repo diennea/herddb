@@ -118,6 +118,7 @@ import org.apache.calcite.avatica.util.Quoting;
 import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.config.CalciteConnectionProperty;
+import org.apache.calcite.config.NullCollation;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -538,6 +539,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         Properties props = new Properties();
         props.put(CalciteConnectionProperty.TIME_ZONE.camelName(), TimeZone.getDefault().getID());
         props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
+        props.put(CalciteConnectionProperty.DEFAULT_NULL_COLLATION.camelName(), NullCollation.LAST.toString());
         final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
 
         final FrameworkConfig config = Frameworks.newConfigBuilder()
@@ -1174,16 +1176,21 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
         boolean[] directions = new boolean[fieldCollations.size()];
+        boolean[] nullLastdirections = new boolean[fieldCollations.size()];
         int[] fields = new int[fieldCollations.size()];
         int i = 0;
         for (RelFieldCollation col : fieldCollations) {
             RelFieldCollation.Direction direction = col.getDirection();
             int index = col.getFieldIndex();
+            RelFieldCollation.NullDirection nullDirection = col.nullDirection;
             directions[i] = direction == RelFieldCollation.Direction.ASCENDING
                     || direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
+            // default is NULL LAST
+            nullLastdirections[i] = nullDirection == RelFieldCollation.NullDirection.LAST
+                    || nullDirection == RelFieldCollation.NullDirection.UNSPECIFIED;
             fields[i++] = index;
         }
-        return new SortOp(input, directions, fields);
+        return new SortOp(input, directions, fields, nullLastdirections);
 
     }
 
