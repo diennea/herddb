@@ -63,11 +63,13 @@ public class AllNullsDataAccessor extends AbstractDataAccessor {
 
     @Override
     public boolean fieldEqualsTo(int index, Object value) {
-        return value == null;
+        // NULL is never equals to anything
+        return false;
     }
 
     @Override
     public boolean fieldNotEqualsTo(int index, Object value) {
+        // NULL is never non-equals to anything
         return false;
     }
 

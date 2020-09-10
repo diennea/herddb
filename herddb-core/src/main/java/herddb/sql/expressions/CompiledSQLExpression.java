@@ -17,7 +17,6 @@
  under the License.
 
  */
-
 package herddb.sql.expressions;
 
 import herddb.model.Predicate;
@@ -47,21 +46,41 @@ public interface CompiledSQLExpression {
 
     default boolean opEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
+        if (leftValue == null) {
+            System.out.println("opEqualsTo NULL " + this.getClass() + " ? -> false");
+            // NULL is never equal to any other value, even NULL is not equal to NULL
+            return false;
+        }
         Object rightValue = right.evaluate(bean, context);
-        return SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
+        if (rightValue == null) {
+            System.out.println("opEqualsTo " + leftValue + " " + this.getClass() + " NULL -> false");
+            // NULL is never equal to any other value, even NULL is not equal to NULL
+            return false;
+        }
+        boolean res = SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
+        System.out.println("opEqualsTo " + leftValue + " " + this.getClass() + " " + rightValue + " -> " + res);
+        return res;
     }
 
     default boolean opNotEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
+        if (leftValue == null) {
+            // NULL is never non-equal to any other value, even NULL is not non-equal to NULL
+            return false;
+        }
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            // NULL is never non-equal to any other value, even NULL is not non-equal to NULL
+            return false;
+        }
         return SQLRecordPredicateFunctions.objectNotEquals(leftValue, rightValue);
     }
 
     default SQLRecordPredicateFunctions.CompareResult opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object leftValue = this.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
-        SQLRecordPredicateFunctions.CompareResult res =  SQLRecordPredicateFunctions.compareConsiderNull(leftValue, rightValue);
-        System.out.println("opCompareTo "+leftValue+" "+this.getClass()+" "+rightValue+" -> "+res);
+        SQLRecordPredicateFunctions.CompareResult res = SQLRecordPredicateFunctions.compareConsiderNull(leftValue, rightValue);
+        System.out.println("opCompareTo " + leftValue + " " + this.getClass() + " " + rightValue + " -> " + res);
         return res;
     }
 
@@ -91,13 +110,9 @@ public interface CompiledSQLExpression {
     }
 
     /**
-     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)}
-     * works on a projection of the table wich contains only the pk fields of
-     * the table for instance if the predicate wants to access first element of
-     * the pk, and this field is the 3rd in the column list then you will find
-     * {@link AccessCurrentRowExpression} with index=2. To this expression you
-     * have to apply the projection and map 2 (3rd element of the table) to 0
-     * (1st element of the pk)
+     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)} works on a projection of the table wich contains only the pk fields of the table
+     * for instance if the predicate wants to access first element of the pk, and this field is the 3rd in the column list then you will find {@link AccessCurrentRowExpression} with index=2. To this
+     * expression you have to apply the projection and map 2 (3rd element of the table) to 0 (1st element of the pk)
      *
      * @param projection a map from index on table to the index on pk
      */
@@ -106,8 +121,7 @@ public interface CompiledSQLExpression {
     }
 
     /**
-     * Estimate Object size for the PlanCache.
-     * see {@link ObjectSizeUtils} for the limitations of this computation.
+     * Estimate Object size for the PlanCache. see {@link ObjectSizeUtils} for the limitations of this computation.
      */
     default int estimateObjectSizeForCache() {
         return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;

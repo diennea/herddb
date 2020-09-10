@@ -1362,8 +1362,14 @@ public class TableSpaceManager {
         }
 
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-        CompletableFuture<StatementExecutionResult> res =
-                planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        CompletableFuture<StatementExecutionResult> res;
+        try {
+            res = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        } catch (HerdDBInternalException err) {
+            // ensure we are able to release locks correctly
+            LOGGER.log(Level.SEVERE, "Internal error", err);
+            res = Futures.exception(err);
+        }
 //        res.whenComplete((ee, err) -> {
 //            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
 //        });

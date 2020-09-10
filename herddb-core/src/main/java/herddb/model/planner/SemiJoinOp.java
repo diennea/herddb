@@ -21,8 +21,12 @@
 package herddb.model.planner;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.core.MaterializedRecordSet;
+import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -73,14 +77,48 @@ public class SemiJoinOp implements PlannerOp {
         ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         transactionContext = new TransactionContext(resLeft.transactionId);
         ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
+        DataScanner leftScanner = resLeft.dataScanner;
+        DataScanner rightScanner = resRight.dataScanner;
+        if (!leftScanner.isRewindSupported()) {
+            try {
+                MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(leftScanner.getFieldNames(),
+                                leftScanner.getSchema());
+                leftScanner.forEach(d -> {
+                    recordSet.add(d);
+                });
+                recordSet.writeFinished();
+                SimpleDataScanner materialized = new SimpleDataScanner(leftScanner.getTransaction(), recordSet);
+                leftScanner.close();
+                leftScanner = materialized;
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+        }
+        if (!rightScanner.isRewindSupported()) {
+            try {
+                MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                        .createRecordSet(rightScanner.getFieldNames(),
+                                rightScanner.getSchema());
+                rightScanner.forEach(d -> {
+                    recordSet.add(d);
+                });
+                recordSet.writeFinished();
+                SimpleDataScanner materialized = new SimpleDataScanner(rightScanner.getTransaction(), recordSet);
+                rightScanner.close();
+                rightScanner = materialized;
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+        }
         final long resTransactionId = resRight.transactionId;
         Enumerable<DataAccessor> result = EnumerableDefaults.semiJoin(
-                resLeft.dataScanner.createRewindOnCloseEnumerable(),
-                resRight.dataScanner.createRewindOnCloseEnumerable(),
+                leftScanner.createRewindOnCloseEnumerable(),
+                rightScanner.createRewindOnCloseEnumerable(),
                 JoinKey.keyExtractor(leftKeys),
                 JoinKey.keyExtractor(rightKeys)
         );
-        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resRight.dataScanner.getTransaction(), fieldNames, columns, result, resLeft.dataScanner, resRight.dataScanner);
+        EnumerableDataScanner joinedScanner = new EnumerableDataScanner(rightScanner.getTransaction(), fieldNames, columns, result, leftScanner, rightScanner);
         return new ScanResult(resTransactionId, joinedScanner);
     }
 

@@ -161,6 +161,7 @@ public class SortOp implements PlannerOp, TupleComparator {
             int index = fields[i];
             Object value1 = o1.get(index);
             Object value2 = o2.get(index);
+            // this version of compare sorts NULL BEFORE all other values
             int result = SQLRecordPredicateFunctions.compare(value1, value2);
             if (result != 0) {
                 if (directions[i]) {

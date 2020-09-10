@@ -47,12 +47,21 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
     @Override
     public boolean opEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            // NULL is never equal to any other value, even NULL is not equal to NULL
+            System.out.println("opEqualsTo ? " + this.getClass() + " NULL -> false");
+            return false;
+        }
         return bean.fieldEqualsTo(index, rightValue);
     }
 
     @Override
     public boolean opNotEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            // NULL is never not-equal to any other value, even NULL is not non-equal to NULL
+            return false;
+        }
         return bean.fieldNotEqualsTo(index, rightValue);
     }
 

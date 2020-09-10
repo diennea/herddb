@@ -64,6 +64,7 @@ import herddb.model.planner.LimitOp;
 import herddb.model.planner.NestedLoopJoinOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
+import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
@@ -994,10 +995,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right,
-                generateNullsOnLeft, generateNullsOnRight, false,
-                nonEquiConditions);
+        if (op.isSemiJoin()) {
+            return new SemiJoinOp(fieldNames, columns, leftKeys, left, rightKeys, right);
+        } else {
+            return new JoinOp(fieldNames, columns,
+                    leftKeys, left, rightKeys, right,
+                    generateNullsOnLeft, generateNullsOnRight, false,
+                    nonEquiConditions);
+        }
     }
 
     private List<CompiledSQLExpression> convertJoinNonEquiConditions(final JoinInfo analyzeCondition) throws IllegalStateException {

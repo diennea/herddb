@@ -55,4 +55,10 @@ public class CompiledIsNullExpression implements CompiledSQLExpression {
         return new CompiledIsNullExpression(not,
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
+    @Override
+    public String toString() {
+        return "CompiledIsNullExpression{" + "left=" + left + ", not=" + not + '}';
+    }
+
 }

@@ -21,6 +21,7 @@
 package herddb.utils;
 
 import herddb.core.HerdDBInternalException;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,6 +65,14 @@ public interface SQLRecordPredicateFunctions {
             }
         }
     }
+    /**
+     * Compare two values, reporting special cases about NULL.
+     * NULL is not greater or minor than any other value and NULL is not equal to NULL.
+     * @param a
+     * @param b
+     * @return the outcome of the comparation.
+     * @see #compare(java.lang.Object, java.lang.Object)
+     */
     static CompareResult compareConsiderNull(Object a, Object b) {
         if (a == null || b == null) {
             return CompareResult.NULL;
@@ -120,6 +129,15 @@ public interface SQLRecordPredicateFunctions {
         throw new IllegalArgumentException(
                 "uncomparable objects " + a.getClass() + " ('" + a + "') vs " + b.getClass() + " ('" + b + "')");
     }
+
+    /**
+     * Compare two values, NULL are greater than all other values and NULL == NULL.
+     * It follows the general contract of {@link Comparator}
+     * @param a
+     * @param b
+     * @return 1 if a is greater than b, 0 if they are equals to each other and -1 if a is minor than b
+     * @see #compareConsiderNull(java.lang.Object, java.lang.Object)
+     */
     static int compare(Object a, Object b) {
         if (a == null) {
             if (b == null) {
