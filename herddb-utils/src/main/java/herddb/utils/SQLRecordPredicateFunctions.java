@@ -64,6 +64,15 @@ public interface SQLRecordPredicateFunctions {
                 return MINOR;
             }
         }
+        public static CompareResult fromLong(long i) {
+            if (i == 0) {
+                return EQUALS;
+            } else if (i > 0) {
+                return GREATER;
+            } else {
+                return MINOR;
+            }
+        }
     }
     /**
      * Compare two values, reporting special cases about NULL.
@@ -94,17 +103,17 @@ public interface SQLRecordPredicateFunctions {
             }
             if (b instanceof Long) {
                 long delta = (Integer) a - (Long) b;
-                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+                return CompareResult.fromLong(delta);
             }
         }
         if (a instanceof Long) {
             if (b instanceof Long) {
                 long delta = (Long) a - (Long) b;
-                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+                return CompareResult.fromLong(delta);
             }
             if (b instanceof java.util.Date) {
                 long delta = ((Long) a) - ((java.util.Date) b).getTime();
-                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+                return CompareResult.fromLong(delta);
             }
         }
         if (a instanceof Number && b instanceof Number) {
