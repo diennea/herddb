@@ -49,7 +49,7 @@ public interface SQLRecordPredicateFunctions {
             return 1;
         }
     }
-    static enum CompareResult {
+    enum CompareResult {
         GREATER,
         MINOR,
         EQUALS,
