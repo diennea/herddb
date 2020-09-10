@@ -176,10 +176,12 @@ public class SortOp implements PlannerOp, TupleComparator {
             // NULL LAST is preferred for us, as it is the default
             int result = SQLRecordPredicateFunctions.compare(value1, value2);
             if (result != 0) {
-                if (directions[i]) { // ASC/DESC
+                if (directions[i]) { // ASC
                     return result;
+                } else if (result > 0) { // DESC - invert the result
+                    return -1;
                 } else {
-                    return -result;
+                    return 1;
                 }
             }
             return 0;
