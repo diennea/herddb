@@ -23,6 +23,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Arrays;
 
 /**
@@ -46,18 +47,29 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
     @Override
     public boolean opEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            // NULL is never equal to any other value, even NULL is not equal to NULL
+            return false;
+        }
         return bean.fieldEqualsTo(index, rightValue);
     }
 
     @Override
     public boolean opNotEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            // NULL is never not-equal to any other value, even NULL is not non-equal to NULL
+            return false;
+        }
         return bean.fieldNotEqualsTo(index, rightValue);
     }
 
     @Override
-    public int opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+    public SQLRecordPredicateFunctions.CompareResult opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
         Object rightValue = right.evaluate(bean, context);
+        if (rightValue == null) {
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
+        }
         return bean.fieldCompareTo(index, rightValue);
     }
 

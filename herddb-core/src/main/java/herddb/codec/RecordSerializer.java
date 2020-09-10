@@ -35,6 +35,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
+import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 import herddb.utils.SingleEntryMap;
 import herddb.utils.SystemProperties;
 import herddb.utils.VisibleByteArrayOutputStream;
@@ -158,49 +159,49 @@ public final class RecordSerializer {
         }
     }
 
-    public static int deserializeCompare(Bytes data, int type, Object cvalue) {
+    public static SQLRecordPredicateFunctions.CompareResult deserializeCompare(Bytes data, int type, Object cvalue) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
                 //TODO: not perform copy
-                return SQLRecordPredicateFunctions.compare(data.to_array(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(data.to_array(), cvalue);
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER: {
                 int v = data.to_int();
                 if (cvalue instanceof Integer) {
-                    return Integer.compare(v, (int) cvalue);
+                    return CompareResult.fromInt(Integer.compare(v, (int) cvalue));
                 } else if (cvalue instanceof Long) {
-                    return Long.compare(v, (long) cvalue);
+                    return CompareResult.fromInt(Long.compare(v, (long) cvalue));
                 }
-                return SQLRecordPredicateFunctions.compare(v, cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(v, cvalue);
             }
             case ColumnTypes.LONG:
             case ColumnTypes.NOTNULL_LONG: {
                 long v = data.to_long();
                 if (cvalue instanceof Integer) {
-                    return Long.compare(v, (int) cvalue);
+                    return CompareResult.fromInt(Long.compare(v, (int) cvalue));
                 } else if (cvalue instanceof Long) {
-                    return Long.compare(v, (long) cvalue);
+                    return CompareResult.fromInt(Long.compare(v, (long) cvalue));
                 }
-                return SQLRecordPredicateFunctions.compare(v, cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(v, cvalue);
             }
             case ColumnTypes.STRING:
             case ColumnTypes.NOTNULL_STRING: {
                 RawString string = data.to_RawString();
                 if (cvalue instanceof RawString) {
-                    return string.compareTo((RawString) cvalue);
+                    return CompareResult.fromInt(string.compareTo((RawString) cvalue));
                 } else if (cvalue instanceof String) {
-                    return string.compareToString(((String) cvalue));
+                    return CompareResult.fromInt(string.compareToString(((String) cvalue)));
                 }
-                return SQLRecordPredicateFunctions.compare(string, cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(string, cvalue);
             }
             case ColumnTypes.TIMESTAMP:
-                return SQLRecordPredicateFunctions.compare(data.to_timestamp(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(data.to_timestamp(), cvalue);
             case ColumnTypes.NULL:
-                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+                return CompareResult.NULL;
             case ColumnTypes.BOOLEAN:
-                return SQLRecordPredicateFunctions.compare(data.to_boolean(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(data.to_boolean(), cvalue);
             case ColumnTypes.DOUBLE:
-                return SQLRecordPredicateFunctions.compare(data.to_double(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(data.to_double(), cvalue);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -237,45 +238,45 @@ public final class RecordSerializer {
         }
     }
 
-    public static int compareDeserializeTypeAndValue(ByteArrayCursor dii, Object cvalue) throws IOException {
+    public static SQLRecordPredicateFunctions.CompareResult compareDeserializeTypeAndValue(ByteArrayCursor dii, Object cvalue) throws IOException {
         int type = dii.readVInt();
         switch (type) {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY: {
                 byte[] datum = dii.readArray();
-                return SQLRecordPredicateFunctions.compare(datum, cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(datum, cvalue);
             }
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
-                return SQLRecordPredicateFunctions.compare(dii.readInt(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(dii.readInt(), cvalue);
             case ColumnTypes.LONG:
             case ColumnTypes.NOTNULL_LONG:
-                return SQLRecordPredicateFunctions.compare(dii.readLong(), cvalue);
+                return SQLRecordPredicateFunctions.compareConsiderNull(dii.readLong(), cvalue);
             case ColumnTypes.STRING:
             case ColumnTypes.NOTNULL_STRING:
                 int len = dii.readArrayLen();
                 if (cvalue instanceof RawString) {
                     RawString _cvalue = (RawString) cvalue;
-                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue);
+                    return SQLRecordPredicateFunctions.CompareResult.fromInt(RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue));
                 } else if (cvalue instanceof String) {
                     String _cvalue = (String) cvalue;
-                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue);
+                    return SQLRecordPredicateFunctions.CompareResult.fromInt(RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue));
                 } else {
                     RawString value = dii.readRawStringNoCopy();
-                    return SQLRecordPredicateFunctions.compare(value, cvalue);
+                    return SQLRecordPredicateFunctions.CompareResult.fromInt(SQLRecordPredicateFunctions.compare(value, cvalue));
                 }
 
             case ColumnTypes.TIMESTAMP:
             case ColumnTypes.NOTNULL_TIMESTAMP:
-                return SQLRecordPredicateFunctions.compare(new java.sql.Timestamp(dii.readLong()), cvalue);
+                return SQLRecordPredicateFunctions.CompareResult.fromInt(SQLRecordPredicateFunctions.compare(new java.sql.Timestamp(dii.readLong()), cvalue));
             case ColumnTypes.NULL:
-                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+                return SQLRecordPredicateFunctions.CompareResult.NULL;
             case ColumnTypes.BOOLEAN:
             case ColumnTypes.NOTNULL_BOOLEAN:
-                return SQLRecordPredicateFunctions.compare(dii.readBoolean(), cvalue);
+                return SQLRecordPredicateFunctions.CompareResult.fromInt(SQLRecordPredicateFunctions.compare(dii.readBoolean(), cvalue));
             case ColumnTypes.DOUBLE:
             case ColumnTypes.NOTNULL_DOUBLE:
-                return SQLRecordPredicateFunctions.compare(dii.readDouble(), cvalue);
+                return SQLRecordPredicateFunctions.CompareResult.fromInt(SQLRecordPredicateFunctions.compare(dii.readDouble(), cvalue));
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -705,14 +706,14 @@ public final class RecordSerializer {
         }
     }
 
-    static int compareRawDataFromValue(int index, Bytes value, Table table, Object cvalue) throws IOException {
+    static SQLRecordPredicateFunctions.CompareResult compareRawDataFromValue(int index, Bytes value, Table table, Object cvalue) throws IOException {
         Column column = table.getColumn(index);
         try (ByteArrayCursor din = value.newCursor()) {
             while (!din.isEof()) {
                 int serialPosition;
                 serialPosition = din.readVIntNoEOFException();
                 if (din.isEof()) {
-                    return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+                    return CompareResult.NULL;
                 }
                 Column col = table.getColumnBySerialPosition(serialPosition);
                 if (col != null && col.serialPosition == column.serialPosition) {
@@ -723,7 +724,7 @@ public final class RecordSerializer {
                 }
             }
         }
-        return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+        return CompareResult.NULL;
     }
 
     static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
@@ -760,7 +761,7 @@ public final class RecordSerializer {
         }
     }
 
-    static int compareRawDataFromPrimaryKey(int index, Bytes key, Table table, Object cvalue) throws IOException {
+    static SQLRecordPredicateFunctions.CompareResult compareRawDataFromPrimaryKey(int index, Bytes key, Table table, Object cvalue) throws IOException {
         Column column = table.getColumn(index);
         if (table.primaryKey.length == 1) {
             return deserializeCompare(key, column.type, cvalue);

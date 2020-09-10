@@ -59,9 +59,11 @@ import herddb.model.planner.DeleteOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitedSortedBindableTableScanOp;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp;
 import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
+import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
@@ -426,6 +428,10 @@ public class CalcitePlannerTest {
 
             }
             {
+                ProjectOp plan = assertInstanceOf(plan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where n2 in (select n1 from tblspace1.tsql"
+                        + "                                     order by n1 asc limit 1)"), ProjectOp.class);
+                assertThat(plan.getInput(), instanceOf(SemiJoinOp.class));
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                     order by n1 asc limit 1)"
@@ -446,6 +452,36 @@ public class CalcitePlannerTest {
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
                                 "k2", "mykey2", "n2", 1234
+                        ))));
+
+            }
+            {
+                ProjectOp plan = assertInstanceOf(plan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where exists (select 1 from tblspace1.tsql a where a.n1=n2)"), ProjectOp.class);
+                assertThat(plan.getInput(), instanceOf(SemiJoinOp.class));
+                List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where exists (select 1 from tblspace1.tsql a where a.n1=n2)"
+                        + " ", Collections.emptyList()).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                }
+                assertEquals(3, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                                "k2", "mykey", "n2", 1234
+                        ))));
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                                "k2", "mykey2", "n2", 1234
+                        ))));
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                                "k2", "mykey6a", "n2", 1236
                         ))));
 
             }

@@ -53,17 +53,29 @@ public interface DataAccessor {
 
     default boolean fieldEqualsTo(int index, Object value) {
         Object val = get(index);
+        if (val == null) {
+            // NULL is never equal to any other value, even NULL is not equal to NULL
+            return false;
+        }
         return SQLRecordPredicateFunctions.objectEquals(val, value);
     }
 
     default boolean fieldNotEqualsTo(int index, Object value) {
         Object val = get(index);
+        if (val == null) {
+            // NULL is never non-equal to any other value, even NULL is not non-equal to NULL
+            return false;
+        }
         return SQLRecordPredicateFunctions.objectNotEquals(val, value);
     }
 
-    default int fieldCompareTo(int index, Object value) {
+    default SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
         Object val = get(index);
-        return SQLRecordPredicateFunctions.compare(val, value);
+        if (val == null) {
+             // NULL is not comparable
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
+        }
+        return SQLRecordPredicateFunctions.compareConsiderNull(val, value);
     }
 
     default Object[] getValues() {
@@ -88,18 +100,19 @@ public interface DataAccessor {
 
         @Override
         public boolean fieldEqualsTo(int index, Object value) {
-            return null == value;
-        }
-
-        @Override
-        public boolean fieldNotEqualsTo(int index, Object value) {
-            // nothing is "not equals" to NULL
+            // nothing is "equal" to NULL
             return false;
         }
 
         @Override
-        public int fieldCompareTo(int index, Object value) {
-            return SQLRecordPredicateFunctions.compareNullTo(value);
+        public boolean fieldNotEqualsTo(int index, Object value) {
+            // nothing is "not equal" to NULL
+            return false;
+        }
+
+        @Override
+        public SQLRecordPredicateFunctions.CompareResult fieldCompareTo(int index, Object value) {
+            return SQLRecordPredicateFunctions.CompareResult.NULL;
         }
 
 

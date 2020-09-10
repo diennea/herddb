@@ -192,7 +192,10 @@ public class JoinOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return "JoinOp{" + "leftKeys=" + Arrays.toString(leftKeys) + ", left=" + left + ", rightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + ", fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns) + ", generateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + '}';
+        return "JoinOp{fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns) + ","
+                + "\ngenerateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + ","
+                + "\nleftKeys=" + Arrays.toString(leftKeys) + ",left=" + left + ","
+                + "\nrightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + '}';
     }
 
 }

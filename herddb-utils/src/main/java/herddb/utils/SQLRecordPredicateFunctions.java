@@ -21,6 +21,7 @@
 package herddb.utils;
 
 import herddb.core.HerdDBInternalException;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,7 +50,103 @@ public interface SQLRecordPredicateFunctions {
             return 1;
         }
     }
+    enum CompareResult {
+        GREATER,
+        MINOR,
+        EQUALS,
+        NULL;
+        public static CompareResult fromInt(int i) {
+            if (i == 0) {
+                return EQUALS;
+            } else if (i > 0) {
+                return GREATER;
+            } else {
+                return MINOR;
+            }
+        }
+        public static CompareResult fromLong(long i) {
+            if (i == 0) {
+                return EQUALS;
+            } else if (i > 0) {
+                return GREATER;
+            } else {
+                return MINOR;
+            }
+        }
+    }
+    /**
+     * Compare two values, reporting special cases about NULL.
+     * NULL is not greater or minor than any other value and NULL is not equal to NULL.
+     * @param a
+     * @param b
+     * @return the outcome of the comparation.
+     * @see #compare(java.lang.Object, java.lang.Object)
+     */
+    static CompareResult compareConsiderNull(Object a, Object b) {
+        if (a == null || b == null) {
+            return CompareResult.NULL;
+        }
+        if (a instanceof RawString) {
+            if (b instanceof RawString) {
+                return CompareResult.fromInt(((RawString) a).compareTo((RawString) b));
+            }
+            if (b instanceof String) {
+                return CompareResult.fromInt(((RawString) a).compareToString((String) b));
+            }
+        }
+        if (a instanceof String && b instanceof RawString) {
+            return CompareResult.fromInt(-((RawString) b).compareToString((String) a));
+        }
+        if (a instanceof Integer) {
+            if (b instanceof Integer) {
+                return CompareResult.fromInt((Integer) a - (Integer) b);
+            }
+            if (b instanceof Long) {
+                long delta = (Integer) a - (Long) b;
+                return CompareResult.fromLong(delta);
+            }
+        }
+        if (a instanceof Long) {
+            if (b instanceof Long) {
+                long delta = (Long) a - (Long) b;
+                return CompareResult.fromLong(delta);
+            }
+            if (b instanceof java.util.Date) {
+                long delta = ((Long) a) - ((java.util.Date) b).getTime();
+                return CompareResult.fromLong(delta);
+            }
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return CompareResult.fromInt(Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue()));
+        }
+        if (a instanceof java.util.Date) {
+            if (b instanceof java.util.Date) {
+                long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+            if (b instanceof java.lang.Long) {
+                long delta = ((java.util.Date) a).getTime() - ((Long) b);
+                return CompareResult.fromInt(delta == 0 ? 0 : delta > 0 ? 1 : -1);
+            }
+        }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return CompareResult.fromInt(((Comparable) a).compareTo(b));
+        }
+        if (a instanceof byte[] && b instanceof byte[]) {
+            return CompareResult.fromInt(Bytes.compare((byte[]) a, (byte[]) b));
+        }
+        throw new IllegalArgumentException(
+                "uncomparable objects " + a.getClass() + " ('" + a + "') vs " + b.getClass() + " ('" + b + "')");
+    }
 
+    /**
+     * Compare two values, NULL are greater than all other values and NULL == NULL.
+     * It follows the general contract of {@link Comparator}
+     * @param a
+     * @param b
+     * @return 1 if a is greater than b, 0 if they are equals to each other and -1 if a is minor than b
+     * @see #compareConsiderNull(java.lang.Object, java.lang.Object)
+     */
     static int compare(Object a, Object b) {
         if (a == null) {
             if (b == null) {

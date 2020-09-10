@@ -427,8 +427,8 @@ public abstract class SecondaryIndexAccessSuite {
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    //  NULL is greater then other values
-                    assertEquals(8, scan1.consume().size());
+                    //  NULL is not greater then other values
+                    assertEquals(6, scan1.consume().size());
                 }
             }
 
@@ -468,8 +468,8 @@ public abstract class SecondaryIndexAccessSuite {
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    // null is greater then any other value
-                    assertEquals(7, scan1.consume().size());
+                    // null is not greater then any other value
+                    assertEquals(5, scan1.consume().size());
                 }
             }
 
@@ -499,8 +499,8 @@ public abstract class SecondaryIndexAccessSuite {
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    // null is greater then any other value
-                    assertEquals(7, scan1.consume().size());
+                    // null is not greater then any other value
+                    assertEquals(5, scan1.consume().size());
                 }
             }
 
@@ -549,7 +549,7 @@ public abstract class SecondaryIndexAccessSuite {
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    assertEquals(6, scan1.consume().size());
+                    assertEquals(5, scan1.consume().size());
                 }
             }
 

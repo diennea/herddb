@@ -20,6 +20,7 @@
 
 package herddb.sql.expressions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
@@ -74,6 +75,11 @@ public class CastExpression implements CompiledSQLExpression {
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CastExpression(wrapped.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 type);
+    }
+
+    @Override
+    public String toString() {
+        return "CastExpression{" + "wrapped=" + wrapped + ", type=" + ColumnTypes.typeToString(type) + '}';
     }
 
 }
