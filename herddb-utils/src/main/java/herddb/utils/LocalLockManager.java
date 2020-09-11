@@ -109,12 +109,12 @@ public class LocalLockManager implements ILocalLockManager {
         try {
             long tryWriteLock = lock.lock.tryWriteLock(writeLockTimeout, TimeUnit.SECONDS);
             if (tryWriteLock == 0) {
-                throw new RuntimeException("timed out acquiring lock for write");
+                throw new LockAcquireTimeoutException("timed out acquiring lock for write");
             }
             return new LockHandle(tryWriteLock, key, true, lock);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(err);
+            throw new LockAcquireTimeoutException(err);
         }
     }
 
@@ -132,12 +132,12 @@ public class LocalLockManager implements ILocalLockManager {
         try {
             long tryReadLock = lock.lock.tryReadLock(readLockTimeout, TimeUnit.SECONDS);
             if (tryReadLock == 0) {
-                throw new RuntimeException("timedout trying to read lock");
+                throw new LockAcquireTimeoutException("timedout trying to read lock");
             }
             return new LockHandle(tryReadLock, key, false, lock);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(err);
+            throw new LockAcquireTimeoutException(err);
         }
     }
 

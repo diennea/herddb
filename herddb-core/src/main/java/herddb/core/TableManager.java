@@ -1047,7 +1047,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
         return lockForWrite(key, transaction, table.name, locksManager);
     }
-    
+
     private static LockHandle lockForWrite(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
 //        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
         try {
@@ -1073,6 +1073,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             } else {
                 return locksManager.acquireWriteLockForKey(key);
             }
+        } catch (HerdDBInternalException err) { // locktimeout or other internal lockmanager error
+            throw err;
         } catch (RuntimeException err) { // locktimeout or other internal lockmanager error
             throw new StatementExecutionException(err);
         }
@@ -1081,7 +1083,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private LockHandle lockForRead(Bytes key, Transaction transaction) {
         return lockForRead(key, transaction, table.name, locksManager);
     }
-    
+
     private static LockHandle lockForRead(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
         try {
             if (transaction != null) {
@@ -1122,10 +1124,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (indexes != null) {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
-                for (AbstractIndexManager index : indexes.values()) {                    
+                for (AbstractIndexManager index : indexes.values()) {
                     if (index.isUnique()) {
                         Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
-                        if (uniqueIndexes == null) {                            
+                        if (uniqueIndexes == null) {
                             uniqueIndexes = new ArrayList<>(1);
                         }
                         uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
@@ -1146,20 +1148,28 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         CompletableFuture<StatementExecutionResult> res = null;
-        LockHandle lock = lockForWrite(key, transaction);
-        if (uniqueIndexes != null) {
-            for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
-                AbstractIndexManager index = uniqueIndexLock.indexManager;
-                LockHandle lockForIndex = lockForWrite(key, transaction, index.getIndexName(), index.getLockManager());
-                uniqueIndexLock.lockHandle = lockForIndex;
-                if (index.valueAlreadyMapped(uniqueIndexLock.key, null)) {
-                    res = Futures.exception(new UniqueIndexContraintViolationException(index.getIndexName(), key, "key " + key + ", already exists in table " + table.name + " on UNIQUE index "+index.getIndexName()));                    
-                }
-                if (res != null) {
-                    break;
+        LockHandle lock = null;
+        try {
+            lock = lockForWrite(key, transaction);
+            if (uniqueIndexes != null) {
+                for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
+                    AbstractIndexManager index = uniqueIndexLock.indexManager;
+                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                    if (transaction == null) {
+                        uniqueIndexLock.lockHandle = lockForIndex;
+                    }
+                    if (index.valueAlreadyMapped(uniqueIndexLock.key, null)) {
+                        res = Futures.exception(new UniqueIndexContraintViolationException(index.getIndexName(), key,
+                                "key " + key + ", already exists in table " + table.name + " on UNIQUE index " + index.getIndexName()));
+                    }
+                    if (res != null) {
+                        break;
+                    }
                 }
             }
-        }        
+        } catch (HerdDBInternalException err) {
+            res = Futures.exception(err);
+        }
         boolean fallbackToUpsert = false;
         if (res == null) {
             if (transaction != null) {
@@ -1218,10 +1228,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     ) {
        return releaseWriteLock(promise, lock, locksManager);
     }
-    
+
     private static <T> CompletableFuture<T> releaseWriteLock(
             CompletableFuture<T> promise, LockHandle lock, ILocalLockManager locksManager
     ) {
+        if (lock == null) {
+            return promise;
+        }
         return promise.whenComplete((tr, error) -> {
             locksManager.releaseWriteLock(lock);
         });
@@ -1290,20 +1303,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                    
-                    List<UniqueIndexLockReference> uniqueIndexes = null;  
+
+                    List<UniqueIndexLockReference> uniqueIndexes = null;
                     byte[] newValue;
                     try {
                         newValue = function.computeNewValue(actual, context, tableContext);
                         if (indexes != null) {
-                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);                            
+                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
                             for (AbstractIndexManager index : indexes.values()) {
                                 if (index.isUnique()) {
                                     Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
                                     if (uniqueIndexes == null) {
                                         uniqueIndexes = new ArrayList<>(1);
                                     }
-                                    uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                    uniqueIndexes.add(uniqueIndexLock);
+                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                    if (transaction == null) {
+                                        uniqueIndexLock.lockHandle = lockForIndex;
+                                    }
                                     if (index.valueAlreadyMapped(indexKey, actual.key)) {
                                         throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value "+indexKey+" already present in index "+index.getIndexName());
                                     }
@@ -1323,7 +1341,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         CompletableFuture<PendingLogEntryWork> res = Futures.exception(finalError);
                         if (uniqueIndexes != null) {
                             for (UniqueIndexLockReference lock : uniqueIndexes) {
-                                res = releaseWriteLock(res, lockHandle, lock.indexManager.getLockManager());
+                                res = releaseWriteLock(res, lock.lockHandle, lock.indexManager.getLockManager());
                             }
                         }
                         writes.add(res);
@@ -1426,14 +1444,56 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Predicate predicate = delete.getPredicate();
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
 
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+
+                    // ensure we are holding the write locks on every unique index
+                    List<UniqueIndexLockReference> uniqueIndexes = null;
+                    try {
+                        if (indexes != null) {
+                            DataAccessor dataAccessor = actual.getDataAccessor(table);
+                            for (AbstractIndexManager index : indexes.values()) {
+                                if (index.isUnique()) {
+                                    Bytes indexKey = RecordSerializer.serializeIndexKey(dataAccessor, index.getIndex(), index.getColumnNames());
+                                    if (uniqueIndexes == null) {
+                                        uniqueIndexes = new ArrayList<>(1);
+                                    }
+                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                    uniqueIndexes.add(uniqueIndexLock);
+                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                    if (transaction == null) {
+                                        uniqueIndexLock.lockHandle = lockForIndex;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                        locksManager.releaseLock(lockHandle);
+                        StatementExecutionException finalError;
+                        if (! (err instanceof StatementExecutionException)) {
+                            finalError = new StatementExecutionException(err.getMessage(), err);
+                        } else {
+                            finalError = (StatementExecutionException) err;
+                        }
+                        CompletableFuture<PendingLogEntryWork> res = Futures.exception(finalError);
+                        if (uniqueIndexes != null) {
+                            for (UniqueIndexLockReference lock : uniqueIndexes) {
+                                res = releaseWriteLock(res, lockHandle, lock.indexManager.getLockManager());
+                            }
+                        }
+                        writes.add(res);
+                        return;
+                    }
+
+
                     LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, null)));
+                    final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
                     lastKey.value = actual.key;
                     lastValue.value = actual.value;
                     updateCount.incrementAndGet();
@@ -3792,6 +3852,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             this.indexManager = indexManager;
             this.key = key;
         }
-        
+
     }
 }

@@ -20,10 +20,12 @@
 
 package herddb.core.indexes;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import herddb.core.DBManager;
 import herddb.core.TestUtils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexSeek;
@@ -34,23 +36,37 @@ import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Index;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.server.ServerConfiguration;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.DataAccessor;
+import herddb.utils.LockAcquireTimeoutException;
+import herddb.utils.RawString;
+import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * @author enrico.olivelli
  */
 public class SecondaryUniqueIndexAccessSuite {
 
+    @Rule
+    public TemporaryFolder tmpDir = new TemporaryFolder();
+    
     protected String indexType;
 
     public SecondaryUniqueIndexAccessSuite() {
@@ -60,7 +76,12 @@ public class SecondaryUniqueIndexAccessSuite {
     @Test
     public void secondaryUniqueIndexPrefixScan() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+        Path tmp = tmpDir.newFolder().toPath();
+        ServerConfiguration serverConfiguration = new ServerConfiguration(tmp);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_READLOCK_TIMEOUT, 3);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT, 3);
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), tmp, null,
+                serverConfiguration, NullStatsLogger.INSTANCE)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -94,7 +115,7 @@ public class SecondaryUniqueIndexAccessSuite {
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-
+            // cannot insert another record with '1-n1'
             herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
             });
@@ -105,16 +126,26 @@ public class SecondaryUniqueIndexAccessSuite {
             });
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('d',2,'n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('e',3,'n2')", Collections.emptyList());
-            
+
             // single record UPDATE
             herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
                 TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=1,name='n1' where id='d'", Collections.emptyList());
             });
-            
+
             // multi record UPDATE
             herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
                 TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=1,name='n1' where id='d'", Collections.emptyList());
             });
+
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=8", Collections.emptyList(), true, true, false, -1);
@@ -143,6 +174,52 @@ public class SecondaryUniqueIndexAccessSuite {
                 }
             }
 
+            // update the index
+            TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=10,name='n1' where id='a'", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=1,name='n1' where id='d'", Collections.emptyList());
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
+                    List<DataAccessor> consume = scan1.consume();
+                    assertEquals(1, consume.size());
+                    assertEquals(RawString.of("d"), consume.get(0).get("id"));
+                }
+            }
+
+            // delete, update the index
+            TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 where id='d'", Collections.emptyList());
+            // enure another record can be stored on the same key
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('o',1,'n1')", Collections.emptyList());
+
+            
+            // test transactions
+            long tx = TestUtils.beginTransaction(manager, "tblspace1");
+            // insert a new record, and a new index entry, but in transaction, the transacition will hold the index lock on "100-n100"
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t1',100,'n100')", Collections.emptyList(), new TransactionContext(tx));
+            Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+            assertEquals(1, transaction.locks.get("t1_n1_name").size());
+            // delete the same record, the index still hasn't been touched, but we are still holding a lock on "100-n100"
+            TestUtils.executeUpdate(manager, "DELETE FROM  tblspace1.t1 where id='t1'", Collections.emptyList(), new TransactionContext(tx));
+            // insert a new record again, with the same key in the index, we are still holding the lock on "100-n100"
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t2',100,'n100')", Collections.emptyList(), new TransactionContext(tx));
+            
+            // check that we are going to timeout on lock acquisition
+            StatementExecutionException err = herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t3',100,'n100')", Collections.emptyList());
+            });
+            assertThat(err.getCause(), instanceOf(LockAcquireTimeoutException.class));
+            
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+            
+            // cannot insert another record with "100-n100"
+            herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t3',100,'n100')", Collections.emptyList());
+            });
+            
+            
         }
 
     }

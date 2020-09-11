@@ -81,8 +81,11 @@ public class BRINIndexManager extends AbstractIndexManager {
     private final BlockRangeIndex<Bytes, Bytes> data;
     private final IndexDataStorage<Bytes, Bytes> storageLayer = new IndexDataStorageImpl();
 
-    public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
-        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
+    public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log,
+                            DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction,
+                            int writeLockTimeout, int readLockTimeout) {
+        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction,
+                                             writeLockTimeout, readLockTimeout);
         this.data = new BlockRangeIndex<>(
                 memoryManager.getMaxLogicalPageSize(),
                 memoryManager.getDataPageReplacementPolicy(),

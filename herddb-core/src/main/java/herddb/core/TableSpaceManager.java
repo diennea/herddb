@@ -389,6 +389,10 @@ public class TableSpaceManager {
                         manager.close();
                         tables.remove(manager.getTable().name);
                     } else {
+                        List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
+                        for (AbstractIndexManager indexManager : indexManagers) {
+                            indexManager.onTransactionRollback(transaction);
+                        }
                         manager.onTransactionRollback(transaction);
                     }
                 }
@@ -1712,12 +1716,20 @@ public class TableSpaceManager {
                 }
             }
         }
-
+        final int writeLockTimeout = dbmanager.getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT_DEFAULT
+        );
+        final int readLockTimeout = dbmanager.getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT_DEFAULT
+        );
         AbstractIndexManager indexManager;
         if (index.unique) {
             switch (index.type) {
                 case Index.TYPE_HASH:
-                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction,
+                                writeLockTimeout, readLockTimeout);
                     break;
                 default:
                     throw new DataStorageManagerException("invalid UNIQUE index type " + index.type);
@@ -1725,10 +1737,12 @@ public class TableSpaceManager {
         } else {
             switch (index.type) {
                 case Index.TYPE_HASH:
-                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction,
+                                writeLockTimeout, readLockTimeout);
                     break;
                 case Index.TYPE_BRIN:
-                    indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction,
+                                writeLockTimeout, readLockTimeout);
                     break;
                 default:
                     throw new DataStorageManagerException("invalid NON-UNIQUE index type " + index.type);

@@ -57,7 +57,10 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     private final boolean unique;
     private final ILocalLockManager lockManager;
  
-    public AbstractIndexManager(Index index, AbstractTableManager tableManager, DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log, long createdInTransaction) {
+    public AbstractIndexManager(Index index, AbstractTableManager tableManager,
+                                             DataStorageManager dataStorageManager, String tableSpaceUUID,
+                                             CommitLog log, long createdInTransaction,
+                                             int writeLockTimeout, int readLockTimeout) {
         this.index = index;
         this.createdInTransaction = createdInTransaction;
         this.tableManager = tableManager;
@@ -66,7 +69,10 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         this.log = log;
         this.unique = index.unique;
         if (unique) {
-            lockManager = new LocalLockManager();
+            LocalLockManager newLockManager = new LocalLockManager();
+            newLockManager.setWriteLockTimeout(writeLockTimeout);
+            newLockManager.setReadLockTimeout(readLockTimeout);
+            this.lockManager = newLockManager;
         } else {
             lockManager = null;
         }
@@ -216,8 +222,19 @@ public abstract class AbstractIndexManager implements AutoCloseable {
             }
             createdInTransaction = 0;
         }
+        if (lockManager != null) {
+            transaction.releaseLocksOnTable(getIndexName(), lockManager);
+        }
     }
-
+    
+    
+    final void onTransactionRollback(Transaction transaction) {
+        if (lockManager != null) {
+            transaction.releaseLocksOnTable(getIndexName(), lockManager);
+        }
+    }
+    
+    
     public final boolean isAvailable() {
         return createdInTransaction == 0;
     }
