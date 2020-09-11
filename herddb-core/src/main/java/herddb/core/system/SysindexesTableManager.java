@@ -45,6 +45,7 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
             .column("index_name", ColumnTypes.STRING)
             .column("index_uuid", ColumnTypes.STRING)
             .column("index_type", ColumnTypes.STRING)
+            .column("unique", ColumnTypes.STRING)
             .primaryKey("table_name", false)
             .primaryKey("index_name", false)
             .build();
@@ -71,7 +72,8 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
                         "table_name", r.table,
                         "index_name", r.name,
                         "index_uuid", r.uuid,
-                        "index_type", r.type
+                        "index_type", r.type,
+                        "unique", r.unique ? "true" : "false"
                 ))
                 .collect(Collectors.toList());
     }

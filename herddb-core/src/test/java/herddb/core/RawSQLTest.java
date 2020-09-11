@@ -2640,6 +2640,10 @@ public class RawSQLTest {
             } catch (StatementExecutionException ok) {
             }
 
+            execute(manager, "CREATE UNIQUE INDEX ixu1 ON tblspace1.tsql(n1)", Collections.emptyList());
+            Map<String, AbstractIndexManager> indexesOnTable = manager.getTableSpaceManager("tblspace1").getIndexesOnTable("tsql");
+            assertTrue(indexesOnTable.values().stream().anyMatch(s->s.getIndexName().equals("ixu1") && s.isUnique()));
+
         }
     }
 

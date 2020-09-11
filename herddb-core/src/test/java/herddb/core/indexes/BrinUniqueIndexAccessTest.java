@@ -23,14 +23,14 @@ package herddb.core.indexes;
 import herddb.model.Index;
 
 /**
- * Tests on HASH UNIQUE indexes
+ * Tests on BRIN UNIQUE indexes
  *
  * @author enrico.olivelli
  */
-public class HashUniqueIndexAccessTest extends SecondaryUniqueIndexAccessSuite {
+public class BrinUniqueIndexAccessTest extends SecondaryUniqueIndexAccessSuite {
 
-    public HashUniqueIndexAccessTest() {
-        super(Index.TYPE_HASH);
+    public BrinUniqueIndexAccessTest() {
+        super(Index.TYPE_BRIN);
     }
 
 }

@@ -497,7 +497,14 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public boolean valueAlreadyMapped(Bytes key, Bytes primaryKey) throws DataStorageManagerException {
-        throw new DataStorageManagerException("Not implemented");
+        if (primaryKey == null) {
+            return data.containsKey(key);
+        } else {
+            // updating a record, error if there is a mapping to another record
+            List<Bytes> current = data.search(key);
+            return !current.isEmpty()
+                    && !current.contains(primaryKey);
+        }
     }
 
     @Override

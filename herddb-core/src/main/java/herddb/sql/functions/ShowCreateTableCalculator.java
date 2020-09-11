@@ -59,7 +59,11 @@ public class ShowCreateTableCalculator {
 
             if (!indexes.isEmpty()) {
                 indexes.forEach(idx -> {
-                    joiner.add("INDEX " + idx.name + "(" + String.join(",", idx.columnNames) + ")");
+                    if (idx.unique) {
+                        joiner.add("UNIQUE INDEX " + idx.name + " (" + String.join(",", idx.columnNames) + ")");
+                    } else {
+                        joiner.add("INDEX " + idx.name + "(" + String.join(",", idx.columnNames) + ")");
+                    }
                 });
             }
         }

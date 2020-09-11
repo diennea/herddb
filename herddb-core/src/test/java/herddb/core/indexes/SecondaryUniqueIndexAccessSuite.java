@@ -69,8 +69,8 @@ public class SecondaryUniqueIndexAccessSuite {
 
     protected String indexType;
 
-    public SecondaryUniqueIndexAccessSuite() {
-        this.indexType = Index.TYPE_HASH;
+    public SecondaryUniqueIndexAccessSuite(String indexType) {
+        this.indexType = indexType;
     }
 
     @Test
@@ -219,6 +219,49 @@ public class SecondaryUniqueIndexAccessSuite {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t3',100,'n100')", Collections.emptyList());
             });
 
+            // again, with transactions, use 200-n200 as index key
+            tx = TestUtils.beginTransaction(manager, "tblspace1");
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('s1',200,'n200')", Collections.emptyList(), new TransactionContext(tx));
+            // touching the same record, lock has been already held by the transaction
+            TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=200 where n1=200", Collections.emptyList(), new TransactionContext(tx));
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            // again, lock the 200-n200 key with a fake update
+            tx = TestUtils.beginTransaction(manager, "tblspace1");
+            assertEquals(1, TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=200 where n1=200", Collections.emptyList(), new TransactionContext(tx)).getUpdateCount());
+
+            // timeout during an update, lock for 200-n200 is on the transaction, can't perform the same update from another context
+            err = herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=200 where n1=200", Collections.emptyList());
+            });
+            assertThat(err.getCause(), instanceOf(LockAcquireTimeoutException.class));
+
+            assertEquals(1, TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 where n1=200", Collections.emptyList(), new TransactionContext(tx)).getUpdateCount());
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('s1',200,'n200')", Collections.emptyList());
+
+            // select "FOR UPDATE" does not create locks for the index
+            tx = TestUtils.beginTransaction(manager, "tblspace1");
+            assertEquals(1, TestUtils.scan(manager, "SELECT * FROM tblspace1.t1 where n1=200 FOR UPDATE", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+            transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+            assertNull(transaction.locks.get("t1_n1_name"));
+            // but it creates a lock for the primary key
+            assertEquals(1, transaction.locks.get("t1").size());
+
+            assertEquals(1, TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=200 where n1=200", Collections.emptyList(), new TransactionContext(tx)).getUpdateCount());
+            // now we have the lock on the unique index
+            assertEquals(1, transaction.locks.get("t1_n1_name").size());
+            // still holding the lock for the primary key
+            assertEquals(1, transaction.locks.get("t1").size());
+
+            // timeout during an update, lock for 200-n200 is on the transaction, can't perform the same update from another context
+            err = herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
+                TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=200, name='n200' where id='t2'", Collections.emptyList());
+            });
+            assertThat(err.getCause(), instanceOf(LockAcquireTimeoutException.class));
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
 
         }
 

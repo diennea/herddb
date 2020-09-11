@@ -246,9 +246,6 @@ public class Index implements ColumnsList {
             if (uuid == null || uuid.isEmpty()) {
                 uuid = UUID.randomUUID().toString();
             }
-            if (unique && (!TYPE_HASH.equals(type))) {
-                throw new IllegalArgumentException("only index type " + TYPE_HASH + " is supported for UNIQUE indexes");
-            }
             return new Index(uuid, name, table, tablespace, type, columns.toArray(new Column[columns.size()]), unique);
         }
 

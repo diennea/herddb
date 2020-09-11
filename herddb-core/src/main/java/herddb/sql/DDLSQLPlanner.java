@@ -386,11 +386,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     } else if (index.getType().equalsIgnoreCase("INDEX")) {
                         String indexName = index.getName().toLowerCase();
                         String indexType = convertIndexType(null);
+                        boolean unique = isUnique(index.getType());
 
                         herddb.model.Index.Builder builder = herddb.model.Index
                                 .builder()
                                 .onTable(table)
                                 .name(indexName)
+                                .unique(unique)
                                 .type(indexType)
                                 .uuid(UUID.randomUUID().toString());
 
@@ -439,6 +441,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String tableName = fixMySqlBackTicks(s.getTable().getName().toLowerCase());
 
             String indexName = fixMySqlBackTicks(s.getIndex().getName().toLowerCase());
+            boolean unique = isUnique(s.getIndex().getType());
             String indexType = convertIndexType(s.getIndex().getType());
 
             herddb.model.Index.Builder builder = herddb.model.Index
@@ -446,6 +449,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     .name(indexName)
                     .uuid(UUID.randomUUID().toString())
                     .type(indexType)
+                    .unique(unique)
                     .table(tableName)
                     .tablespace(tableSpace);
 
@@ -470,11 +474,17 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
-    private String convertIndexType(String indexType) throws StatementExecutionException {
+    private static boolean isUnique(String indexType) throws StatementExecutionException {
+        return indexType != null && indexType.equalsIgnoreCase("UNIQUE");
+    }
+    private static String convertIndexType(String indexType) throws StatementExecutionException {
         if (indexType == null) {
             indexType = herddb.model.Index.TYPE_BRIN;
         } else {
             indexType = indexType.toLowerCase();
+        }
+        if (indexType.equals("unique")) {
+            return herddb.model.Index.TYPE_BRIN;
         }
         switch (indexType) {
             case herddb.model.Index.TYPE_HASH:

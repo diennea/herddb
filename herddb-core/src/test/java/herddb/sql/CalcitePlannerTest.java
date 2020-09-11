@@ -597,44 +597,47 @@ public class CalcitePlannerTest {
 
             TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23 WITH INDEXES", Collections.emptyList(),
                     true, false, true, -1);
-            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
-                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
-                ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
-                DataScanner dataScanner = scanResult.dataScanner;
+            assertTrue (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement || translatedQuery.plan.mainStatement instanceof ScanStatement);
 
-                String[] columns = dataScanner.getFieldNames();
-                List<DataAccessor> records = dataScanner.consume(2);
-                TuplesList tuplesList = new TuplesList(columns, records);
-                assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
-                Tuple values = (Tuple) records.get(0);
-                assertTrue("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,Primary KEY(k1,n1),INDEX ixn1s1(n1,s1))".equalsIgnoreCase(values.get("tabledef").toString()));
+            ScanResult scanResult = (ScanResult) manager.executePlan(translatedQuery.plan, translatedQuery.context, TransactionContext.NO_TRANSACTION);
+            DataScanner dataScanner = scanResult.dataScanner;
 
-                // Drop the table and indexes and recreate them again.
-                String showCreateCommandOutput = values.get("tabledef").toString();
+            String[] columns = dataScanner.getFieldNames();
+            List<DataAccessor> records = dataScanner.consumeAndClose();
+            TuplesList tuplesList = new TuplesList(columns, records);
+            assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
+            Tuple values = (Tuple) records.get(0);
+            assertEquals("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,PRIMARY KEY(k1,n1),INDEX ixn1s1(n1,s1))", values.get("tabledef").toString());
 
-                //drop the table
-                execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
+            // Drop the table and indexes and recreate them again.
+            String showCreateCommandOutput = values.get("tabledef").toString();
 
-                //ensure table has been dropped
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
-                    assertTrue(scan.consume().isEmpty());
-                }
+            //drop the table
+            execute(manager, "DROP TABLE tblspace1.test23", Collections.emptyList());
 
-                //ensure index has been dropped
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
-                    assertTrue(scan.consume().isEmpty());
-                }
-
-                execute(manager, showCreateCommandOutput, Collections.emptyList());
-                // Ensure the table is getting created
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
-                    assertFalse(scan.consume().isEmpty());
-                }
-                // Ensure index got created as well.
-                try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
-                    assertFalse(scan.consume().isEmpty());
-                }
+            //ensure table has been dropped
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
+                assertTrue(scan.consume().isEmpty());
             }
+
+            //ensure index has been dropped
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
+                assertTrue(scan.consume().isEmpty());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s2'", Collections.emptyList())) {
+                assertTrue(scan.consume().isEmpty());
+            }
+
+            execute(manager, showCreateCommandOutput, Collections.emptyList());
+            // Ensure the table is getting created
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='test23'", Collections.emptyList())) {
+                assertFalse(scan.consume().isEmpty());
+            }
+            // Ensure index got created as well.
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ixn1s1'", Collections.emptyList())) {
+                assertFalse(scan.consume().isEmpty());
+            }
+
         }
     }
 

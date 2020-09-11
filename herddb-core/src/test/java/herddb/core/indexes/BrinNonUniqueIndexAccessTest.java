@@ -27,9 +27,9 @@ import herddb.model.Index;
  *
  * @author enrico.olivelli
  */
-public class BrinIndexAccessTest extends SecondaryNonUniqueIndexAccessSuite {
+public class BrinNonUniqueIndexAccessTest extends SecondaryNonUniqueIndexAccessSuite {
 
-    public BrinIndexAccessTest() {
+    public BrinNonUniqueIndexAccessTest() {
         super(Index.TYPE_BRIN);
     }
 
