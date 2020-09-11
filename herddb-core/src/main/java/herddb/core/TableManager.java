@@ -41,7 +41,6 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.Predicate;
@@ -59,6 +58,7 @@ import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
 import herddb.model.TupleComparator;
+import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -1323,7 +1323,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                         uniqueIndexLock.lockHandle = lockForIndex;
                                     }
                                     if (index.valueAlreadyMapped(indexKey, actual.key)) {
-                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value "+indexKey+" already present in index "+index.getIndexName());
+                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
                                     }
                                 } else {
                                     RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
@@ -1333,7 +1333,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     } catch (IllegalArgumentException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
-                        if (! (err instanceof StatementExecutionException)) {
+                        if (!(err instanceof StatementExecutionException)) {
                             finalError = new StatementExecutionException(err.getMessage(), err);
                         } else {
                             finalError = (StatementExecutionException) err;
@@ -1474,7 +1474,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     } catch (IllegalArgumentException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
-                        if (! (err instanceof StatementExecutionException)) {
+                        if (!(err instanceof StatementExecutionException)) {
                             finalError = new StatementExecutionException(err.getMessage(), err);
                         } else {
                             finalError = (StatementExecutionException) err;

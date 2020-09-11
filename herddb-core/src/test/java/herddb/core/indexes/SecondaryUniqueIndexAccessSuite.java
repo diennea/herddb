@@ -21,12 +21,12 @@
 package herddb.core.indexes;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
-import herddb.core.DBManager;
-import herddb.core.TestUtils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
@@ -66,7 +66,7 @@ public class SecondaryUniqueIndexAccessSuite {
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
-    
+
     protected String indexType;
 
     public SecondaryUniqueIndexAccessSuite() {
@@ -194,7 +194,7 @@ public class SecondaryUniqueIndexAccessSuite {
             // enure another record can be stored on the same key
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('o',1,'n1')", Collections.emptyList());
 
-            
+
             // test transactions
             long tx = TestUtils.beginTransaction(manager, "tblspace1");
             // insert a new record, and a new index entry, but in transaction, the transacition will hold the index lock on "100-n100"
@@ -205,21 +205,21 @@ public class SecondaryUniqueIndexAccessSuite {
             TestUtils.executeUpdate(manager, "DELETE FROM  tblspace1.t1 where id='t1'", Collections.emptyList(), new TransactionContext(tx));
             // insert a new record again, with the same key in the index, we are still holding the lock on "100-n100"
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t2',100,'n100')", Collections.emptyList(), new TransactionContext(tx));
-            
-            // check that we are going to timeout on lock acquisition
+
+            // check that we are going to timeout on lock acquisition from another context (for instance no transaction)
             StatementExecutionException err = herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () -> {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t3',100,'n100')", Collections.emptyList());
             });
             assertThat(err.getCause(), instanceOf(LockAcquireTimeoutException.class));
-            
+
             TestUtils.commitTransaction(manager, "tblspace1", tx);
-            
+
             // cannot insert another record with "100-n100"
             herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('t3',100,'n100')", Collections.emptyList());
             });
-            
-            
+
+
         }
 
     }

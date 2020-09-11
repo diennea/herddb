@@ -193,7 +193,7 @@ public class Index implements ColumnsList {
             this.name = name;
             return this;
         }
-        
+
         public Builder unique(boolean unique) {
             this.unique = unique;
             return this;

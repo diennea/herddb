@@ -24,7 +24,7 @@ import herddb.core.HerdDBInternalException;
 /**
  * Timeout.
  */
-public class LockAcquireTimeoutException extends HerdDBInternalException {  
+public final class LockAcquireTimeoutException extends HerdDBInternalException {
 
     public LockAcquireTimeoutException(String message) {
         super(message);
@@ -37,5 +37,5 @@ public class LockAcquireTimeoutException extends HerdDBInternalException {
     public LockAcquireTimeoutException(Throwable cause) {
         super(cause);
     }
-    
+
 }

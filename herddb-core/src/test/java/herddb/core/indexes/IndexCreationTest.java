@@ -73,7 +73,7 @@ public class IndexCreationTest {
     public void hashNonUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
         recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, false);
     }
-    
+
     @Test
     public void hashUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
         recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, true);
