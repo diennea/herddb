@@ -18,17 +18,32 @@
 
  */
 
-package herddb.core.indexes;
+package herddb.model;
+
+import herddb.utils.Bytes;
 
 /**
- * Tests on HASH UNIQUE indexes
+ * Record already exists
  *
  * @author enrico.olivelli
  */
-public class HashUniqueIndexAccessTest extends SecondaryUniqueIndexAccessSuite {
+public class UniqueIndexContraintViolationException extends StatementExecutionException {
 
-//    public HashUniqueIndexAccessTest() {
-//        super(Index.TYPE_HASH);
-//    }
+    private final Bytes key;
+    private final String indexName;
+
+    public UniqueIndexContraintViolationException(String indexName, Bytes key, String message) {
+        super(message);
+        this.key = key;
+        this.indexName = indexName;
+    }
+
+    public Bytes getKey() {
+        return key;
+    }
+
+    public String getIndexName() {
+        return indexName;
+    }
 
 }

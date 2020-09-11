@@ -37,6 +37,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -48,7 +49,7 @@ import org.junit.Test;
 /**
  * @author enrico.olivelli
  */
-public abstract class SecondaryUniqueIndexAccessSuite {
+public class SecondaryUniqueIndexAccessSuite {
 
     protected String indexType;
 
@@ -88,27 +89,33 @@ public abstract class SecondaryUniqueIndexAccessSuite {
                             build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('a',1,'n1')", Collections.emptyList());
-            herddb.utils.TestUtils.assertThrows(Exception.class, () -> {
-                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
-            });            
-            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('d',2,'n2')", Collections.emptyList());
-            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('e',3,'n2')", Collections.emptyList());
 
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
+
+            herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
+            });
+            // multiple values
+            herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',8,'n1'),('c',1,'n1')", Collections.emptyList());
+            });
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('d',2,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('e',3,'n2')", Collections.emptyList());
+
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true, false, -1);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=8", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    assertEquals(3, scan1.consume().size());
+                    assertEquals(1, scan1.consume().size());
                 }
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1 and name='n2'", Collections.emptyList(), true, true, false, -1);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2 and name='n2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
@@ -121,7 +128,7 @@ public abstract class SecondaryUniqueIndexAccessSuite {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION)) {
-                    assertEquals(3, scan1.consume().size());
+                    assertEquals(4, scan1.consume().size());
                 }
             }
 

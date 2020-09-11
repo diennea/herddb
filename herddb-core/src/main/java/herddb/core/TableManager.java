@@ -41,6 +41,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
+import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.Predicate;
@@ -1152,7 +1153,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LockHandle lockForIndex = lockForWrite(key, transaction, index.getIndexName(), index.getLockManager());
                 uniqueIndexLock.lockHandle = lockForIndex;
                 if (index.containsKey(uniqueIndexLock.key)) {
-                    res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId+" on UNIQUE index "+index.getIndexName()));                    
+                    res = Futures.exception(new UniqueIndexContraintViolationException(index.getIndexName(), key, "key " + key + ", already exists in table " + table.name + " on UNIQUE index "+index.getIndexName()));                    
                 }
                 if (res != null) {
                     break;

@@ -20,7 +20,6 @@
 
 package herddb.core.indexes;
 
-import herddb.core.indexes.SecondaryNonUniqueIndexAccessSuite;
 import herddb.model.Index;
 
 /**
