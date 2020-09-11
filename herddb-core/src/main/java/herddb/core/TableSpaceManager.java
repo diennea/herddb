@@ -1538,10 +1538,10 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         try {
-            if (indexes.containsKey(statement.getIndexefinition().name)) {
-                throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
+            if (indexes.containsKey(statement.getIndexDefinition().name)) {
+                throw new IndexAlreadyExistsException(statement.getIndexDefinition().name);
             }
-            LogEntry entry = LogEntryFactory.createIndex(statement.getIndexefinition(), transaction);
+            LogEntry entry = LogEntryFactory.createIndex(statement.getIndexDefinition(), transaction);
             CommitLogResult pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
@@ -1714,17 +1714,26 @@ public class TableSpaceManager {
         }
 
         AbstractIndexManager indexManager;
-        switch (index.type) {
-            case Index.TYPE_HASH:
-                indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
-                break;
-            case Index.TYPE_BRIN:
-                indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
-                break;
-            default:
-                throw new DataStorageManagerException("invalid index type " + index.type);
+        if (index.unique) {
+            switch (index.type) {
+                case Index.TYPE_HASH:
+                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    break;
+                default:
+                    throw new DataStorageManagerException("invalid UNIQUE index type " + index.type);
+            }
+        } else {
+            switch (index.type) {
+                case Index.TYPE_HASH:
+                    indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    break;
+                case Index.TYPE_BRIN:
+                    indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                    break;
+                default:
+                    throw new DataStorageManagerException("invalid NON-UNIQUE index type " + index.type);
+            }
         }
-
         indexes.put(index.name, indexManager);
 
         Map<String, AbstractIndexManager> newMap = new HashMap<>(); // this must be mutable (see DROP INDEX)

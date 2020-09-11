@@ -493,6 +493,11 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
+    public boolean containsKey(Bytes key) throws DataStorageManagerException {
+        throw new DataStorageManagerException("Not implemented");
+    }
+
+    @Override
     public void close() {
         data.clear();
     }

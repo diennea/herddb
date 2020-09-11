@@ -45,6 +45,8 @@ public class Index implements ColumnsList {
     public static final String TYPE_HASH = "hash";
     public static final String TYPE_BRIN = "brin";
 
+    private static final int PROPERTY_UNIQUE = 0x01;
+
     public final String name;
     public final String uuid;
     public final String table;
@@ -53,6 +55,7 @@ public class Index implements ColumnsList {
     public final Column[] columns;
     public final String[] columnNames;
     public final Map<String, Column> columnByName = new HashMap<>();
+    public final boolean unique;
 
     @Override
     public String[] getPrimaryKey() {
@@ -66,9 +69,10 @@ public class Index implements ColumnsList {
 
     private Index(
             String uuid,
-            String name, String table, String tablespace, String type, Column[] columns
+            String name, String table, String tablespace, String type, Column[] columns, boolean unique
     ) {
         this.name = name;
+        this.unique = unique;
         this.uuid = uuid;
         this.table = table;
         this.tablespace = tablespace;
@@ -110,7 +114,11 @@ public class Index implements ColumnsList {
             String name = dii.readUTF();
             String uuid = dii.readUTF();
             String table = dii.readUTF();
-            dii.readVInt(); // for future implementations
+            int properties = dii.readVInt(); // extensible for future implementations
+            boolean unique = false;
+            if ((properties & PROPERTY_UNIQUE) == PROPERTY_UNIQUE) {
+                unique = true;
+            }
             String type = dii.readUTF();
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
@@ -126,7 +134,7 @@ public class Index implements ColumnsList {
                 dii.readVInt(); // for future implementations
                 columns[i] = Column.column(cname, ctype, serialPosition);
             }
-            return new Index(uuid, name, table, tablespace, type, columns);
+            return new Index(uuid, name, table, tablespace, type, columns, unique);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -141,7 +149,11 @@ public class Index implements ColumnsList {
             doo.writeUTF(name);
             doo.writeUTF(uuid);
             doo.writeUTF(table);
-            doo.writeVInt(0); // for future implementation
+            int properties = 0;
+            if (unique) {
+                properties = properties | PROPERTY_UNIQUE;
+            }
+            doo.writeVInt(properties); // exensible for future implementation
             doo.writeUTF(type);
             doo.writeVInt(columns.length);
             for (Column c : columns) {
@@ -166,6 +178,7 @@ public class Index implements ColumnsList {
         private String table;
         private String type = TYPE_HASH;
         private String tablespace = TableSpace.DEFAULT;
+        private boolean unique;
 
         private Builder() {
         }
@@ -178,6 +191,11 @@ public class Index implements ColumnsList {
 
         public Builder name(String name) {
             this.name = name;
+            return this;
+        }
+        
+        public Builder unique(boolean unique) {
+            this.unique = unique;
             return this;
         }
 
@@ -228,8 +246,10 @@ public class Index implements ColumnsList {
             if (uuid == null || uuid.isEmpty()) {
                 uuid = UUID.randomUUID().toString();
             }
-
-            return new Index(uuid, name, table, tablespace, type, columns.toArray(new Column[columns.size()]));
+            if (unique && (!TYPE_HASH.equals(type))) {
+                throw new IllegalArgumentException("only index type " + TYPE_HASH + " is supported for UNIQUE indexes");
+            }
+            return new Index(uuid, name, table, tablespace, type, columns.toArray(new Column[columns.size()]), unique);
         }
 
     }

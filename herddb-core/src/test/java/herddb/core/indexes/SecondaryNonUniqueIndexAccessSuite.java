@@ -18,8 +18,10 @@
 
  */
 
-package herddb.core;
+package herddb.core.indexes;
 
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -56,11 +58,11 @@ import org.junit.Test;
 /**
  * @author enrico.olivelli
  */
-public abstract class SecondaryIndexAccessSuite {
+public abstract class SecondaryNonUniqueIndexAccessSuite {
 
     protected String indexType;
 
-    public SecondaryIndexAccessSuite(String indexType) {
+    public SecondaryNonUniqueIndexAccessSuite(String indexType) {
         this.indexType = indexType;
     }
 

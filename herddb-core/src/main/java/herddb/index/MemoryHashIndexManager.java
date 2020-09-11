@@ -331,4 +331,9 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         data.clear();
     }
 
+    @Override
+    public boolean containsKey(Bytes key) throws DataStorageManagerException {
+        return data.containsKey(key);
+    }
+
 }

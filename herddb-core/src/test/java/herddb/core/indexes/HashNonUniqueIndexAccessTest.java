@@ -18,8 +18,9 @@
 
  */
 
-package herddb.core;
+package herddb.core.indexes;
 
+import herddb.core.indexes.SecondaryNonUniqueIndexAccessSuite;
 import herddb.model.Index;
 
 /**
@@ -27,9 +28,9 @@ import herddb.model.Index;
  *
  * @author enrico.olivelli
  */
-public class HashIndexAccessTest extends SecondaryIndexAccessSuite {
+public class HashNonUniqueIndexAccessTest extends SecondaryNonUniqueIndexAccessSuite {
 
-    public HashIndexAccessTest() {
+    public HashNonUniqueIndexAccessTest() {
         super(Index.TYPE_HASH);
     }
 

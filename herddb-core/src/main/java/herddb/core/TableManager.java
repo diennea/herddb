@@ -1044,10 +1044,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
+        return lockForWrite(key, transaction, table.name, locksManager);
+    }
+    
+    private static LockHandle lockForWrite(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
 //        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
         try {
             if (transaction != null) {
-                LockHandle lock = transaction.lookupLock(table.name, key);
+                LockHandle lock = transaction.lookupLock(lockKey, key);
                 if (lock != null) {
                     if (lock.write) {
                         // transaction already locked the key for writes
@@ -1055,14 +1059,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     } else {
                         // transaction already locked the key, but we need to upgrade the lock
                         locksManager.releaseLock(lock);
-                        transaction.unregisterUpgradedLocksOnTable(table.name, lock);
+                        transaction.unregisterUpgradedLocksOnTable(lockKey, lock);
                         lock = locksManager.acquireWriteLockForKey(key);
-                        transaction.registerLockOnTable(this.table.name, lock);
+                        transaction.registerLockOnTable(lockKey, lock);
                         return lock;
                     }
                 } else {
                     lock = locksManager.acquireWriteLockForKey(key);
-                    transaction.registerLockOnTable(this.table.name, lock);
+                    transaction.registerLockOnTable(lockKey, lock);
                     return lock;
                 }
             } else {
@@ -1074,15 +1078,19 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForRead(Bytes key, Transaction transaction) {
+        return lockForRead(key, transaction, table.name, locksManager);
+    }
+    
+    private static LockHandle lockForRead(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
         try {
             if (transaction != null) {
-                LockHandle lock = transaction.lookupLock(table.name, key);
+                LockHandle lock = transaction.lookupLock(lockKey, key);
                 if (lock != null) {
                     // transaction already locked the key
                     return lock;
                 } else {
                     lock = locksManager.acquireReadLockForKey(key);
-                    transaction.registerLockOnTable(this.table.name, lock);
+                    transaction.registerLockOnTable(lockKey, lock);
                     return lock;
                 }
             } else {
@@ -1108,12 +1116,21 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } catch (StatementExecutionException validationError) {
             return Futures.exception(validationError);
         }
+        List<UniqueIndexLockReference> uniqueIndexes = null;
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
-                for (AbstractIndexManager index : indexes.values()) {
-                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                for (AbstractIndexManager index : indexes.values()) {                    
+                    if (index.isUnique()) {
+                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                        if (uniqueIndexes == null) {                            
+                            uniqueIndexes = new ArrayList<>(1);
+                        }
+                        uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                    } else {
+                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                    }
                 }
             } catch (IllegalArgumentException err) {
                 return Futures.exception(new StatementExecutionException(err.getMessage(), err));
@@ -1127,27 +1144,45 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .exception(new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize));
         }
 
-        LockHandle lock = lockForWrite(key, transaction);
         CompletableFuture<StatementExecutionResult> res = null;
+        LockHandle lock = lockForWrite(key, transaction);
+        if (uniqueIndexes != null) {
+            for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
+                AbstractIndexManager index = uniqueIndexLock.indexManager;
+                LockHandle lockForIndex = lockForWrite(key, transaction, index.getIndexName(), index.getLockManager());
+                uniqueIndexLock.lockHandle = lockForIndex;
+                if (index.containsKey(uniqueIndexLock.key)) {
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId+" on UNIQUE index "+index.getIndexName()));                    
+                }
+                if (res != null) {
+                    break;
+                }
+            }
+        }        
         boolean fallbackToUpsert = false;
-        if (transaction != null) {
-            if (transaction.recordDeleted(table.name, key)) {
-                // OK, INSERT on a DELETED record inside this transaction
-            } else if (transaction.recordInserted(table.name, key) != null) {
-                // ERROR, INSERT on a INSERTED record inside this transaction
-                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+        if (res == null) {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // OK, INSERT on a DELETED record inside this transaction
+                } else if (transaction.recordInserted(table.name, key) != null) {
+                    // ERROR, INSERT on a INSERTED record inside this transaction
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                            "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                } else if (keyToPage.containsKey(key)) {
+                    if (insert.isUpsert()) {
+                        fallbackToUpsert = true;
+                    } else {
+                        res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                                "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                    }
+                }
             } else if (keyToPage.containsKey(key)) {
                 if (insert.isUpsert()) {
                     fallbackToUpsert = true;
                 } else {
-                    res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                            "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
                 }
-            }
-        } else if (keyToPage.containsKey(key)) {
-            if (insert.isUpsert()) {
-                fallbackToUpsert = true;
-            } else {
-                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
             }
         }
 
@@ -1165,6 +1200,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         insert.isReturnValues() ? Bytes.from_array(value) : null);
             }, tableSpaceManager.getCallbacksExecutor());
         }
+        if (uniqueIndexes != null) {
+            // TODO: reverse order
+            for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
+                res = releaseWriteLock(res, uniqueIndexLock.lockHandle, uniqueIndexLock.indexManager.getLockManager());
+            }
+        }
         if (transaction == null) {
             res = releaseWriteLock(res, lock);
         }
@@ -1173,6 +1214,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private CompletableFuture<StatementExecutionResult> releaseWriteLock(
             CompletableFuture<StatementExecutionResult> promise, LockHandle lock
+    ) {
+       return releaseWriteLock(promise, lock, locksManager);
+    }
+    
+    private static CompletableFuture<StatementExecutionResult> releaseWriteLock(
+            CompletableFuture<StatementExecutionResult> promise, LockHandle lock, ILocalLockManager locksManager
     ) {
         return promise.whenComplete((tr, error) -> {
             locksManager.releaseWriteLock(lock);
@@ -3700,4 +3747,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return keyToPageSortedAscending;
     }
 
+    private static class UniqueIndexLockReference {
+        final AbstractIndexManager indexManager;
+        final Bytes key;
+        private LockHandle lockHandle;
+
+        public UniqueIndexLockReference(AbstractIndexManager indexManager, Bytes key) {
+            this.indexManager = indexManager;
+            this.key = key;
+        }
+        
+    }
 }

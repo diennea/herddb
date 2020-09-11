@@ -18,8 +18,10 @@
 
  */
 
-package herddb.core;
+package herddb.core.indexes;
 
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;

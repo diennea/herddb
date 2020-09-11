@@ -18,12 +18,13 @@
 
  */
 
-package herddb.core;
+package herddb.core.indexes;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
+import herddb.core.DBManager;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -64,16 +65,21 @@ public class IndexCreationTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void brinRecoverTableAndIndexWithCheckpoint() throws Exception {
-        recoverTableAndIndexWithCheckpoint(Index.TYPE_BRIN);
+    public void brinNonUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_BRIN, false);
     }
 
     @Test
-    public void hashRecoverTableAndIndexWithCheckpoint() throws Exception {
-        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH);
+    public void hashNonUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, false);
+    }
+    
+    @Test
+    public void hashUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, true);
     }
 
-    private void recoverTableAndIndexWithCheckpoint(String indexType) throws Exception {
+    private void recoverTableAndIndexWithCheckpoint(String indexType, boolean unique) throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
@@ -125,7 +131,7 @@ public class IndexCreationTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(indexType).build();
+            index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(indexType).unique(unique).build();
             manager.executeStatement(new CreateIndexStatement(index), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             /* Access through index  */
