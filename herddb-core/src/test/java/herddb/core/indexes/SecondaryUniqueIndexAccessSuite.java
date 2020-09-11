@@ -99,11 +99,22 @@ public class SecondaryUniqueIndexAccessSuite {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
             });
             // multiple values
+            // it is not a transaction, the first INSERT will succeed
             herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
                 TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',8,'n1'),('c',1,'n1')", Collections.emptyList());
             });
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('d',2,'n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('e',3,'n2')", Collections.emptyList());
+            
+            // single record UPDATE
+            herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
+                TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=1,name='n1' where id='d'", Collections.emptyList());
+            });
+            
+            // multi record UPDATE
+            herddb.utils.TestUtils.assertThrows(UniqueIndexContraintViolationException.class, () -> {
+                TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set n1=1,name='n1' where id='d'", Collections.emptyList());
+            });
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=8", Collections.emptyList(), true, true, false, -1);

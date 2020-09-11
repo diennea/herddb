@@ -493,7 +493,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public boolean containsKey(Bytes key) throws DataStorageManagerException {
+    public boolean valueAlreadyMapped(Bytes key, Bytes primaryKey) throws DataStorageManagerException {
         throw new DataStorageManagerException("Not implemented");
     }
 

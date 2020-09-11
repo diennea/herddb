@@ -227,5 +227,5 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      */
     public abstract void truncate() throws DataStorageManagerException;
 
-    public abstract boolean containsKey(Bytes key)  throws DataStorageManagerException;
+    public abstract boolean valueAlreadyMapped(Bytes key, Bytes primaryKey)  throws DataStorageManagerException;
 }

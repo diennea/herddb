@@ -332,8 +332,15 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public boolean containsKey(Bytes key) throws DataStorageManagerException {
-        return data.containsKey(key);
+    public boolean valueAlreadyMapped(Bytes key, Bytes primaryKey) throws DataStorageManagerException {
+        if (primaryKey == null) {
+            // new record, error if there is any mapping
+            return data.containsKey(key);
+        } else {
+            // updating a record, error if there is a mapping to another record
+            List<Bytes> current = data.getOrDefault(key, Collections.emptyList());
+            return !current.contains(primaryKey);
+        }
     }
 
 }

@@ -1152,7 +1152,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 AbstractIndexManager index = uniqueIndexLock.indexManager;
                 LockHandle lockForIndex = lockForWrite(key, transaction, index.getIndexName(), index.getLockManager());
                 uniqueIndexLock.lockHandle = lockForIndex;
-                if (index.containsKey(uniqueIndexLock.key)) {
+                if (index.valueAlreadyMapped(uniqueIndexLock.key, null)) {
                     res = Futures.exception(new UniqueIndexContraintViolationException(index.getIndexName(), key, "key " + key + ", already exists in table " + table.name + " on UNIQUE index "+index.getIndexName()));                    
                 }
                 if (res != null) {
@@ -1219,8 +1219,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
        return releaseWriteLock(promise, lock, locksManager);
     }
     
-    private static CompletableFuture<StatementExecutionResult> releaseWriteLock(
-            CompletableFuture<StatementExecutionResult> promise, LockHandle lock, ILocalLockManager locksManager
+    private static <T> CompletableFuture<T> releaseWriteLock(
+            CompletableFuture<T> promise, LockHandle lock, ILocalLockManager locksManager
     ) {
         return promise.whenComplete((tr, error) -> {
             locksManager.releaseWriteLock(lock);
@@ -1290,18 +1290,43 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                    byte[] newValue = null;
+                    
+                    List<UniqueIndexLockReference> uniqueIndexes = null;  
+                    byte[] newValue;
                     try {
                         newValue = function.computeNewValue(actual, context, tableContext);
                         if (indexes != null) {
-                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);                            
                             for (AbstractIndexManager index : indexes.values()) {
-                                RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                                if (index.isUnique()) {
+                                    Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                                    if (uniqueIndexes == null) {
+                                        uniqueIndexes = new ArrayList<>(1);
+                                    }
+                                    uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                                    if (index.valueAlreadyMapped(indexKey, actual.key)) {
+                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value "+indexKey+" already present in index "+index.getIndexName());
+                                    }
+                                } else {
+                                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                                }
                             }
                         }
                     } catch (IllegalArgumentException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(Futures.exception(new StatementExecutionException(err.getMessage(), err)));
+                        StatementExecutionException finalError;
+                        if (! (err instanceof StatementExecutionException)) {
+                            finalError = new StatementExecutionException(err.getMessage(), err);
+                        } else {
+                            finalError = (StatementExecutionException) err;
+                        }
+                        CompletableFuture<PendingLogEntryWork> res = Futures.exception(finalError);
+                        if (uniqueIndexes != null) {
+                            for (UniqueIndexLockReference lock : uniqueIndexes) {
+                                res = releaseWriteLock(res, lockHandle, lock.indexManager.getLockManager());
+                            }
+                        }
+                        writes.add(res);
                         return;
                     }
 
@@ -1316,7 +1341,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                     LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
                     lastKey.value = actual.key;
                     lastValue.value = newValue;
                     updateCount.incrementAndGet();
@@ -1340,8 +1366,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null && pending.lockHandle != null) {
-                                locksManager.releaseLock(pending.lockHandle);
+                            if (pending != null) {
+                                releasePendingLogEntryWorkLocks(pending);
                             }
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
@@ -1362,9 +1388,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         } finally {
                             if (pendings != null) {
                                 for (PendingLogEntryWork pending : pendings) {
-                                    if (pending.lockHandle != null) {
-                                        locksManager.releaseLock(pending.lockHandle);
-                                    }
+                                    releasePendingLogEntryWorkLocks(pending);
                                 }
                             }
                         }
@@ -1381,12 +1405,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final LogEntry entry;
         final CommitLogResult pos;
         final LockHandle lockHandle;
+        final List<UniqueIndexLockReference> uniqueIndexes;
 
-        public PendingLogEntryWork(LogEntry entry, CommitLogResult pos, LockHandle lockHandle) {
+        public PendingLogEntryWork(LogEntry entry, CommitLogResult pos, LockHandle lockHandle, List<UniqueIndexLockReference> uniqueIndexes) {
             super();
             this.entry = entry;
             this.pos = pos;
             this.lockHandle = lockHandle;
+            this.uniqueIndexes = uniqueIndexes;
         }
     }
 
@@ -1407,7 +1433,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                     LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, null)));
                     lastKey.value = actual.key;
                     lastValue.value = actual.value;
                     updateCount.incrementAndGet();
@@ -1430,8 +1456,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null && pending.lockHandle != null) {
-                                locksManager.releaseLock(pending.lockHandle);
+                            if (pending != null) {
+                                 releasePendingLogEntryWorkLocks(pending);
                             }
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
@@ -1452,9 +1478,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         } finally {
                             if (pendings != null) {
                                 for (PendingLogEntryWork pending : pendings) {
-                                    if (pending.lockHandle != null) {
-                                        locksManager.releaseLock(pending.lockHandle);
-                                    }
+                                    releasePendingLogEntryWorkLocks(pending);
                                 }
                             }
                         }
@@ -1463,6 +1487,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                                 delete.isReturnValues() ? lastValue.value : null);
                     });
+        }
+    }
+
+    private void releasePendingLogEntryWorkLocks(PendingLogEntryWork pending) {
+        if (pending.uniqueIndexes != null) {
+            for (UniqueIndexLockReference ref : pending.uniqueIndexes) {
+                ref.indexManager.getLockManager().releaseLock(ref.lockHandle);
+            }
+        }
+        if (pending.lockHandle != null) {
+            locksManager.releaseLock(pending.lockHandle);
         }
     }
 
