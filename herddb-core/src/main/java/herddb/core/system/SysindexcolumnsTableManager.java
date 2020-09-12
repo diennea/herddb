@@ -99,7 +99,7 @@ public class SysindexcolumnsTableManager extends AbstractSystemTableManager {
                                 "column_name", cc.name,
                                 "ordinal_position", pos++,
                                 "clustered", 0,
-                                "unique", 0
+                                "unique", index.unique ? 1: 0
                         ));
                     }
                 });

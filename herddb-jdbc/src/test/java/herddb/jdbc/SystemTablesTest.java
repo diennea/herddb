@@ -66,6 +66,7 @@ public class SystemTablesTest {
                      Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE INDEX mytableindex ON mytable(name)");
+                    statement.execute("CREATE UNIQUE INDEX mytableindex2 ON mytable(name, key)");
                     statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string not null, ts timestamp)");
                     statement.execute("CREATE TABLE mytable3 (n2 int primary key auto_increment, age int not null default 99, phone long not null, salary double, married bool)");
 
@@ -185,9 +186,15 @@ public class SystemTablesTest {
                                 String value = rs.getString(i + 1);
                                 record.add(value);
                             }
+                            if (rs.getString("INDEX_NAME").equals("mytableindex2")) {
+                                assertFalse(rs.getBoolean("NON_UNIQUE"));
+                            }
+                            if (rs.getString("INDEX_NAME").equals("mytableindex")) {
+                                assertTrue(rs.getBoolean("NON_UNIQUE"));
+                            }
                             records.add(record);
                         }
-                        assertEquals(2, records.size()); // pk + secondary index
+                        assertEquals(4, records.size()); // pk + secondary indexed
                     }
 
                     try (ResultSet rs = metaData.getPrimaryKeys(null, null, "mytable")) {
@@ -215,7 +222,7 @@ public class SystemTablesTest {
                             }
                             records.add(record);
                         }
-                        assertEquals(1, records.size()); // only pk
+                        assertEquals(3, records.size()); // only pk + 1 unique index with two columns
                     }
 
                     try (ResultSet rs = metaData.getIndexInfo(null, null, null, true, false)) {
@@ -229,7 +236,7 @@ public class SystemTablesTest {
                             records.add(record);
                         }
                         // this is to be incremented at every new systable
-                        assertEquals(22, records.size());
+                        assertEquals(24, records.size());
                     }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();
