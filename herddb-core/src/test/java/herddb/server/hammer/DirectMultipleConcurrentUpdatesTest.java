@@ -68,45 +68,66 @@ public class DirectMultipleConcurrentUpdatesTest {
 
     @Test
     public void test() throws Exception {
-        performTest(false, 0, false);
+        performTest(false, 0, false, false);
     }
 
     @Test
     public void testWithTransactions() throws Exception {
-        performTest(true, 0, false);
+        performTest(true, 0, false, false);
     }
 
     @Test
     public void testWithCheckpoints() throws Exception {
-        performTest(false, 2000, false);
+        performTest(false, 2000, false, false);
     }
 
     @Test
     public void testWithTransactionsWithCheckpoints() throws Exception {
-        performTest(true, 2000, false);
+        performTest(true, 2000, false, false);
     }
 
     @Test
     public void testWithIndexes() throws Exception {
-        performTest(false, 0, true);
+        performTest(false, 0, true, false);
     }
 
     @Test
     public void testWithTransactionsAndIndexes() throws Exception {
-        performTest(true, 0, true);
+        performTest(true, 0, true, false);
     }
 
     @Test
     public void testWithCheckpointsAndIndexes() throws Exception {
-        performTest(false, 2000, true);
+        performTest(false, 2000, true, false);
     }
 
     @Test
     public void testWithTransactionsWithCheckpointsAndIndexes() throws Exception {
-        performTest(true, 2000, true);
+        performTest(true, 2000, true, false);
     }
 
-    private void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes) throws Exception {
+
+    @Test
+    public void testWithUniqueIndexes() throws Exception {
+        performTest(false, 0, true, true);
+    }
+
+    @Test
+    public void testWithTransactionsAndUniqueIndexes() throws Exception {
+        performTest(true, 0, true, true);
+    }
+
+    @Test
+    public void testWithCheckpointsAndUniqueIndexes() throws Exception {
+        performTest(false, 2000, true, true);
+    }
+
+    @Test
+    public void testWithTransactionsWithCheckpointsAndUniqueIndexes() throws Exception {
+        performTest(true, 2000, true, true);
+    }
+
+    private void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes, boolean uniqueIndexes) throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
@@ -125,7 +146,12 @@ public class DirectMultipleConcurrentUpdatesTest {
             execute(manager, "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", Collections.emptyList());
 
             if (withIndexes) {
-                execute(manager, "CREATE INDEX theindex ON mytable (n1 long)", Collections.emptyList());
+                if (uniqueIndexes) {
+                    // use n1 + key in order to not have collisions and lock timeouts
+                    execute(manager, "CREATE UNIQUE INDEX theindex ON mytable (n1, key)", Collections.emptyList());
+                } else {
+                    execute(manager, "CREATE INDEX theindex ON mytable (n1)", Collections.emptyList());
+                }
             }
 
             long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);
