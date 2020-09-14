@@ -1135,7 +1135,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                     }
                 }
-            } catch (IllegalArgumentException err) {
+            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
                 return Futures.exception(new StatementExecutionException(err.getMessage(), err));
             }
         }

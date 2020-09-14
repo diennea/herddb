@@ -391,9 +391,13 @@ public class TableSpaceManager {
                         Table table = manager.getTable();
                         if (transaction.isNewTable(table.name)) {
                             LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
-                            manager.dropTableData();
-                            manager.close();
-                            tables.remove(manager.getTable().name);
+                            disposeTable(manager);
+                            Map<String, AbstractIndexManager> indexes = indexesByTable.remove(manager.getTable().name);
+                            if (indexes != null) {
+                                for (AbstractIndexManager indexManager : indexes.values()) {
+                                    disposeIndexManager(indexManager);
+                                }
+                            }
                         } else {
                             manager.onTransactionRollback(transaction);
                         }
@@ -428,9 +432,7 @@ public class TableSpaceManager {
                         for (String dropped : transaction.droppedTables) {
                             for (AbstractTableManager manager : managers) {
                                 if (manager.getTable().name.equals(dropped)) {
-                                    manager.dropTableData();
-                                    manager.close();
-                                    tables.remove(manager.getTable().name);
+                                    disposeTable(manager);
                                 }
                             }
                         }
@@ -439,13 +441,7 @@ public class TableSpaceManager {
                         for (String dropped : transaction.droppedIndexes) {
                             for (AbstractIndexManager manager : indexManagers) {
                                 if (manager.getIndex().name.equals(dropped)) {
-                                    manager.dropIndexData();
-                                    manager.close();
-                                    indexes.remove(manager.getIndex().name);
-                                    Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                                    if (indexesForTable != null) {
-                                        indexesForTable.remove(manager.getIndex().name);
-                                    }
+                                    disposeIndexManager(manager);
                                 }
                             }
                         }
@@ -502,9 +498,11 @@ public class TableSpaceManager {
                 } else {
                     AbstractTableManager manager = tables.get(tableName);
                     if (manager != null) {
-                        manager.dropTableData();
-                        manager.close();
-                        tables.remove(manager.getTable().name);
+                        disposeTable(manager);
+                        Map<String, AbstractIndexManager> indexes = indexesByTable.get(tableName);
+                        if (indexes != null && !indexes.isEmpty()) {
+                            LOGGER.log(Level.SEVERE, "It looks like we are dropping a table " + tableName + " with these indexes " + indexes);
+                        }
                     }
                 }
 
@@ -522,13 +520,7 @@ public class TableSpaceManager {
                 } else {
                     AbstractIndexManager manager = indexes.get(indexName);
                     if (manager != null) {
-                        manager.dropIndexData();
-                        manager.close();
-                        indexes.remove(manager.getIndexName());
-                        Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                        if (indexesForTable != null) {
-                            indexesForTable.remove(manager.getIndex().name);
-                        }
+                        disposeIndexManager(manager);
                     }
                 }
 
@@ -608,6 +600,23 @@ public class TableSpaceManager {
             tableManager.apply(position, entry, recovery);
         }
 
+    }
+
+    private void disposeTable(AbstractTableManager manager) throws DataStorageManagerException {
+        manager.dropTableData();
+        manager.close();
+        tables.remove(manager.getTable().name);
+    }
+
+    private void disposeIndexManager(AbstractIndexManager indexManager) throws DataStorageManagerException {
+        indexManager.dropIndexData();
+        indexManager.close();
+        indexes.remove(indexManager.getIndex().name);
+        Map<String, AbstractIndexManager> indexesForTable =
+                indexesByTable.get(indexManager.getIndex().table);
+        if (indexesForTable != null) {
+            indexesForTable.remove(indexManager.getIndex().name);
+        }
     }
 
     private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog, boolean prepareActions) throws DataStorageManagerException,
@@ -1524,7 +1533,9 @@ public class TableSpaceManager {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
             }
             for (Index additionalIndex : statement.getAdditionalIndexes()) {
-                if (indexes.containsKey(additionalIndex.name)) {
+                AbstractIndexManager exists = indexes.get(additionalIndex.name);
+                if (exists != null) {
+                    LOGGER.log(Level.INFO, "Error while creating index " + additionalIndex.name + ", there is already an index " + exists.getIndex().name + " on table " + exists.getIndex().table);
                     throw new IndexAlreadyExistsException(additionalIndex.name);
                 }
             }
@@ -1558,7 +1569,10 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         try {
-            if (indexes.containsKey(statement.getIndexDefinition().name)) {
+            AbstractIndexManager exists = indexes.get(statement.getIndexDefinition().name);
+            if (exists != null) {
+                LOGGER.log(Level.INFO, "Error while creating index " + statement.getIndexDefinition().name
+                        + ", there is already an index " + exists.getIndex().name + " on table " + exists.getIndex().table);
                 throw new IndexAlreadyExistsException(statement.getIndexDefinition().name);
             }
             LogEntry entry = LogEntryFactory.createIndex(statement.getIndexDefinition(), transaction);
@@ -1808,6 +1822,10 @@ public class TableSpaceManager {
         if (!oldTableName.equalsIgnoreCase(table.name)) {
             tables.remove(oldTableName);
             tables.put(table.name, tableManager);
+            Map<String, AbstractIndexManager> removed = indexesByTable.remove(oldTableName);
+            if (removed != null && !removed.isEmpty()) {
+                indexesByTable.put(table.name, removed);
+            }
         }
         return tableManager;
     }
