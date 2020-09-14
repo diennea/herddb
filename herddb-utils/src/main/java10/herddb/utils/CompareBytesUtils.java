@@ -21,19 +21,12 @@
 package herddb.utils;
 
 import java.util.Arrays;
-import java.util.logging.Logger;
 
 /**
  * Java 9 compatibile version. Use Arrays.compare(byte[], byte[]) which leverage
  * HotSpot intrisicts
  */
 public final class CompareBytesUtils {
-
-    private static final Logger LOG = Logger.getLogger(CompareBytesUtils.class.getName());
-
-    static {
-        LOG.info("Using Arrays#compare(byte[], byte[]), available from JDK10+");
-    }
 
     private CompareBytesUtils() {
     }

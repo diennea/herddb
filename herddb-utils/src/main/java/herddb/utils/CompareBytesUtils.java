@@ -22,19 +22,12 @@ package herddb.utils;
 
 import io.netty.util.internal.PlatformDependent;
 import java.util.Arrays;
-import java.util.logging.Logger;
 
 /**
  * Java 8 compatibile version. In Java 8 you cannot use Arrays.compare(byte[],
  * byte[])
  */
 public final class CompareBytesUtils {
-
-    private static final Logger LOG = Logger.getLogger(CompareBytesUtils.class.getName());
-
-    static {
-        LOG.info("Not Using Arrays#compare(byte[], byte[]). Using legacy pure-Java implementation, use JDK10 in order to get best performances");
-    }
 
     private CompareBytesUtils() {
     }
