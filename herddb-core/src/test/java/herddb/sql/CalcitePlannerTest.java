@@ -594,6 +594,7 @@ public class CalcitePlannerTest {
                     + "s1 string not null, n1 int, primary key(k1,n1))", Collections.emptyList());
 
             execute(manager, "CREATE INDEX ixn1s1 on tblspace1.test23(n1,s1)", Collections.emptyList());
+            execute(manager, "CREATE UNIQUE INDEX ixn1s2 on tblspace1.test23(n1,s1,k1)", Collections.emptyList());
 
             TranslatedQuery translatedQuery = manager.getPlanner().translate("tblspace1", "SHOW CREATE TABLE tblspace1.test23 WITH INDEXES", Collections.emptyList(),
                     true, false, true, -1);
@@ -607,7 +608,7 @@ public class CalcitePlannerTest {
             TuplesList tuplesList = new TuplesList(columns, records);
             assertTrue(tuplesList.columnNames[0].equalsIgnoreCase("tabledef"));
             Tuple values = (Tuple) records.get(0);
-            assertEquals("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,PRIMARY KEY(k1,n1),INDEX ixn1s1(n1,s1))", values.get("tabledef").toString());
+            assertEquals("CREATE TABLE tblspace1.test23(k1 string not null,s1 string not null,n1 integer,PRIMARY KEY(k1,n1),INDEX ixn1s1(n1,s1),UNIQUE KEY ixn1s2 (n1,s1,k1))", values.get("tabledef").toString());
 
             // Drop the table and indexes and recreate them again.
             String showCreateCommandOutput = values.get("tabledef").toString();

@@ -332,6 +332,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     .name(tableName)
                     .tablespace(tableSpace);
             Set<String> primaryKey = new HashSet<>();
+            Set<String> simpleUniqueFields = new HashSet<>();
 
             if (s.getIndexes() != null) {
                 for (Index index : s.getIndexes()) {
@@ -357,7 +358,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 Bytes defaultValue = decodeDefaultValue(cf, type);
 
                 if (!columnSpecs.isEmpty()) {
-
                     boolean auto_increment = decodeAutoIncrement(columnSpecs);
                     if (columnSpecs.contains("PRIMARY")) {
                         foundPk = true;
@@ -365,6 +365,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     }
                     if (auto_increment && primaryKey.contains(columnName)) {
                         tablebuilder.primaryKey(columnName, auto_increment);
+                    }
+                    boolean isUnique = columnSpecs.contains("UNIQUE");
+                    if (isUnique) {
+                        simpleUniqueFields.add(columnName);
                     }
                 }
 
@@ -383,10 +387,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 for (Index index : s.getIndexes()) {
                     if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
 
-                    } else if (index.getType().equalsIgnoreCase("INDEX")) {
+                    } else if (index.getType().equalsIgnoreCase("INDEX")
+                            || index.getType().equalsIgnoreCase("KEY")
+                            || index.getType().equalsIgnoreCase("UNIQUE KEY")
+                            ) {
                         String indexName = index.getName().toLowerCase();
                         String indexType = convertIndexType(null);
-                        boolean unique = isUnique(index.getType());
+                        boolean unique = index.getType().equalsIgnoreCase("UNIQUE KEY");
 
                         herddb.model.Index.Builder builder = herddb.model.Index
                                 .builder()
@@ -409,6 +416,17 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                         otherIndexes.add(builder.build());
                     }
                 }
+            }
+            for (String col : simpleUniqueFields) {
+                herddb.model.Index.Builder builder = herddb.model.Index
+                        .builder()
+                        .onTable(table)
+                        .name("unique" + col)
+                        .unique(true)
+                        .type(herddb.model.Index.TYPE_BRIN)
+                        .uuid(UUID.randomUUID().toString())
+                        .column(col, table.getColumn(col).type);
+                otherIndexes.add(builder.build());
             }
 
             CreateTableStatement statement = new CreateTableStatement(table, otherIndexes, isNotExsists);

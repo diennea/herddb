@@ -60,7 +60,7 @@ public class ShowCreateTableCalculator {
             if (!indexes.isEmpty()) {
                 indexes.forEach(idx -> {
                     if (idx.unique) {
-                        joiner.add("UNIQUE INDEX " + idx.name + " (" + String.join(",", idx.columnNames) + ")");
+                        joiner.add("UNIQUE KEY " + idx.name + " (" + String.join(",", idx.columnNames) + ")");
                     } else {
                         joiner.add("INDEX " + idx.name + "(" + String.join(",", idx.columnNames) + ")");
                     }
