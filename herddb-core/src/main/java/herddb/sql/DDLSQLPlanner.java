@@ -421,7 +421,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 herddb.model.Index.Builder builder = herddb.model.Index
                         .builder()
                         .onTable(table)
-                        .name("unique" + col)
+                        .name(table.name + "_unique_" + col)
                         .unique(true)
                         .type(herddb.model.Index.TYPE_BRIN)
                         .uuid(UUID.randomUUID().toString())

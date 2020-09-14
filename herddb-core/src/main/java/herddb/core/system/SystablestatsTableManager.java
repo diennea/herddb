@@ -27,6 +27,7 @@ import herddb.core.stats.TableManagerStats;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,8 +63,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
+        List<Table> tables = tableSpaceManager.getAllVisibleTables(transaction);
         List<Record> result = new ArrayList<>();
         for (Table r : tables) {
             AbstractTableManager tableManager = tableSpaceManager.getTableManager(r.name);

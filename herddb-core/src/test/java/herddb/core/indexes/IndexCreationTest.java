@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -39,6 +40,7 @@ import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
@@ -219,10 +221,37 @@ public class IndexCreationTest {
             assertTrue(indexesOnTable.get("index5u").isUnique());
             assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("index5u").getIndex().columnByName.get("field").type);
             assertEquals(ColumnTypes.NOTNULL_LONG, indexesOnTable.get("index5u").getIndex().columnByName.get("table_id").type);
-            assertTrue(indexesOnTable.get("uniquesecondfield").isUnique());
-            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("uniquesecondfield").getIndex().columnByName.get("secondfield").type);
+            assertTrue(indexesOnTable.get("table_5_unique_secondfield").isUnique());
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("table_5_unique_secondfield").getIndex().columnByName.get("secondfield").type);
             assertEquals("Missing some index " + indexesOnTable.keySet(), 4, indexesOnTable.size());
 
+
+            // create index and table with one single statement, in transaction
+            StatementExecutionResult execute =
+                    execute(manager,
+                            "CREATE TABLE tbl1.table_6 (TABLE_ID BIGINT NOT NULL,"
+                                    + "FIELD STRING NOT NULL,"
+                                    + "SECONDFIELD TIMESTAMP UNIQUE," // single unique column
+                                    + "PRIMARY KEY (TABLE_ID),"
+                                    + "INDEX t6index(field),"
+                                    + "KEY t6index2(field,secondfield),"
+                                    + "UNIQUE KEY index6u(field,table_id)" // we don't support "UNIQUE INDEX", but "UNIQUE KEY"
+                                    + ")",
+                            Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            long tx = execute.transactionId;
+            indexesOnTable = manager.getTableSpaceManager("tbl1").getIndexesOnTable("table_6");
+            assertFalse(indexesOnTable.get("t6index").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t6index").getIndex().columnByName.get("field").type);
+            assertFalse(indexesOnTable.get("t6index2").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t6index2").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("t6index2").getIndex().columnByName.get("secondfield").type);
+            assertTrue(indexesOnTable.get("index6u").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("index6u").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.NOTNULL_LONG, indexesOnTable.get("index6u").getIndex().columnByName.get("table_id").type);
+            assertTrue(indexesOnTable.get("table_6_unique_secondfield").isUnique());
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("table_6_unique_secondfield").getIndex().columnByName.get("secondfield").type);
+            assertEquals("Missing some index " + indexesOnTable.keySet(), 4, indexesOnTable.size());
+            TestUtils.commitTransaction(manager, "tbl1", tx);
         }
 
     }

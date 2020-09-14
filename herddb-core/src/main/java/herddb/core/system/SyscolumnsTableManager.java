@@ -26,6 +26,7 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,8 +58,8 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
+        List<Table> tables = tableSpaceManager.getAllVisibleTables(transaction);
         List<Record> result = new ArrayList<>();
         for (Table t : tables) {
             int pos = 1;

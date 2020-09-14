@@ -379,21 +379,24 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id + ", only " + transactions.keySet());
                 }
+                List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
+                for (AbstractIndexManager indexManager : indexManagers) {
+                    if (indexManager.getCreatedInTransaction() == 0 || indexManager.getCreatedInTransaction() == id) {
+                        indexManager.onTransactionRollback(transaction);
+                    }
+                }
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
-
-                    Table table = manager.getTable();
-                    if (transaction.isNewTable(table.name)) {
-                        LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
-                        manager.dropTableData();
-                        manager.close();
-                        tables.remove(manager.getTable().name);
-                    } else {
-                        List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
-                        for (AbstractIndexManager indexManager : indexManagers) {
-                            indexManager.onTransactionRollback(transaction);
+                    if (manager.getCreatedInTransaction() == 0 || manager.getCreatedInTransaction() == id) {
+                        Table table = manager.getTable();
+                        if (transaction.isNewTable(table.name)) {
+                            LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
+                            manager.dropTableData();
+                            manager.close();
+                            tables.remove(manager.getTable().name);
+                        } else {
+                            manager.onTransactionRollback(transaction);
                         }
-                        manager.onTransactionRollback(transaction);
                     }
                 }
                 transactions.remove(transaction.transactionId);
@@ -409,11 +412,15 @@ public class TableSpaceManager {
                 transaction.sync(commit);
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
-                    manager.onTransactionCommit(transaction, recovery);
+                    if (manager.getCreatedInTransaction() == 0 || manager.getCreatedInTransaction() == id) {
+                        manager.onTransactionCommit(transaction, recovery);
+                    }
                 }
                 List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
                 for (AbstractIndexManager indexManager : indexManagers) {
-                    indexManager.onTransactionCommit(transaction, recovery);
+                    if (indexManager.getCreatedInTransaction() == 0 || indexManager.getCreatedInTransaction() == id) {
+                        indexManager.onTransactionCommit(transaction, recovery);
+                    }
                 }
                 if ((transaction.droppedTables != null && !transaction.droppedTables.isEmpty()) || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
 
@@ -749,6 +756,15 @@ public class TableSpaceManager {
 
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
+    }
+
+    public List<Table> getAllVisibleTables(Transaction t) {
+        return tables
+                .values()
+                .stream()
+                .filter(s -> s.getCreatedInTransaction() == 0 || (t != null && t.transactionId == s.getCreatedInTransaction()))
+                .map(AbstractTableManager::getTable)
+                .collect(Collectors.toList());
     }
 
     public List<Table> getAllCommittedTables() {

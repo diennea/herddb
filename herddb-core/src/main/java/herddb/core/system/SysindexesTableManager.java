@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -55,8 +56,8 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
+        List<Table> tables = tableSpaceManager.getAllVisibleTables(transaction);
         return tables
                 .stream()
                 .flatMap((Table r) -> {

@@ -27,6 +27,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,7 +56,7 @@ public class SyslogstatusManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() throws StatementExecutionException {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) throws StatementExecutionException {
         boolean isVirtual = tableSpaceManager.isVirtual();
         boolean isLeader = tableSpaceManager.isLeader();
         LogSequenceNumber logSequenceNumber = isVirtual ? null : tableSpaceManager.getLog().getLastSequenceNumber();

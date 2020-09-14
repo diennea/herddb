@@ -29,6 +29,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceReplicaState;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -59,7 +60,7 @@ public class SystablespacereplicastateTableManager extends AbstractSystemTableMa
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() throws StatementExecutionException {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) throws StatementExecutionException {
         try {
             Collection<String> names = tableSpaceManager.getMetadataStorageManager().listTableSpaces();
             long now = System.currentTimeMillis();

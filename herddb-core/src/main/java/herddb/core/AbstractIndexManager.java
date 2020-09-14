@@ -218,7 +218,8 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     final void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
-                throw new DataStorageManagerException("this indexManager is available only on transaction " + createdInTransaction);
+                throw new DataStorageManagerException("this indexManager (" + getIndexName() + ") is available only on transaction " + createdInTransaction
+                        + " and not in transaction " + transaction.transactionId);
             }
             createdInTransaction = 0;
         }
@@ -234,6 +235,9 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }
     }
 
+    public long getCreatedInTransaction() {
+        return createdInTransaction;
+    }
 
     public final boolean isAvailable() {
         return createdInTransaction == 0;
