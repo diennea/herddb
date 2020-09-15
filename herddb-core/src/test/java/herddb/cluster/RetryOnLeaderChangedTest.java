@@ -158,7 +158,7 @@ public class RetryOnLeaderChangedTest {
 
                         // use client2, so that it opens a connection to current leader
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0, true)) {
                             assertEquals(3, scan.consume().size());
                         }
 
@@ -167,7 +167,7 @@ public class RetryOnLeaderChangedTest {
 
                         // perform operation
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0, true)) {
                             assertEquals(3, scan.consume().size());
                         }
                         // check the client handled "not leader error"
@@ -245,7 +245,7 @@ public class RetryOnLeaderChangedTest {
         testKillLeader((connection) -> {
             try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
                     "SELECT * FROM ttt.t1", false, Collections.emptyList(),
-                    TransactionContext.NOTRANSACTION_ID, 0, 0)) {
+                    TransactionContext.NOTRANSACTION_ID, 0, 0, true)) {
                 assertEquals(3, scan.consume().size());
             } catch (Exception err) {
                 throw new RuntimeException(err);
@@ -373,7 +373,7 @@ public class RetryOnLeaderChangedTest {
 
                         // use client2, so that it opens a connection to current leader
                         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM ttt.t1",
-                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0)) {
+                                false, Collections.emptyList(), TransactionContext.NOTRANSACTION_ID, 0, 0, true)) {
                             assertEquals(3, scan.consume().size());
                         }
 

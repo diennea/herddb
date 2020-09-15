@@ -158,7 +158,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(),
-                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10)) {
+                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -169,7 +169,7 @@ public class SimpleClientServerTest {
                 }
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().
-                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10)) {
+                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
 
@@ -237,12 +237,12 @@ public class SimpleClientServerTest {
                     // this is 2 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     // this is 3 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT id FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
                 }
 
                 try (Server server = new Server(new ServerConfiguration(baseDir))) {
@@ -254,7 +254,7 @@ public class SimpleClientServerTest {
                     // this is 1 for the server, the client will invalidate its cache for this statement
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT n1 FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     // this is 2 for the server
                     try (HDBConnection connection2 = client.openConnection()) {
@@ -266,7 +266,7 @@ public class SimpleClientServerTest {
                     // this would be 2 for connection1 (bug in 0.10.0), but for the server 2 is "UPDATE mytable set n1=2"
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                 }
             }
@@ -314,7 +314,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100, true)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -323,7 +323,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100, true)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -496,7 +496,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.
-                        emptyList(), 0, 0, 10)) {
+                        emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> rows = scan.consume();
                     int i = 0;
                     for (Map<String, Object> row : rows) {
@@ -719,21 +719,21 @@ public class SimpleClientServerTest {
                 // test join with different
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 100000);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 100000, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
 
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 1);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 1, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
 
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 10);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 10, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
@@ -741,7 +741,7 @@ public class SimpleClientServerTest {
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), tx, 0, 1);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), tx, 0, 1, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
@@ -804,7 +804,7 @@ public class SimpleClientServerTest {
                 socket.close().await();
 
                 // ensure reconnection is performed (using prepared statement)
-                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", true, Collections.emptyList(), 0, 100, 1000).close();
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", true, Collections.emptyList(), 0, 100, 1000, true).close();
 
                 // assert we are using real network
                 assertNotEquals(NettyChannel.ADDRESS_JVM_LOCAL, connections.get()[0].getChannel().getRemoteAddress());
@@ -816,7 +816,7 @@ public class SimpleClientServerTest {
                 socket2.close().await();
 
                 // ensure reconnection is performed (not using prepared statement)
-                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", false, Collections.emptyList(), 0, 100, 1000).close();
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", false, Collections.emptyList(), 0, 100, 1000, true).close();
 
 
             }
@@ -859,7 +859,7 @@ public class SimpleClientServerTest {
 
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", false /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     assertEquals(1, channelCreatedCount.get());
                 }

@@ -72,7 +72,7 @@ class TmpMapImpl<K, V> implements TmpMap<K, V> {
         private final V value;
 
         public PutStatementEvaluationContext(K key, V value) {
-            super(false);
+            super(false, false);
             this.key = key;
             this.value = value;
         }

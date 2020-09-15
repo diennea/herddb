@@ -435,8 +435,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         for (int i = 0; i < parametersReader.getNumParams(); i++) {
             parameters.add(parametersReader.nextObject());
         }
+        // with clients older than 0.20.0 keepReadLocks will be always true
+        boolean keepReadLocks = !PduCodec.OpenScanner.readDontKeepReadLocks(message);
         if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
+            LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + ", keepReadLocks " + keepReadLocks + ", " + query + " with " + parameters);
         }
         RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
         RunningStatementInfo statementInfo = new RunningStatementInfo(query,
@@ -446,6 +448,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     .getManager()
                     .getPlanner().translate(tableSpace,
                             query, parameters, true, true, false, maxRows);
+            translatedQuery.context.setForceRetainReadLock(keepReadLocks);
 
             if (LOGGER.isLoggable(Level.FINEST)) {
                 LOGGER.log(Level.FINEST, "{0} -> {1}", new Object[]{query, translatedQuery.plan.mainStatement});

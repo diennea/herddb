@@ -139,7 +139,7 @@ public class EmbeddedBookieTest {
                 try (HDBClient client = new HDBClient(client_configuration);
                      HDBConnection connection = client.openConnection()) {
 
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10, true)) {
                         assertEquals(1, scan.consume().size());
                     }
                     // switch leader to server2
@@ -158,7 +158,7 @@ public class EmbeddedBookieTest {
                     assertTrue(tManager != null && !tManager.isLeader());
 
                     // the client MUST automatically look for the new leader
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10, true)) {
                         assertEquals(1, scan.consume().size());
                     }
 
@@ -175,7 +175,7 @@ public class EmbeddedBookieTest {
                         }
 
                     });
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10, true)) {
                         fail("server_1 MUST not accept queries");
                     } catch (ClientSideMetadataProviderException ok) {
                         assertTrue(ok.getCause() instanceof LeaderChangedException);
@@ -186,7 +186,7 @@ public class EmbeddedBookieTest {
                 try (HDBClient client_to_2 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                      HDBConnection connection = client_to_2.openConnection()) {
                     client_to_2.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_2));
-                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10)) {
+                    try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", true, Collections.emptyList(), 0, 0, 10, true)) {
                         assertEquals(1, scan.consume().size());
                     }
                 }

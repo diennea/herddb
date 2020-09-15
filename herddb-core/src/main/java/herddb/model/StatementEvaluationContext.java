@@ -43,7 +43,7 @@ public class StatementEvaluationContext {
     private volatile long tableSpaceLock;
     private static final ZoneId timezone = ZoneId.systemDefault();
     // REPEATABLE READ
-    private final boolean forceRetainReadLock;
+    private boolean forceRetainReadLock;
     // SELECT ... FOR UPDATE
     private final boolean forceAcquireWriteLock;
 
@@ -122,6 +122,10 @@ public class StatementEvaluationContext {
 
     public boolean isForceRetainReadLock() {
         return forceRetainReadLock;
+    }
+
+    public void setForceRetainReadLock(boolean forceRetainReadLock) {
+        this.forceRetainReadLock = forceRetainReadLock;
     }
 
 }

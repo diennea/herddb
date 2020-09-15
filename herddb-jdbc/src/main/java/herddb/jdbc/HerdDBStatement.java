@@ -74,7 +74,7 @@ public class HerdDBStatement implements java.sql.Statement {
             parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection()
                     .executeScan(parent.getTableSpace(), sql, false, Collections.emptyList(), parent.ensureTransaction(),
-                            maxRows, fetchSize);
+                            maxRows, fetchSize, parent.isKeepReadLocks());
             parent.bindToTransaction(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult, this);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {

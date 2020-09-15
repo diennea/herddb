@@ -79,7 +79,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection()
                     .executeScan(parent.getTableSpace(), sql, true, parameters, parent.ensureTransaction(), maxRows,
-                            fetchSize);
+                            fetchSize, parent.isKeepReadLocks());
             this.parent.bindToTransaction(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult, this);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {

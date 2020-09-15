@@ -65,6 +65,7 @@ public class HerdDBConnection implements java.sql.Connection {
     private final BasicHerdDBDataSource datasource;
     private boolean closed;
     private final ConcurrentHashMap<Long, HerdDBStatement> openStatements = new ConcurrentHashMap<>();
+    private int transactionIsolation = Connection.TRANSACTION_READ_COMMITTED;
 
     HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         if (connection == null) {
@@ -240,17 +241,19 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
-        if (level != Connection.TRANSACTION_READ_COMMITTED) {
+        if (level != Connection.TRANSACTION_READ_COMMITTED
+                && level != Connection.TRANSACTION_REPEATABLE_READ) {
             LOGGER.log(Level.SEVERE,
-                    "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED is supported", level);
+                    "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED and TRANSACTION_REPEATABLE_READ are supported", level);
         }
+        transactionIsolation = level;
     }
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBConnection.class.getName());
 
     @Override
     public int getTransactionIsolation() throws SQLException {
-        return Connection.TRANSACTION_READ_COMMITTED;
+        return transactionIsolation;
     }
 
     @Override
@@ -466,4 +469,7 @@ public class HerdDBConnection implements java.sql.Connection {
        openStatements.put(statement.getId(), statement);
     }
 
+    boolean isKeepReadLocks() {
+        return transactionIsolation == Connection.TRANSACTION_REPEATABLE_READ;
+    }
 }
