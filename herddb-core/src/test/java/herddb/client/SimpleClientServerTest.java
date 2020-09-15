@@ -26,6 +26,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -33,6 +34,7 @@ import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
@@ -43,6 +45,7 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.ServerSideConnectionPeer;
 import herddb.server.StaticClientSideMetadataProvider;
+import herddb.utils.Bytes;
 import herddb.utils.RawString;
 import herddb.utils.TestUtils;
 import io.netty.channel.socket.SocketChannel;
@@ -867,6 +870,88 @@ public class SimpleClientServerTest {
             }
         }
 
+    }
+
+    @Test
+    public void testKeepReadLocks() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        String _baseDir = baseDir.toString();
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2)).updateCount;
+                Assert.assertEquals(1, countInsert);
+                long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test2", 2, 3)).updateCount;
+                Assert.assertEquals(1, countInsert2);
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
+
+                // new transaction
+                tx = connection.beginTransaction(TableSpace.DEFAULT);
+                // do not keep locks
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertNull(transaction.lookupLock("mytable", Bytes.from_string("test")));
+                }
+
+                // keep locks
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'",  true, Collections.emptyList(), tx, 0, 10, true)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                     assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertFalse(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+
+                // upgrade lock to write
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test' FOR UPDATE",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertTrue(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+
+                connection.rollbackTransaction(TableSpace.DEFAULT, tx);
+
+                // new transaction
+                tx = connection.beginTransaction(TableSpace.DEFAULT);
+
+                // SELECT FOR UPDATE must hold WRITE LOCK even with keepLocks = false
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test' FOR UPDATE",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertTrue(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+            }
+        }
     }
 
 }
