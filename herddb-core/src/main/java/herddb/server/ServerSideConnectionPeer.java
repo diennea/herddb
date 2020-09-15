@@ -24,6 +24,7 @@ import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
 import herddb.backup.DumpedLogEntry;
+import herddb.client.ClientConfiguration;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
@@ -116,6 +117,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         this.server = server;
         this.address = channel.getRemoteAddress();
         this.preparedStatements = server.getManager().getPreparedStatementsCache();
+        // no need to perform auth in "local" mode
+        boolean localMode = ServerConfiguration.PROPERTY_MODE_LOCAL.equals(server.getManager().getMode());
+        if (localMode && channel.isLocalChannel()) {
+            authenticated = true;
+            username = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
+        }
     }
 
     @Override
