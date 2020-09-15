@@ -2274,10 +2274,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
                 }
             }
-            if (transaction == null && lock != null) {
-                res.whenComplete((r, e) -> {
-                    locksManager.releaseReadLock(lock);
-                });
+            if (lock != null) {
+                if (transaction == null) {
+                    res.whenComplete((r, e) -> {
+                        locksManager.releaseReadLock(lock);
+                    });
+                } else if (!context.isForceRetainReadLock() && !lock.write) {
+                    transaction.releaseLockOnKey(table.name, key, locksManager);
+                }
             }
             return res;
         } catch (HerdDBInternalException err) {
@@ -3585,7 +3589,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (record != null) {
                     // use current transaction version of the record
                     if (predicate == null || predicate.evaluate(record, context)) {
-                        keep_lock = true;
+                        keep_lock = context.isForceRetainReadLock();
                         return record;
                     }
                     return null;
@@ -3606,7 +3610,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 Record record = fetchRecord(key, pageId, lastPageRead);
                 if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
 
-                    keep_lock = true;
+                    keep_lock = context.isForceRetainReadLock();
                     return record;
                 }
             }

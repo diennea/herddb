@@ -76,7 +76,7 @@ public class SQLRecordPredicateTest {
 
                 assertTrue(pred.getWhere() != null && (pred.getWhere() instanceof CompiledSQLExpression));
 
-                StatementEvaluationContext ctx = new SQLStatementEvaluationContext("the-query", Arrays.asList("my-string"), false);
+                StatementEvaluationContext ctx = new SQLStatementEvaluationContext("the-query", Arrays.asList("my-string"), false, false);
 
                 Record record = RecordSerializer.makeRecord(table, "pk", "test", "name", "myname");
                 assertEquals(Boolean.TRUE, pred.evaluate(record, ctx));
