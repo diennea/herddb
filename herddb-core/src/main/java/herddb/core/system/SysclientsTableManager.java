@@ -26,6 +26,7 @@ import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
@@ -51,7 +52,7 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
         ConnectionsInfoProvider connectionsInfoProvider = tableSpaceManager.getDbmanager().getConnectionsInfoProvider();
         if (connectionsInfoProvider == null) {
             return Collections.emptyList();

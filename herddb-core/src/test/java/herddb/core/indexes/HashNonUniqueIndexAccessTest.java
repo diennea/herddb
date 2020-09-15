@@ -18,33 +18,19 @@
 
  */
 
-package herddb.model.commands;
+package herddb.core.indexes;
 
-import herddb.model.DDLStatement;
 import herddb.model.Index;
 
 /**
- * Create an index
+ * Tests on HASH indexes
  *
  * @author enrico.olivelli
  */
-public class CreateIndexStatement extends DDLStatement {
+public class HashNonUniqueIndexAccessTest extends SecondaryNonUniqueIndexAccessSuite {
 
-    private final Index indexDefinition;
-
-    public CreateIndexStatement(Index indexDefinition) {
-        super(indexDefinition.tablespace);
-        this.indexDefinition = indexDefinition;
-    }
-
-    @Override
-    public boolean supportsTransactionAutoCreate() {
-        /* This instruction will autocreate a transaction if issued */
-        return true;
-    }
-
-    public Index getIndexDefinition() {
-        return indexDefinition;
+    public HashNonUniqueIndexAccessTest() {
+        super(Index.TYPE_HASH);
     }
 
 }

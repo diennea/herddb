@@ -65,8 +65,11 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     private final ConcurrentHashMap<Bytes, List<Bytes>> data = new ConcurrentHashMap<>();
     private final AtomicLong newPageId = new AtomicLong(1);
 
-    public MemoryHashIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
-        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
+    public MemoryHashIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
+                                  long transaction,
+                                  int writeLockTimeout, int readLockTimeout) {
+        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction,
+                writeLockTimeout, readLockTimeout);
     }
 
     LogSequenceNumber bootSequenceNumber;
@@ -329,6 +332,19 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void truncate() throws DataStorageManagerException {
         data.clear();
+    }
+
+    @Override
+    public boolean valueAlreadyMapped(Bytes key, Bytes primaryKey) throws DataStorageManagerException {
+        if (primaryKey == null) {
+            // new record, error if there is any mapping
+            return data.containsKey(key);
+        } else {
+            // updating a record, error if there is a mapping to another record
+            List<Bytes> current = data.getOrDefault(key, Collections.emptyList());
+            return !current.isEmpty()
+                    && !current.contains(primaryKey);
+        }
     }
 
 }

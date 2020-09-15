@@ -50,7 +50,7 @@ public class SystransactionsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
         List<Transaction> transactions = tableSpaceManager.getTransactions();
         List<Record> result = new ArrayList<>();
         for (Transaction tx : transactions) {

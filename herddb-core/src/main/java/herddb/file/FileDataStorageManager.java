@@ -158,9 +158,9 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void start() throws DataStorageManagerException {
         try {
-            LOGGER.log(Level.INFO, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
+            LOGGER.log(Level.FINE, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
             Files.createDirectories(baseDirectory);
-            LOGGER.log(Level.INFO, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+            LOGGER.log(Level.FINE, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
             FileUtils.cleanDirectory(tmpDirectory);
             Files.createDirectories(tmpDirectory);
         } catch (IOException err) {
@@ -170,7 +170,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void close() throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+        LOGGER.log(Level.FINE, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
         try {
             FileUtils.cleanDirectory(tmpDirectory);
         } catch (IOException err) {
@@ -851,7 +851,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINER, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
-                LOGGER.log(Level.INFO, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
+                LOGGER.log(Level.FINE, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException err) {

@@ -49,7 +49,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
@@ -57,7 +56,7 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author enrico.olivelli
  */
-public class DirectMultipleConcurrentUpdatesTest {
+public abstract class DirectMultipleConcurrentUpdatesSuite {
 
     private static final int TABLESIZE = 2000;
     private static final int MULTIPLIER = 2;
@@ -66,47 +65,8 @@ public class DirectMultipleConcurrentUpdatesTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    @Test
-    public void test() throws Exception {
-        performTest(false, 0, false);
-    }
 
-    @Test
-    public void testWithTransactions() throws Exception {
-        performTest(true, 0, false);
-    }
-
-    @Test
-    public void testWithCheckpoints() throws Exception {
-        performTest(false, 2000, false);
-    }
-
-    @Test
-    public void testWithTransactionsWithCheckpoints() throws Exception {
-        performTest(true, 2000, false);
-    }
-
-    @Test
-    public void testWithIndexes() throws Exception {
-        performTest(false, 0, true);
-    }
-
-    @Test
-    public void testWithTransactionsAndIndexes() throws Exception {
-        performTest(true, 0, true);
-    }
-
-    @Test
-    public void testWithCheckpointsAndIndexes() throws Exception {
-        performTest(false, 2000, true);
-    }
-
-    @Test
-    public void testWithTransactionsWithCheckpointsAndIndexes() throws Exception {
-        performTest(true, 2000, true);
-    }
-
-    private void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes) throws Exception {
+    protected void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes, boolean uniqueIndexes) throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
@@ -125,7 +85,12 @@ public class DirectMultipleConcurrentUpdatesTest {
             execute(manager, "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", Collections.emptyList());
 
             if (withIndexes) {
-                execute(manager, "CREATE INDEX theindex ON mytable (n1 long)", Collections.emptyList());
+                if (uniqueIndexes) {
+                    // use n1 + id in order to not have collisions and lock timeouts
+                    execute(manager, "CREATE UNIQUE INDEX theindex ON mytable (n1, id)", Collections.emptyList());
+                } else {
+                    execute(manager, "CREATE INDEX theindex ON mytable (n1)", Collections.emptyList());
+                }
             }
 
             long tx = TestUtils.beginTransaction(manager, TableSpace.DEFAULT);

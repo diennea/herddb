@@ -1146,7 +1146,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "error during shutdown", err);
                 }
-                LOGGER.log(Level.INFO, "{0} activator stopped", nodeId);
+                LOGGER.log(Level.FINE, "{0} activator stopped", nodeId);
             } catch (RuntimeException err) {
                 LOGGER.log(Level.SEVERE, "fatal activator erro", err);
             }

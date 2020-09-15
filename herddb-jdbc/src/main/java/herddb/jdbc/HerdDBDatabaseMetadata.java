@@ -1180,7 +1180,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getIndexInfo(String catalog, String schema, String tableNamePattern, boolean onlyUnique, boolean approximate) throws SQLException {
         String query = "SELECT * FROM SYSINDEXCOLUMNS";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
-            query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
+            query = query + " WHERE lower(table_name) LIKE '" + SQLUtils.escape(tableNamePattern.toLowerCase()) + "'";
         }
         try (Statement statement = con.createStatement();
              ResultSet rs = statement.executeQuery(query)) {

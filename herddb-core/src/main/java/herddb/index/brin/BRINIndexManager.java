@@ -81,8 +81,11 @@ public class BRINIndexManager extends AbstractIndexManager {
     private final BlockRangeIndex<Bytes, Bytes> data;
     private final IndexDataStorage<Bytes, Bytes> storageLayer = new IndexDataStorageImpl();
 
-    public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
-        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
+    public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log,
+                            DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction,
+                            int writeLockTimeout, int readLockTimeout) {
+        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction,
+                                             writeLockTimeout, readLockTimeout);
         this.data = new BlockRangeIndex<>(
                 memoryManager.getMaxLogicalPageSize(),
                 memoryManager.getDataPageReplacementPolicy(),
@@ -490,6 +493,18 @@ public class BRINIndexManager extends AbstractIndexManager {
     public void truncate() throws DataStorageManagerException {
         this.data.reset();
         truncateIndexData();
+    }
+
+    @Override
+    public boolean valueAlreadyMapped(Bytes key, Bytes primaryKey) throws DataStorageManagerException {
+        if (primaryKey == null) {
+            return data.containsKey(key);
+        } else {
+            // updating a record, error if there is a mapping to another record
+            List<Bytes> current = data.search(key);
+            return !current.isEmpty()
+                    && !current.contains(primaryKey);
+        }
     }
 
     @Override

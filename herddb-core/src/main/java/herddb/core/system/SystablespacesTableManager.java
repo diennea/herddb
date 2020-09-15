@@ -28,6 +28,7 @@ import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -57,7 +58,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() throws StatementExecutionException {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) throws StatementExecutionException {
         try {
             Collection<String> names = tableSpaceManager.getMetadataStorageManager().listTableSpaces();
             List<Record> result = new ArrayList<>();

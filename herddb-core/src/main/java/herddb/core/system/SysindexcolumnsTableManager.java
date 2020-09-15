@@ -29,6 +29,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +63,8 @@ public class SysindexcolumnsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
+        List<Table> tables = tableSpaceManager.getAllVisibleTables(transaction);
         List<Record> result = new ArrayList<>();
         tables.forEach(r -> {
             // PK
@@ -99,7 +100,7 @@ public class SysindexcolumnsTableManager extends AbstractSystemTableManager {
                                 "column_name", cc.name,
                                 "ordinal_position", pos++,
                                 "clustered", 0,
-                                "unique", 0
+                                "unique", index.unique ? 1 : 0
                         ));
                     }
                 });

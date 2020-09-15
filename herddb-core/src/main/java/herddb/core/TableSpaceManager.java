@@ -379,17 +379,28 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id + ", only " + transactions.keySet());
                 }
+                List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
+                for (AbstractIndexManager indexManager : indexManagers) {
+                    if (indexManager.getCreatedInTransaction() == 0 || indexManager.getCreatedInTransaction() == id) {
+                        indexManager.onTransactionRollback(transaction);
+                    }
+                }
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
-
-                    Table table = manager.getTable();
-                    if (transaction.isNewTable(table.name)) {
-                        LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
-                        manager.dropTableData();
-                        manager.close();
-                        tables.remove(manager.getTable().name);
-                    } else {
-                        manager.onTransactionRollback(transaction);
+                    if (manager.getCreatedInTransaction() == 0 || manager.getCreatedInTransaction() == id) {
+                        Table table = manager.getTable();
+                        if (transaction.isNewTable(table.name)) {
+                            LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
+                            disposeTable(manager);
+                            Map<String, AbstractIndexManager> indexes = indexesByTable.remove(manager.getTable().name);
+                            if (indexes != null) {
+                                for (AbstractIndexManager indexManager : indexes.values()) {
+                                    disposeIndexManager(indexManager);
+                                }
+                            }
+                        } else {
+                            manager.onTransactionRollback(transaction);
+                        }
                     }
                 }
                 transactions.remove(transaction.transactionId);
@@ -405,11 +416,15 @@ public class TableSpaceManager {
                 transaction.sync(commit);
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
-                    manager.onTransactionCommit(transaction, recovery);
+                    if (manager.getCreatedInTransaction() == 0 || manager.getCreatedInTransaction() == id) {
+                        manager.onTransactionCommit(transaction, recovery);
+                    }
                 }
                 List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
                 for (AbstractIndexManager indexManager : indexManagers) {
-                    indexManager.onTransactionCommit(transaction, recovery);
+                    if (indexManager.getCreatedInTransaction() == 0 || indexManager.getCreatedInTransaction() == id) {
+                        indexManager.onTransactionCommit(transaction, recovery);
+                    }
                 }
                 if ((transaction.droppedTables != null && !transaction.droppedTables.isEmpty()) || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
 
@@ -417,9 +432,7 @@ public class TableSpaceManager {
                         for (String dropped : transaction.droppedTables) {
                             for (AbstractTableManager manager : managers) {
                                 if (manager.getTable().name.equals(dropped)) {
-                                    manager.dropTableData();
-                                    manager.close();
-                                    tables.remove(manager.getTable().name);
+                                    disposeTable(manager);
                                 }
                             }
                         }
@@ -428,13 +441,7 @@ public class TableSpaceManager {
                         for (String dropped : transaction.droppedIndexes) {
                             for (AbstractIndexManager manager : indexManagers) {
                                 if (manager.getIndex().name.equals(dropped)) {
-                                    manager.dropIndexData();
-                                    manager.close();
-                                    indexes.remove(manager.getIndex().name);
-                                    Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                                    if (indexesForTable != null) {
-                                        indexesForTable.remove(manager.getIndex().name);
-                                    }
+                                    disposeIndexManager(manager);
                                 }
                             }
                         }
@@ -491,9 +498,11 @@ public class TableSpaceManager {
                 } else {
                     AbstractTableManager manager = tables.get(tableName);
                     if (manager != null) {
-                        manager.dropTableData();
-                        manager.close();
-                        tables.remove(manager.getTable().name);
+                        disposeTable(manager);
+                        Map<String, AbstractIndexManager> indexes = indexesByTable.get(tableName);
+                        if (indexes != null && !indexes.isEmpty()) {
+                            LOGGER.log(Level.SEVERE, "It looks like we are dropping a table " + tableName + " with these indexes " + indexes);
+                        }
                     }
                 }
 
@@ -511,13 +520,7 @@ public class TableSpaceManager {
                 } else {
                     AbstractIndexManager manager = indexes.get(indexName);
                     if (manager != null) {
-                        manager.dropIndexData();
-                        manager.close();
-                        indexes.remove(manager.getIndexName());
-                        Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                        if (indexesForTable != null) {
-                            indexesForTable.remove(manager.getIndex().name);
-                        }
+                        disposeIndexManager(manager);
                     }
                 }
 
@@ -597,6 +600,23 @@ public class TableSpaceManager {
             tableManager.apply(position, entry, recovery);
         }
 
+    }
+
+    private void disposeTable(AbstractTableManager manager) throws DataStorageManagerException {
+        manager.dropTableData();
+        manager.close();
+        tables.remove(manager.getTable().name);
+    }
+
+    private void disposeIndexManager(AbstractIndexManager indexManager) throws DataStorageManagerException {
+        indexManager.dropIndexData();
+        indexManager.close();
+        indexes.remove(indexManager.getIndex().name);
+        Map<String, AbstractIndexManager> indexesForTable =
+                indexesByTable.get(indexManager.getIndex().table);
+        if (indexesForTable != null) {
+            indexesForTable.remove(indexManager.getIndex().name);
+        }
     }
 
     private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog, boolean prepareActions) throws DataStorageManagerException,
@@ -745,6 +765,15 @@ public class TableSpaceManager {
 
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
+    }
+
+    public List<Table> getAllVisibleTables(Transaction t) {
+        return tables
+                .values()
+                .stream()
+                .filter(s -> s.getCreatedInTransaction() == 0 || (t != null && t.transactionId == s.getCreatedInTransaction()))
+                .map(AbstractTableManager::getTable)
+                .collect(Collectors.toList());
     }
 
     public List<Table> getAllCommittedTables() {
@@ -1504,7 +1533,9 @@ public class TableSpaceManager {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
             }
             for (Index additionalIndex : statement.getAdditionalIndexes()) {
-                if (indexes.containsKey(additionalIndex.name)) {
+                AbstractIndexManager exists = indexes.get(additionalIndex.name);
+                if (exists != null) {
+                    LOGGER.log(Level.INFO, "Error while creating index " + additionalIndex.name + ", there is already an index " + exists.getIndex().name + " on table " + exists.getIndex().table);
                     throw new IndexAlreadyExistsException(additionalIndex.name);
                 }
             }
@@ -1538,10 +1569,13 @@ public class TableSpaceManager {
             lockAcquired = true;
         }
         try {
-            if (indexes.containsKey(statement.getIndexefinition().name)) {
-                throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
+            AbstractIndexManager exists = indexes.get(statement.getIndexDefinition().name);
+            if (exists != null) {
+                LOGGER.log(Level.INFO, "Error while creating index " + statement.getIndexDefinition().name
+                        + ", there is already an index " + exists.getIndex().name + " on table " + exists.getIndex().table);
+                throw new IndexAlreadyExistsException(statement.getIndexDefinition().name);
             }
-            LogEntry entry = LogEntryFactory.createIndex(statement.getIndexefinition(), transaction);
+            LogEntry entry = LogEntryFactory.createIndex(statement.getIndexDefinition(), transaction);
             CommitLogResult pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
@@ -1591,7 +1625,7 @@ public class TableSpaceManager {
 
             Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(tableNameNormalized);
             if (indexesOnTable != null) {
-                for (String index : indexesOnTable.keySet()) {
+                for (String index : new ArrayList<>(indexesOnTable.keySet())) {
                     LogEntry entry = LogEntryFactory.dropIndex(index, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     apply(pos, entry, false);
@@ -1712,19 +1746,27 @@ public class TableSpaceManager {
                 }
             }
         }
-
+        final int writeLockTimeout = dbmanager.getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT_DEFAULT
+        );
+        final int readLockTimeout = dbmanager.getServerConfiguration().getInt(
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT,
+                ServerConfiguration.PROPERTY_READLOCK_TIMEOUT_DEFAULT
+        );
         AbstractIndexManager indexManager;
         switch (index.type) {
             case Index.TYPE_HASH:
-                indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction,
+                        writeLockTimeout, readLockTimeout);
                 break;
             case Index.TYPE_BRIN:
-                indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction,
+                        writeLockTimeout, readLockTimeout);
                 break;
             default:
-                throw new DataStorageManagerException("invalid index type " + index.type);
+                throw new DataStorageManagerException("invalid NON-UNIQUE index type " + index.type);
         }
-
         indexes.put(index.name, indexManager);
 
         Map<String, AbstractIndexManager> newMap = new HashMap<>(); // this must be mutable (see DROP INDEX)
@@ -1780,6 +1822,10 @@ public class TableSpaceManager {
         if (!oldTableName.equalsIgnoreCase(table.name)) {
             tables.remove(oldTableName);
             tables.put(table.name, tableManager);
+            Map<String, AbstractIndexManager> removed = indexesByTable.remove(oldTableName);
+            if (removed != null && !removed.isEmpty()) {
+                indexesByTable.put(table.name, removed);
+            }
         }
         return tableManager;
     }

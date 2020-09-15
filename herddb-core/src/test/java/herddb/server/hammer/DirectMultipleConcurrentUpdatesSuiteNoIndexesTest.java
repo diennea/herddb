@@ -18,33 +18,30 @@
 
  */
 
-package herddb.model.commands;
+package herddb.server.hammer;
 
-import herddb.model.DDLStatement;
-import herddb.model.Index;
+import org.junit.Test;
 
-/**
- * Create an index
- *
- * @author enrico.olivelli
- */
-public class CreateIndexStatement extends DDLStatement {
+public class DirectMultipleConcurrentUpdatesSuiteNoIndexesTest extends DirectMultipleConcurrentUpdatesSuite {
 
-    private final Index indexDefinition;
-
-    public CreateIndexStatement(Index indexDefinition) {
-        super(indexDefinition.tablespace);
-        this.indexDefinition = indexDefinition;
+    @Test
+    public void test() throws Exception {
+        performTest(false, 0, false, false);
     }
 
-    @Override
-    public boolean supportsTransactionAutoCreate() {
-        /* This instruction will autocreate a transaction if issued */
-        return true;
+    @Test
+    public void testWithTransactions() throws Exception {
+        performTest(true, 0, false, false);
     }
 
-    public Index getIndexDefinition() {
-        return indexDefinition;
+    @Test
+    public void testWithCheckpoints() throws Exception {
+        performTest(false, 2000, false, false);
+    }
+
+    @Test
+    public void testWithTransactionsWithCheckpoints() throws Exception {
+        performTest(true, 2000, false, false);
     }
 
 }

@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.core;
 
 import herddb.index.IndexOperation;
@@ -32,6 +31,8 @@ import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.ILocalLockManager;
+import herddb.utils.LocalLockManager;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.List;
 import java.util.Map;
@@ -53,14 +54,36 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * This value is not empty until the transaction who creates the table does not commit
      */
     protected long createdInTransaction;
+    private final boolean unique;
+    private final ILocalLockManager lockManager;
 
-    public AbstractIndexManager(Index index, AbstractTableManager tableManager, DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log, long createdInTransaction) {
+    public AbstractIndexManager(Index index, AbstractTableManager tableManager,
+                                             DataStorageManager dataStorageManager, String tableSpaceUUID,
+                                             CommitLog log, long createdInTransaction,
+                                             int writeLockTimeout, int readLockTimeout) {
         this.index = index;
         this.createdInTransaction = createdInTransaction;
         this.tableManager = tableManager;
         this.dataStorageManager = dataStorageManager;
         this.tableSpaceUUID = tableSpaceUUID;
         this.log = log;
+        this.unique = index.unique;
+        if (unique) {
+            LocalLockManager newLockManager = new LocalLockManager();
+            newLockManager.setWriteLockTimeout(writeLockTimeout);
+            newLockManager.setReadLockTimeout(readLockTimeout);
+            this.lockManager = newLockManager;
+        } else {
+            lockManager = null;
+        }
+    }
+
+    public final boolean isUnique() {
+        return unique;
+    }
+
+    public ILocalLockManager getLockManager() {
+        return lockManager;
     }
 
     public final Index getIndex() {
@@ -132,10 +155,8 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
-     * Basic function of the index. The index returns the list of PKs of the table which match the predicate
-     * (IndexOperation) Beare that this function could return a super set of the list of the PKs which actually match
-     * the predicate. TableManager will check every record againts the (WHERE) Predicate in order to ensure the final
-     * result
+     * Basic function of the index. The index returns the list of PKs of the table which match the predicate (IndexOperation) Beare that this function could return a super set of the list of the PKs
+     * which actually match the predicate. TableManager will check every record againts the (WHERE) Predicate in order to ensure the final result
      *
      * @param operation
      * @param context
@@ -146,8 +167,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     protected abstract Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException;
 
     /**
-     * This function is called from the TableManager to perform scans. It usually have to deal with a JOIN on the
-     * KeyToPageIndex of the TableManager
+     * This function is called from the TableManager to perform scans. It usually have to deal with a JOIN on the KeyToPageIndex of the TableManager
      *
      * @param operation
      * @param context
@@ -185,9 +205,8 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     /**
      * Truncate the index from persist storage
      * <p>
-     * Differs from {@link #dropIndexData()} because it leaves in place every support structure needed by
-     * index runtime (for example if index is persisted into a directory it doesn't delete the directory
-     * itself). The index will continue to work but without current data that will be erased
+     * Differs from {@link #dropIndexData()} because it leaves in place every support structure needed by index runtime (for example if index is persisted into a directory it doesn't delete the
+     * directory itself). The index will continue to work but without current data that will be erased
      * </p>
      *
      * @throws DataStorageManagerException
@@ -199,10 +218,25 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     final void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
-                throw new DataStorageManagerException("this indexManager is available only on transaction " + createdInTransaction);
+                throw new DataStorageManagerException("this indexManager (" + getIndexName() + ") is available only on transaction " + createdInTransaction
+                        + " and not in transaction " + transaction.transactionId);
             }
             createdInTransaction = 0;
         }
+        if (lockManager != null) {
+            transaction.releaseLocksOnTable(getIndexName(), lockManager);
+        }
+    }
+
+
+    final void onTransactionRollback(Transaction transaction) {
+        if (lockManager != null) {
+            transaction.releaseLocksOnTable(getIndexName(), lockManager);
+        }
+    }
+
+    public long getCreatedInTransaction() {
+        return createdInTransaction;
     }
 
     public final boolean isAvailable() {
@@ -213,4 +247,6 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * Erase the index. Out-side the scope of a transaction
      */
     public abstract void truncate() throws DataStorageManagerException;
+
+    public abstract boolean valueAlreadyMapped(Bytes key, Bytes primaryKey)  throws DataStorageManagerException;
 }

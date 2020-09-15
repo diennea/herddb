@@ -18,12 +18,16 @@
 
  */
 
-package herddb.core;
+package herddb.core.indexes;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractIndexManager;
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -36,6 +40,7 @@ import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
@@ -49,6 +54,7 @@ import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -64,16 +70,21 @@ public class IndexCreationTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void brinRecoverTableAndIndexWithCheckpoint() throws Exception {
-        recoverTableAndIndexWithCheckpoint(Index.TYPE_BRIN);
+    public void brinNonUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_BRIN, false);
     }
 
     @Test
-    public void hashRecoverTableAndIndexWithCheckpoint() throws Exception {
-        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH);
+    public void hashNonUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, false);
     }
 
-    private void recoverTableAndIndexWithCheckpoint(String indexType) throws Exception {
+    @Test
+    public void hashUniqueRecoverTableAndIndexWithCheckpoint() throws Exception {
+        recoverTableAndIndexWithCheckpoint(Index.TYPE_HASH, true);
+    }
+
+    private void recoverTableAndIndexWithCheckpoint(String indexType, boolean unique) throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
@@ -125,7 +136,7 @@ public class IndexCreationTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(indexType).build();
+            index = Index.builder().onTable(table).column("name", ColumnTypes.STRING).type(indexType).unique(unique).build();
             manager.executeStatement(new CreateIndexStatement(index), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             /* Access through index  */
@@ -190,6 +201,57 @@ public class IndexCreationTest {
                 execute(manager, "CREATE INDEX table_4_index ON tbl1.TABLE_4(TABLE_ID,FIELD)", Collections.emptyList());
             }
 
+            // create index and table with one single statement
+            execute(manager,
+                        "CREATE TABLE tbl1.table_5 (TABLE_ID BIGINT NOT NULL,"
+                                + "FIELD STRING NOT NULL,"
+                                + "SECONDFIELD TIMESTAMP UNIQUE," // single unique column
+                                + "PRIMARY KEY (TABLE_ID),"
+                                + "INDEX t5index(field),"
+                                + "KEY t5index2(field,secondfield),"
+                                + "UNIQUE KEY index5u(field,table_id)" // we don't support "UNIQUE INDEX", but "UNIQUE KEY"
+                                + ")",
+                        Collections.emptyList());
+            Map<String, AbstractIndexManager> indexesOnTable = manager.getTableSpaceManager("tbl1").getIndexesOnTable("table_5");
+            assertFalse(indexesOnTable.get("t5index").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t5index").getIndex().columnByName.get("field").type);
+            assertFalse(indexesOnTable.get("t5index2").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t5index2").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("t5index2").getIndex().columnByName.get("secondfield").type);
+            assertTrue(indexesOnTable.get("index5u").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("index5u").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.NOTNULL_LONG, indexesOnTable.get("index5u").getIndex().columnByName.get("table_id").type);
+            assertTrue(indexesOnTable.get("table_5_unique_secondfield").isUnique());
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("table_5_unique_secondfield").getIndex().columnByName.get("secondfield").type);
+            assertEquals("Missing some index " + indexesOnTable.keySet(), 4, indexesOnTable.size());
+
+
+            // create index and table with one single statement, in transaction
+            StatementExecutionResult execute =
+                    execute(manager,
+                            "CREATE TABLE tbl1.table_6 (TABLE_ID BIGINT NOT NULL,"
+                                    + "FIELD STRING NOT NULL,"
+                                    + "SECONDFIELD TIMESTAMP UNIQUE," // single unique column
+                                    + "PRIMARY KEY (TABLE_ID),"
+                                    + "INDEX t6index(field),"
+                                    + "KEY t6index2(field,secondfield),"
+                                    + "UNIQUE KEY index6u(field,table_id)" // we don't support "UNIQUE INDEX", but "UNIQUE KEY"
+                                    + ")",
+                            Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            long tx = execute.transactionId;
+            indexesOnTable = manager.getTableSpaceManager("tbl1").getIndexesOnTable("table_6");
+            assertFalse(indexesOnTable.get("t6index").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t6index").getIndex().columnByName.get("field").type);
+            assertFalse(indexesOnTable.get("t6index2").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("t6index2").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("t6index2").getIndex().columnByName.get("secondfield").type);
+            assertTrue(indexesOnTable.get("index6u").isUnique());
+            assertEquals(ColumnTypes.NOTNULL_STRING, indexesOnTable.get("index6u").getIndex().columnByName.get("field").type);
+            assertEquals(ColumnTypes.NOTNULL_LONG, indexesOnTable.get("index6u").getIndex().columnByName.get("table_id").type);
+            assertTrue(indexesOnTable.get("table_6_unique_secondfield").isUnique());
+            assertEquals(ColumnTypes.TIMESTAMP, indexesOnTable.get("table_6_unique_secondfield").getIndex().columnByName.get("secondfield").type);
+            assertEquals("Missing some index " + indexesOnTable.keySet(), 4, indexesOnTable.size());
+            TestUtils.commitTransaction(manager, "tbl1", tx);
         }
 
     }

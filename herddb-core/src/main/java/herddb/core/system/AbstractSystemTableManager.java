@@ -219,7 +219,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         throw new InvalidTableException("cannot alter system tables");
     }
 
-    protected abstract Iterable<Record> buildVirtualRecordList() throws StatementExecutionException;
+    protected abstract Iterable<Record> buildVirtualRecordList(Transaction transaction) throws StatementExecutionException;
 
     private final Comparator<Record> sortByPk = new Comparator<Record>() {
         @Override
@@ -248,7 +248,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         Predicate predicate = statement.getPredicate();
         MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
                 .createRecordSet(table.columnNames, table.columns);
-        Iterable<Record> data = buildVirtualRecordList();
+        Iterable<Record> data = buildVirtualRecordList(transaction);
         StreamSupport
                 .stream(data.spliterator(), false)
                 .filter(record -> {

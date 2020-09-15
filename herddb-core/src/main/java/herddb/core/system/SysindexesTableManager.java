@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -45,6 +46,7 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
             .column("index_name", ColumnTypes.STRING)
             .column("index_uuid", ColumnTypes.STRING)
             .column("index_type", ColumnTypes.STRING)
+            .column("unique", ColumnTypes.INTEGER)
             .primaryKey("table_name", false)
             .primaryKey("index_name", false)
             .build();
@@ -54,8 +56,8 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
+        List<Table> tables = tableSpaceManager.getAllVisibleTables(transaction);
         return tables
                 .stream()
                 .flatMap((Table r) -> {
@@ -71,7 +73,8 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
                         "table_name", r.table,
                         "index_name", r.name,
                         "index_uuid", r.uuid,
-                        "index_type", r.type
+                        "index_type", r.type,
+                        "unique", r.unique ? 1 : 0
                 ))
                 .collect(Collectors.toList());
     }

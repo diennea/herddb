@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,7 +56,7 @@ public class SysstatementsTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
         ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = tableSpaceManager.getDbmanager().getRunningStatements().getRunningStatements();
         List<Record> result = new ArrayList<>();
         long now = System.currentTimeMillis();

@@ -58,6 +58,7 @@ import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
 import herddb.model.TupleComparator;
+import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -1044,10 +1045,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
+        return lockForWrite(key, transaction, table.name, locksManager);
+    }
+
+    private static LockHandle lockForWrite(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
 //        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
         try {
             if (transaction != null) {
-                LockHandle lock = transaction.lookupLock(table.name, key);
+                LockHandle lock = transaction.lookupLock(lockKey, key);
                 if (lock != null) {
                     if (lock.write) {
                         // transaction already locked the key for writes
@@ -1055,34 +1060,40 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     } else {
                         // transaction already locked the key, but we need to upgrade the lock
                         locksManager.releaseLock(lock);
-                        transaction.unregisterUpgradedLocksOnTable(table.name, lock);
+                        transaction.unregisterUpgradedLocksOnTable(lockKey, lock);
                         lock = locksManager.acquireWriteLockForKey(key);
-                        transaction.registerLockOnTable(this.table.name, lock);
+                        transaction.registerLockOnTable(lockKey, lock);
                         return lock;
                     }
                 } else {
                     lock = locksManager.acquireWriteLockForKey(key);
-                    transaction.registerLockOnTable(this.table.name, lock);
+                    transaction.registerLockOnTable(lockKey, lock);
                     return lock;
                 }
             } else {
                 return locksManager.acquireWriteLockForKey(key);
             }
+        } catch (HerdDBInternalException err) { // locktimeout or other internal lockmanager error
+            throw err;
         } catch (RuntimeException err) { // locktimeout or other internal lockmanager error
             throw new StatementExecutionException(err);
         }
     }
 
     private LockHandle lockForRead(Bytes key, Transaction transaction) {
+        return lockForRead(key, transaction, table.name, locksManager);
+    }
+
+    private static LockHandle lockForRead(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
         try {
             if (transaction != null) {
-                LockHandle lock = transaction.lookupLock(table.name, key);
+                LockHandle lock = transaction.lookupLock(lockKey, key);
                 if (lock != null) {
                     // transaction already locked the key
                     return lock;
                 } else {
                     lock = locksManager.acquireReadLockForKey(key);
-                    transaction.registerLockOnTable(this.table.name, lock);
+                    transaction.registerLockOnTable(lockKey, lock);
                     return lock;
                 }
             } else {
@@ -1108,14 +1119,23 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } catch (StatementExecutionException validationError) {
             return Futures.exception(validationError);
         }
+        List<UniqueIndexLockReference> uniqueIndexes = null;
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
-                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                    if (index.isUnique()) {
+                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                        if (uniqueIndexes == null) {
+                            uniqueIndexes = new ArrayList<>(1);
+                        }
+                        uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                    } else {
+                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                    }
                 }
-            } catch (IllegalArgumentException err) {
+            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
                 return Futures.exception(new StatementExecutionException(err.getMessage(), err));
             }
         }
@@ -1127,27 +1147,53 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .exception(new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize));
         }
 
-        LockHandle lock = lockForWrite(key, transaction);
         CompletableFuture<StatementExecutionResult> res = null;
+        LockHandle lock = null;
+        try {
+            lock = lockForWrite(key, transaction);
+            if (uniqueIndexes != null) {
+                for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
+                    AbstractIndexManager index = uniqueIndexLock.indexManager;
+                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                    if (transaction == null) {
+                        uniqueIndexLock.lockHandle = lockForIndex;
+                    }
+                    if (index.valueAlreadyMapped(uniqueIndexLock.key, null)) {
+                        res = Futures.exception(new UniqueIndexContraintViolationException(index.getIndexName(), key,
+                                "key " + key + ", already exists in table " + table.name + " on UNIQUE index " + index.getIndexName()));
+                    }
+                    if (res != null) {
+                        break;
+                    }
+                }
+            }
+        } catch (HerdDBInternalException err) {
+            res = Futures.exception(err);
+        }
         boolean fallbackToUpsert = false;
-        if (transaction != null) {
-            if (transaction.recordDeleted(table.name, key)) {
-                // OK, INSERT on a DELETED record inside this transaction
-            } else if (transaction.recordInserted(table.name, key) != null) {
-                // ERROR, INSERT on a INSERTED record inside this transaction
-                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+        if (res == null) {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // OK, INSERT on a DELETED record inside this transaction
+                } else if (transaction.recordInserted(table.name, key) != null) {
+                    // ERROR, INSERT on a INSERTED record inside this transaction
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                            "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
+                } else if (keyToPage.containsKey(key)) {
+                    if (insert.isUpsert()) {
+                        fallbackToUpsert = true;
+                    } else {
+                        res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                                "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                    }
+                }
             } else if (keyToPage.containsKey(key)) {
                 if (insert.isUpsert()) {
                     fallbackToUpsert = true;
                 } else {
-                    res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
+                    res = Futures.exception(new DuplicatePrimaryKeyException(key,
+                            "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
                 }
-            }
-        } else if (keyToPage.containsKey(key)) {
-            if (insert.isUpsert()) {
-                fallbackToUpsert = true;
-            } else {
-                res = Futures.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key, table) + ", already exists in table " + table.name));
             }
         }
 
@@ -1165,6 +1211,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         insert.isReturnValues() ? Bytes.from_array(value) : null);
             }, tableSpaceManager.getCallbacksExecutor());
         }
+        if (uniqueIndexes != null) {
+            // TODO: reverse order
+            for (UniqueIndexLockReference uniqueIndexLock : uniqueIndexes) {
+                res = releaseWriteLock(res, uniqueIndexLock.lockHandle, uniqueIndexLock.indexManager.getLockManager());
+            }
+        }
         if (transaction == null) {
             res = releaseWriteLock(res, lock);
         }
@@ -1174,6 +1226,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private CompletableFuture<StatementExecutionResult> releaseWriteLock(
             CompletableFuture<StatementExecutionResult> promise, LockHandle lock
     ) {
+       return releaseWriteLock(promise, lock, locksManager);
+    }
+
+    private static <T> CompletableFuture<T> releaseWriteLock(
+            CompletableFuture<T> promise, LockHandle lock, ILocalLockManager locksManager
+    ) {
+        if (lock == null) {
+            return promise;
+        }
         return promise.whenComplete((tr, error) -> {
             locksManager.releaseWriteLock(lock);
         });
@@ -1242,18 +1303,48 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                    byte[] newValue = null;
+
+                    List<UniqueIndexLockReference> uniqueIndexes = null;
+                    byte[] newValue;
                     try {
                         newValue = function.computeNewValue(actual, context, tableContext);
                         if (indexes != null) {
                             DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
                             for (AbstractIndexManager index : indexes.values()) {
-                                RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                                if (index.isUnique()) {
+                                    Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                                    if (uniqueIndexes == null) {
+                                        uniqueIndexes = new ArrayList<>(1);
+                                    }
+                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                    uniqueIndexes.add(uniqueIndexLock);
+                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                    if (transaction == null) {
+                                        uniqueIndexLock.lockHandle = lockForIndex;
+                                    }
+                                    if (index.valueAlreadyMapped(indexKey, actual.key)) {
+                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
+                                    }
+                                } else {
+                                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
+                                }
                             }
                         }
                     } catch (IllegalArgumentException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(Futures.exception(new StatementExecutionException(err.getMessage(), err)));
+                        StatementExecutionException finalError;
+                        if (!(err instanceof StatementExecutionException)) {
+                            finalError = new StatementExecutionException(err.getMessage(), err);
+                        } else {
+                            finalError = (StatementExecutionException) err;
+                        }
+                        CompletableFuture<PendingLogEntryWork> res = Futures.exception(finalError);
+                        if (uniqueIndexes != null) {
+                            for (UniqueIndexLockReference lock : uniqueIndexes) {
+                                res = releaseWriteLock(res, lock.lockHandle, lock.indexManager.getLockManager());
+                            }
+                        }
+                        writes.add(res);
                         return;
                     }
 
@@ -1268,7 +1359,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                     LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
                     lastKey.value = actual.key;
                     lastValue.value = newValue;
                     updateCount.incrementAndGet();
@@ -1292,8 +1384,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null && pending.lockHandle != null) {
-                                locksManager.releaseLock(pending.lockHandle);
+                            if (pending != null) {
+                                releasePendingLogEntryWorkLocks(pending);
                             }
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
@@ -1314,9 +1406,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         } finally {
                             if (pendings != null) {
                                 for (PendingLogEntryWork pending : pendings) {
-                                    if (pending.lockHandle != null) {
-                                        locksManager.releaseLock(pending.lockHandle);
-                                    }
+                                    releasePendingLogEntryWorkLocks(pending);
                                 }
                             }
                         }
@@ -1333,12 +1423,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final LogEntry entry;
         final CommitLogResult pos;
         final LockHandle lockHandle;
+        final List<UniqueIndexLockReference> uniqueIndexes;
 
-        public PendingLogEntryWork(LogEntry entry, CommitLogResult pos, LockHandle lockHandle) {
+        public PendingLogEntryWork(LogEntry entry, CommitLogResult pos, LockHandle lockHandle, List<UniqueIndexLockReference> uniqueIndexes) {
             super();
             this.entry = entry;
             this.pos = pos;
             this.lockHandle = lockHandle;
+            this.uniqueIndexes = uniqueIndexes;
         }
     }
 
@@ -1352,14 +1444,56 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Predicate predicate = delete.getPredicate();
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
 
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+
+                    // ensure we are holding the write locks on every unique index
+                    List<UniqueIndexLockReference> uniqueIndexes = null;
+                    try {
+                        if (indexes != null) {
+                            DataAccessor dataAccessor = actual.getDataAccessor(table);
+                            for (AbstractIndexManager index : indexes.values()) {
+                                if (index.isUnique()) {
+                                    Bytes indexKey = RecordSerializer.serializeIndexKey(dataAccessor, index.getIndex(), index.getColumnNames());
+                                    if (uniqueIndexes == null) {
+                                        uniqueIndexes = new ArrayList<>(1);
+                                    }
+                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                    uniqueIndexes.add(uniqueIndexLock);
+                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                    if (transaction == null) {
+                                        uniqueIndexLock.lockHandle = lockForIndex;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                        locksManager.releaseLock(lockHandle);
+                        StatementExecutionException finalError;
+                        if (!(err instanceof StatementExecutionException)) {
+                            finalError = new StatementExecutionException(err.getMessage(), err);
+                        } else {
+                            finalError = (StatementExecutionException) err;
+                        }
+                        CompletableFuture<PendingLogEntryWork> res = Futures.exception(finalError);
+                        if (uniqueIndexes != null) {
+                            for (UniqueIndexLockReference lock : uniqueIndexes) {
+                                res = releaseWriteLock(res, lockHandle, lock.indexManager.getLockManager());
+                            }
+                        }
+                        writes.add(res);
+                        return;
+                    }
+
+
                     LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle)));
+                    final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
+                    writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
                     lastKey.value = actual.key;
                     lastValue.value = actual.value;
                     updateCount.incrementAndGet();
@@ -1382,8 +1516,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null && pending.lockHandle != null) {
-                                locksManager.releaseLock(pending.lockHandle);
+                            if (pending != null) {
+                                 releasePendingLogEntryWorkLocks(pending);
                             }
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
@@ -1404,9 +1538,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         } finally {
                             if (pendings != null) {
                                 for (PendingLogEntryWork pending : pendings) {
-                                    if (pending.lockHandle != null) {
-                                        locksManager.releaseLock(pending.lockHandle);
-                                    }
+                                    releasePendingLogEntryWorkLocks(pending);
                                 }
                             }
                         }
@@ -1415,6 +1547,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                                 delete.isReturnValues() ? lastValue.value : null);
                     });
+        }
+    }
+
+    private void releasePendingLogEntryWorkLocks(PendingLogEntryWork pending) {
+        if (pending.uniqueIndexes != null) {
+            for (UniqueIndexLockReference ref : pending.uniqueIndexes) {
+                ref.indexManager.getLockManager().releaseLock(ref.lockHandle);
+            }
+        }
+        if (pending.lockHandle != null) {
+            locksManager.releaseLock(pending.lockHandle);
         }
     }
 
@@ -3700,4 +3843,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return keyToPageSortedAscending;
     }
 
+    private static class UniqueIndexLockReference {
+        final AbstractIndexManager indexManager;
+        final Bytes key;
+        private LockHandle lockHandle;
+
+        public UniqueIndexLockReference(AbstractIndexManager indexManager, Bytes key) {
+            this.indexManager = indexManager;
+            this.key = key;
+        }
+
+    }
 }

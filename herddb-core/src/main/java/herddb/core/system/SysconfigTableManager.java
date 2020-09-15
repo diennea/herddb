@@ -25,6 +25,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.server.ServerConfiguration;
 import java.util.stream.Collectors;
 
@@ -48,7 +49,7 @@ public class SysconfigTableManager extends AbstractSystemTableManager {
     }
 
     @Override
-    protected Iterable<Record> buildVirtualRecordList() {
+    protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
         ServerConfiguration configuration = tableSpaceManager.getDbmanager().getServerConfiguration();
         return configuration.keys()
                 .stream()
