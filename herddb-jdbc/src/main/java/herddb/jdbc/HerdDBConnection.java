@@ -472,4 +472,9 @@ public class HerdDBConnection implements java.sql.Connection {
     boolean isKeepReadLocks() {
         return transactionIsolation == Connection.TRANSACTION_REPEATABLE_READ;
     }
+
+    long getTransactionId() {
+        return transactionId;
+    }
+
 }
