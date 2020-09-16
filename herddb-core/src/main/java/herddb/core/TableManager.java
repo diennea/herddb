@@ -3589,7 +3589,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (record != null) {
                     // use current transaction version of the record
                     if (predicate == null || predicate.evaluate(record, context)) {
-                        keep_lock = context.isForceRetainReadLock() || lock.write;
+                        keep_lock = context.isForceRetainReadLock() || (lock != null && lock.write);
                         return record;
                     }
                     return null;
@@ -3610,7 +3610,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 Record record = fetchRecord(key, pageId, lastPageRead);
                 if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
 
-                    keep_lock = context.isForceRetainReadLock() || lock.write;
+                    keep_lock = context.isForceRetainReadLock() || (lock != null && lock.write);
                     return record;
                 }
             }
