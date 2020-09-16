@@ -21,6 +21,16 @@
 package herddb.sql;
 
 import static herddb.model.Column.column;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_AGGREGATE_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_FILTER_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_MATCH_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_PROJECT_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_SETOP_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_SORT_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_TABLE_SCAN_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_VALUES_RULE;
+import static org.apache.calcite.interpreter.Bindables.BINDABLE_WINDOW_RULE;
+import static org.apache.calcite.interpreter.Bindables.FROM_NONE_RULE;
 import com.google.common.collect.ImmutableList;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -101,6 +111,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
+import org.apache.calcite.adapter.enumerable.EnumerableCalc;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableFilter;
 import org.apache.calcite.adapter.enumerable.EnumerableHashJoin;
@@ -109,6 +120,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableMergeJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableNestedLoopJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
+import org.apache.calcite.adapter.enumerable.EnumerableRules;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
@@ -119,6 +131,9 @@ import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.config.NullCollation;
+import org.apache.calcite.interpreter.Bindables;
+import org.apache.calcite.interpreter.Bindables.BindableAggregate;
+import org.apache.calcite.interpreter.Bindables.BindableProject;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -128,21 +143,30 @@ import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.hep.HepProgram;
+import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.rel.metadata.DefaultRelMetadataProvider;
 import org.apache.calcite.rel.rules.CoreRules;
+import org.apache.calcite.rel.rules.DateRangeRules;
+import org.apache.calcite.rel.rules.JoinPushThroughJoinRule;
+import org.apache.calcite.rel.rules.PruneEmptyRules;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -178,8 +202,10 @@ import org.apache.calcite.sql2rel.InitializerExpressionFactory;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
+import org.apache.calcite.tools.Program;
 import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelConversionException;
+import org.apache.calcite.tools.RuleSets;
 import org.apache.calcite.tools.ValidationException;
 import org.apache.calcite.util.ImmutableBitSet;
 
@@ -482,6 +508,133 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     .setQuoting(Quoting.BACK_TICK)
                     .build();
 
+    private static final Program PHASE_1 =
+            Programs.of(HepProgram.builder().addRuleCollection(
+                    Arrays.asList(
+                            CoreRules.FILTER_INTO_JOIN,
+                            CoreRules.SORT_PROJECT_TRANSPOSE,
+                            CoreRules.SORT_JOIN_TRANSPOSE,                            
+                            CoreRules.WINDOW_REDUCE_EXPRESSIONS,
+                            CoreRules.JOIN_REDUCE_EXPRESSIONS,
+                            CoreRules.FILTER_VALUES_MERGE,
+                            CoreRules.PROJECT_FILTER_VALUES_MERGE,
+                            CoreRules.PROJECT_VALUES_MERGE,
+                            CoreRules.AGGREGATE_VALUES,
+                            CoreRules.AGGREGATE_ANY_PULL_UP_CONSTANTS,
+                            CoreRules.UNION_PULL_UP_CONSTANTS,
+                            PruneEmptyRules.UNION_INSTANCE,
+                            PruneEmptyRules.INTERSECT_INSTANCE,
+                            PruneEmptyRules.MINUS_INSTANCE,
+                            PruneEmptyRules.PROJECT_INSTANCE,
+                            PruneEmptyRules.FILTER_INSTANCE,
+                            PruneEmptyRules.SORT_INSTANCE,
+                            PruneEmptyRules.AGGREGATE_INSTANCE,
+                            PruneEmptyRules.JOIN_LEFT_INSTANCE,
+                            PruneEmptyRules.JOIN_RIGHT_INSTANCE,
+                            PruneEmptyRules.SORT_FETCH_ZERO_INSTANCE,
+                            CoreRules.UNION_MERGE,
+                            CoreRules.INTERSECT_MERGE,
+                            CoreRules.MINUS_MERGE,
+                            CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW,
+                            CoreRules.FILTER_MERGE,
+                            DateRangeRules.FILTER_INSTANCE,
+                            CoreRules.INTERSECT_TO_DISTINCT,
+                            CoreRules.AGGREGATE_STAR_TABLE,
+                            CoreRules.AGGREGATE_PROJECT_STAR_TABLE,
+                            CoreRules.PROJECT_MERGE,
+                            CoreRules.FILTER_SCAN,
+//                            CoreRules.PROJECT_FILTER_TRANSPOSE,
+                            CoreRules.FILTER_PROJECT_TRANSPOSE,
+                            CoreRules.FILTER_INTO_JOIN,
+                            CoreRules.JOIN_PUSH_EXPRESSIONS,
+                            CoreRules.AGGREGATE_EXPAND_DISTINCT_AGGREGATES,
+                            CoreRules.AGGREGATE_CASE_TO_FILTER,
+                            CoreRules.AGGREGATE_REDUCE_FUNCTIONS,
+                            CoreRules.FILTER_AGGREGATE_TRANSPOSE,
+                            CoreRules.PROJECT_WINDOW_TRANSPOSE,
+                            CoreRules.MATCH,
+                            JoinPushThroughJoinRule.RIGHT,
+                            JoinPushThroughJoinRule.LEFT,
+                            CoreRules.SORT_PROJECT_TRANSPOSE,
+                            CoreRules.SORT_JOIN_TRANSPOSE,
+                            CoreRules.SORT_REMOVE_CONSTANT_KEYS,
+                            CoreRules.SORT_UNION_TRANSPOSE,
+                            CoreRules.EXCHANGE_REMOVE_CONSTANT_KEYS,
+                            CoreRules.SORT_EXCHANGE_REMOVE_CONSTANT_KEYS
+                    )).build(), false, new DefaultRelMetadataProvider() {
+            });
+    private static final List<RelOptRule> PHASE_2_RULES;
+
+    static {
+        PHASE_2_RULES = new ArrayList<>(Arrays.asList(
+                CoreRules.FILTER_REDUCE_EXPRESSIONS,
+                CoreRules.PROJECT_REDUCE_EXPRESSIONS,
+                CoreRules.CALC_REDUCE_EXPRESSIONS,
+                CoreRules.JOIN_COMMUTE,
+                EnumerableRules.ENUMERABLE_TABLE_SCAN_RULE,
+                EnumerableRules.ENUMERABLE_JOIN_RULE,
+                EnumerableRules.ENUMERABLE_MERGE_JOIN_RULE,
+                EnumerableRules.ENUMERABLE_CORRELATE_RULE,
+                EnumerableRules.ENUMERABLE_PROJECT_RULE,
+                EnumerableRules.ENUMERABLE_FILTER_RULE,
+                EnumerableRules.ENUMERABLE_AGGREGATE_RULE,
+                EnumerableRules.ENUMERABLE_SORT_RULE,
+                EnumerableRules.ENUMERABLE_LIMIT_RULE,
+                EnumerableRules.ENUMERABLE_UNION_RULE,
+                EnumerableRules.ENUMERABLE_INTERSECT_RULE,
+                EnumerableRules.ENUMERABLE_MINUS_RULE,
+                EnumerableRules.ENUMERABLE_TABLE_MODIFICATION_RULE,
+                EnumerableRules.ENUMERABLE_VALUES_RULE,
+                EnumerableRules.ENUMERABLE_WINDOW_RULE,
+                EnumerableRules.ENUMERABLE_MATCH_RULE,
+                CoreRules.PROJECT_TABLE_SCAN,
+                Bindables.BINDABLE_TABLE_SCAN_RULE,
+                CoreRules.PROJECT_INTERPRETER_TABLE_SCAN,
+                EnumerableRules.TO_INTERPRETER,
+                EnumerableRules.TO_BINDABLE,
+                CoreRules.FILTER_INTO_JOIN,
+                CoreRules.JOIN_CONDITION_PUSH,
+                AbstractConverter.ExpandConversionRule.INSTANCE,
+                CoreRules.JOIN_COMMUTE,
+                CoreRules.PROJECT_TO_SEMI_JOIN,
+                CoreRules.JOIN_TO_SEMI_JOIN,
+                CoreRules.AGGREGATE_REMOVE,
+                CoreRules.UNION_TO_DISTINCT,
+                CoreRules.PROJECT_REMOVE,
+                CoreRules.AGGREGATE_JOIN_TRANSPOSE,
+                CoreRules.AGGREGATE_MERGE,
+                CoreRules.AGGREGATE_PROJECT_MERGE,
+                CoreRules.CALC_REMOVE,
+                CoreRules.SORT_REMOVE,
+                Bindables.FROM_NONE_RULE,
+          EnumerableRules.ENUMERABLE_CALC_RULE,
+          EnumerableRules.ENUMERABLE_FILTER_TO_CALC_RULE,
+          EnumerableRules.ENUMERABLE_PROJECT_TO_CALC_RULE,
+          CoreRules.CALC_MERGE,
+          CoreRules.FILTER_CALC_MERGE,
+          CoreRules.PROJECT_CALC_MERGE,
+          CoreRules.FILTER_TO_CALC,
+          CoreRules.PROJECT_TO_CALC,
+          CoreRules.CALC_MERGE,
+          CoreRules.FILTER_CALC_MERGE,
+          CoreRules.PROJECT_CALC_MERGE,
+          FROM_NONE_RULE,
+          BINDABLE_TABLE_SCAN_RULE,
+          BINDABLE_FILTER_RULE,
+          BINDABLE_PROJECT_RULE,
+          BINDABLE_SORT_RULE,
+//          BINDABLE_JOIN_RULE,
+          BINDABLE_SETOP_RULE,
+          BINDABLE_VALUES_RULE,
+          BINDABLE_AGGREGATE_RULE,
+          BINDABLE_WINDOW_RULE,
+          BINDABLE_MATCH_RULE
+        ));
+
+    }
+    private static final Program PHASE_2 =
+            Programs.of(RuleSets.ofList(PHASE_2_RULES));
+    
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
      * }
@@ -576,7 +729,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelOptCluster cluster = logicalPlan.getCluster();
             final RelOptPlanner optPlanner = cluster.getPlanner();
 
-            optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
+//            optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
             RelTraitSet desiredTraits =
                     cluster.traitSet()
                             .replace(EnumerableConvention.INSTANCE);
@@ -589,7 +742,19 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
             optPlanner.setRoot(newRoot);
-            RelNode bestExp = optPlanner.findBestExp();
+            
+            Program optPhases = Programs.sequence(PHASE_1, PHASE_2);
+            RelTraitSet desiredTraitSet = logicalPlan.getTraitSet()
+                    .replace(EnumerableConvention.INSTANCE)
+                    .simplify();
+            RelNode bestExp = optPhases.run(
+                    logicalPlan.getCluster().getPlanner(), // this is a VolcanoPlanner
+                    logicalPlan,
+                    desiredTraitSet,
+                    Collections.emptyList(),
+                    Collections.emptyList());
+            
+//            RelNode bestExp = optPlanner.findBestExp();
             if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
                 LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
                     RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
@@ -646,7 +811,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan, rowType);
-        } else if (plan instanceof EnumerableHashJoin) {
+        } else if (plan instanceof BindableProject) {
+            BindableProject scan = (BindableProject) plan;
+            return planProject(scan, rowType);
+        }else if (plan instanceof EnumerableHashJoin) {
             EnumerableHashJoin scan = (EnumerableHashJoin) plan;
             return planEnumerableHashJoin(scan, rowType);
         } else if (plan instanceof EnumerableNestedLoopJoin) {
@@ -679,6 +847,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableAggregate) {
             EnumerableAggregate scan = (EnumerableAggregate) plan;
             return planAggregate(scan, rowType, returnValues);
+        } else if (plan instanceof BindableAggregate) {
+            BindableAggregate scan = (BindableAggregate) plan;
+            return planAggregate(scan, rowType, returnValues);
+        } else if (plan instanceof EnumerableCalc) {
+            EnumerableCalc scan = (EnumerableCalc) plan;
+            return convertRelNode(scan.getInput(),
+                rowType, returnValues, upsert);
         }
 
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
@@ -966,7 +1141,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private PlannerOp planProject(EnumerableProject op, RelDataType rowType) {
+    private PlannerOp planProject(Project op, RelDataType rowType) {
         PlannerOp input = convertRelNode(op.getInput(), null, false, false);
 
         final List<RexNode> projects = op.getProjects();
@@ -1227,7 +1402,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private PlannerOp planAggregate(EnumerableAggregate op, RelDataType rowType, boolean returnValues) {
+    private PlannerOp planAggregate(Aggregate op, RelDataType rowType, boolean returnValues) {
 
         List<RelDataTypeField> fieldList = op.getRowType().getFieldList();
 
