@@ -513,7 +513,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     Arrays.asList(
                             CoreRules.FILTER_INTO_JOIN,
                             CoreRules.SORT_PROJECT_TRANSPOSE,
-                            CoreRules.SORT_JOIN_TRANSPOSE,                            
+                            CoreRules.SORT_JOIN_TRANSPOSE,
                             CoreRules.WINDOW_REDUCE_EXPRESSIONS,
                             CoreRules.JOIN_REDUCE_EXPRESSIONS,
                             CoreRules.FILTER_VALUES_MERGE,
@@ -634,7 +634,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
     private static final Program PHASE_2 =
             Programs.of(RuleSets.ofList(PHASE_2_RULES));
-    
+
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
      * }
@@ -742,7 +742,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
             optPlanner.setRoot(newRoot);
-            
+
             Program optPhases = Programs.sequence(PHASE_1, PHASE_2);
             RelTraitSet desiredTraitSet = logicalPlan.getTraitSet()
                     .replace(EnumerableConvention.INSTANCE)
@@ -753,7 +753,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     desiredTraitSet,
                     Collections.emptyList(),
                     Collections.emptyList());
-            
+
 //            RelNode bestExp = optPlanner.findBestExp();
             if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
                 LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
@@ -814,7 +814,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof BindableProject) {
             BindableProject scan = (BindableProject) plan;
             return planProject(scan, rowType);
-        }else if (plan instanceof EnumerableHashJoin) {
+        } else if (plan instanceof EnumerableHashJoin) {
             EnumerableHashJoin scan = (EnumerableHashJoin) plan;
             return planEnumerableHashJoin(scan, rowType);
         } else if (plan instanceof EnumerableNestedLoopJoin) {
