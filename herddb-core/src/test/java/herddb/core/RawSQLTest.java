@@ -24,6 +24,7 @@ import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static herddb.core.TestUtils.scanKeepReadLocks;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -269,7 +270,7 @@ public class RawSQLTest {
             // GET .. -> READ LOCK
             {
                 long tx;
-                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                try (DataScanner scan = scanKeepReadLocks(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
                     assertEquals(1, scan.consume().size());
                     tx = scan.getTransactionId();
                 }
@@ -279,6 +280,21 @@ public class RawSQLTest {
                 System.out.println("LOCK: " + lock);
                 assertNotNull(lock);
                 assertFalse(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+             // GET .. -> NO READ LOCK BY DEFAULT
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNull(lock);
                 commitTransaction(manager, "tblspace1", tx);
             }
 
@@ -301,7 +317,7 @@ public class RawSQLTest {
             // SCAN .. -> READ LOCK
             {
                 long tx;
-                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                try (DataScanner scan = scanKeepReadLocks(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
                     assertEquals(1, scan.consume().size());
                     tx = scan.getTransactionId();
                 }
@@ -311,6 +327,21 @@ public class RawSQLTest {
                 System.out.println("LOCK: " + lock);
                 assertNotNull(lock);
                 assertFalse(lock.write);
+                commitTransaction(manager, "tblspace1", tx);
+            }
+
+            // SCAN .. -> NO READ LOCK by default
+            {
+                long tx;
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                    assertEquals(1, scan.consume().size());
+                    tx = scan.getTransactionId();
+                }
+                Bytes key = Bytes.from_string("a");
+                Transaction transaction = manager.getTableSpaceManager("tblspace1").getTransaction(tx);
+                herddb.utils.LockHandle lock = (herddb.utils.LockHandle) transaction.locks.get("tsql").get(key);
+                System.out.println("LOCK: " + lock);
+                assertNull(lock);
                 commitTransaction(manager, "tblspace1", tx);
             }
 
@@ -350,7 +381,7 @@ public class RawSQLTest {
             // test lock upgrade
             {
                 long tx;
-                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                try (DataScanner scan = scanKeepReadLocks(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
                     assertEquals(1, scan.consume().size());
                     tx = scan.getTransactionId();
                 }
