@@ -137,7 +137,7 @@ public abstract class DirectMultipleConcurrentUpdatesSuite {
                                                                   }
                                                               } else {
                                                                   gets.incrementAndGet();
-                                                                  DataScanner res = TestUtils.scan(manager,
+                                                                  DataScanner res = TestUtils.scanKeepReadLocks(manager,
                                                                           "SELECT * FROM mytable where id=?", Arrays.asList("test_" + k),
                                                                           new TransactionContext(useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID));
                                                                   if (!res.hasNext()) {
