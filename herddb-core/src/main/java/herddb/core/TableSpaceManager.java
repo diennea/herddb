@@ -640,7 +640,8 @@ public class TableSpaceManager {
             TransactionContext transactionContext, boolean lockRequired, boolean forWrite
     ) throws StatementExecutionException {
         boolean rollbackOnError = false;
-        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
+        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID
+                && (lockRequired || forWrite || context.isForceAcquireWriteLock() || context.isForceRetainReadLock())) {
             try {
                 // sync on beginTransaction
                 StatementExecutionResult newTransaction = Futures.result(beginTransactionAsync(context, true));
