@@ -20,6 +20,7 @@
 
 package herddb.client;
 
+import com.google.common.util.concurrent.MoreExecutors;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerHostData;
@@ -69,20 +70,29 @@ public class HDBClient implements AutoCloseable {
         this.configuration = configuration;
         this.statsLogger = statsLogger.scope("hdbclient");
 
-        int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT);
+        String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_STANDALONE);
+        int corePoolSizeDefault = ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT;
+        if (ClientConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+            corePoolSizeDefault = 0;
+        }
+        int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, corePoolSizeDefault);
         boolean connectRemoteServers = configuration.getBoolean(ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER_DEFAULT);
         this.maxOperationRetryCount = configuration.getInt(ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT, ClientConfiguration.PROPERTY_MAX_OPERATION_RETRY_COUNT_DEFAULT);
         this.operationRetryDelay = configuration.getInt(ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY, ClientConfiguration.PROPERTY_OPERATION_RETRY_DELAY_DEFAULT);
-        this.thredpool = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE,
-                120L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(),
-                (Runnable r) -> {
-                    Thread t = new FastThreadLocalThread(r, "hdb-client");
-                    t.setDaemon(true);
-                    return t;
-                });
+        if (corePoolSize <= 0) {
+            // this is particularly useful for "local" mode
+            this.thredpool = MoreExecutors.newDirectExecutorService();
+        } else {
+            this.thredpool = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE,
+                    120L, TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(),
+                    (Runnable r) -> {
+                        Thread t = new FastThreadLocalThread(r, "hdb-client");
+                        t.setDaemon(true);
+                        return t;
+                    });
+        }
         this.networkGroup = connectRemoteServers ? (NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup()) : null;
-        String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:

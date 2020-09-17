@@ -207,7 +207,7 @@ public class ClientConfiguration {
                     set(PROPERTY_SERVER_PORT, 0);
                 }
             }
-            set(PROPERTY_CLIENT_CALLBACKS, 4);
+            set(PROPERTY_CLIENT_CALLBACKS, 0);
             set(PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
             set(PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, false);
         }
