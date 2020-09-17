@@ -134,6 +134,7 @@ import org.apache.calcite.config.NullCollation;
 import org.apache.calcite.interpreter.Bindables;
 import org.apache.calcite.interpreter.Bindables.BindableAggregate;
 import org.apache.calcite.interpreter.Bindables.BindableProject;
+import org.apache.calcite.interpreter.Bindables.BindableSort;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -143,7 +144,6 @@ import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
@@ -231,12 +231,21 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private static final SqlTypeFactoryImpl SQL_TYPE_FACTORY_IMPL = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
     private static final RexBuilder REX_BUILDER  = new RexBuilder(SQL_TYPE_FACTORY_IMPL);
+    private boolean useSimplePlanner = false;
 
     public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
         this.cache = new PlansCache(maxPlanCacheSize);
         //used only for DDL
         this.fallback = new DDLSQLPlanner(manager, cache);
+    }
+
+    public boolean isUseSimplePlanner() {
+        return useSimplePlanner;
+    }
+
+    public void setUseSimplePlanner(boolean useSimplePlanner) {
+        this.useSimplePlanner = useSimplePlanner;
     }
 
     private final PlansCache cache;
@@ -563,10 +572,25 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                             CoreRules.SORT_EXCHANGE_REMOVE_CONSTANT_KEYS
                     )).build(), false, new DefaultRelMetadataProvider() {
             });
-    private static final List<RelOptRule> PHASE_2_RULES;
-
-    static {
-        PHASE_2_RULES = new ArrayList<>(Arrays.asList(
+    private static final Program SIMPLE_PLANNER_PHASE_1_DML =
+            Programs.of(HepProgram.builder().addRuleCollection(
+                    Arrays.asList(
+                            CoreRules.FILTER_VALUES_MERGE,
+                            CoreRules.PROJECT_FILTER_VALUES_MERGE,
+                            CoreRules.PROJECT_VALUES_MERGE,
+                            CoreRules.AGGREGATE_VALUES,
+                            CoreRules.AGGREGATE_ANY_PULL_UP_CONSTANTS,                                                                                    
+                            DateRangeRules.FILTER_INSTANCE,                            
+                            CoreRules.AGGREGATE_STAR_TABLE,
+                            CoreRules.AGGREGATE_PROJECT_STAR_TABLE,                            
+                            CoreRules.FILTER_SCAN,
+                            CoreRules.MATCH,                            
+                            CoreRules.EXCHANGE_REMOVE_CONSTANT_KEYS
+                    )).build(), false, new DefaultRelMetadataProvider() {
+            });
+ 
+    private static final Program PHASE_2 =
+            Programs.of(RuleSets.ofList(Arrays.asList(
                 CoreRules.FILTER_REDUCE_EXPRESSIONS,
                 CoreRules.PROJECT_REDUCE_EXPRESSIONS,
                 CoreRules.CALC_REDUCE_EXPRESSIONS,
@@ -606,7 +630,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 CoreRules.AGGREGATE_PROJECT_MERGE,
                 CoreRules.CALC_REMOVE,
                 CoreRules.SORT_REMOVE,
-                Bindables.FROM_NONE_RULE,
           EnumerableRules.ENUMERABLE_CALC_RULE,
           EnumerableRules.ENUMERABLE_FILTER_TO_CALC_RULE,
           EnumerableRules.ENUMERABLE_PROJECT_TO_CALC_RULE,
@@ -623,17 +646,30 @@ public class CalcitePlanner implements AbstractSQLPlanner {
           BINDABLE_FILTER_RULE,
           BINDABLE_PROJECT_RULE,
           BINDABLE_SORT_RULE,
-//          BINDABLE_JOIN_RULE,
           BINDABLE_SETOP_RULE,
           BINDABLE_VALUES_RULE,
           BINDABLE_AGGREGATE_RULE,
           BINDABLE_WINDOW_RULE,
           BINDABLE_MATCH_RULE
-        ));
-
-    }
-    private static final Program PHASE_2 =
-            Programs.of(RuleSets.ofList(PHASE_2_RULES));
+        )));
+    
+      private static final Program SIMPLE_PLANNER_PHASE_2_DML =
+            Programs.of(RuleSets.ofList(Arrays.asList(                
+                EnumerableRules.ENUMERABLE_TABLE_MODIFICATION_RULE,
+                EnumerableRules.ENUMERABLE_VALUES_RULE,
+                EnumerableRules.ENUMERABLE_PROJECT_RULE,
+                EnumerableRules.ENUMERABLE_UNION_RULE,
+            FROM_NONE_RULE,
+            BINDABLE_TABLE_SCAN_RULE,
+            BINDABLE_FILTER_RULE,
+            BINDABLE_PROJECT_RULE,
+            BINDABLE_SORT_RULE,
+            BINDABLE_SETOP_RULE,
+            BINDABLE_VALUES_RULE,
+            BINDABLE_AGGREGATE_RULE,
+            BINDABLE_WINDOW_RULE,
+            BINDABLE_MATCH_RULE
+        )));
 
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
@@ -726,33 +762,45 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     SqlExplainLevel.ALL_ATTRIBUTES)});
             }
             RelDataType originalRowType = logicalPlan.getRowType();
-            RelOptCluster cluster = logicalPlan.getCluster();
-            final RelOptPlanner optPlanner = cluster.getPlanner();
-
-//            optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
-            RelTraitSet desiredTraits =
-                    cluster.traitSet()
-                            .replace(EnumerableConvention.INSTANCE);
-            final RelCollation collation =
-                    logicalPlan instanceof Sort
-                            ? ((Sort) logicalPlan).collation
-                            : null;
-            if (collation != null) {
-                desiredTraits = desiredTraits.replace(collation);
+            RelNode bestExp;
+            if (useSimplePlanner) {
+                // PHASE_1 -> HepPlanner
+                // PHASE_2 -> VolanoPlanner
+                Program optPhases;
+                if (logicalPlan instanceof LogicalTableModify) {
+                    if (((LogicalTableModify) logicalPlan).isInsert()) {
+                        optPhases = Programs.sequence(SIMPLE_PLANNER_PHASE_1_DML, SIMPLE_PLANNER_PHASE_2_DML);
+                    } else {
+                        optPhases = Programs.sequence(SIMPLE_PLANNER_PHASE_1_DML, PHASE_2);
+                    }
+                }  else {
+                    optPhases = Programs.sequence(PHASE_1, PHASE_2);
+                }
+                RelTraitSet desiredTraitSet = logicalPlan.getTraitSet()
+                        .replace(EnumerableConvention.INSTANCE)
+                        .simplify();
+                bestExp = optPhases.run(
+                        logicalPlan.getCluster().getPlanner(), // this is a VolcanoPlanner
+                        logicalPlan,
+                        desiredTraitSet,
+                        Collections.emptyList(),
+                        Collections.emptyList());
+            } else {                
+                RelOptCluster cluster = logicalPlan.getCluster();
+                final RelOptPlanner optPlanner = cluster.getPlanner();
+                optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
+                RelTraitSet desiredTraits =
+                        cluster.traitSet()
+                                .replace(EnumerableConvention.INSTANCE);
+                final RelCollation collation =
+                        logicalPlan instanceof Sort
+                                ? ((Sort) logicalPlan).collation
+                                : null;
+                if (collation != null) {
+                    desiredTraits = desiredTraits.replace(collation);
+                }
+                bestExp = optPlanner.findBestExp();
             }
-            final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
-            optPlanner.setRoot(newRoot);
-
-            Program optPhases = Programs.sequence(PHASE_1, PHASE_2);
-            RelTraitSet desiredTraitSet = logicalPlan.getTraitSet()
-                    .replace(EnumerableConvention.INSTANCE)
-                    .simplify();
-            RelNode bestExp = optPhases.run(
-                    logicalPlan.getCluster().getPlanner(), // this is a VolcanoPlanner
-                    logicalPlan,
-                    desiredTraitSet,
-                    Collections.emptyList(),
-                    Collections.emptyList());
 
 //            RelNode bestExp = optPlanner.findBestExp();
             if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
@@ -831,6 +879,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return planValues(scan);
         } else if (plan instanceof EnumerableSort) {
             EnumerableSort scan = (EnumerableSort) plan;
+            return planSort(scan, rowType);
+        } else if (plan instanceof BindableSort) {
+            BindableSort scan = (BindableSort) plan;
             return planSort(scan, rowType);
         } else if (plan instanceof EnumerableLimit) {
             EnumerableLimit scan = (EnumerableLimit) plan;
@@ -1346,7 +1397,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private PlannerOp planSort(EnumerableSort op, RelDataType rowType) {
+    private PlannerOp planSort(Sort op, RelDataType rowType) {
         PlannerOp input = convertRelNode(op.getInput(), rowType, false, false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
