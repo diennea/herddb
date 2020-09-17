@@ -114,7 +114,8 @@ public class HDBConnection implements AutoCloseable {
                                 + "where tablespace_name=?", false,
                         Arrays.asList(tableSpace), TransactionContext.NOTRANSACTION_ID,
                         1,
-                        1)) {
+                        1,
+                        false)) {
                     boolean ok = result.hasNext();
                     if (ok) {
                         LOGGER.log(Level.INFO, "table space {0} is up now: info {1}", new Object[]{tableSpace,
@@ -334,7 +335,7 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
-    public ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+    public ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize, boolean keepReadLocks) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }
@@ -342,7 +343,7 @@ public class HDBConnection implements AutoCloseable {
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize);
+                return route.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize, keepReadLocks);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.INFO, "temporary error", retry);
                 handleRetryError(retry, trialCount++);

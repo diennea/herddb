@@ -62,6 +62,8 @@ public class Pdu implements AutoCloseable {
 
     public static final byte FLAGS_ISREQUEST = 1;
     public static final byte FLAGS_ISRESPONSE = 2;
+    public static final byte FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS = 4;
+
 
     private static final Recycler<Pdu> RECYCLER = new Recycler<Pdu>() {
         @Override
@@ -90,11 +92,11 @@ public class Pdu implements AutoCloseable {
     public long messageId;
 
     public boolean isRequest() {
-        return (flags | FLAGS_ISREQUEST) == FLAGS_ISREQUEST;
+        return (flags & FLAGS_ISREQUEST) == FLAGS_ISREQUEST;
     }
 
     public boolean isResponse() {
-        return (flags | FLAGS_ISRESPONSE) == FLAGS_ISRESPONSE;
+        return (flags & FLAGS_ISRESPONSE) == FLAGS_ISRESPONSE;
     }
 
     @Override

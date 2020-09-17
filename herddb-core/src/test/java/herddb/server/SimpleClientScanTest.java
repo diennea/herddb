@@ -69,30 +69,30 @@ public class SimpleClientScanTest {
                 }
 
                 assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
-                        emptyList(), 0, 0, 10).consume().size());
+                        emptyList(), 0, 0, 10, true).consume().size());
 
                 // maxRows
                 assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
-                        emptyList(), 0, 17, 10).consume().size());
+                        emptyList(), 0, 17, 10, true).consume().size());
 
                 // empty result set
                 assertEquals(0, connection.
                         executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", true, Collections.
-                                emptyList(), 0, 0, 10).consume().size());
+                                emptyList(), 0, 0, 10, true).consume().size());
 
                 // single fetch result test
                 assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'",
-                        true, Collections.emptyList(), 0, 0, 10).consume().size());
+                        true, Collections.emptyList(), 0, 0, 10, true).consume().size());
 
                 // agregation in transaction, this is trickier than what you can think
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 assertEquals(1, connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT count(*) FROM mytable WHERE id='test_1'", true, Collections.emptyList(), tx, 0, 10).
+                        "SELECT count(*) FROM mytable WHERE id='test_1'", true, Collections.emptyList(), tx, 0, 10, true).
                         consume().size());
                 connection.rollbackTransaction(TableSpace.DEFAULT, tx);
 
                 assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id=?", true,
-                        Arrays.<Object>asList((Object) null), 0, 0, 10).consume().size());
+                        Arrays.<Object>asList((Object) null), 0, 0, 10, true).consume().size());
 
             }
         }
@@ -176,7 +176,7 @@ public class SimpleClientScanTest {
                 ServerSideConnectionPeer peerWithScanner = null;
                 long tx = withTransaction ? primary.beginTransaction(TableSpace.DEFAULT) : 0;
                 try (ScanResultSet scan = connection2.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true,
-                        Collections.emptyList(), tx, 0, 1)) {
+                        Collections.emptyList(), tx, 0, 1, true)) {
                     assertTrue(scan.hasNext());
                     System.out.println("next:" + scan.next());
 
@@ -214,7 +214,7 @@ public class SimpleClientScanTest {
         // scan with fetchSize = 1, we will have 100 chunks
         ServerSideConnectionPeer peerWithScanner = null;
         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
-                emptyList(), 0, 0, 1)) {
+                emptyList(), 0, 0, 1, true)) {
             while (scan.hasNext()) {
                 System.out.println("next:" + scan.next());
 
@@ -243,7 +243,7 @@ public class SimpleClientScanTest {
         ServerSideConnectionPeer peerWithScanner = null;
         int chunks = 0;
         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", true, Collections.
-                emptyList(), tx, 0, 1)) {
+                emptyList(), tx, 0, 1, true)) {
 
             while (scan.hasNext()) {
                 System.out.println("next:" + scan.next());
@@ -284,7 +284,7 @@ public class SimpleClientScanTest {
                 "SELECT count(*) FROM mytable "
                 + "UNION ALL "
                 + "SELECT count(*) FROM mytable", true, Collections.emptyList(), tx,
-                0, 1)) {
+                0, 1, true)) {
 
             assertTrue(scan.hasNext());
             System.out.println("next:" + scan.next());

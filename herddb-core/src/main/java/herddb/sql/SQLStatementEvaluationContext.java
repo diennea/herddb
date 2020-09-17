@@ -42,8 +42,8 @@ public class SQLStatementEvaluationContext extends StatementEvaluationContext {
         return jdbcParameters;
     }
 
-    public SQLStatementEvaluationContext(String query, List<Object> jdbcParameters, boolean forceAcquireWriteLock) {
-        super(forceAcquireWriteLock);
+    public SQLStatementEvaluationContext(String query, List<Object> jdbcParameters, boolean forceAcquireWriteLock, boolean forceRetainReadLock) {
+        super(forceAcquireWriteLock, forceRetainReadLock);
         this.query = query;
         this.jdbcParameters = jdbcParameters;
         final int len = jdbcParameters.size();

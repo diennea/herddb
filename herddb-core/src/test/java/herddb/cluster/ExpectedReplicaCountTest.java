@@ -144,6 +144,9 @@ public class ExpectedReplicaCountTest {
 
                     // the TableSpaceManager will roll a new ledger
                     herddb.utils.TestUtils.waitForCondition(() -> {
+                        if (log.getWriter() == null) {
+                            return false;
+                        }
                         long newLedgerId = log.getWriter().getLedgerId();
                         return newLedgerId != currentLedgerId;
                     }, herddb.utils.TestUtils.NOOP, 100);

@@ -84,6 +84,7 @@ public class SimpleJoinTest {
                     + " JOIN tblspace1.table2 t2"
                     + " ON t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
+                translated.context.setForceRetainReadLock(true);
                 assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
                 NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
                 assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));

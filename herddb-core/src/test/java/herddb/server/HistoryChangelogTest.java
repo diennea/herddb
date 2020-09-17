@@ -198,7 +198,7 @@ public class HistoryChangelogTest {
                         if (doneElements.contains(entry.getKey())) {
                             ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
                                             + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
-                                    TransactionContext.NOTRANSACTION_ID, -1, 10000);
+                                    TransactionContext.NOTRANSACTION_ID, -1, 10000, true);
                             List<Map<String, Object>> consume = res.consume();
                             assertEquals(1, consume.size());
                             Map<String, Object> data = consume.get(0);
@@ -236,7 +236,7 @@ public class HistoryChangelogTest {
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
                                         + "FROM mytable where id=?", true, Arrays.asList(entry.getKey()),
-                                TransactionContext.NOTRANSACTION_ID, -1, 10000);
+                                TransactionContext.NOTRANSACTION_ID, -1, 10000, true);
                         List<Map<String, Object>> consume = res.consume();
                         assertEquals(1, consume.size());
                         Map<String, Object> data = consume.get(0);

@@ -26,6 +26,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -33,6 +34,7 @@ import herddb.client.impl.HDBOperationTimeoutException;
 import herddb.core.TableSpaceManager;
 import herddb.model.MissingJDBCParameterException;
 import herddb.model.TableSpace;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
@@ -43,6 +45,7 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.ServerSideConnectionPeer;
 import herddb.server.StaticClientSideMetadataProvider;
+import herddb.utils.Bytes;
 import herddb.utils.RawString;
 import herddb.utils.TestUtils;
 import io.netty.channel.socket.SocketChannel;
@@ -158,7 +161,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(),
-                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10)) {
+                        "SELECT * FROM sysconfig", true, Collections.emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
@@ -169,7 +172,7 @@ public class SimpleClientServerTest {
                 }
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().
-                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10)) {
+                        getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
 
@@ -237,12 +240,12 @@ public class SimpleClientServerTest {
                     // this is 2 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     // this is 3 for the client and for the server
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT id FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
                 }
 
                 try (Server server = new Server(new ServerConfiguration(baseDir))) {
@@ -254,7 +257,7 @@ public class SimpleClientServerTest {
                     // this is 1 for the server, the client will invalidate its cache for this statement
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT n1 FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     // this is 2 for the server
                     try (HDBConnection connection2 = client.openConnection()) {
@@ -266,7 +269,7 @@ public class SimpleClientServerTest {
                     // this would be 2 for connection1 (bug in 0.10.0), but for the server 2 is "UPDATE mytable set n1=2"
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", true /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                 }
             }
@@ -314,7 +317,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100, true)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -323,7 +326,7 @@ public class SimpleClientServerTest {
 
                     try (ScanResultSet res = connection.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable WHERE id='test'", true, Collections.emptyList(),
-                            TransactionContext.NOTRANSACTION_ID, 100, 100)) {
+                            TransactionContext.NOTRANSACTION_ID, 100, 100, true)) {
                         assertEquals(1, res.consume().size());
                     }
                 }
@@ -496,7 +499,7 @@ public class SimpleClientServerTest {
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM herd.mytable", true, Collections.
-                        emptyList(), 0, 0, 10)) {
+                        emptyList(), 0, 0, 10, true)) {
                     List<Map<String, Object>> rows = scan.consume();
                     int i = 0;
                     for (Map<String, Object> row : rows) {
@@ -719,21 +722,21 @@ public class SimpleClientServerTest {
                 // test join with different
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 100000);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 100000, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
 
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 1);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 1, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
 
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 10);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), 0, 0, 10, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
@@ -741,7 +744,7 @@ public class SimpleClientServerTest {
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 try (ScanResultSet scanner =
                         connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable a"
-                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), tx, 0, 1);) {
+                                + " INNER JOIN mytable b ON 1=1", true, Collections.emptyList(), tx, 0, 1, true);) {
                     List<Map<String, Object>> resultSet = scanner.consume();
                     assertEquals(100, resultSet.size());
                 }
@@ -804,7 +807,7 @@ public class SimpleClientServerTest {
                 socket.close().await();
 
                 // ensure reconnection is performed (using prepared statement)
-                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", true, Collections.emptyList(), 0, 100, 1000).close();
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", true, Collections.emptyList(), 0, 100, 1000, true).close();
 
                 // assert we are using real network
                 assertNotEquals(NettyChannel.ADDRESS_JVM_LOCAL, connections.get()[0].getChannel().getRemoteAddress());
@@ -816,7 +819,7 @@ public class SimpleClientServerTest {
                 socket2.close().await();
 
                 // ensure reconnection is performed (not using prepared statement)
-                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", false, Collections.emptyList(), 0, 100, 1000).close();
+                connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable ", false, Collections.emptyList(), 0, 100, 1000, true).close();
 
 
             }
@@ -859,7 +862,7 @@ public class SimpleClientServerTest {
 
                     connection1.executeScan(TableSpace.DEFAULT,
                             "SELECT * FROM mytable", false /*usePreparedStatement*/,
-                            Collections.emptyList(), 0, 0, 10).close();
+                            Collections.emptyList(), 0, 0, 10, true).close();
 
                     assertEquals(1, channelCreatedCount.get());
                 }
@@ -867,6 +870,88 @@ public class SimpleClientServerTest {
             }
         }
 
+    }
+
+    @Test
+    public void testKeepReadLocks() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        String _baseDir = baseDir.toString();
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, Integer.MAX_VALUE));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
+                        Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2)).updateCount;
+                Assert.assertEquals(1, countInsert);
+                long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList("test2", 2, 3)).updateCount;
+                Assert.assertEquals(1, countInsert2);
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
+
+                // new transaction
+                tx = connection.beginTransaction(TableSpace.DEFAULT);
+                // do not keep locks
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertNull(transaction.lookupLock("mytable", Bytes.from_string("test")));
+                }
+
+                // keep locks
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'",  true, Collections.emptyList(), tx, 0, 10, true)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                     assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertFalse(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+
+                // upgrade lock to write
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test' FOR UPDATE",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertTrue(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+
+                connection.rollbackTransaction(TableSpace.DEFAULT, tx);
+
+                // new transaction
+                tx = connection.beginTransaction(TableSpace.DEFAULT);
+
+                // SELECT FOR UPDATE must hold WRITE LOCK even with keepLocks = false
+                try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test' FOR UPDATE",  true, Collections.emptyList(), tx, 0, 10, false)) {
+                    Map<String, Object> record = scan.consume().get(0);
+                    assertEquals(RawString.of("test"), record.get("id"));
+                    assertEquals(Long.valueOf(1), record.get("n1"));
+                    assertEquals(Integer.valueOf(2), record.get("n2"));
+                    Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
+                    assertTrue(transaction.lookupLock("mytable", Bytes.from_string("test")).write);
+                }
+            }
+        }
     }
 
 }

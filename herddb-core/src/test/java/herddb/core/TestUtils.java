@@ -80,6 +80,12 @@ public class TestUtils {
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
     }
 
+    public static DataScanner scanKeepReadLocks(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
+        translated.context.setForceRetainReadLock(true);
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
+    }
+
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, int maxRows, TransactionContext transactionContext) throws StatementExecutionException {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, maxRows);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;

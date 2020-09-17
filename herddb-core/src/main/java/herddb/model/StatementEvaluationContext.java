@@ -42,18 +42,24 @@ public class StatementEvaluationContext {
     private String defaultTablespace = TableSpace.DEFAULT;
     private volatile long tableSpaceLock;
     private static final ZoneId timezone = ZoneId.systemDefault();
+    // REPEATABLE READ
+    private boolean forceRetainReadLock;
+    // SELECT ... FOR UPDATE
     private final boolean forceAcquireWriteLock;
 
     // CHECKSTYLE.OFF: MethodName
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
-        return new StatementEvaluationContext(false);
+        return new StatementEvaluationContext(false, false);
+    }
+    public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT_KEEP_READ_LOCKS() {
+        return new StatementEvaluationContext(false, true);
     }
     // CHECKSTYLE.ON: MethodName
 
-    protected StatementEvaluationContext(boolean forceAcquireWriteLock) {
+    protected StatementEvaluationContext(boolean forceAcquireWriteLock,  boolean forceRetainReadLock) {
         this.forceAcquireWriteLock = forceAcquireWriteLock;
+        this.forceRetainReadLock = forceRetainReadLock;
     }
-
 
     public String getDefaultTablespace() {
         return defaultTablespace;
@@ -115,6 +121,14 @@ public class StatementEvaluationContext {
 
     public boolean isForceAcquireWriteLock() {
         return forceAcquireWriteLock;
+    }
+
+    public boolean isForceRetainReadLock() {
+        return forceRetainReadLock;
+    }
+
+    public void setForceRetainReadLock(boolean forceRetainReadLock) {
+        this.forceRetainReadLock = forceRetainReadLock;
     }
 
 }

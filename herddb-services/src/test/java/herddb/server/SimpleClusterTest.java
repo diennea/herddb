@@ -79,7 +79,7 @@ public class SimpleClusterTest {
                         new ZookeeperClientSideMetadataProvider(zookeeperServer.getConnectString(), 40000, "/herddb")
                 );
                 try (HDBConnection con = client.openConnection()) {
-                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10);) {
+                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10, false);) {
                         scan.consume();
                     }
                 }

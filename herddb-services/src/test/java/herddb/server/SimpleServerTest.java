@@ -77,7 +77,7 @@ public class SimpleServerTest {
                         new StaticClientSideMetadataProvider(ServerMain.getRunningInstance().getServer()
                         ));
                 try (HDBConnection con = client.openConnection()) {
-                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10);) {
+                    try (ScanResultSet scan = con.executeScan(TableSpace.DEFAULT, "SELECT * FROM SYSTABLES", false, Collections.emptyList(), 0, 10, 10, false);) {
                         scan.consume();
                     }
                 }
