@@ -285,8 +285,8 @@ public class RawSQLTest {
 
              // GET .. -> NO READ LOCK BY DEFAULT
             {
-                long tx;
-                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                long tx = TestUtils.beginTransaction(manager, "tblspace1");
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1='a'", Collections.emptyList(), new TransactionContext(tx))) {
                     assertEquals(1, scan.consume().size());
                     tx = scan.getTransactionId();
                 }
@@ -332,8 +332,8 @@ public class RawSQLTest {
 
             // SCAN .. -> NO READ LOCK by default
             {
-                long tx;
-                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+                long tx = TestUtils.beginTransaction(manager, "tblspace1");
+                try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql ", Collections.emptyList(), new TransactionContext(tx))) {
                     assertEquals(1, scan.consume().size());
                     tx = scan.getTransactionId();
                 }
