@@ -51,6 +51,9 @@ public class StatementEvaluationContext {
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
         return new StatementEvaluationContext(false, false);
     }
+    public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT_KEEP_READ_LOCKS() {
+        return new StatementEvaluationContext(false, true);
+    }
     // CHECKSTYLE.ON: MethodName
 
     protected StatementEvaluationContext(boolean forceAcquireWriteLock,  boolean forceRetainReadLock) {

@@ -160,10 +160,15 @@ public class AutoTransactionTest extends BaseTestcase {
         try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
             tx = scan.getTransactionId();
             assertEquals(1, scan.consume().size());
+            assertEquals(0, tx);
+        }
+
+        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT_KEEP_READ_LOCKS(), TransactionContext.AUTOTRANSACTION_TRANSACTION)) {
+            tx = scan.getTransactionId();
+            assertEquals(1, scan.consume().size());
         }
 
         TestUtils.commitTransaction(manager, tableSpace, tx);
-
     }
 
     @Test
