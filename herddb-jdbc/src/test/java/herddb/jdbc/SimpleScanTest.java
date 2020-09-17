@@ -259,7 +259,11 @@ public class SimpleScanTest {
                     try (Connection con = dataSource.getConnection()) {
                         con.setAutoCommit(false);
                         Transaction tx;
-                        try (PreparedStatement statement = con.prepareStatement("SELECT n1, k1 FROM mytable ")) {
+                        try (Statement s = con.createStatement()) {
+                            // force the creation of the transaction, by issuing a DML command
+                            s.executeUpdate("UPDATE mytable set n1=1 where k1 ='aaa'");
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT n1, k1 FROM mytable")) {
                             statement.setFetchSize(1);
                             ResultSet rs = statement.executeQuery();
                             assertTrue(rs.next());
@@ -278,7 +282,11 @@ public class SimpleScanTest {
                     Transaction tx;
                     try (Connection con = dataSource.getConnection()) {
                         con.setAutoCommit(false);
-                        PreparedStatement statement = con.prepareStatement("SELECT n1, k1 FROM mytable ");
+                        try (Statement s = con.createStatement()) {
+                            // force the creation of the transaction, by issuing a DML command
+                            s.executeUpdate("UPDATE mytable set n1=1 where k1 ='aaa'");
+                        }
+                        PreparedStatement statement = con.prepareStatement("SELECT n1, k1 FROM mytable");
                         statement.setFetchSize(1);
                         ResultSet rs = statement.executeQuery();
                         assertTrue(rs.next());

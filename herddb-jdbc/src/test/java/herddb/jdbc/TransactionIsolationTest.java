@@ -56,6 +56,7 @@ public class TransactionIsolationTest {
             try (Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement()) {
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
+                statement.execute("CREATE TABLE mytable2 (key string primary key, name string)");
 
             }
             Server server = dataSource.getServer();
@@ -73,8 +74,12 @@ public class TransactionIsolationTest {
                     HerdDBConnection hCon = (HerdDBConnection) con;
                     assertEquals(0, hCon.getTransactionId());
 
-                    statement.executeQuery("SELECT * FROM mytable").close();
+                    // force the creation of a transaction, by issuing a DML command
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable2 (key,name) values('c1','name1')"));
                     long tx = hCon.getTransactionId();
+
+                    statement.executeQuery("SELECT * FROM mytable").close();
+
 
                     Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
 
@@ -101,8 +106,11 @@ public class TransactionIsolationTest {
                     assertEquals(0, hCon.getTransactionId());
                     con.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
 
-                    statement.executeQuery("SELECT * FROM mytable FOR UPDATE").close();
+                    // force the creation of a transaction, by issuing a DML command
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable2 (key,name) values('c2','name1')"));
                     long tx = hCon.getTransactionId();
+
+                    statement.executeQuery("SELECT * FROM mytable FOR UPDATE").close();
                     Transaction transaction = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTransaction(tx);
                     LockHandle lock = transaction.lookupLock("mytable", Bytes.from_string("k1"));
                     assertTrue(lock.write);
