@@ -22,7 +22,7 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
+import static herddb.core.TestUtils.scanKeepReadLocks;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -805,7 +805,7 @@ public class CheckpointTest {
 
             err = herddb.utils.TestUtils.expectThrows(herddb.model.StatementExecutionException.class, () -> {
                 // this select in a transaction will timeout, write lock is already held by the transaction
-                scan(manager, "SELECT * FROM tblspace1.tsql where k1=?",
+                scanKeepReadLocks(manager, "SELECT * FROM tblspace1.tsql",
                         Arrays.asList("mykey"), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             });
             assertEquals("timedout trying to read lock", err.getCause().getMessage());
