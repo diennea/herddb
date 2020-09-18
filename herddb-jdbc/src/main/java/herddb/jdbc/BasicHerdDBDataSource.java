@@ -36,6 +36,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
+
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.PooledObjectFactory;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 /**
  * HerdDB DataSource
@@ -157,6 +164,18 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     public synchronized void setUrl(String url) {
         this.url = url;
+        final int sep = url.indexOf('?');
+        if (sep > 0) {
+            final String sub = url.substring(sep + 1);
+            if (!sub.isEmpty()) {
+                Stream.of(sub.split("&"))
+                        .map(it -> {
+                            final int subSep = it.indexOf('=');
+                            return subSep > 0 ? new String[]{it.substring(0, subSep), it.substring(subSep + 1)} : new String[]{it, ""};
+                        })
+                        .forEach(pair -> properties.setProperty(pair[0], pair[1]));
+            }
+        }
     }
 
     public synchronized boolean isPoolConnections() {

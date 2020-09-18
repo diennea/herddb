@@ -211,21 +211,6 @@ public class ClientConfiguration {
             set(PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
             set(PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, false);
         }
-        if (questionMark < url.length()) {
-            String qs = url.substring(questionMark + 1);
-            String[] params = qs.split("&");
-            for (String param : params) {
-                // TODO: URLDecoder??
-                int pos = param.indexOf('=');
-                if (pos > 0) {
-                    String key = param.substring(0, pos);
-                    String value = param.substring(pos + 1);
-                    set(key, value);
-                } else {
-                    set(param, "");
-                }
-            }
-        }
         readAdditionalProperties();
 
     }

@@ -19,9 +19,14 @@
  */
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.io.File;
@@ -46,6 +51,31 @@ public class JdbcDriverTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
+    @Test
+    public void urlQueryConfig() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?")) {
+                assertFalse(HerdDBConnection.class.cast(connection)
+                        .getConnection().getClient().getConfiguration()
+                        .getBoolean("autoClose", false));
+            }
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?autoClose=true")) {
+                assertTrue(HerdDBConnection.class.cast(connection)
+                        .getConnection().getClient().getConfiguration()
+                        .getBoolean("autoClose", false));
+            }
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?some&autoClose=false&bar=dummy&foo")) {
+                final ClientConfiguration config = HerdDBConnection.class.cast(connection)
+                        .getConnection().getClient().getConfiguration();
+                assertFalse(config.getBoolean("autoClose", true));
+                assertEquals("", config.getString("some", "-"));
+                assertEquals("", config.getString("foo", "-"));
+                assertEquals("dummy", config.getString("bar", "-"));
+            }
+        }
+    }
 
     @Test
     public void testVersion() throws Exception {
