@@ -20,6 +20,8 @@
 
 package herddb.server;
 
+import static java.util.Locale.ROOT;
+import static java.util.stream.Collectors.toMap;
 import herddb.daemons.PidFileLocker;
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,6 +29,7 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
@@ -94,6 +97,10 @@ public class ServerMain implements AutoCloseable {
     }
 
     public static void main(String... args) {
+        final String julConfigFile = System.getProperty("java.util.logging.config.file", "");
+        if (Boolean.parseBoolean(System.getenv("HERDDB_USE_ENV"))) {
+            useEnv();
+        }
         try {
             LOG.log(Level.INFO, "Starting HerdDB version {0}", herddb.utils.Version.getVERSION());
             Properties configuration = new Properties();
@@ -109,10 +116,7 @@ public class ServerMain implements AutoCloseable {
                     }
                     configFileFromParameter = true;
                 } else if (arg.equals("--use-env")) {
-                    System.getenv().forEach((key, value) -> {
-                        System.out.println("Considering env as system property " + key + " -> " + value);
-                        System.setProperty(key, value);
-                    });
+                    useEnv();
                 } else if (arg.startsWith("-D")) {
                     int equals = arg.indexOf('=');
                     if (equals > 0) {
@@ -139,7 +143,10 @@ public class ServerMain implements AutoCloseable {
                 }
             });
 
-            LogManager.getLogManager().readConfiguration();
+            final LogManager logManager = LogManager.getLogManager(); // don't re-read the configuration, it is done by this call
+            if (!julConfigFile.equals(System.getProperty("java.util.logging.config.file", ""))) {
+                logManager.readConfiguration();
+            }
 
             Runtime.getRuntime().addShutdownHook(new Thread("ctrlc-hook") {
 
@@ -162,6 +169,13 @@ public class ServerMain implements AutoCloseable {
             t.printStackTrace();
             System.exit(1);
         }
+    }
+
+    private static void useEnv() {
+        // herddb_env_foo_bar -> foo.bar=xxx which enables to fully configure herddb this way
+        System.getProperties().putAll(System.getenv().entrySet().stream()
+                .filter(e -> e.getKey().toUpperCase(ROOT).startsWith("HERDDB_ENV_"))
+                .collect(toMap(e -> e.getKey().substring("HERDDB_ENV_".length()).replace('_', '.'), Map.Entry::getValue)));
     }
 
     private static final Logger LOG = Logger.getLogger(ServerMain.class.getName());
