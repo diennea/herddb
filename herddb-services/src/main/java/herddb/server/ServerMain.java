@@ -20,6 +20,8 @@
 
 package herddb.server;
 
+import static java.util.Locale.ROOT;
+import static java.util.stream.Collectors.toMap;
 import herddb.daemons.PidFileLocker;
 import java.io.File;
 import java.io.FileInputStream;
@@ -41,9 +43,6 @@ import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
-
-import static java.util.Locale.ROOT;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Created by enrico.olivelli on 23/03/2015.
@@ -144,7 +143,7 @@ public class ServerMain implements AutoCloseable {
                 }
             });
 
-            final LogManager logManager = LogManager.getLogManager();// don't re-read the configuration, it is done by this call
+            final LogManager logManager = LogManager.getLogManager(); // don't re-read the configuration, it is done by this call
             if (!julConfigFile.equals(System.getProperty("java.util.logging.config.file", ""))) {
                 logManager.readConfiguration();
             }
