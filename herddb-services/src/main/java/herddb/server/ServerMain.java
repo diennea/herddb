@@ -173,8 +173,6 @@ public class ServerMain implements AutoCloseable {
     }
 
     private static void useEnv() {
-        System.getProperties().putAll(System.getenv()); // legacy, to drop?
-
         // herddb_env_foo_bar -> foo.bar=xxx which enables to fully configure herddb this way
         System.getProperties().putAll(System.getenv().entrySet().stream()
                 .filter(e -> e.getKey().toUpperCase(ROOT).startsWith("HERDDB_ENV_"))
