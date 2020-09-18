@@ -599,6 +599,7 @@
                 <module>herddb-site-skin</module>
                 <module>herddb-backward-compatibility</module>
                 <module>herddb-thirdparty</module>
+                <module>herddb-docker</module>
             </modules>
             <distributionManagement>
                 <repository>
