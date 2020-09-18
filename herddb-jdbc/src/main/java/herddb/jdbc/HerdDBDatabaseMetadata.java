@@ -48,10 +48,15 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     private final HerdDBConnection con;
     private final String tableSpace;
+    private final String url;
+    private final String username;
 
-    HerdDBDatabaseMetadata(HerdDBConnection con, String tableSpace) {
+    HerdDBDatabaseMetadata(HerdDBConnection con, String tableSpace,
+                           String url, String username) {
         this.con = con;
         this.tableSpace = tableSpace;
+        this.url = url;
+        this.username = username;
     }
 
     @Override
@@ -66,12 +71,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getURL() throws SQLException {
-        return "";
+        return url;
     }
 
     @Override
     public String getUserName() throws SQLException {
-        return "";
+        return username;
     }
 
     @Override

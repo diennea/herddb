@@ -217,7 +217,7 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return new HerdDBDatabaseMetadata(this, tableSpace);
+        return new HerdDBDatabaseMetadata(this, tableSpace, datasource.getUrl(), datasource.getUsername());
     }
 
     @Override
