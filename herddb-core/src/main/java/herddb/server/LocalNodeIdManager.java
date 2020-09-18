@@ -49,8 +49,11 @@ public class LocalNodeIdManager {
         try {
             LOG.log(Level.INFO, "Looking for local node id into file {0}", file);
             if (!Files.isRegularFile(file)) {
-                LOG.log(Level.SEVERE, "Cannot find file {0}", file);
-                return null;
+                final String fallback = System.getProperty("herddb.local.nodeid");
+                if (fallback == null) {
+                    LOG.log(Level.SEVERE, "Cannot find file {0}", file);
+                }
+                return fallback;
             }
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             for (String line : lines) {

@@ -160,6 +160,7 @@
                   <herddb_env_http_enable>true</herddb_env_http_enable>
                   <herddb_env_http_host>0.0.0.0</herddb_env_http_host>
                   <herddb_env_server_host>0.0.0.0</herddb_env_server_host>
+                  <herddb_env_herddb_local_nodeid>local</herddb_env_herddb_local_nodeid>
                   <HERDDB_HOME>${image.workdir}</HERDDB_HOME>
                   <LANG>en_US.UTF-8</LANG>
                 </environment>
