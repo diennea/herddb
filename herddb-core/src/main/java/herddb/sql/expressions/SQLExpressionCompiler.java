@@ -20,6 +20,9 @@
 
 package herddb.sql.expressions;
 
+import com.google.common.collect.BoundType;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.CalcitePlanner;
@@ -31,6 +34,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexCorrelVariable;
@@ -42,6 +49,8 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.type.BasicSqlType;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.NlsString;
+import org.apache.calcite.util.Sarg;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -125,6 +134,8 @@ public class SQLExpressionCompiler {
                     return new CompiledIsNotTrueExpression(false, operands[0]);
                 case "IS NULL":
                     return new CompiledIsNullExpression(false, operands[0]);
+                case "SEARCH":
+                    return convertSearchOperator(p);
                 case "CAST":
                     return operands[0].cast(CalcitePlanner.convertToHerdType(p.type));
                 case "CASE":
@@ -173,6 +184,107 @@ public class SQLExpressionCompiler {
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
 
+    private static CompiledSQLExpression convertSearchOperator(RexCall p) {
+        if (p.operands.size() != 2) {
+            throw new StatementExecutionException("not implemented SEARCH with " + p.operands.size() + " operands");
+        }
+        CompiledSQLExpression left = compileExpression(p.operands.get(0));
+        RexNode rexNode = p.operands.get(1);
+        if (! (rexNode instanceof RexLiteral)) {
+            throw new StatementExecutionException("not implemented SEARCH with " + rexNode.getClass());
+        }
+        RexLiteral searchArgument = (RexLiteral) rexNode;
+        if (!SqlTypeName.SARG.equals(searchArgument.getTypeName())) {
+            throw new StatementExecutionException("not implemented SEARCH with " + searchArgument);
+        }
+        Sarg<?> sarg = (Sarg) searchArgument.getValue();
+        RangeSet<?> rangeSet = sarg.rangeSet;
+        // pick the ranges in order
+        List<? extends Range<?>> ranges = new ArrayList<>(rangeSet.asDescendingSetOfRanges());
+        CompiledSQLExpression[] operands = new CompiledSQLExpression[ranges.size()];
+
+        CompiledSQLExpression rawResult = null;
+        if (ranges.size() == 2) {
+            // very creative way for '<>'
+            // x <> CONST -> x in (-INF, CONST) or x in (CONST, +INF)
+            Range<?> firstRange = ranges.get(1);
+            Range<?> secondRange = ranges.get(0);
+            if (!firstRange.hasLowerBound() && firstRange.hasUpperBound()
+                && secondRange.hasLowerBound() && !secondRange.hasUpperBound()) {
+                Comparable from = firstRange.upperEndpoint();
+                Comparable to = secondRange.lowerEndpoint();
+                if (Objects.equals(from, to)) {
+                    ConstantExpression fromExpression = new ConstantExpression(safeValue(from,  searchArgument.getType(), searchArgument.getTypeName()),
+                            CalcitePlanner.convertToHerdType(searchArgument.getType()));
+                    rawResult = new CompiledNotEqualsExpression(left, fromExpression);
+                }
+            }
+        }
+        if (rawResult == null) {
+
+            int index = 0;
+            for (Range<?> range : ranges) {
+                if (!range.hasLowerBound() || !range.hasUpperBound()) {
+                    throw new StatementExecutionException("not implemented SEARCH with "
+                            + searchArgument + " without BOUNDS");
+                }
+                Comparable from = range.lowerEndpoint();
+                Comparable to = range.upperEndpoint();
+
+                CompiledSQLExpression result;
+                if (from != null && Objects.equals(from, to)) {
+                    ConstantExpression fromExpression = new ConstantExpression(safeValue(from, searchArgument.getType(), searchArgument.getTypeName()),
+                            CalcitePlanner.convertToHerdType(searchArgument.getType()));
+                    result = new CompiledEqualsExpression(left, fromExpression);
+                } else {
+                    ConstantExpression fromExpression = new ConstantExpression(safeValue(from, searchArgument.getType(), searchArgument.getTypeName()),
+                            CalcitePlanner.convertToHerdType(searchArgument.getType()));
+                    ConstantExpression toExpression = new ConstantExpression(safeValue(to, searchArgument.getType(), searchArgument.getTypeName()),
+                            CalcitePlanner.convertToHerdType(searchArgument.getType()));
+                    CompiledSQLExpression lowerBound;
+                    CompiledSQLExpression upperBound;
+                    switch (range.lowerBoundType()) {
+                        case OPEN:
+                            lowerBound = new CompiledGreaterThanExpression(left, fromExpression);
+                            break;
+                        case CLOSED:
+                            lowerBound = new CompiledGreaterThanEqualsExpression(left, fromExpression);
+                            break;
+                        default:
+                            throw new UnsupportedOperationException("FROM = " + from + " TO = " + to);
+                    }
+                    switch (range.upperBoundType()) {
+                        case OPEN:
+                            upperBound = new CompiledMinorThanExpression(left, toExpression);
+                            break;
+                        case CLOSED:
+                            upperBound = new CompiledMinorThanEqualsExpression(left, toExpression);
+                            break;
+                        default:
+                            throw new UnsupportedOperationException("FROM = " + from + " TO = " + to);
+                    }
+                    result = new CompiledAndExpression(lowerBound, upperBound);
+                }
+                operands[index++] = result;
+            }
+            rawResult = new CompiledMultiOrExpression(operands);
+        }
+
+        switch (sarg.nullAs) {
+            case UNKNOWN:
+                return rawResult;
+            case TRUE:
+                // LEFT IS NULL OR (rawResult)
+                return new CompiledOrExpression(new CompiledIsNullExpression(false, left), rawResult);
+            case FALSE:
+                // LEFT IS NOT NULL AND (rawResult)
+                return new CompiledAndExpression(new CompiledIsNullExpression(true, left), rawResult);
+            default:
+                throw new UnsupportedOperationException("sarg.nullAs " + sarg.nullAs);
+        }
+
+    }
+
     private static Object safeValue(Object value3, RelDataType relDataType, SqlTypeName sqlTypeName) {
         if (value3 instanceof BigDecimal) {
             if (relDataType instanceof BasicSqlType) {
@@ -183,6 +295,9 @@ public class SQLExpressionCompiler {
                 return ((BigDecimal) value3).doubleValue();
             }
             return ((BigDecimal) value3).longValue();
+        } else if (value3 instanceof NlsString) {
+            NlsString nlsString = (NlsString) value3;
+            return nlsString.getValue();
         }
         return value3;
     }
