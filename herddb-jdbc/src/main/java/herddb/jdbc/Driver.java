@@ -54,14 +54,14 @@ public class Driver implements java.sql.Driver, AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(Driver.class.getName());
 
-    private static final Driver INSTANCE = new Driver();
     private static final DataSourceManager DATASOURCE_MANAGER = new DataSourceManager();
 
     static {
-        final Runnable awaiter = PreloadClasses.run();
         try {
-            DriverManager.registerDriver(INSTANCE, () -> {
-                INSTANCE.close();
+            final Runnable awaiter = PreloadClasses.run();
+            final Driver driver = new Driver();
+            DriverManager.registerDriver(driver, () -> {
+                driver.close();
                 awaiter.run();
             });
         } catch (SQLException error) {
@@ -232,6 +232,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
                             return new Thread(r, "herddb-classes-preaload-" + counter.incrementAndGet());
                         }
                     });
+            final AtomicInteger counter = new AtomicInteger(classes.size());
             final CountDownLatch latch = new CountDownLatch(classes.size());
             for (final String name : classes) {
                 es.execute(() -> {
@@ -241,19 +242,29 @@ public class Driver implements java.sql.Driver, AutoCloseable {
                         // skip
                     } finally {
                         latch.countDown();
+                        if (counter.decrementAndGet() == 0) {
+                            doStop(es, latch);
+                        }
                     }
                 });
             }
             return () -> {
-                try {
-                    latch.await();
-                    es.shutdown();
-                    es.awaitTermination(200, MILLISECONDS); // should be immediate
-                } catch (final InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                doStop(es, latch);
                 System.setProperty("herddb.driver.preloadClasses.skip", "true"); // in case, protected by classloading (Driver)
             };
+        }
+
+        private static void doStop(final ExecutorService es, final CountDownLatch latch) {
+            if (es.isShutdown() || es.isTerminated()) {
+                return;
+            }
+            try {
+                latch.await();
+                es.shutdownNow();
+                es.awaitTermination(200, MILLISECONDS); // should be immediate
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 }
