@@ -132,6 +132,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.prepare.PlannerImpl;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollationTraitDef;
@@ -559,7 +560,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 // define the rules you want to apply
                 .programs(Programs.ofRules(Programs.RULE_SET))
                 .build();
-        Planner planner = Frameworks.getPlanner(config);
+        Planner planner = new PlannerImpl(config);
         if (LOG.isLoggable(Level.FINER)) {
             LOG.log(Level.FINER, "Query: {0}", query);
         }

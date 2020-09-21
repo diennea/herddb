@@ -20,6 +20,7 @@
 
 package herddb.core;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import com.google.common.util.concurrent.MoreExecutors;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
@@ -158,19 +159,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 
     private final RunningStatementsStats runningStatements;
-    private static final ThreadFactory ASYNC_WORKERS_THREAD_FACTORY = new ThreadFactory() {
-        private final AtomicLong count = new AtomicLong();
-
-        @Override
-        public Thread newThread(Runnable r) {
-            return new FastThreadLocalThread(r, "db-dmlcall-" + count.incrementAndGet());
-        }
-    };
-    private final ExecutorService followersThreadPool = Executors.newCachedThreadPool((Runnable r) -> {
-        Thread t = new FastThreadLocalThread(r, r + "");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ExecutorService followersThreadPool;
 
     public DBManager(
             String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
@@ -196,8 +185,19 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             // on any system thread (Netty, BookKeeper...).
             this.callbacksExecutor = MoreExecutors.newDirectExecutorService();
         } else {
-            this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, ASYNC_WORKERS_THREAD_FACTORY);
+            this.callbacksExecutor = Executors.newFixedThreadPool(asyncWorkerThreads, new ThreadFactory() {
+                private final AtomicLong count = new AtomicLong();
+
+                @Override
+                public Thread newThread(final Runnable r) {
+                    final String marker = hostData == null ? "local" : hostData.getHost() + ":" + hostData.getPort();
+                    return new FastThreadLocalThread(r, "db-dmlcall-" + marker + "-" + count.incrementAndGet());
+                }
+            });
         }
+        // todo: make it configurable, cached have some pitfalls under load
+        this.followersThreadPool = Executors.newCachedThreadPool((Runnable r) -> new FastThreadLocalThread(
+                r, "herddb-worker-" + (hostData == null ? "local" : hostData.getHost() + ":" + hostData.getPort()) + "-" + r));
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
@@ -855,15 +855,23 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         triggerActivator(ActivatorRunRequest.NOOP);
         try {
             activator.join();
-        } catch (InterruptedException ignore) {
+        } catch (final InterruptedException ignore) {
             ignore.printStackTrace();
         }
-        followersThreadPool.shutdown();
+        followersThreadPool.shutdownNow();
 
         if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.unregisterDBManagerStatsMXBean();
         }
-        callbacksExecutor.shutdown();
+        callbacksExecutor.shutdownNow();
+
+        // lastly give a chance to not "leak" even if not critical (ie not keep used instances after close())
+        try {
+            followersThreadPool.awaitTermination(1, SECONDS);
+            callbacksExecutor.awaitTermination(1, SECONDS); // give a chance to not "leak" even if not critical
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {

@@ -19,6 +19,9 @@
  */
 package herddb.jdbc;
 
+import static java.util.Arrays.asList;
+import static java.util.Optional.ofNullable;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.Version;
 import java.sql.Connection;
@@ -32,6 +35,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -50,9 +58,11 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     private static final DataSourceManager DATASOURCE_MANAGER = new DataSourceManager();
 
     static {
+        final Runnable awaiter = PreloadClasses.run();
         try {
             DriverManager.registerDriver(INSTANCE, () -> {
                 INSTANCE.close();
+                awaiter.run();
             });
         } catch (SQLException error) {
             LOG.log(Level.SEVERE, "error while registring JDBC driver:" + error, error);
@@ -164,8 +174,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     }
 
     private static String computeKey(String url, Properties info) {
-        StringBuilder res = new StringBuilder();
-        res.append(url);
+        StringBuilder res = new StringBuilder(url);
         res.append('#');
         if (info != null) {
             List<String> keys = new ArrayList<>(info.stringPropertyNames());
@@ -188,4 +197,63 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     }
 
 
+    private static final class PreloadClasses {
+        private PreloadClasses() {
+            // no-op
+        }
+
+        public static Runnable run() {
+            // todo: check if the loader "isRegisteredAsParallelCapable"? should be the case anyway these days
+            if (Boolean.getBoolean("herddb.driver.preloadClasses.skip")) { // useless using CDS or native mode
+                return () -> {};
+            }
+
+            final ClassLoader loader = ofNullable(Thread.currentThread().getContextClassLoader()).orElseGet(ClassLoader::getSystemClassLoader);
+            final List<String> classes = asList(// classes with slow <cinit>
+                    "org.apache.calcite.sql.fun.SqlStdOperatorTable",
+                    "herddb.sql.CalcitePlanner",
+                    "herddb.core.TableSpaceManager",
+                    "herddb.client.ClientConfiguration",
+                    "herddb.server.ServerConfiguration",
+                    "org.apache.calcite.rel.metadata.JaninoRelMetadataProvider",
+                    "org.apache.calcite.sql.validate.SqlValidator$Config",
+                    "org.apache.calcite.tools.Programs",
+                    "org.apache.calcite.plan.RelOptRules",
+                    "org.apache.calcite.sql2rel.StandardConvertletTable"
+            );
+            final int threads = Math.min(classes.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
+            final ExecutorService es = Executors.newFixedThreadPool(
+                    threads,
+                    new ThreadFactory() {
+                        private final AtomicInteger counter = new AtomicInteger();
+
+                        @Override
+                        public Thread newThread(final Runnable r) {
+                            return new Thread(r, "herddb-classes-preaload-" + counter.incrementAndGet());
+                        }
+                    });
+            final CountDownLatch latch = new CountDownLatch(classes.size());
+            for (final String name : classes) {
+                es.execute(() -> {
+                    try {
+                        Class.forName(name, true, loader);
+                    } catch (final Error | ClassNotFoundException cnfe) {
+                        // skip
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+            return () -> {
+                try {
+                    latch.await();
+                    es.shutdown();
+                    es.awaitTermination(200, MILLISECONDS); // should be immediate
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                System.setProperty("herddb.driver.preloadClasses.skip", "true"); // in case, protected by classloading (Driver)
+            };
+        }
+    }
 }
