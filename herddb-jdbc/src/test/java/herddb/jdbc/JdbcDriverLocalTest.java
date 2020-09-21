@@ -33,6 +33,8 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
 
 /**
  * Tests for connections using jdbc driver
@@ -40,15 +42,14 @@ import org.junit.rules.TemporaryFolder;
  * @author enrico.olivelli
  */
 public class JdbcDriverLocalTest {
+    @Rule
+    public final TestRule autoDriverRule = new AutoDriverRule();
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
     public void testNoAutoClose() throws Exception {
-
-        DriverManager.registerDriver(new Driver());
-
         Properties props = new Properties();
         props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
         try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
@@ -78,8 +79,6 @@ public class JdbcDriverLocalTest {
 
     @Test
     public void testAutoClose() throws Exception {
-        DriverManager.registerDriver(new Driver());
-
         Properties props = new Properties();
         props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
         try (Connection connection = DriverManager.getConnection("jdbc:herddb:local?autoClose=false", props);
@@ -110,8 +109,6 @@ public class JdbcDriverLocalTest {
 
     @Test
     public void testNamedMemoryDB() throws Exception {
-        DriverManager.registerDriver(new Driver());
-
         Properties props = new Properties();
         props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
 
@@ -133,6 +130,25 @@ public class JdbcDriverLocalTest {
     public void destroy() throws Exception {
         for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements(); ) {
             DriverManager.deregisterDriver(drivers.nextElement());
+        }
+    }
+
+    private static class AutoDriverRule implements TestRule {
+
+        @Override
+        public org.junit.runners.model.Statement apply(org.junit.runners.model.Statement statement, Description description) {
+            return new org.junit.runners.model.Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    final Driver driver = new Driver();
+                    DriverManager.registerDriver(driver);
+                    try {
+                        statement.evaluate();
+                    } finally {
+                        DriverManager.deregisterDriver(driver);
+                    }
+                }
+            };
         }
     }
 }
