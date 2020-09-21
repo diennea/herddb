@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: herddb-config
+data:
+  herddb_env_http_enable: 'true'
+  # customize at need

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: herddb-service
+spec:
+  selector:
+    app: herddb
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9485
