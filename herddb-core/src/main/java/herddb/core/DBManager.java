@@ -190,12 +190,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
                 @Override
                 public Thread newThread(final Runnable r) {
-                    return new FastThreadLocalThread(r, "db-dmlcall-" + hostData.getHost() + ":" + hostData.getPort() + "-" + count.incrementAndGet());
+                    final String marker = hostData == null ? "local" : hostData.getHost() + ":" + hostData.getPort();
+                    return new FastThreadLocalThread(r, "db-dmlcall-" + marker + "-" + count.incrementAndGet());
                 }
             });
         }
         // todo: make it configurable, cached have some pitfalls under load
-        this.followersThreadPool = Executors.newCachedThreadPool((Runnable r) -> new FastThreadLocalThread(r, "herddb-worker-" + hostData.getHost() + ":" + hostData.getPort() + "-" + r));
+        this.followersThreadPool = Executors.newCachedThreadPool((Runnable r) -> new FastThreadLocalThread(
+                r, "herddb-worker-" + (hostData == null ? "local" : hostData.getHost() + ":" + hostData.getPort()) + "-" + r));
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
