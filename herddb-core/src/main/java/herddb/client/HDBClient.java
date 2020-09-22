@@ -28,10 +28,10 @@ import herddb.network.netty.NettyConnector;
 import herddb.network.netty.NetworkUtils;
 import herddb.server.StaticClientSideMetadataProvider;
 import io.netty.channel.MultithreadEventLoopGroup;
-import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +92,7 @@ public class HDBClient implements AutoCloseable {
                         return t;
                     });
         }
-        this.networkGroup = connectRemoteServers ? (NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup()) : null;
+        networkGroup = buildNetworkGroup(connectRemoteServers);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:
@@ -112,6 +112,23 @@ public class HDBClient implements AutoCloseable {
             default:
                 throw new IllegalStateException(mode);
         }
+    }
+
+    private static MultithreadEventLoopGroup buildNetworkGroup(boolean connectRemoteServers) {
+        if (!connectRemoteServers) {
+            return null;
+        }
+        if (NetworkUtils.isEnableEpoolNative()) {
+            try {
+                return (MultithreadEventLoopGroup) Class.forName("io.netty.channel.epoll.EpollEventLoopGroup",
+                        true, Thread.currentThread().getContextClassLoader())
+                    .getConstructor().newInstance();
+            } catch (ClassNotFoundException | IllegalAccessException | InstantiationException | InvocationTargetException
+                    | NoSuchMethodException | IllegalArgumentException | ClassCastException | SecurityException err) {
+                throw new RuntimeException("Cannot load Netty epoll (set herddb.network.disablenativeepoll=false to hide this error or add netty epoll to your classpath)", err);
+            }
+        }
+        return new NioEventLoopGroup();
     }
 
     public ClientSideMetadataProvider getClientSideMetadataProvider() {

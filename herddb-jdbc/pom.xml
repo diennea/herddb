@@ -50,7 +50,7 @@
         <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
@@ -172,57 +172,61 @@
                                     <exclude>com.google.protobuf:*</exclude>
                                     <exclude>org.apache.bookkeeper:*</exclude>
                                     <exclude>org.apache.zookeeper:*</exclude>
-                                    <exclude>commons-configuration:*</exclude>                                                                        
-                                    <exclude>org.bouncycastle:*</exclude>                                    
-                                    <exclude>net.java.dev.jna:*</exclude>                                    
+                                    <exclude>commons-configuration:*</exclude>
+                                    <exclude>org.bouncycastle:*</exclude>
+                                    <exclude>net.java.dev.jna:*</exclude>
                                     <exclude>org.apache.httpcomponents</exclude>
                                     <exclude>org.jctools:*</exclude>
                                     <exclude>net.jpountz.lz4:*</exclude>
+                                    <exclude>io.netty:netty-transport-native-unix-common:*</exclude>
+                                    <exclude>io.netty:netty-transport-native-epoll:*</exclude>
+                                    <exclude>io.netty:netty-tcnative-boringssl-static:*</exclude>
+                                    <exclude>org.apache.commons:commons-pool2:*</exclude>
                                 </excludes>
-                            </artifactSet>                            
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.apache</pattern>
-                                    <shadedPattern>herddb.org.apache</shadedPattern>                                    
+                                    <shadedPattern>herddb.org.apache</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>io.netty</pattern>
-                                    <shadedPattern>herddb.io.netty</shadedPattern>                                    
+                                    <shadedPattern>herddb.io.netty</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>com.fasterxml</pattern>
-                                    <shadedPattern>herddb.com.fasterxml</shadedPattern>                                    
-                                </relocation>                               
+                                    <shadedPattern>herddb.com.fasterxml</shadedPattern>
+                                </relocation>
                                 <relocation>
                                     <pattern>com.google</pattern>
-                                    <shadedPattern>herddb.com.google</shadedPattern>                                    
+                                    <shadedPattern>herddb.com.google</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.slf4j</pattern>
-                                    <shadedPattern>herddb.org.slf4j</shadedPattern>                                    
+                                    <shadedPattern>herddb.org.slf4j</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>net.jcp</pattern>
-                                    <shadedPattern>herddb.net.jcp</shadedPattern>                                    
+                                    <shadedPattern>herddb.net.jcp</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>net.sf.jsqlparser</pattern>
-                                    <shadedPattern>herddb.net.sf.jsqlparser</shadedPattern>                                    
+                                    <shadedPattern>herddb.net.sf.jsqlparser</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
-                                    <shadedPattern>herddb.net.jpountz</shadedPattern>                                    
-                                </relocation>   
+                                    <shadedPattern>herddb.net.jpountz</shadedPattern>
+                                </relocation>
                                 <relocation>
                                     <!-- Calcite stuff -->
                                     <pattern>com.jayway.jsonpath</pattern>
-                                    <shadedPattern>herddb.com.jayway.jsonpath</shadedPattern>                                    
-                                </relocation>                      
-                                
+                                    <shadedPattern>herddb.com.jayway.jsonpath</shadedPattern>
+                                </relocation>
+
                                 <!-- Cannot relocate org.codehaus.commons.compiler stuff, needed by Calcite
                                     <relocation>
                                     <pattern>org.codehaus</pattern>
-                                    <shadedPattern>herddb.org.codehaus</shadedPattern>                                    
+                                    <shadedPattern>herddb.org.codehaus</shadedPattern>
                                 </relocation> -->
                             </relocations>
                             <transformers>
@@ -238,7 +242,7 @@
                                     <excludes>
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>                                        
+                                        <exclude>META-INF/*.RSA</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
