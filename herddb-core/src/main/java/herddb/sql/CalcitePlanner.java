@@ -496,13 +496,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
      * @param filterPk
      * @param table
      */
-    private CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(CompiledSQLExpression filterPk, Table table, RelNode debug) {
+    private static CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(CompiledSQLExpression filterPk, Table table, Object debug) {
         try {
             int[] projectionToKey = table.getPrimaryKeyProjection();
             return filterPk.remapPositionalAccessToToPrimaryKeyAccessor(projectionToKey);
         } catch (IllegalStateException notImplemented) {
-            LOG.log(Level.INFO, "Not implemented best access for PK on "
-                    + RelOptUtil.dumpPlan("", debug, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES), notImplemented);
+            if (debug instanceof RelNode) {
+                LOG.log(Level.INFO, "Not implemented best access for PK on "
+                    + RelOptUtil.dumpPlan("", (RelNode) debug, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES), notImplemented);
+            } else {
+                LOG.log(Level.INFO, "Not implemented best access for PK on {0}", debug);
+            }
             return null;
         }
     }
@@ -922,14 +926,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             predicate = new SQLRecordPredicate(table, null, where);
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-            IndexOperation op = scanForIndexAccess(where, table, tableSpaceManager);
-            predicate.setIndexOperation(op);
-            CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
-
-            if (filterPk != null) {
-                filterPk = remapPositionalAccessToToPrimaryKeyAccessor(filterPk, table, scan);
-            }
-            predicate.setPrimaryKeyFilter(filterPk);
+            discoverIndexOperations(tableSpace, where, table, predicate, scan, tableSpaceManager);
         }
         List<RexNode> projections = new ArrayList<>(scan.projects.size());
 
@@ -946,7 +943,23 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new BindableTableScanOp(scanStatement);
     }
 
-    private CompiledSQLExpression findFiltersOnPrimaryKey(Table table, CompiledSQLExpression where) throws StatementExecutionException {
+    static void discoverIndexOperations(final String tableSpace,
+                                         CompiledSQLExpression where,
+                                         Table table,
+                                         SQLRecordPredicate predicate,
+                                         Object debug,
+                                         TableSpaceManager tableSpaceManager) throws StatementExecutionException {
+        IndexOperation op = scanForIndexAccess(where, table, tableSpaceManager);
+        predicate.setIndexOperation(op);
+        CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
+
+        if (filterPk != null) {
+            filterPk = remapPositionalAccessToToPrimaryKeyAccessor(filterPk, table, debug);
+        }
+        predicate.setPrimaryKeyFilter(filterPk);
+    }
+
+    private static CompiledSQLExpression findFiltersOnPrimaryKey(Table table, CompiledSQLExpression where) throws StatementExecutionException {
         List<CompiledSQLExpression> expressions = new ArrayList<>();
 
         for (String pk : table.primaryKey) {
@@ -1283,7 +1296,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private static SQLRecordKeyFunction findIndexAccess(
+    public static SQLRecordKeyFunction findIndexAccess(
             CompiledSQLExpression where,
             String[] columnsToMatch, ColumnsList table,
             String operator, BindableTableScanColumnNameResolver res
@@ -1306,7 +1319,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new SQLRecordKeyFunction(columns, expressions, table);
     }
 
-    private IndexOperation scanForIndexAccess(CompiledSQLExpression expressionWhere, Table table, TableSpaceManager tableSpaceManager) {
+    private static IndexOperation scanForIndexAccess(CompiledSQLExpression expressionWhere, Table table, TableSpaceManager tableSpaceManager) {
         SQLRecordKeyFunction keyFunction = findIndexAccess(expressionWhere, table.primaryKey, table,
                 "=", table);
         IndexOperation result = null;

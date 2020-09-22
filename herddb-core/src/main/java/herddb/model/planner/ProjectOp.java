@@ -225,6 +225,12 @@ public class ProjectOp implements PlannerOp {
         public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
             return tuple;
         }
+
+        @Override
+        public String toString() {
+            return "IdentityProjection{" + "columns=" + columns + ", fieldNames=" + fieldNames + '}';
+        }
+
     }
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})

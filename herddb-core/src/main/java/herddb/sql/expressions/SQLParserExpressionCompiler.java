@@ -23,22 +23,39 @@ import static herddb.sql.DDLSQLPlanner.checkSupported;
 import herddb.model.Column;
 import herddb.model.StatementExecutionException;
 import herddb.sql.DDLSQLPlanner;
+import herddb.sql.functions.BuiltinFunctions;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import net.sf.jsqlparser.expression.BinaryExpression;
+import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NotExpression;
 import net.sf.jsqlparser.expression.NullValue;
+import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.WhenClause;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
+import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -76,7 +93,7 @@ public class SQLParserExpressionCompiler {
                 pos++;
             }
             if (indexInSchema == -1 || found == null) {
-                throw new StatementExecutionException("Column " + columnName + " not found in target table");
+                throw new StatementExecutionException("Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
             }
             return new AccessCurrentRowExpression(indexInSchema);
         } else if (expression instanceof BinaryExpression) {
@@ -89,6 +106,76 @@ public class SQLParserExpressionCompiler {
             NotExpression eq = (NotExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getExpression(), tableSchema);
             return new CompiledNotExpression(left);
+        } else if (expression instanceof Parenthesis) {
+            Parenthesis eq = (Parenthesis) expression;
+            return compileExpression(eq.getExpression(), tableSchema);
+        } else if (expression instanceof SignedExpression) {
+            SignedExpression eq = (SignedExpression) expression;
+            return new CompiledSignedExpression(eq.getSign(), compileExpression(eq.getExpression(), tableSchema));
+        } else if (expression instanceof TimeKeyExpression) {
+            TimeKeyExpression eq = (TimeKeyExpression) expression;
+            if (eq.getStringValue().equalsIgnoreCase("CURRENT_TIMESTAMP")) {
+                return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
+            }
+            // fallthru
+        } else if (expression instanceof Function) {
+            Function eq = (Function) expression;
+            checkSupported(eq.getKeep() == null);
+            checkSupported(eq.getMultipartName() != null && eq.getMultipartName().size() == 1);
+            checkSupported(eq.getNamedParameters() == null);
+            checkSupported(eq.getAttribute() == null);
+            checkSupported(eq.getAttributeName() == null);
+            List<CompiledSQLExpression> operands = new ArrayList<>();
+            if (eq.getParameters() != null) {
+                for (Expression e : eq.getParameters().getExpressions()) {
+                    operands.add(compileExpression(e, tableSchema));
+                }
+            }
+            switch (eq.getName().toUpperCase()) {
+                case BuiltinFunctions.NAME_LOWERCASE:
+                    return new CompiledFunction(BuiltinFunctions.LOWER, operands);
+                case BuiltinFunctions.NAME_UPPER:
+                    return new CompiledFunction(BuiltinFunctions.UPPER, operands);
+                case BuiltinFunctions.NAME_ABS:
+                    return new CompiledFunction(BuiltinFunctions.ABS, operands);
+                case BuiltinFunctions.NAME_ROUND:
+                    return new CompiledFunction(BuiltinFunctions.ROUND, operands);
+                case BuiltinFunctions.NAME_EXTRACT:
+                    return new CompiledFunction(BuiltinFunctions.EXTRACT, operands);
+                case BuiltinFunctions.NAME_FLOOR:
+                    return new CompiledFunction(BuiltinFunctions.FLOOR, operands);
+                case BuiltinFunctions.NAME_RAND:
+                    return new CompiledFunction(BuiltinFunctions.RAND, operands);
+                default:
+            }
+            // fallthru
+        } else if (expression instanceof CaseExpression) {
+            CaseExpression eq = (CaseExpression) expression;
+            checkSupported(eq.getSwitchExpression() == null);
+            List<WhenClause> whenClauses = eq.getWhenClauses();
+            List<Map.Entry<CompiledSQLExpression, CompiledSQLExpression>> cases = new ArrayList<>(whenClauses.size());
+            for (WhenClause c : whenClauses) {
+                cases.add(new AbstractMap.SimpleImmutableEntry<>(
+                        compileExpression(c.getWhenExpression(), tableSchema),
+                        compileExpression(c.getThenExpression(), tableSchema)
+                ));
+            }
+            CompiledSQLExpression elseExp = eq.getElseExpression() != null ? compileExpression(eq.getElseExpression(), tableSchema) : null;
+            return new CompiledCaseExpression(cases, elseExp);
+        } else if (expression instanceof Between) {
+            Between b = (Between) expression;
+            boolean not = b.isNot();
+            CompiledSQLExpression baseValue = compileExpression(b.getLeftExpression(), tableSchema);
+            CompiledSQLExpression start = compileExpression(b.getBetweenExpressionStart(), tableSchema);
+            CompiledSQLExpression end = compileExpression(b.getBetweenExpressionEnd(), tableSchema);
+
+            CompiledSQLExpression result = new CompiledAndExpression(new CompiledGreaterThanEqualsExpression(baseValue, start),
+                    new CompiledMinorThanEqualsExpression(baseValue, end));
+            if (not) {
+                return new CompiledNotExpression(result);
+            } else {
+                return result;
+            }
         }
 //        else if (expression instanceof RexLiteral) {
 //            RexLiteral p = (RexLiteral) expression;
@@ -224,8 +311,17 @@ public class SQLParserExpressionCompiler {
             return new CompiledMinorThanExpression(left, right);
         } else if (expression instanceof MinorThanEquals) {
             return new CompiledMinorThanEqualsExpression(left, right);
+        } else if (expression instanceof Addition) {
+            return new CompiledAddExpression(left, right);
+        } else if (expression instanceof Subtraction) {
+            return new CompiledSubtractExpression(left, right);
+        } else if (expression instanceof NotEqualsTo) {
+            NotEqualsTo eq = (NotEqualsTo) expression;
+            checkSupported(eq.getOldOracleJoinSyntax() == EqualsTo.NO_ORACLE_JOIN);
+            checkSupported(eq.getOraclePriorPosition() == EqualsTo.NO_ORACLE_PRIOR);
+            return new CompiledNotEqualsExpression(left, right);
         } else {
-            return null;
+            throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
         }
     }
 }

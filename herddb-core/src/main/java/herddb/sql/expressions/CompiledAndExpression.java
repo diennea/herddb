@@ -23,6 +23,8 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CompiledAndExpression extends CompiledBinarySQLExpression {
 
@@ -49,6 +51,14 @@ public class CompiledAndExpression extends CompiledBinarySQLExpression {
     @Override
     public String toString() {
         return "CompiledAndExpression{" + "left=" + left + ", right=" + right + '}';
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        List<CompiledSQLExpression> res = new ArrayList<>();
+        res.addAll(left.scanForConstraintedValueOnColumnWithOperator(column, operator, columnNameResolver));
+        res.addAll(right.scanForConstraintedValueOnColumnWithOperator(column, operator, columnNameResolver));
+        return res;
     }
 
 }
