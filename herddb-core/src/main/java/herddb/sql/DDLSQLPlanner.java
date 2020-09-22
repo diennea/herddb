@@ -22,11 +22,15 @@ package herddb.sql;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
+import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
+import herddb.model.RecordFunction;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -43,11 +47,20 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
+import herddb.model.planner.PlannerOp;
+import herddb.model.planner.SimpleInsertOp;
 import herddb.server.ServerConfiguration;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
+import herddb.sql.expressions.JdbcParameterExpression;
+import herddb.sql.expressions.SQLParserExpressionCompiler;
+import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.Bytes;
 import herddb.utils.SQLUtils;
 import java.util.ArrayList;
@@ -66,6 +79,8 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.parser.CCJSqlParser;
 import net.sf.jsqlparser.parser.ParseException;
 import net.sf.jsqlparser.parser.StringProvider;
@@ -78,6 +93,7 @@ import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.Index;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
+import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 
 /**
@@ -89,6 +105,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private final DBManager manager;
     private final PlansCache cache;
+    /**
+     * Used in case of unsupported Statement
+     */
+    private final AbstractSQLPlanner fallback;
 
     @Override
     public long getCacheSize() {
@@ -110,9 +130,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         cache.clear();
     }
 
-    public DDLSQLPlanner(DBManager manager, PlansCache plansCache) {
+    public DDLSQLPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
         this.manager = manager;
         this.cache = plansCache;
+        this.fallback = fallback;
     }
 
     public static String rewriteExecuteSyntax(String query) {
@@ -212,49 +233,55 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String defaultTableSpace, String query, List<Object> parameters,
             boolean scan, boolean allowCache, boolean returnValues, int maxRows
     ) throws StatementExecutionException {
-        if (parameters == null) {
-            parameters = Collections.emptyList();
-        }
-
-        /*
-         * Strips out leading comments
-         */
-        int idx = SQLUtils.findQueryStart(query);
-        if (idx != -1) {
-            query = query.substring(idx);
-        }
-
-        query = rewriteExecuteSyntax(query);
-        String cacheKey = "scan:" + scan
-                + ",defaultTableSpace:" + defaultTableSpace
-                + ",query:" + query
-                + ",returnValues:" + returnValues
-                + ",maxRows:" + maxRows;
-        if (allowCache) {
-            ExecutionPlan cached = cache.get(cacheKey);
-            if (cached != null) {
-                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, false, false));
+        try {
+            if (parameters == null) {
+                parameters = Collections.emptyList();
             }
-        }
-        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-        }
-        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-        }
 
-        net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
-        if (!isCachable(stmt)) {
-            allowCache = false;
-        }
-        ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
-        if (allowCache) {
-            cache.put(cacheKey, executionPlan);
-        }
-        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            /*
+             * Strips out leading comments
+             */
+            int idx = SQLUtils.findQueryStart(query);
+            if (idx != -1) {
+                query = query.substring(idx);
+            }
 
+            query = rewriteExecuteSyntax(query);
+            String cacheKey = "scan:" + scan
+                    + ",defaultTableSpace:" + defaultTableSpace
+                    + ",query:" + query
+                    + ",returnValues:" + returnValues
+                    + ",maxRows:" + maxRows;
+            if (allowCache) {
+                ExecutionPlan cached = cache.get(cacheKey);
+                if (cached != null) {
+                    return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, false, false));
+                }
+            }
+            if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            }
+            if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            }
+
+            net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
+            if (!isCachable(stmt)) {
+                allowCache = false;
+            }
+            ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
+            if (allowCache) {
+                cache.put(cacheKey, executionPlan);
+            }
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+        } catch (StatementNotSupportedException err) {
+            if (fallback == null) {
+                throw err;
+            }
+            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }
     }
 
     private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
@@ -287,8 +314,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
         } else if (stmt instanceof Truncate) {
             result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
+        } else if (stmt instanceof Insert) {
+            result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
         } else {
-            return null;
+            throw new StatementNotSupportedException("Not implemented " + stmt.getClass().getName());
         }
         return result;
     }
@@ -594,7 +623,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return type;
     }
 
-    private static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
+    public static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
         } else if (allowColumn && expression instanceof net.sf.jsqlparser.schema.Column) {
@@ -1142,6 +1171,83 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
+
+        net.sf.jsqlparser.schema.Table table = insert.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+          String tableName = table.getName();
+        boolean upsert = false;
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+        }
+        DMLStatement statement;
+        Table tableImpl = tableManager.getTable();
+        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
+        List<String> keyExpressionToColumn = new ArrayList<>();
+        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+        List<String> valuesColumns = new ArrayList<>();
+            boolean invalid = false;
+        if (insert.getSelect() != null) {
+            throw new StatementNotSupportedException();
+        }
+        ItemsList itemsList = insert.getItemsList();
+        if (!(itemsList instanceof ExpressionList)) {
+            throw new StatementNotSupportedException();
+        }
+        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
+        int index = 0;
+        for (net.sf.jsqlparser.schema.Column column : insert.getColumns()) {
+            CompiledSQLExpression exp =
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index));
+            String columnName = column.getColumnName();
+            if (exp instanceof ConstantExpression
+                    || exp instanceof JdbcParameterExpression
+                    || exp instanceof TypedJdbcParameterExpression) {
+                boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                        && ((ConstantExpression) exp).isNull();
+                if (!isAlwaysNull) {
+                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
+                        keyExpressionToColumn.add(columnName);
+                        keyValueExpression.add(exp);
+                    }
+                    valuesColumns.add(columnName);
+                    valuesExpressions.add(exp);
+                }
+                index++;
+            } else {
+                invalid = true;
+                break;
+            }
+        }
+        if (!invalid) {
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty()
+                    && tableImpl.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                }
+                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
+            }
+            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
+            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
+        } else {
+            throw new StatementNotSupportedException();
+        }
+
+        PlannerOp op = new SimpleInsertOp(statement);
+        return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
+    }
+
 
     private static boolean containsDefaultClause(ColumnDefinition cf) {
         List<String> specs = cf.getColumnSpecs();
@@ -1230,6 +1336,17 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("Bad default constraint specs: " + specs, err);
+        }
+
+    }
+
+    private static class StatementNotSupportedException extends HerdDBInternalException {
+
+        public StatementNotSupportedException() {
+        }
+
+        public StatementNotSupportedException(String message) {
+            super(message);
         }
 
     }
