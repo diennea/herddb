@@ -24,27 +24,33 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
 
-public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpression {
+public class CompiledNotExpression implements CompiledSQLExpression {
 
-    public CompiledMinorThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
-        super(left, right);
+    private final CompiledSQLExpression left;
+
+    public CompiledNotExpression(CompiledSQLExpression left) {
+        this.left = left;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
-        return res == SQLRecordPredicateFunctions.CompareResult.MINOR || res == SQLRecordPredicateFunctions.CompareResult.EQUALS;
+        Object leftValue = left.evaluate(bean, context);
+        if (leftValue == null) {
+            return null;
+        }
+        return !SQLRecordPredicateFunctions.toBoolean(leftValue);
+
     }
 
     @Override
-    public String getOperator() {
-        return "<=";
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        left.validate(context);
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledMinorThenEqualsExpression(
-                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
-                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+        return new CompiledNotExpression(
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
 }

@@ -24,9 +24,9 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
 
-public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
+public class CompiledGreaterThanExpression extends CompiledBinarySQLExpression {
 
-    public CompiledGreaterThenExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledGreaterThanExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 
@@ -43,7 +43,7 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledGreaterThenExpression(
+        return new CompiledGreaterThanExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }

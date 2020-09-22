@@ -30,13 +30,18 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
+import herddb.model.FullTableScanPredicate;
+import herddb.model.Predicate;
+import herddb.model.Projection;
 import herddb.model.RecordFunction;
+import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TupleComparator;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
@@ -50,12 +55,17 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
+import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SimpleInsertOp;
+import herddb.model.planner.SortOp;
 import herddb.server.ServerConfiguration;
+import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.JdbcParameterExpression;
@@ -63,6 +73,7 @@ import herddb.sql.expressions.SQLParserExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.Bytes;
 import herddb.utils.SQLUtils;
+import herddb.utils.SystemProperties;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,6 +87,7 @@ import java.util.stream.Collectors;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
@@ -94,6 +106,14 @@ import net.sf.jsqlparser.statement.create.table.Index;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.FromItem;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 
 /**
@@ -103,6 +123,7 @@ import net.sf.jsqlparser.statement.truncate.Truncate;
  */
 public class DDLSQLPlanner implements AbstractSQLPlanner {
 
+    private static final boolean ALLOW_FALLBACK = SystemProperties.getBooleanSystemProperty("herddb.planner.allowfallbacktocalcite", true);
     private final DBManager manager;
     private final PlansCache cache;
     /**
@@ -277,7 +298,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
         } catch (StatementNotSupportedException err) {
-            if (fallback == null) {
+            if (fallback == null || !ALLOW_FALLBACK) {
                 throw err;
             }
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
@@ -316,6 +337,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
         } else if (stmt instanceof Insert) {
             result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
+        } else if (stmt instanceof Select) {
+            result = buildSelectStatement(defaultTableSpace, (Select) stmt);
         } else {
             throw new StatementNotSupportedException("Not implemented " + stmt.getClass().getName());
         }
@@ -633,6 +656,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        } else if (expression instanceof NullValue) {
+            return null;
         } else if (expression instanceof TimestampValue) {
             return ((TimestampValue) expression).getValue();
         } else if (expression instanceof SignedExpression) {
@@ -1171,8 +1196,206 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
-    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select select) throws StatementExecutionException {
+        checkSupported(select.getWithItemsList() == null);
+        SelectBody selectBody = select.getSelectBody();
+        checkSupported(selectBody instanceof PlainSelect);
+        PlainSelect plainSelect = (PlainSelect) selectBody;
 
+        checkSupported(!plainSelect.getMySqlHintStraightJoin());
+        checkSupported(!plainSelect.getMySqlSqlCalcFoundRows());
+        checkSupported(!plainSelect.getMySqlSqlNoCache());
+        checkSupported(plainSelect.getDistinct() == null);
+        checkSupported(plainSelect.getFetch() == null);
+        checkSupported(plainSelect.getFirst() == null);
+        checkSupported(plainSelect.getForUpdateTable() == null);
+        checkSupported(plainSelect.getForXmlPath() == null);
+        checkSupported(plainSelect.getHaving() == null);
+        checkSupported(plainSelect.getIntoTables() == null);
+        checkSupported(plainSelect.getGroupBy() == null);
+        checkSupported(plainSelect.getJoins() == null);
+        checkSupported(plainSelect.getLimit() == null);
+        checkSupported(plainSelect.getOffset() == null);
+        checkSupported(plainSelect.getOptimizeFor() == null);
+        checkSupported(plainSelect.getOracleHierarchical() == null);
+        checkSupported(plainSelect.getOracleHint() == null);
+        checkSupported(plainSelect.getSkip() == null);
+        checkSupported(plainSelect.getTop() == null);
+        checkSupported(plainSelect.getWait() == null);
+        checkSupported(plainSelect.getKsqlWindow() == null);
+
+        FromItem fromItem = plainSelect.getFromItem();
+        checkSupported(fromItem instanceof net.sf.jsqlparser.schema.Table);
+
+
+        net.sf.jsqlparser.schema.Table table = (net.sf.jsqlparser.schema.Table) fromItem;
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = table.getName();
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+
+        List<SelectItem> selectItems = plainSelect.getSelectItems();
+        checkSupported(!selectItems.isEmpty());
+        Predicate predicate = new FullTableScanPredicate();
+        TupleComparator comparator = null;
+        ScanLimits limits = null;
+        ScanStatement scan;
+        Projection projection;
+        if (selectItems.size() == 1 && selectItems.get(0) instanceof AllColumns) {
+            projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+        } else {
+            checkSupported(!selectItems.isEmpty());
+            List<SelectExpressionItem> exps = new ArrayList<>(selectItems.size());
+            for (SelectItem item : selectItems) {
+                if (item instanceof SelectExpressionItem) {
+                    exps.add((SelectExpressionItem) item);
+                } else {
+                    checkSupported(false);
+                }
+            }
+            // building the projection
+            // we have the current phisical schema, we can create references by position (as Calcite does)
+            // in order to not need accessing columns by name and also making it easier to support
+            // ZeroCopyProjections
+            projection = buildProjection(exps, true, tableImpl.getColumns());
+        }
+        if (plainSelect.getWhere() != null) {
+            CompiledSQLExpression where = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), tableImpl.getColumns());
+            predicate = new SQLRecordPredicate(tableImpl, null, where);
+        }
+        scan = new ScanStatement(tableSpace, tableName, projection, predicate, comparator, limits);
+        scan.setTableDef(tableImpl);
+        PlannerOp op = new BindableTableScanOp(scan);
+
+        if (plainSelect.getOrderByElements() != null) {
+            op = planSort(op, tableImpl.getColumns(), plainSelect.getOrderByElements());
+        }
+        return optimizePlan(op);
+    }
+
+    private static ExecutionPlan optimizePlan(PlannerOp op) {
+        op = op.optimize();
+        return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
+    }
+
+    private PlannerOp planSort(PlannerOp input, Column[] columns, List<OrderByElement> fieldCollations) {
+        boolean[] directions = new boolean[fieldCollations.size()];
+        boolean[] nullLastdirections = new boolean[fieldCollations.size()];
+        int[] fields = new int[fieldCollations.size()];
+        int i = 0;
+        for (OrderByElement col : fieldCollations) {
+            OrderByElement.NullOrdering nullDirection = col.getNullOrdering();
+            boolean isAsc = col.isAsc();
+            CompiledSQLExpression columnPos = SQLParserExpressionCompiler.compileExpression(col.getExpression(), columns);
+            checkSupported(columnPos instanceof AccessCurrentRowExpression);
+            AccessCurrentRowExpression pos = (AccessCurrentRowExpression) columnPos;
+            int index = pos.getIndex();
+            directions[i] = col.isAsc();
+            // default is NULL LAST
+            nullLastdirections[i] = nullDirection == OrderByElement.NullOrdering.NULLS_LAST
+                    || nullDirection == null;
+            fields[i++] = index;
+        }
+        return new SortOp(input, directions, fields, nullLastdirections);
+
+    }
+
+    private Projection buildProjection(
+            final List<SelectExpressionItem> projects,
+            final boolean allowIdentity,
+            final Column[] tableSchema
+    ) {
+        boolean allowZeroCopyProjection = true;
+        List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
+        Column[] columns = new Column[projects.size()];
+        String[] fieldNames = new String[columns.length];
+        int i = 0;
+        int[] zeroCopyProjections = new int[fieldNames.length];
+        boolean identity = allowIdentity
+                && tableSchema != null
+                && tableSchema.length == fieldNames.length;
+        for (SelectExpressionItem node : projects) {
+            int type = ColumnTypes.ANYTYPE;
+            CompiledSQLExpression exp;
+            String alias = null;
+            if (node.getAlias() != null) {
+                alias = node.getAlias().getName();
+                checkSupported(node.getAlias().getAliasColumns() == null);
+            }
+            if (node.getExpression() instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) node.getExpression();
+                checkSupported(col.getTable() == null);
+                String columnName = col.getColumnName();
+                if (alias == null) {
+                    alias = columnName;
+                }
+                int pos = 0;
+                int indexInSchema = -1;
+                Column found = null;
+                for (Column colInSchema : tableSchema) {
+                    if (colInSchema.getName().equalsIgnoreCase(columnName)) {
+                        indexInSchema = pos;
+                        found = colInSchema;
+                        break;
+                    }
+                    pos++;
+                }
+                if (indexInSchema == -1 || found == null) {
+                    throw new StatementExecutionException("Column " + columnName + " not found in target table");
+                }
+                exp = new AccessCurrentRowExpression(indexInSchema);
+                type = found.type;
+            } else {
+                exp = SQLParserExpressionCompiler.compileExpression(node.getExpression(), tableSchema);
+                if (alias == null) {
+                    alias = "col" + i;
+                }
+            }
+
+            if (exp instanceof AccessCurrentRowExpression) {
+                AccessCurrentRowExpression accessCurrentRowExpression = (AccessCurrentRowExpression) exp;
+                int mappedIndex = accessCurrentRowExpression.getIndex();
+                zeroCopyProjections[i] = mappedIndex;
+                if (i != mappedIndex) {
+                    identity = false;
+                }
+            } else {
+                allowZeroCopyProjection = false;
+            }
+            fields.add(exp);
+            Column col = Column.column(alias, type);
+            identity = identity && col.name.equals(tableSchema[i].name);
+            fieldNames[i] = alias;
+            columns[i++] = col;
+        }
+        if (allowZeroCopyProjection) {
+            if (identity) {
+                return Projection.IDENTITY(fieldNames, columns);
+            }
+            return new ProjectOp.ZeroCopyProjection(
+                    fieldNames,
+                    columns,
+                    zeroCopyProjections);
+        } else {
+            return new ProjectOp.BasicProjection(
+                    fieldNames,
+                    columns,
+                    fields);
+        }
+    }
+
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
+        final boolean upsert = false;
         net.sf.jsqlparser.schema.Table table = insert.getTable();
         String tableSpace = table.getSchemaName();
         if (tableSpace == null) {
@@ -1182,31 +1405,27 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-          String tableName = table.getName();
-        boolean upsert = false;
+        String tableName = table.getName();
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
         }
-        DMLStatement statement;
         Table tableImpl = tableManager.getTable();
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
         List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
         List<String> valuesColumns = new ArrayList<>();
             boolean invalid = false;
-        if (insert.getSelect() != null) {
-            throw new StatementNotSupportedException();
-        }
+        checkSupported(insert.getSelect() == null);
+
         ItemsList itemsList = insert.getItemsList();
-        if (!(itemsList instanceof ExpressionList)) {
-            throw new StatementNotSupportedException();
-        }
+        checkSupported(itemsList instanceof ExpressionList);
+
         List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
         int index = 0;
         for (net.sf.jsqlparser.schema.Column column : insert.getColumns()) {
             CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index));
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
             String columnName = column.getColumnName();
             if (exp instanceof ConstantExpression
                     || exp instanceof JdbcParameterExpression
@@ -1227,6 +1446,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 break;
             }
         }
+        DMLStatement statement;
         if (!invalid) {
             RecordFunction keyfunction;
             if (keyValueExpression.isEmpty()
@@ -1245,7 +1465,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
 
         PlannerOp op = new SimpleInsertOp(statement);
-        return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
+        return optimizePlan(op);
     }
 
 
@@ -1349,6 +1569,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             super(message);
         }
 
+    }
+
+    public static void checkSupported(boolean condition) {
+        if (!condition) {
+            throw new StatementNotSupportedException();
+        }
     }
 
 }

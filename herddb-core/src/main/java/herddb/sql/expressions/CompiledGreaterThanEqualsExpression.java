@@ -23,28 +23,35 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
+import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 
-public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
+public class CompiledGreaterThanEqualsExpression extends CompiledBinarySQLExpression {
 
-    public CompiledMinorThenExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledGreaterThanEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
-        return res == SQLRecordPredicateFunctions.CompareResult.MINOR;
+        return res == CompareResult.GREATER || res == CompareResult.EQUALS;
     }
 
     @Override
     public String getOperator() {
-        return "<";
+        return ">=";
+    }
+
+    @Override
+    public String toString() {
+        return "CompiledGreaterThenEqualsExpression{left=" + left + ", right=" + right + "}";
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledMinorThenExpression(
+        return new CompiledGreaterThanEqualsExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
 }

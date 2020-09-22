@@ -1,32 +1,44 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.sql.expressions;
 
+import static herddb.sql.DDLSQLPlanner.checkSupported;
+import herddb.model.Column;
 import herddb.model.StatementExecutionException;
 import herddb.sql.DDLSQLPlanner;
+import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NotExpression;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -35,7 +47,7 @@ import net.sf.jsqlparser.expression.TimestampValue;
  */
 public class SQLParserExpressionCompiler {
 
-    public static CompiledSQLExpression compileExpression(Expression expression) {
+    public static CompiledSQLExpression compileExpression(Expression expression, Column[] tableSchema) {
         if (expression == null) {
             return null;
         }
@@ -44,8 +56,39 @@ public class SQLParserExpressionCompiler {
             return new JdbcParameterExpression(p.getIndex() - 1);
         } else if (expression instanceof StringValue
                 || expression instanceof LongValue
+                || expression instanceof NullValue
                 || expression instanceof TimestampValue) {
             return new ConstantExpression(DDLSQLPlanner.resolveValue(expression, false));
+        } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
+            // mapping a reference to a Column to the index in the schema of the table
+            net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
+            checkSupported(col.getTable() == null);
+            String columnName = col.getColumnName();
+            int pos = 0;
+            int indexInSchema = -1;
+            Column found = null;
+            for (Column colInSchema : tableSchema) {
+                if (colInSchema.getName().equalsIgnoreCase(columnName)) {
+                    indexInSchema = pos;
+                    found = colInSchema;
+                    break;
+                }
+                pos++;
+            }
+            if (indexInSchema == -1 || found == null) {
+                throw new StatementExecutionException("Column " + columnName + " not found in target table");
+            }
+            return new AccessCurrentRowExpression(indexInSchema);
+        } else if (expression instanceof BinaryExpression) {
+            return compileBinaryExpression((BinaryExpression) expression, tableSchema);
+        } else if (expression instanceof IsNullExpression) {
+            IsNullExpression eq = (IsNullExpression) expression;
+            CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
+            return new CompiledIsNullExpression(eq.isNot(), left);
+        } else if (expression instanceof NotExpression) {
+            NotExpression eq = (NotExpression) expression;
+            CompiledSQLExpression left = compileExpression(eq.getExpression(), tableSchema);
+            return new CompiledNotExpression(left);
         }
 //        else if (expression instanceof RexLiteral) {
 //            RexLiteral p = (RexLiteral) expression;
@@ -159,5 +202,30 @@ public class SQLParserExpressionCompiler {
 //            return new AccessCorrelVariableExpression(p.id.getId(), p.id.getName());
 //        }
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
+    }
+
+    private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, Column[] tableSchema) {
+        CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema);
+        CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema);
+        if (expression instanceof EqualsTo) {
+            EqualsTo eq = (EqualsTo) expression;
+            checkSupported(eq.getOldOracleJoinSyntax() == EqualsTo.NO_ORACLE_JOIN);
+            checkSupported(eq.getOraclePriorPosition() == EqualsTo.NO_ORACLE_PRIOR);
+            return new CompiledEqualsExpression(left, right);
+        } else if (expression instanceof AndExpression) {
+            return new CompiledAndExpression(left, right);
+        } else if (expression instanceof OrExpression) {
+            return new CompiledOrExpression(left, right);
+        } else if (expression instanceof GreaterThan) {
+            return new CompiledGreaterThanExpression(left, right);
+        } else if (expression instanceof GreaterThanEquals) {
+            return new CompiledGreaterThanEqualsExpression(left, right);
+        } else if (expression instanceof MinorThan) {
+            return new CompiledMinorThanExpression(left, right);
+        } else if (expression instanceof MinorThanEquals) {
+            return new CompiledMinorThanEqualsExpression(left, right);
+        } else {
+            return null;
+        }
     }
 }

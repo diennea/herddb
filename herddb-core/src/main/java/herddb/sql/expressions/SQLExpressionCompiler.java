@@ -81,13 +81,13 @@ public class SQLExpressionCompiler {
                 case "<>":
                     return new CompiledNotEqualsExpression(operands[0], operands[1]);
                 case ">":
-                    return new CompiledGreaterThenExpression(operands[0], operands[1]);
+                    return new CompiledGreaterThanExpression(operands[0], operands[1]);
                 case ">=":
-                    return new CompiledGreaterThenEqualsExpression(operands[0], operands[1]);
+                    return new CompiledGreaterThanEqualsExpression(operands[0], operands[1]);
                 case "<":
-                    return new CompiledMinorThenExpression(operands[0], operands[1]);
+                    return new CompiledMinorThanExpression(operands[0], operands[1]);
                 case "<=":
-                    return new CompiledMinorThenEqualsExpression(operands[0], operands[1]);
+                    return new CompiledMinorThanEqualsExpression(operands[0], operands[1]);
                 case "+":
                     return new CompiledAddExpression(operands[0], operands[1]);
                 case "MOD":

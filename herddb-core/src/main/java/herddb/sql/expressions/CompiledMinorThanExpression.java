@@ -24,31 +24,27 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
 
-public class CompiledAndExpression extends CompiledBinarySQLExpression {
+public class CompiledMinorThanExpression extends CompiledBinarySQLExpression {
 
-
-    public CompiledAndExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledMinorThanExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        boolean ok = SQLRecordPredicateFunctions.toBoolean(left.evaluate(bean, context));
-        if (!ok) {
-            return false;
-        }
-        return SQLRecordPredicateFunctions.toBoolean(right.evaluate(bean, context));
+        SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
+        return res == SQLRecordPredicateFunctions.CompareResult.MINOR;
     }
 
     @Override
-    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
-        left.validate(context);
-        right.validate(context);
+    public String getOperator() {
+        return "<";
     }
 
     @Override
-    public String toString() {
-        return "CompiledAndExpression{" + "left=" + left + ", right=" + right + '}';
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledMinorThanExpression(
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
-
 }

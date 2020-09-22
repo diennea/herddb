@@ -23,35 +23,31 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
-import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 
-public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpression {
+public class CompiledOrExpression extends CompiledBinarySQLExpression {
 
-    public CompiledGreaterThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledOrExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
-        return res == CompareResult.GREATER || res == CompareResult.EQUALS;
+        boolean ok = SQLRecordPredicateFunctions.toBoolean(left.evaluate(bean, context));
+        if (ok) {
+            return true;
+        }
+        return SQLRecordPredicateFunctions.toBoolean(right.evaluate(bean, context));
     }
 
     @Override
-    public String getOperator() {
-        return ">=";
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        left.validate(context);
+        right.validate(context);
     }
 
     @Override
     public String toString() {
-        return "CompiledGreaterThenEqualsExpression{left=" + left + ", right=" + right + "}";
-    }
-
-    @Override
-    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledGreaterThenEqualsExpression(
-                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
-                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+        return "CompiledAndExpression{" + "left=" + left + ", right=" + right + '}';
     }
 
 }
