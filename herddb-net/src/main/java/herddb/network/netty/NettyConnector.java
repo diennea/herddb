@@ -25,7 +25,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.MultithreadEventLoopGroup;
-import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -93,7 +92,7 @@ public class NettyConnector {
         final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
         Bootstrap b = new Bootstrap();
         AtomicReference<NettyChannel> result = new AtomicReference<>();
-        channelType = networkGroup instanceof EpollEventLoopGroup ? EpollSocketChannel.class : NioSocketChannel.class;
+        channelType = detectChannelType(networkGroup);
         b.group(group)
                 .channel(channelType)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
@@ -132,6 +131,13 @@ public class NettyConnector {
             throw new IOException("returned channel is not valid");
         }
         return nettyChannel;
+    }
+
+    private static Class<? extends Channel> detectChannelType(final MultithreadEventLoopGroup networkGroup) {
+        if (networkGroup.getClass().getName().contains("EpollEventLoopGroup")) {
+            return EpollSocketChannel.class;
+        }
+        return NioSocketChannel.class;
     }
 
 }
