@@ -49,7 +49,12 @@ public class CompiledGreaterThanExpression extends CompiledBinarySQLExpression {
     }
 
     @Override
-    public String toString() {
-        return "CompiledGreaterThenExpression{left=" + left + ", right=" + right + "}";
+    public CompiledBinarySQLExpression negate() {
+        return new CompiledMinorThanEqualsExpression(left, right);
+    }
+
+    @Override
+    public boolean isNegateSupported() {
+        return true;
     }
 }

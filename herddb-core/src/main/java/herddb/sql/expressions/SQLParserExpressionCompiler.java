@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
+import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -45,14 +46,21 @@ import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.WhenClause;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Division;
+import net.sf.jsqlparser.expression.operators.arithmetic.Modulo;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.ItemsList;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
@@ -74,6 +82,7 @@ public class SQLParserExpressionCompiler {
         } else if (expression instanceof StringValue
                 || expression instanceof LongValue
                 || expression instanceof NullValue
+                || expression instanceof DoubleValue
                 || expression instanceof TimestampValue) {
             return new ConstantExpression(DDLSQLPlanner.resolveValue(expression, false));
         } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
@@ -81,6 +90,9 @@ public class SQLParserExpressionCompiler {
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
             checkSupported(col.getTable() == null);
             String columnName = col.getColumnName();
+            if (isBooleanLiteral(col)) {
+                return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
+            }
             int pos = 0;
             int indexInSchema = -1;
             Column found = null;
@@ -105,6 +117,15 @@ public class SQLParserExpressionCompiler {
         } else if (expression instanceof NotExpression) {
             NotExpression eq = (NotExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getExpression(), tableSchema);
+            // trying to reproduce Calcite behaviour
+            // NOT (a <= 5)  -> (a > 5)
+            // this can be wrong while dealing with NULL values, but it is the current behaviour
+            if (left instanceof CompiledBinarySQLExpression) {
+                CompiledBinarySQLExpression binaryLeft = (CompiledBinarySQLExpression) left;
+                if (binaryLeft.isNegateSupported()) {
+                    return binaryLeft.negate();
+                }
+            }
             return new CompiledNotExpression(left);
         } else if (expression instanceof Parenthesis) {
             Parenthesis eq = (Parenthesis) expression;
@@ -112,6 +133,23 @@ public class SQLParserExpressionCompiler {
         } else if (expression instanceof SignedExpression) {
             SignedExpression eq = (SignedExpression) expression;
             return new CompiledSignedExpression(eq.getSign(), compileExpression(eq.getExpression(), tableSchema));
+        } else if (expression instanceof InExpression) {
+            InExpression eq = (InExpression) expression;
+            checkSupported(eq.getOldOracleJoinSyntax() == EqualsTo.NO_ORACLE_JOIN);
+            checkSupported(eq.getOraclePriorPosition() == EqualsTo.NO_ORACLE_PRIOR);
+            checkSupported(eq.getLeftItemsList() == null);
+            checkSupported(eq.getMultiExpressionList() == null);
+            checkSupported(eq.getRightExpression() == null);
+            CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
+            ItemsList rightItemsList = eq.getRightItemsList();
+            checkSupported(rightItemsList instanceof ExpressionList);
+            ExpressionList expressionList = (ExpressionList) rightItemsList;
+            CompiledSQLExpression[] values = new CompiledSQLExpression[expressionList.getExpressions().size()];
+            int i = 0;
+            for (Expression exp : expressionList.getExpressions()) {
+                values[i++] = compileExpression(exp, tableSchema);
+            }
+            return new CompiledInExpression(left, values);
         } else if (expression instanceof TimeKeyExpression) {
             TimeKeyExpression eq = (TimeKeyExpression) expression;
             if (eq.getStringValue().equalsIgnoreCase("CURRENT_TIMESTAMP")) {
@@ -313,6 +351,30 @@ public class SQLParserExpressionCompiler {
             return new CompiledMinorThanEqualsExpression(left, right);
         } else if (expression instanceof Addition) {
             return new CompiledAddExpression(left, right);
+        } else if (expression instanceof Division) {
+            return new CompiledDivideExpression(left, right);
+        } else if (expression instanceof Multiplication) {
+            return new CompiledMultiplyExpression(left, right);
+        } else if (expression instanceof LikeExpression) {
+            LikeExpression eq = (LikeExpression) expression;
+            if (eq.isCaseInsensitive()) {
+                // this is not supported by Calcite, do not support it with jSQLParser
+                throw new StatementExecutionException("ILIKE is not supported");
+            }
+            CompiledSQLExpression res;
+            if (eq.getEscape() != null) {
+                CompiledSQLExpression escape = new ConstantExpression(eq.getEscape());
+                res = new CompiledLikeExpression(left, right, escape);
+            } else {
+                res = new CompiledLikeExpression(left, right);
+            }
+
+            if (eq.isNot()) {
+                res = new CompiledNotExpression(res);
+            }
+            return res;
+        } else if (expression instanceof Modulo) {
+            return new CompiledModuloExpression(left, right);
         } else if (expression instanceof Subtraction) {
             return new CompiledSubtractExpression(left, right);
         } else if (expression instanceof NotEqualsTo) {
@@ -323,5 +385,14 @@ public class SQLParserExpressionCompiler {
         } else {
             throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
         }
+    }
+
+    public static boolean isBooleanLiteral(net.sf.jsqlparser.schema.Column col) {
+        if (col.getTable() != null) {
+            return false;
+        }
+        String columnName = col.getColumnName().toLowerCase();
+        return (columnName.equals("false") // jSQLParser does not support boolean literals
+                || columnName.equals("true"));
     }
 }

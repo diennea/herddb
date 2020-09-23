@@ -47,4 +47,16 @@ public class CompiledMinorThanEqualsExpression extends CompiledBinarySQLExpressi
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
+
+    @Override
+    public CompiledBinarySQLExpression negate() {
+        return new CompiledGreaterThanExpression(left, right);
+    }
+
+    @Override
+    public boolean isNegateSupported() {
+        return true;
+    }
+
+
 }

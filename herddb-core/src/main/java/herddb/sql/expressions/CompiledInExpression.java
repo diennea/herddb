@@ -20,42 +20,53 @@
 
 package herddb.sql.expressions;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.utils.SQLRecordPredicateFunctions;
+import java.util.Arrays;
 
-public class CompiledNotExpression implements CompiledSQLExpression {
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+public class CompiledInExpression implements CompiledSQLExpression {
 
     private final CompiledSQLExpression left;
+    private final CompiledSQLExpression[] values;
 
-    public CompiledNotExpression(CompiledSQLExpression left) {
+    public CompiledInExpression(CompiledSQLExpression left, CompiledSQLExpression[] values) {
+        this.values = values;
         this.left = left;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        if (leftValue == null) {
-            return null;
+        for (int i = 0; i < values.length; i++) {
+            // zero copy
+            if (left.opEqualsTo(bean, context, values[i])) {
+                return true;
+            }
         }
-        return !SQLRecordPredicateFunctions.toBoolean(leftValue);
-
+        return false;
     }
 
     @Override
     public void validate(StatementEvaluationContext context) throws StatementExecutionException {
         left.validate(context);
-    }
-
-    @Override
-    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledNotExpression(
-                left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+        for (CompiledSQLExpression op : values) {
+            op.validate(context);
+        }
     }
 
     @Override
     public String toString() {
-        return "CompiledNotExpression{" + "left=" + left + '}';
+        return "IN{" + left + ", " + Arrays.toString(values) + '}';
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        CompiledSQLExpression[] remappedValues = new CompiledSQLExpression[values.length];
+        int i = 0;
+        for (CompiledSQLExpression exp : values) {
+            remappedValues[i++] = exp.remapPositionalAccessToToPrimaryKeyAccessor(projection);
+        }
+        return new CompiledInExpression(left.remapPositionalAccessToToPrimaryKeyAccessor(projection), remappedValues);
+    }
 }

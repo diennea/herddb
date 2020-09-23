@@ -40,7 +40,7 @@ public class ProjectedTableScanOp implements PlannerOp {
 
     final ScanStatement statement;
 
-    ProjectedTableScanOp(ProjectOp op, TableScanOp tableScan) {
+    ProjectedTableScanOp(ProjectOp op, SimpleScanOp tableScan) {
         this.statement = tableScan.unwrap(ScanStatement.class);
         Projection proj = op.getProjection();
         // we can alter the statement, the TableScan will be dropped from the plan

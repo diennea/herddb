@@ -50,4 +50,11 @@ public class CompiledOrExpression extends CompiledBinarySQLExpression {
         return "CompiledAndExpression{" + "left=" + left + ", right=" + right + '}';
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        CompiledSQLExpression remappedLeft = left.remapPositionalAccessToToPrimaryKeyAccessor(projection);
+        CompiledSQLExpression remappedRight = right.remapPositionalAccessToToPrimaryKeyAccessor(projection);
+        return new CompiledAndExpression(remappedLeft, remappedRight);
+    }
+
 }

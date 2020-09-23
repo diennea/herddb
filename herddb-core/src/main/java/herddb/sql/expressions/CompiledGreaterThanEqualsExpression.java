@@ -43,15 +43,21 @@ public class CompiledGreaterThanEqualsExpression extends CompiledBinarySQLExpres
     }
 
     @Override
-    public String toString() {
-        return "CompiledGreaterThenEqualsExpression{left=" + left + ", right=" + right + "}";
-    }
-
-    @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledGreaterThanEqualsExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
+
+    @Override
+    public CompiledBinarySQLExpression negate() {
+        return new CompiledMinorThanExpression(left, right);
+    }
+
+    @Override
+    public boolean isNegateSupported() {
+        return true;
     }
 
 }

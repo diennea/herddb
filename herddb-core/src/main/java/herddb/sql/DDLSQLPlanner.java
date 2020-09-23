@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import static herddb.sql.CalcitePlanner.findIndexAccess;
+import static herddb.sql.expressions.SQLParserExpressionCompiler.isBooleanLiteral;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
@@ -94,6 +95,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
@@ -129,6 +131,7 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.statement.update.Update;
+import net.sf.jsqlparser.statement.upsert.Upsert;
 
 /**
  * Translates SQL to Internal API
@@ -164,6 +167,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     @Override
     public void clearCache() {
         cache.clear();
+        if (fallback != null) {
+            fallback.clearCache();
+        }
     }
 
     public DDLSQLPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
@@ -269,29 +275,37 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String defaultTableSpace, String query, List<Object> parameters,
             boolean scan, boolean allowCache, boolean returnValues, int maxRows
     ) throws StatementExecutionException {
+        if (parameters == null) {
+            parameters = Collections.emptyList();
+        }
+
+        /*
+         * Strips out leading comments
+         */
+        int idx = SQLUtils.findQueryStart(query);
+        if (idx != -1) {
+            query = query.substring(idx);
+        }
+
+        query = rewriteExecuteSyntax(query);
+        String cacheKey = "scan:" + scan
+                + ",defaultTableSpace:" + defaultTableSpace
+                + ",query:" + query
+                + ",returnValues:" + returnValues
+                + ",maxRows:" + maxRows;
         try {
-            if (parameters == null) {
-                parameters = Collections.emptyList();
+            boolean forceAcquireWriteLock;
+            if (query.endsWith(" FOR UPDATE") // this looks very hacky
+                    && query.substring(0, 6).toLowerCase().equals("select")) {
+                forceAcquireWriteLock = true;
+                query = query.substring(0, query.length() - " FOR UPDATE".length());
+            } else {
+                forceAcquireWriteLock = false;
             }
-
-            /*
-             * Strips out leading comments
-             */
-            int idx = SQLUtils.findQueryStart(query);
-            if (idx != -1) {
-                query = query.substring(idx);
-            }
-
-            query = rewriteExecuteSyntax(query);
-            String cacheKey = "scan:" + scan
-                    + ",defaultTableSpace:" + defaultTableSpace
-                    + ",query:" + query
-                    + ",returnValues:" + returnValues
-                    + ",maxRows:" + maxRows;
             if (allowCache) {
                 ExecutionPlan cached = cache.get(cacheKey);
                 if (cached != null) {
-                    return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, false, false));
+                    return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
                 }
             }
             if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
@@ -315,12 +329,17 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
             }
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
         } catch (StatementNotSupportedException err) {
             if (fallback == null || !ALLOW_FALLBACK) {
                 throw err;
             }
-            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+            TranslatedQuery res =  fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+            if (allowCache) {
+                // cache plan from Calcite, not need to try jSQLParser again
+                cache.put(cacheKey, res.plan);
+            }
+            return res;
         }
     }
 
@@ -356,6 +375,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
         } else if (stmt instanceof Insert) {
             result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
+        } else if (stmt instanceof Upsert) {
+            result = buildUpsertStatement(defaultTableSpace, (Upsert) stmt, returnValues);
         } else if (stmt instanceof Update) {
             result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
         } else if (stmt instanceof Select) {
@@ -679,6 +700,8 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        } else if (expression instanceof DoubleValue) {
+            return ((DoubleValue) expression).getValue();
         } else if (expression instanceof NullValue) {
             return null;
         } else if (expression instanceof TimestampValue) {
@@ -1261,7 +1284,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         String tableName = table.getName().toLowerCase();
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
         }
         Table tableImpl = tableManager.getTable();
 
@@ -1378,7 +1401,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         int i = 0;
         for (OrderByElement col : fieldCollations) {
             OrderByElement.NullOrdering nullDirection = col.getNullOrdering();
-            boolean isAsc = col.isAsc();
             CompiledSQLExpression columnPos = SQLParserExpressionCompiler.compileExpression(col.getExpression(), columns);
             checkSupported(columnPos instanceof AccessCurrentRowExpression);
             AccessCurrentRowExpression pos = (AccessCurrentRowExpression) columnPos;
@@ -1412,13 +1434,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             CompiledSQLExpression exp;
             String alias = null;
             if (node.getAlias() != null) {
-                alias = node.getAlias().getName();
+                alias = node.getAlias().getName().toLowerCase();
                 checkSupported(node.getAlias().getAliasColumns() == null);
             }
-            if (node.getExpression() instanceof net.sf.jsqlparser.schema.Column) {
+            if (node.getExpression() instanceof net.sf.jsqlparser.schema.Column
+                    && !isBooleanLiteral((net.sf.jsqlparser.schema.Column) node.getExpression())) {
                 net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) node.getExpression();
                 checkSupported(col.getTable() == null);
                 String columnName = col.getColumnName();
+
                 if (alias == null) {
                     alias = columnName;
                 }
@@ -1478,7 +1502,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
-        final boolean upsert = false;
         net.sf.jsqlparser.schema.Table table = insert.getTable();
         String tableSpace = table.getSchemaName();
         if (tableSpace == null) {
@@ -1491,7 +1514,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         String tableName = table.getName().toLowerCase();
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
         }
         Table tableImpl = tableManager.getTable();
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
@@ -1558,7 +1581,98 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
             }
             RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
+            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, false).setReturnValues(returnValues);
+        } else {
+            throw new StatementNotSupportedException();
+        }
+
+        PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
+        return optimizePlan(op);
+    }
+
+    private ExecutionPlan buildUpsertStatement(String defaultTableSpace, Upsert upsert, boolean returnValues) throws StatementExecutionException {
+        net.sf.jsqlparser.schema.Table table = upsert.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = table.getName().toLowerCase();
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
+        List<String> keyExpressionToColumn = new ArrayList<>();
+        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+        List<String> valuesColumns = new ArrayList<>();
+            boolean invalid = false;
+        checkSupported(upsert.getSelect() == null);
+        checkSupported(upsert.getDuplicateUpdateColumns() == null);
+        checkSupported(upsert.getDuplicateUpdateExpressionList() == null);
+
+        ItemsList itemsList = upsert.getItemsList();
+        checkSupported(itemsList instanceof ExpressionList);
+
+        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
+        int index = 0;
+        List<net.sf.jsqlparser.schema.Column> columns = upsert.getColumns();
+        if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
+            columns = new ArrayList<>();
+            for (Column c : tableImpl.getColumns()) {
+                columns.add(new net.sf.jsqlparser.schema.Column(c.name));
+            }
+        }
+        for (net.sf.jsqlparser.schema.Column column : columns) {
+            CompiledSQLExpression exp =
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+            String columnName = column.getColumnName();
+            if (exp instanceof ConstantExpression
+                    || exp instanceof JdbcParameterExpression
+                    || exp instanceof TypedJdbcParameterExpression
+                    || exp instanceof CompiledFunction) {
+                boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                        && ((ConstantExpression) exp).isNull();
+                if (!isAlwaysNull) {
+                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
+                        keyExpressionToColumn.add(columnName);
+                        keyValueExpression.add(exp);
+                    }
+                    valuesColumns.add(columnName);
+                    valuesExpressions.add(exp);
+                }
+                index++;
+            } else {
+                invalid = true;
+                break;
+            }
+        }
+        // handle default values
+        for (Column col : tableImpl.getColumns()) {
+            if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
+                valuesColumns.add(col.name);
+                CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
+                valuesExpressions.add(defaultValueExpression);
+            }
+        }
+        DMLStatement statement;
+        if (!invalid) {
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty()
+                    && tableImpl.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                }
+                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
+            }
+            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
+            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, true).setReturnValues(returnValues);
         } else {
             throw new StatementNotSupportedException();
         }
@@ -1581,7 +1695,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         String tableName = table.getName().toLowerCase();
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
         }
         Table tableImpl = tableManager.getTable();
         checkSupported(update.getSelect() == null);
@@ -1630,7 +1744,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         String tableName = table.getName().toLowerCase();
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no table " + tableName + " here for " + tableSpace);
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
         }
         Table tableImpl = tableManager.getTable();
         checkSupported(delete.getLimit() == null);
