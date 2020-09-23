@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
@@ -74,6 +75,11 @@ public abstract class SimpleScanOp implements PlannerOp {
     ) throws StatementExecutionException {
         DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
         return new ScanResult(scan.getTransactionId(), scan);
+    }
+
+    @Override
+    public Column[] getSchema() {
+        return statement.getSchema();
     }
 
 }

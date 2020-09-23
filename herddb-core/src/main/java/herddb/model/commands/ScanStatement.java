@@ -20,6 +20,7 @@
 
 package herddb.model.commands;
 
+import herddb.model.Column;
 import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
@@ -28,6 +29,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TupleComparator;
+import herddb.model.planner.SortOp;
 import herddb.utils.ObjectSizeUtils;
 
 /**
@@ -106,10 +108,18 @@ public class ScanStatement extends TableAwareStatement {
 
     @Override
     public String toString() {
+        String comparatorString = "";
+        if (comparator != null) {
+            if (comparator instanceof SortOp) {
+                comparatorString = "SortOp";  // prevent recursion
+            } else {
+                comparatorString = comparator.toString();
+            }
+        }
         if (limits != null) {
-            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparator + ",limits=" + limits.toStringForScan() + '}';
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparatorString + ",limits=" + limits.toStringForScan() + '}';
         } else {
-            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparator + '}';
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparatorString + '}';
         }
     }
 
@@ -144,5 +154,11 @@ public class ScanStatement extends TableAwareStatement {
         return res;
     }
 
+    public Column[] getSchema() {
+        if (projection != null) {
+            return projection.getColumns();
+        }
+        return tableDef.getColumns();
+    }
 
 }

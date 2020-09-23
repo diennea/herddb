@@ -175,4 +175,9 @@ public class NestedLoopJoinOp implements PlannerOp {
         return right;
     }
 
+    @Override
+    public Column[] getSchema() {
+        return columns;
+    }
+
 }

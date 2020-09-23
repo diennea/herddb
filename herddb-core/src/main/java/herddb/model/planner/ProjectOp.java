@@ -379,4 +379,9 @@ public class ProjectOp implements PlannerOp {
                 + "input=" + input + '}';
     }
 
+    @Override
+    public Column[] getSchema() {
+        return projection.getColumns();
+    }
+
 }

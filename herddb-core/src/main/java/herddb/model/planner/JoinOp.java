@@ -198,4 +198,10 @@ public class JoinOp implements PlannerOp {
                 + "\nrightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + '}';
     }
 
+
+    @Override
+    public Column[] getSchema() {
+        return columns;
+    }
+
 }

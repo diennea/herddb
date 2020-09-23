@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.Predicate;
 import herddb.model.ScanResult;
@@ -82,4 +83,11 @@ public class FilteredTableScanOp implements PlannerOp {
     public boolean isSimpleStatementWrapper() {
         return true;
     }
+
+    @Override
+    public Column[] getSchema() {
+        return statement.getSchema();
+    }
+
+
 }

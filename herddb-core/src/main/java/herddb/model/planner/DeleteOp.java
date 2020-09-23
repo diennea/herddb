@@ -22,6 +22,7 @@ package herddb.model.planner;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -165,5 +166,10 @@ public class DeleteOp implements PlannerOp {
     @Override
     public String toString() {
         return String.format("DeleteOp {input = %s }", input.toString());
+    }
+
+    @Override
+    public Column[] getSchema() {
+        return new Column[0];
     }
 }

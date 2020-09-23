@@ -146,7 +146,7 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
  */
 public class DDLSQLPlanner implements AbstractSQLPlanner {
 
-    private static final boolean ALLOW_FALLBACK = SystemProperties.getBooleanSystemProperty("herddb.planner.allowfallbacktocalcite", true);
+    private static final boolean ALLOW_FALLBACK = SystemProperties.getBooleanSystemProperty("herddb.planner.allowfallbacktocalcite", false);
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
     private final DBManager manager;
     private final PlansCache cache;
@@ -1342,14 +1342,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
         // add aggregations
         if (containsAggregatedFunctions) {
-            op = planAggregate(selectedFields, tableImpl.getColumns(), (BindableTableScanOp) op, plainSelect.getGroupBy());
+            op = planAggregate(selectedFields, op.getSchema(), (BindableTableScanOp) op, plainSelect.getGroupBy());
         }
 
         // TODO: add having
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
-            op = planSort(op, tableImpl.getColumns(), plainSelect.getOrderByElements());
+            op = planSort(op, op.getSchema(), plainSelect.getOrderByElements());
         }
 
         // add limit
@@ -1381,8 +1381,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             op = new LimitOp(op, rowCount, new ConstantExpression(0));
         }
 
-        // add projection
-        op = new ProjectOp(projection, op);
+        if (!containsAggregatedFunctions) {
+            // add projection
+            op = new ProjectOp(projection, op);
+        }
 
         // Simplify Scan to Get
         if (!forceScan) {
@@ -1411,16 +1413,21 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return optimizePlan(op);
     }
 
-    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] tableSchema, BindableTableScanOp input,
+    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] inputSchema, BindableTableScanOp input,
                                                                                                 GroupByElement groupBy) {
-        checkSupported(groupBy == null);
 
-        Column[] outputSchema = new Column[fieldList.size()];
+        List<Column> outputSchemaKeys = new ArrayList<>();
+//        List<String> fieldnamesKeys = new ArrayList<>();
+        List<Integer> projectionKeys = new ArrayList<>();
 
-        List<Function> calls = new ArrayList<>();
-        List<String> fieldnames = new ArrayList<>();
+        List<Column> outputSchemaAggregationResults = new ArrayList<>();
+//        List<String> fieldnamesAggregationResults = new ArrayList<>();
+        List<Integer> projectionAggregationResults = new ArrayList<>();
         List<List<Integer>> argLists = new ArrayList<>();
         List<String> aggtypes = new ArrayList<>();
+
+        List<String> fieldnames = new ArrayList<>();
+
         int k = 0;
         for (SelectExpressionItem sel : fieldList) {
             Alias alias = sel.getAlias();
@@ -1430,12 +1437,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 fieldName = alias.getName().toLowerCase();
             }
             Expression exp = sel.getExpression();
-            int type;
+
             if (SQLParserExpressionCompiler.isAggregatedFunction(exp)) {
                 Function fn = (Function) exp;
-                calls.add(fn);
-                type = SQLParserExpressionCompiler.getAggregateFunctionType(fn, tableSchema);
-                Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, tableSchema);
+                int type = SQLParserExpressionCompiler.getAggregateFunctionType(fn, inputSchema);
+                Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, inputSchema);
                 aggtypes.add(fn.getName().toLowerCase());
                 if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
                     IntHolder pos = new IntHolder();
@@ -1445,30 +1451,74 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 } else {
                     argLists.add(Collections.emptyList());
                 }
+                Column col = Column.column(fieldName, type);
+                outputSchemaAggregationResults.add(col);
+                if (fieldName == null) {
+                    fieldName = "agg" + k;
+                }
+                fieldnames.add(fieldName);
+                projectionAggregationResults.add(k);
             } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
-                Column colInSchema = findColumnInSchema(colRef.getColumnName(), tableSchema, new IntHolder());
+                Column colInSchema = findColumnInSchema(colRef.getColumnName(), inputSchema, new IntHolder());
                 checkSupported(colInSchema != null);
-                type = colInSchema.type;
+                if (fieldName == null) {
+                    fieldName = colInSchema.getName();
+                }
+                Column col = Column.column(fieldName, colInSchema.type);
+                outputSchemaKeys.add(col);
+                fieldnames.add(fieldName);
+                projectionKeys.add(k);
             } else {
                 checkSupported(false);
-                type = ColumnTypes.ANYTYPE;
             }
-            if (fieldName == null) {
-                fieldName = "agg" + k;
-            }
-            Column col = Column.column(fieldName, type);
-            outputSchema[k] = col;
-            fieldnames.add(fieldName);
             k++;
         }
-        List<Integer> groupedFiledsIndexes = new ArrayList<>(); // GROUP BY
-        return new AggregateOp(input,
-                fieldnames.toArray(new String[0]),
-                outputSchema,
+
+        List<Column> outputSchema = new ArrayList<>();
+        outputSchema.addAll(outputSchemaKeys);
+        outputSchema.addAll(outputSchemaAggregationResults);
+
+//
+//        fieldnames.addAll(fieldnamesKeys);
+//        fieldnames.addAll(fieldnamesAggregationResults);
+
+        Column[] outputSchemaArray = outputSchema.toArray(new Column[0]);
+        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY
+        if (groupBy != null) {
+            checkSupported(groupBy.getGroupingSets() == null || groupBy.getGroupingSets().isEmpty());
+            for (Expression exp : groupBy.getGroupByExpressions()) {
+                if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                    net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
+                    IntHolder pos = new IntHolder();
+                    Column colInSchema = findColumnInSchema(colRef.getColumnName(), outputSchemaArray, pos);
+                    checkSupported(colInSchema != null);
+                    groupedFieldsIndexes.add(pos.value);
+                } else {
+                    checkSupported(false);
+                }
+            }
+        }
+        String[] outputFieldNames = fieldnames.toArray(new String[0]);
+        PlannerOp op =  new AggregateOp(input,
+                outputFieldNames,
+                outputSchemaArray,
                 aggtypes.toArray(new String[0]),
                 argLists,
-                groupedFiledsIndexes);
+                groupedFieldsIndexes);
+        if (!groupedFieldsIndexes.isEmpty()) {
+            int[] projections = new int[fieldnames.size()];
+            int i = 0;
+            for (int pos : projectionKeys) {
+                projections[pos] = i++;
+            }
+            for (int pos : projectionAggregationResults) {
+                projections[pos] = i++;
+            }
+            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(outputFieldNames, outputSchemaArray, projections);
+            op = new ProjectOp(projection, op);
+        }
+        return op;
     }
 
     private static ExecutionPlan optimizePlan(PlannerOp op) {

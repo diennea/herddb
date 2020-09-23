@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
@@ -142,5 +143,10 @@ public class UnionAllOp implements PlannerOp {
             sb.append(Arrays.toString(inputs.toArray()));
         }
         return sb.toString();
+    }
+
+    @Override
+    public Column[] getSchema() {
+        return inputs.get(0).getSchema();
     }
 }

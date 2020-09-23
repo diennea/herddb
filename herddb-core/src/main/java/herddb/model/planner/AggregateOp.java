@@ -66,13 +66,13 @@ public class AggregateOp implements PlannerOp {
             Column[] columns,
             String[] aggtypes,
             List<List<Integer>> argLists,
-            List<Integer> groupedFiledsIndexes
+            List<Integer> groupedFieldsIndexes
     ) {
         this.input = input;
         this.fieldnames = fieldnames;
         this.columns = columns;
         this.aggtypes = aggtypes;
-        this.groupedFiledsIndexes = groupedFiledsIndexes;
+        this.groupedFiledsIndexes = groupedFieldsIndexes;
         this.argLists = argLists;
     }
 
@@ -289,5 +289,9 @@ public class AggregateOp implements PlannerOp {
                 + ", groupedFiledsIndexes=" + groupedFiledsIndexes + ", argLists=" + argLists + '}';
     }
 
+    @Override
+    public Column[] getSchema() {
+        return columns;
+    }
 
 }

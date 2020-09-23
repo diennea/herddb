@@ -22,6 +22,7 @@ package herddb.model.planner;
 
 import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -98,4 +99,9 @@ public interface PlannerOp extends Wrapper {
     default boolean isSimpleStatementWrapper() {
         return false;
     }
+
+    /**
+     * Return the output schema for the Op.
+     */
+    Column[] getSchema();
 }
