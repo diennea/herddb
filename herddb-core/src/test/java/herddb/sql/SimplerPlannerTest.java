@@ -211,6 +211,9 @@ public class SimplerPlannerTest {
                             + " ORDER BY k1",
                     Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
+                for (DataAccessor res : results) {
+                    System.out.println("RES: "+res.toMap()+" "+Arrays.toString(res.getFieldNames())+" "+Arrays.toString(res.getValues()));
+                }
                 assertEquals(2, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
                 assertEquals(1L, results.get(0).get(0));

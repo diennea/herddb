@@ -200,6 +200,7 @@ public class AggregateOp implements PlannerOp {
                             values[k++] = cc.getValue();
                         }
                         Tuple tuple = new Tuple(fieldnames, values);
+                        System.out.println("OUTPUT "+tuple.toMap()+" "+Arrays.toString(tuple.getFieldNames())+" "+Arrays.toString(tuple.getValues()));
                         results.add(tuple);
                     }
                     results.writeFinished();
@@ -284,9 +285,9 @@ public class AggregateOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return "AggregateOp{" + "input=" + input + ", fieldnames=" + Arrays.toString(fieldnames)
+        return "AggregateOp{" + "fieldnames=" + Arrays.toString(fieldnames)
                 + ", columns=" + Arrays.toString(columns) + ", aggtypes=" + Arrays.toString(aggtypes)
-                + ", groupedFiledsIndexes=" + groupedFiledsIndexes + ", argLists=" + argLists + '}';
+                + ", groupedFiledsIndexes=" + groupedFiledsIndexes + ", argLists=" + argLists + "\ninput=" + input + '}';
     }
 
     @Override

@@ -1416,17 +1416,21 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] inputSchema, BindableTableScanOp input,
                                                                                                 GroupByElement groupBy) {
 
-        List<Column> outputSchemaKeys = new ArrayList<>();
-//        List<String> fieldnamesKeys = new ArrayList<>();
+        List<Column> outputSchemaNonAggregatedFields = new ArrayList<>();
+        List<String> fieldnamesNonAggregatedFields = new ArrayList<>();
         List<Integer> projectionKeys = new ArrayList<>();
+        
+        List<Column> outputSchemaKeysInGroupBy = new ArrayList<>();
+        List<String> fieldnamesKeysInGroupBy = new ArrayList<>();
 
         List<Column> outputSchemaAggregationResults = new ArrayList<>();
-//        List<String> fieldnamesAggregationResults = new ArrayList<>();
+        List<String> fieldnamesAggregationResults = new ArrayList<>();
         List<Integer> projectionAggregationResults = new ArrayList<>();
         List<List<Integer>> argLists = new ArrayList<>();
         List<String> aggtypes = new ArrayList<>();
 
-        List<String> fieldnames = new ArrayList<>();
+        List<Column> originalOutputSchema = new ArrayList<>();
+        List<String> originalFieldNames = new ArrayList<>();
 
         int k = 0;
         for (SelectExpressionItem sel : fieldList) {
@@ -1451,12 +1455,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 } else {
                     argLists.add(Collections.emptyList());
                 }
-                Column col = Column.column(fieldName, type);
-                outputSchemaAggregationResults.add(col);
                 if (fieldName == null) {
                     fieldName = "agg" + k;
                 }
-                fieldnames.add(fieldName);
+                Column col = Column.column(fieldName, type);
+                outputSchemaAggregationResults.add(col);                
+                originalFieldNames.add(fieldName);
+                originalOutputSchema.add(col);
+                fieldnamesAggregationResults.add(fieldName);
                 projectionAggregationResults.add(k);
             } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
@@ -1466,8 +1472,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     fieldName = colInSchema.getName();
                 }
                 Column col = Column.column(fieldName, colInSchema.type);
-                outputSchemaKeys.add(col);
-                fieldnames.add(fieldName);
+                outputSchemaNonAggregatedFields.add(col);
+                originalFieldNames.add(fieldName);
+                originalOutputSchema.add(col);
+                fieldnamesNonAggregatedFields.add(fieldName);
                 projectionKeys.add(k);
             } else {
                 checkSupported(false);
@@ -1475,39 +1483,44 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             k++;
         }
 
-        List<Column> outputSchema = new ArrayList<>();
-        outputSchema.addAll(outputSchemaKeys);
-        outputSchema.addAll(outputSchemaAggregationResults);
-
-//
-//        fieldnames.addAll(fieldnamesKeys);
-//        fieldnames.addAll(fieldnamesAggregationResults);
-
-        Column[] outputSchemaArray = outputSchema.toArray(new Column[0]);
-        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY
+            
+        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY        
         if (groupBy != null) {
             checkSupported(groupBy.getGroupingSets() == null || groupBy.getGroupingSets().isEmpty());
             for (Expression exp : groupBy.getGroupByExpressions()) {
                 if (exp instanceof net.sf.jsqlparser.schema.Column) {
                     net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
                     IntHolder pos = new IntHolder();
-                    Column colInSchema = findColumnInSchema(colRef.getColumnName(), outputSchemaArray, pos);
+                    Column colInSchema = findColumnInSchema(colRef.getColumnName(), inputSchema, pos);
                     checkSupported(colInSchema != null);
                     groupedFieldsIndexes.add(pos.value);
+                    fieldnamesKeysInGroupBy.add(colRef.getColumnName());
+                    outputSchemaKeysInGroupBy.add(colInSchema);
                 } else {
                     checkSupported(false);
                 }
-            }
+            }            
         }
-        String[] outputFieldNames = fieldnames.toArray(new String[0]);
-        PlannerOp op =  new AggregateOp(input,
-                outputFieldNames,
-                outputSchemaArray,
-                aggtypes.toArray(new String[0]),
-                argLists,
-                groupedFieldsIndexes);
+        
+        PlannerOp op;
         if (!groupedFieldsIndexes.isEmpty()) {
-            int[] projections = new int[fieldnames.size()];
+            List<Column> outputSchema = new ArrayList<>();
+            outputSchema.addAll(outputSchemaKeysInGroupBy);
+            outputSchema.addAll(outputSchemaAggregationResults);
+            Column[] outputSchemaArray = outputSchema.toArray(new Column[0]);
+
+            List<String> aggreateFieldNames = new ArrayList<>();
+            aggreateFieldNames.addAll(fieldnamesKeysInGroupBy);
+            aggreateFieldNames.addAll(fieldnamesAggregationResults);           
+
+            op = new AggregateOp(input,
+                    aggreateFieldNames.toArray(new String[0]),
+                    outputSchemaArray,
+                    aggtypes.toArray(new String[0]),
+                    argLists,
+                    groupedFieldsIndexes);
+            String[] reodereded = originalFieldNames.toArray(new String[0]);
+            int[] projections = new int[originalFieldNames.size()];
             int i = 0;
             for (int pos : projectionKeys) {
                 projections[pos] = i++;
@@ -1515,8 +1528,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             for (int pos : projectionAggregationResults) {
                 projections[pos] = i++;
             }
-            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(outputFieldNames, outputSchemaArray, projections);
+            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(reodereded, outputSchemaArray, projections);
             op = new ProjectOp(projection, op);
+        } else {
+            op = new AggregateOp(input,
+                    originalFieldNames.toArray(new String[0]),
+                    originalOutputSchema.toArray(new Column[0]),
+                    aggtypes.toArray(new String[0]),
+                    argLists,
+                    groupedFieldsIndexes);
         }
         return op;
     }
