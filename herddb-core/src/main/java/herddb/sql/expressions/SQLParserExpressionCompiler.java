@@ -20,10 +20,18 @@
 package herddb.sql.expressions;
 
 import static herddb.sql.DDLSQLPlanner.checkSupported;
+import static herddb.sql.functions.BuiltinFunctions.COUNT;
+import static herddb.sql.functions.BuiltinFunctions.MAX;
+import static herddb.sql.functions.BuiltinFunctions.MIN;
+import static herddb.sql.functions.BuiltinFunctions.SUM;
+import static herddb.sql.functions.BuiltinFunctions.SUM0;
+import herddb.core.HerdDBInternalException;
 import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.DDLSQLPlanner;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.IntHolder;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,21 +101,12 @@ public class SQLParserExpressionCompiler {
             if (isBooleanLiteral(col)) {
                 return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
             }
-            int pos = 0;
-            int indexInSchema = -1;
-            Column found = null;
-            for (Column colInSchema : tableSchema) {
-                if (colInSchema.getName().equalsIgnoreCase(columnName)) {
-                    indexInSchema = pos;
-                    found = colInSchema;
-                    break;
-                }
-                pos++;
-            }
-            if (indexInSchema == -1 || found == null) {
+            IntHolder indexInSchema = new IntHolder(-1);
+            Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
+            if (indexInSchema.value == -1 || found == null) {
                 throw new StatementExecutionException("Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
             }
-            return new AccessCurrentRowExpression(indexInSchema);
+            return new AccessCurrentRowExpression(indexInSchema.value);
         } else if (expression instanceof BinaryExpression) {
             return compileBinaryExpression((BinaryExpression) expression, tableSchema);
         } else if (expression instanceof IsNullExpression) {
@@ -394,5 +393,69 @@ public class SQLParserExpressionCompiler {
         String columnName = col.getColumnName().toLowerCase();
         return (columnName.equals("false") // jSQLParser does not support boolean literals
                 || columnName.equals("true"));
+    }
+
+    public static boolean isAggregatedFunction(Expression expression) {
+        if (!(expression instanceof Function)) {
+            return false;
+        }
+        Function fn = (Function) expression;
+        return BuiltinFunctions.isAggregatedFunction(fn.getName().toLowerCase());
+    }
+
+    public static int getAggregateFunctionType(Function fn, Column[] tableSchema) {
+        String functionNameLowercase = fn.getName().toLowerCase();
+        switch (functionNameLowercase) {
+            case COUNT:
+                return ColumnTypes.LONG;
+            case SUM:
+            case SUM0:
+            case MIN:
+            case MAX:
+                checkSupported(fn.getParameters().getExpressions().size() == 1);
+                checkSupported(fn.getParameters().getExpressions().get(0) instanceof net.sf.jsqlparser.schema.Column);
+                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) fn.getParameters().getExpressions().get(0);
+                checkSupported(cName.getTable() == null);
+                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                checkSupported(col != null);
+                // SUM of INTEGERS is an INTEGER (this is what Calcite does, but it is smarter than this)
+                return col.type;
+            default:
+                throw new HerdDBInternalException(functionNameLowercase);
+        }
+    }
+
+    public static Column getAggregateFunctionArgument(Function fn, Column[] tableSchema) {
+        String functionNameLowercase = fn.getName().toLowerCase();
+        switch (functionNameLowercase) {
+            case COUNT:
+                return null;
+            case SUM:
+            case SUM0:
+            case MIN:
+            case MAX:
+                checkSupported(fn.getParameters().getExpressions().size() == 1);
+                checkSupported(fn.getParameters().getExpressions().get(0) instanceof net.sf.jsqlparser.schema.Column);
+                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) fn.getParameters().getExpressions().get(0);
+                checkSupported(cName.getTable() == null);
+                // validate that it is a valid column referece in the input schema
+                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                checkSupported(col != null);
+                return col;
+            default:
+                throw new HerdDBInternalException(functionNameLowercase);
+        }
+    }
+
+    public static Column findColumnInSchema(String columnName, Column[] tableSchema, IntHolder pos) {
+        pos.value = 0;
+        for (Column colInSchema : tableSchema) {
+            if (colInSchema.getName().equalsIgnoreCase(columnName)) {
+                return colInSchema;
+            }
+            pos.value++;
+        }
+        pos.value = -1;
+        return null;
     }
 }

@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import static herddb.sql.CalcitePlanner.findIndexAccess;
+import static herddb.sql.expressions.SQLParserExpressionCompiler.findColumnInSchema;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.isBooleanLiteral;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -64,6 +65,7 @@ import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
@@ -82,6 +84,7 @@ import herddb.sql.expressions.SQLParserExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
+import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
 import herddb.utils.SystemProperties;
 import java.util.ArrayList;
@@ -95,8 +98,10 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
@@ -121,6 +126,7 @@ import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.FromItem;
+import net.sf.jsqlparser.statement.select.GroupByElement;
 import net.sf.jsqlparser.statement.select.Limit;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 import net.sf.jsqlparser.statement.select.PlainSelect;
@@ -1258,7 +1264,6 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         checkSupported(plainSelect.getForXmlPath() == null);
         checkSupported(plainSelect.getHaving() == null);
         checkSupported(plainSelect.getIntoTables() == null);
-        checkSupported(plainSelect.getGroupBy() == null);
         checkSupported(plainSelect.getJoins() == null);
         checkSupported(plainSelect.getOffset() == null);
         checkSupported(plainSelect.getOptimizeFor() == null);
@@ -1295,23 +1300,33 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         ScanLimits limits = null;
         ScanStatement scan;
         Projection projection;
+        List<SelectExpressionItem> selectedFields = new ArrayList<>(selectItems.size());
+        boolean containsAggregatedFunctions = false;
         if (selectItems.size() == 1 && selectItems.get(0) instanceof AllColumns) {
             projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
         } else {
             checkSupported(!selectItems.isEmpty());
-            List<SelectExpressionItem> exps = new ArrayList<>(selectItems.size());
             for (SelectItem item : selectItems) {
                 if (item instanceof SelectExpressionItem) {
-                    exps.add((SelectExpressionItem) item);
+                    SelectExpressionItem selectExpressionItem = (SelectExpressionItem) item;
+                    selectedFields.add(selectExpressionItem);
+                    if (SQLParserExpressionCompiler.isAggregatedFunction(selectExpressionItem.getExpression())) {
+                        containsAggregatedFunctions = true;
+                    }
                 } else {
                     checkSupported(false);
                 }
             }
-            // building the projection
-            // we have the current phisical schema, we can create references by position (as Calcite does)
-            // in order to not need accessing columns by name and also making it easier to support
-            // ZeroCopyProjections
-            projection = buildProjection(exps, true, tableImpl.getColumns());
+            if (!containsAggregatedFunctions) {
+                // building the projection
+                // we have the current phisical schema, we can create references by position (as Calcite does)
+                // in order to not need accessing columns by name and also making it easier to support
+                // ZeroCopyProjections
+                projection = buildProjection(selectedFields, true, tableImpl.getColumns());
+            } else {
+                // start by full table scan, the AggregateOp operator will create the final projection
+                projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+            }
         }
         if (plainSelect.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), tableImpl.getColumns());
@@ -1324,6 +1339,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         scan = new ScanStatement(tableSpace, tableName, Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns), predicate, comparator, limits);
         scan.setTableDef(tableImpl);
         PlannerOp op = new BindableTableScanOp(scan);
+
+        // add aggregations
+        if (containsAggregatedFunctions) {
+            op = planAggregate(selectedFields, tableImpl.getColumns(), (BindableTableScanOp) op, plainSelect.getGroupBy());
+        }
+
+        // TODO: add having
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
@@ -1389,6 +1411,66 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return optimizePlan(op);
     }
 
+    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] tableSchema, BindableTableScanOp input,
+                                                                                                GroupByElement groupBy) {
+        checkSupported(groupBy == null);
+
+        Column[] outputSchema = new Column[fieldList.size()];
+
+        List<Function> calls = new ArrayList<>();
+        List<String> fieldnames = new ArrayList<>();
+        List<List<Integer>> argLists = new ArrayList<>();
+        List<String> aggtypes = new ArrayList<>();
+        int k = 0;
+        for (SelectExpressionItem sel : fieldList) {
+            Alias alias = sel.getAlias();
+            String fieldName = null;
+            if (alias != null) {
+                checkSupported(alias.getAliasColumns() == null);
+                fieldName = alias.getName().toLowerCase();
+            }
+            Expression exp = sel.getExpression();
+            int type;
+            if (SQLParserExpressionCompiler.isAggregatedFunction(exp)) {
+                Function fn = (Function) exp;
+                calls.add(fn);
+                type = SQLParserExpressionCompiler.getAggregateFunctionType(fn, tableSchema);
+                Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, tableSchema);
+                aggtypes.add(fn.getName().toLowerCase());
+                if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
+                    IntHolder pos = new IntHolder();
+                    findColumnInSchema(additionalColumn.getName(), input.getStatement().getTableDef().getColumns(), pos);
+                    checkSupported(pos.value >= 0);
+                    argLists.add(Collections.singletonList(pos.value));
+                } else {
+                    argLists.add(Collections.emptyList());
+                }
+            } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
+                Column colInSchema = findColumnInSchema(colRef.getColumnName(), tableSchema, new IntHolder());
+                checkSupported(colInSchema != null);
+                type = colInSchema.type;
+            } else {
+                checkSupported(false);
+                type = ColumnTypes.ANYTYPE;
+            }
+            if (fieldName == null) {
+                fieldName = "agg" + k;
+            }
+            Column col = Column.column(fieldName, type);
+            outputSchema[k] = col;
+            fieldnames.add(fieldName);
+            k++;
+        }
+        List<Integer> groupedFiledsIndexes = new ArrayList<>(); // GROUP BY
+        return new AggregateOp(input,
+                fieldnames.toArray(new String[0]),
+                outputSchema,
+                aggtypes.toArray(new String[0]),
+                argLists,
+                groupedFiledsIndexes);
+    }
+
     private static ExecutionPlan optimizePlan(PlannerOp op) {
         op = op.optimize();
         return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
@@ -1446,21 +1528,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (alias == null) {
                     alias = columnName;
                 }
-                int pos = 0;
-                int indexInSchema = -1;
-                Column found = null;
-                for (Column colInSchema : tableSchema) {
-                    if (colInSchema.getName().equalsIgnoreCase(columnName)) {
-                        indexInSchema = pos;
-                        found = colInSchema;
-                        break;
-                    }
-                    pos++;
-                }
-                if (indexInSchema == -1 || found == null) {
+                IntHolder indexInSchema = new IntHolder(-1);
+                Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
+                if (indexInSchema.value == -1 || found == null) {
                     throw new StatementExecutionException("Column " + columnName + " not found in target table");
                 }
-                exp = new AccessCurrentRowExpression(indexInSchema);
+                exp = new AccessCurrentRowExpression(indexInSchema.value);
                 type = found.type;
             } else {
                 exp = SQLParserExpressionCompiler.compileExpression(node.getExpression(), tableSchema);

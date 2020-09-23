@@ -229,7 +229,7 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "IdentityProjection{" + "columns=" + columns + ", fieldNames=" + fieldNames + '}';
+            return "IdentityProjection{" + "columns=" + Arrays.toString(columns) + ", fieldNames=" + Arrays.toString(fieldNames) + '}';
         }
 
     }

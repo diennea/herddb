@@ -100,4 +100,17 @@ public class BuiltinFunctions {
         }
     }
 
+    public static boolean isAggregatedFunction(String functionNameLowercase) {
+        switch (functionNameLowercase) {
+            case COUNT:
+            case SUM:
+            case SUM0:
+            case MIN:
+            case MAX:
+                return true;
+            default:
+                return false;
+        }
+    }
+
 }

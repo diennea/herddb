@@ -284,6 +284,10 @@ public class AggregateOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("AggregateOp {GroupedFieldsIndexes = %d ArgList = %d }", groupedFiledsIndexes.size() , argLists.size());
+        return "AggregateOp{" + "input=" + input + ", fieldnames=" + Arrays.toString(fieldnames)
+                + ", columns=" + Arrays.toString(columns) + ", aggtypes=" + Arrays.toString(aggtypes)
+                + ", groupedFiledsIndexes=" + groupedFiledsIndexes + ", argLists=" + argLists + '}';
     }
+
+
 }
