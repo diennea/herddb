@@ -55,18 +55,18 @@
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper-jute</artifactId>
         </dependency>
-        <dependency>     
-            <!-- needed for ZK server -->       
+        <dependency>
+            <!-- needed for ZK server -->
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>     
-            <!-- needed for ZK server -->       
+        <dependency>
+            <!-- needed for ZK server -->
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
             <scope>test</scope>
-        </dependency>         
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -132,6 +132,11 @@
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- we are using these features, even without using Calcite planner -->
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-linq4j</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.calcite</groupId>

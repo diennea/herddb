@@ -180,7 +180,7 @@
                 <artifactId>netty-transport-native-epoll</artifactId>
                 <version>${libs.netty4}</version>
                 <classifier>linux-x86_64</classifier>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-transport-native-unix-common</artifactId>
@@ -190,6 +190,11 @@
                 <groupId>io.netty</groupId>
                 <artifactId>netty-tcnative-boringssl-static</artifactId>
                 <version>${libs.netty4ssl}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.calcite</groupId>
+                <artifactId>calcite-linq4j</artifactId>
+                <version>${libs.calcite}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.calcite</groupId>
@@ -205,11 +210,6 @@
                         <artifactId>*</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.calcite</groupId>
-                <artifactId>calcite-linq4j</artifactId>
-                <version>${libs.calcite}</version>                
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
@@ -240,7 +240,7 @@
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
                 <version>1.1.7</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>org.apache.zookeeper</groupId>
                 <artifactId>zookeeper</artifactId>
@@ -384,7 +384,7 @@
                     <exclusion>
                         <groupId>com.beust</groupId>
                         <artifactId>jcommander</artifactId>
-                    </exclusion>                    
+                    </exclusion>
                 </exclusions>
             </dependency>
             <dependency>

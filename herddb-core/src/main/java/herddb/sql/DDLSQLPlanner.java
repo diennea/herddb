@@ -19,7 +19,6 @@
  */
 package herddb.sql;
 
-import static herddb.sql.CalcitePlanner.findIndexAccess;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.findColumnInSchema;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.isBooleanLiteral;
 import herddb.core.AbstractIndexManager;
@@ -148,6 +147,8 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
 public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
+    public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
+    public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
     private final DBManager manager;
     private final PlansCache cache;
     /**
@@ -314,11 +315,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
                 }
             }
-            if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+            if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
                 ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
             }
-            if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+            if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
                 ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
             }
@@ -494,7 +495,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             || index.getType().equalsIgnoreCase("KEY")
                             || index.getType().equalsIgnoreCase("UNIQUE KEY")
                             ) {
-                        String indexName = index.getName().toLowerCase();
+                        String indexName = fixMySqlBackTicks(index.getName().toLowerCase());
                         String indexType = convertIndexType(null);
                         boolean unique = index.getType().equalsIgnoreCase("UNIQUE KEY");
 
@@ -987,7 +988,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     public Statement queryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
-        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+        if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
             query = query.substring(query.substring(0, 21).length());
             String tableSpace = defaultTablespace;
             String tableName;
@@ -1017,7 +1018,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     public Statement queryConsistencyCheckStatement(String query) {
-        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+        if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
             String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
 
@@ -1291,7 +1292,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-        String tableName = table.getName().toLowerCase();
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
@@ -1336,7 +1337,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (plainSelect.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), tableImpl.getColumns());
             SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-            CalcitePlanner.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
             predicate = sqlWhere;
         }
 
@@ -1397,7 +1398,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (scanStatement != null) {
                 Table tableDef = scanStatement.getTableDef();
                 CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
-                SQLRecordKeyFunction keyFunction = findIndexAccess(where, tableDef.getPrimaryKey(),
+                SQLRecordKeyFunction keyFunction = IndexUtils.findIndexAccess(where, tableDef.getPrimaryKey(),
                         tableDef, "=", tableDef);
                 if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
                     throw new StatementExecutionException("unsupported GET not on PK (" + keyFunction + ")");
@@ -1440,7 +1441,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String fieldName = null;
             if (alias != null) {
                 checkSupported(alias.getAliasColumns() == null);
-                fieldName = alias.getName().toLowerCase();
+                fieldName = fixMySqlBackTicks(alias.getName().toLowerCase());
             }
             Expression exp = sel.getExpression();
 
@@ -1448,10 +1449,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             if (fn != null) {
                 int type = SQLParserExpressionCompiler.getAggregateFunctionType(exp, inputSchema);
                 Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, inputSchema);
-                aggtypes.add(fn.getName().toLowerCase());
+                aggtypes.add(fixMySqlBackTicks(fn.getName().toLowerCase()));
                 if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
                     IntHolder pos = new IntHolder();
-                    findColumnInSchema(additionalColumn.getName(), input.getStatement().getTableDef().getColumns(), pos);
+                    findColumnInSchema(fixMySqlBackTicks(additionalColumn.getName()), input.getStatement().getTableDef().getColumns(), pos);
                     checkSupported(pos.value >= 0);
                     argLists.add(Collections.singletonList(pos.value));
                 } else {
@@ -1468,7 +1469,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 projectionAggregationResults.add(k);
             } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
-                Column colInSchema = findColumnInSchema(colRef.getColumnName(), inputSchema, new IntHolder());
+                Column colInSchema = findColumnInSchema(fixMySqlBackTicks(colRef.getColumnName()), inputSchema, new IntHolder());
                 checkSupported(colInSchema != null);
                 if (fieldName == null) {
                     fieldName = colInSchema.getName();
@@ -1490,10 +1491,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (exp instanceof net.sf.jsqlparser.schema.Column) {
                     net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
                     IntHolder pos = new IntHolder();
-                    Column colInSchema = findColumnInSchema(colRef.getColumnName(), inputSchema, pos);
+                    Column colInSchema = findColumnInSchema(fixMySqlBackTicks(colRef.getColumnName()), inputSchema, pos);
                     checkSupported(colInSchema != null);
                     groupedFieldsIndexes.add(pos.value);
-                    fieldnamesKeysInGroupBy.add(colRef.getColumnName());
+                    fieldnamesKeysInGroupBy.add(fixMySqlBackTicks(colRef.getColumnName()));
                     outputSchemaKeysInGroupBy.add(colInSchema);
                     projectionForGroupByFields.add(posInGroupBy);
                 } else {
@@ -1599,14 +1600,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             CompiledSQLExpression exp;
             String alias = null;
             if (node.getAlias() != null) {
-                alias = node.getAlias().getName().toLowerCase();
+                alias = fixMySqlBackTicks(node.getAlias().getName().toLowerCase());
                 checkSupported(node.getAlias().getAliasColumns() == null);
             }
             if (node.getExpression() instanceof net.sf.jsqlparser.schema.Column
                     && !isBooleanLiteral((net.sf.jsqlparser.schema.Column) node.getExpression())) {
                 net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) node.getExpression();
-                checkSupported(col.getTable() == null);
-                String columnName = col.getColumnName();
+//                checkSupported(col.getTable() == null);
+                String columnName = fixMySqlBackTicks(col.getColumnName());
 
                 if (alias == null) {
                     alias = columnName;
@@ -1667,7 +1668,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-        String tableName = table.getName().toLowerCase();
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
@@ -1695,7 +1696,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         for (net.sf.jsqlparser.schema.Column column : columns) {
             CompiledSQLExpression exp =
                     SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
-            String columnName = column.getColumnName();
+            String columnName = fixMySqlBackTicks(column.getColumnName());
             if (exp instanceof ConstantExpression
                     || exp instanceof JdbcParameterExpression
                     || exp instanceof TypedJdbcParameterExpression
@@ -1756,7 +1757,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-        String tableName = table.getName().toLowerCase();
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
@@ -1786,7 +1787,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         for (net.sf.jsqlparser.schema.Column column : columns) {
             CompiledSQLExpression exp =
                     SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
-            String columnName = column.getColumnName();
+            String columnName = fixMySqlBackTicks(column.getColumnName());
             if (exp instanceof ConstantExpression
                     || exp instanceof JdbcParameterExpression
                     || exp instanceof TypedJdbcParameterExpression
@@ -1848,7 +1849,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-        String tableName = table.getName().toLowerCase();
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
@@ -1865,7 +1866,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         List<String> updateColumnList = new ArrayList<>(projects.size());
         for (net.sf.jsqlparser.schema.Column column : update.getColumns()) {
             checkSupported(column.getTable() == null);
-            updateColumnList.add(column.getColumnName());
+            updateColumnList.add(fixMySqlBackTicks(column.getColumnName()));
             CompiledSQLExpression exp =
                     SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
             expressions.add(exp);
@@ -1877,7 +1878,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (update.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(update.getWhere(), tableImpl.getColumns());
             SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-            CalcitePlanner.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
             where = sqlWhere;
         }
 
@@ -1897,7 +1898,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
-        String tableName = table.getName().toLowerCase();
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
@@ -1912,7 +1913,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         if (delete.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns());
             SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns()));
-            CalcitePlanner.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
             where = sqlWhere;
         }
 
