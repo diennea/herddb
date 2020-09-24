@@ -41,7 +41,7 @@ public class ProjectedTableScanOp implements PlannerOp {
 
     final ScanStatement statement;
 
-    ProjectedTableScanOp(ProjectOp op, SimpleScanOp tableScan) {
+    ProjectedTableScanOp(ProjectOp op, TableScanOp tableScan) {
         this.statement = tableScan.unwrap(ScanStatement.class);
         Projection proj = op.getProjection();
         // we can alter the statement, the TableScan will be dropped from the plan
@@ -79,7 +79,7 @@ public class ProjectedTableScanOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return "ProjectedTableScanOp{" + "statement=" + statement + '}';
+        return "ProjectedTableScanOp{projection = " + statement.getProjection() + "\ninput=" + statement + '}';
     }
 
     @Override

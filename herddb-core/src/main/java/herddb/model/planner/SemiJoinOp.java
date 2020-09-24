@@ -33,6 +33,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
 
@@ -124,8 +125,8 @@ public class SemiJoinOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("SemiJoinOp {leftKeySize = %d rightKeySize = %d  left = {%s} right = {%s}}",
-                leftKeys.length , rightKeys.length, left.toString(), right.toString());
+        return String.format("SemiJoinOp {leftKey = %s rightKey = %s\n  left = {%s}\n  right = {%s}}",
+                Arrays.toString(leftKeys) , Arrays.toString(rightKeys), left.toString(), right.toString());
     }
 
     @Override

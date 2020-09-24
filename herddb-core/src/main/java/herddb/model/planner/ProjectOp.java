@@ -174,9 +174,12 @@ public class ProjectOp implements PlannerOp {
 
     @Override
     public PlannerOp optimize() {
-        if (input instanceof TableScanOp
-                || input instanceof BindableTableScanOp) {
-            return new ProjectedTableScanOp(this, (SimpleScanOp) input);
+        if (input instanceof TableScanOp) {
+            // this simplification works only with TableScanOp
+            // and not with for instance BindableTableScanOp
+            // because we are going to push the projection into the
+            // ScanStatement
+            return new ProjectedTableScanOp(this, (TableScanOp) input);
         }
         return this;
     }
