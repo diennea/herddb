@@ -83,7 +83,7 @@ public class ProjectedTableScanOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
+    public Column[] getOutputSchema() {
         return statement.getSchema();
     }
 

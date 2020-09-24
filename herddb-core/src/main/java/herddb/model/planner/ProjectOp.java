@@ -383,7 +383,7 @@ public class ProjectOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
+    public Column[] getOutputSchema() {
         return projection.getColumns();
     }
 

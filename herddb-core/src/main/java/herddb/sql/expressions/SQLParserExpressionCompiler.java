@@ -105,7 +105,7 @@ public class SQLParserExpressionCompiler {
             IntHolder indexInSchema = new IntHolder(-1);
             Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
-                throw new StatementExecutionException("Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
+                checkSupported(false, "Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
             }
             return new AccessCurrentRowExpression(indexInSchema.value);
         } else if (expression instanceof BinaryExpression) {

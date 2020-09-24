@@ -103,5 +103,5 @@ public interface PlannerOp extends Wrapper {
     /**
      * Return the output schema for the Op.
      */
-    Column[] getSchema();
+    Column[] getOutputSchema();
 }

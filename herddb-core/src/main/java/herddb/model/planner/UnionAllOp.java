@@ -146,7 +146,7 @@ public class UnionAllOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
-        return inputs.get(0).getSchema();
+    public Column[] getOutputSchema() {
+        return inputs.get(0).getOutputSchema();
     }
 }

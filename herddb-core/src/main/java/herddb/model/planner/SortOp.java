@@ -233,7 +233,7 @@ public class SortOp implements PlannerOp, TupleComparator {
     }
 
     @Override
-    public Column[] getSchema() {
-        return input.getSchema();
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
     }
 }

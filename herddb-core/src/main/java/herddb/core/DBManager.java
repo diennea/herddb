@@ -220,12 +220,19 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         preparedStatementsCache = new ServerSidePreparedStatementCache(statementsMem);
         String plannerType = serverConfiguration.getString(ServerConfiguration.PROPERTY_PLANNER_TYPE,
                 ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
+        PlansCache plansCache = new PlansCache(planCacheMem);
         switch (plannerType) {
             case ServerConfiguration.PLANNER_TYPE_CALCITE:
-                planner = new CalcitePlanner(this, planCacheMem);
+                planner = new CalcitePlanner(this, plansCache);
                 break;
             case ServerConfiguration.PLANNER_TYPE_JSQLPARSER:
-                planner = new DDLSQLPlanner(this, new PlansCache(planCacheMem), new CalcitePlanner(this, planCacheMem));
+                 // no Calcite fallback, you can drop Calcite dependecy
+                planner = new DDLSQLPlanner(this, plansCache, null);
+                break;
+            case ServerConfiguration.PLANNER_TYPE_AUTO:
+                // try with jSQLParser, fallback to Calcite
+                planner = new DDLSQLPlanner(this, plansCache,
+                        new CalcitePlanner(this, plansCache));
                 break;
             case ServerConfiguration.PLANNER_TYPE_NONE:
                 planner = new NullSQLPlanner();

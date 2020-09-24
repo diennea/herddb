@@ -131,7 +131,7 @@ public class LimitOp implements PlannerOp, ScanLimits {
     }
 
     @Override
-    public Column[] getSchema() {
-        return input.getSchema();
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
     }
 }

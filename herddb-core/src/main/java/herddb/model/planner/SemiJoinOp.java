@@ -42,7 +42,7 @@ import org.apache.calcite.linq4j.EnumerableDefaults;
  *
  * @author eolivelli
  */
-@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class SemiJoinOp implements PlannerOp {
 
     private final int[] leftKeys;
@@ -125,12 +125,11 @@ public class SemiJoinOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("SemiJoinOp {leftKey = %s rightKey = %s\n  left = {%s}\n  right = {%s}}",
-                Arrays.toString(leftKeys) , Arrays.toString(rightKeys), left.toString(), right.toString());
+        return "SemiJoinOp {leftKey = " + Arrays.toString(leftKeys) + " rightKey = " + Arrays.toString(rightKeys) + "\n  left = " + left + "\n  right = " + right + '}';
     }
 
     @Override
-    public Column[] getSchema() {
+    public Column[] getOutputSchema() {
         return columns;
     }
 }

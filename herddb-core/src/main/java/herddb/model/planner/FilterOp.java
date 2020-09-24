@@ -173,7 +173,7 @@ public class FilterOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
-        return input.getSchema();
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
     }
 }

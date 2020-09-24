@@ -207,9 +207,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private static final SqlTypeFactoryImpl SQL_TYPE_FACTORY_IMPL = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
     private static final RexBuilder REX_BUILDER  = new RexBuilder(SQL_TYPE_FACTORY_IMPL);
 
-    public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
+    public CalcitePlanner(DBManager manager, PlansCache plansCache) {
         this.manager = manager;
-        this.cache = new PlansCache(maxPlanCacheSize);
+        this.cache = plansCache;
         //used only for DDL
         this.fallback = new DDLSQLPlanner(manager, cache, null);
     }

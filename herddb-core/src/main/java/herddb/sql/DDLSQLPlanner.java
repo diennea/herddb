@@ -147,7 +147,6 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
  */
 public class DDLSQLPlanner implements AbstractSQLPlanner {
 
-    private static final boolean ALLOW_FALLBACK = SystemProperties.getBooleanSystemProperty("herddb.planner.allowfallbacktocalcite", false);
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
     private final DBManager manager;
     private final PlansCache cache;
@@ -338,8 +337,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
         } catch (StatementNotSupportedException err) {
-            if (fallback == null || !ALLOW_FALLBACK) {
-                throw err;
+            if (fallback == null) {
+                throw new StatementExecutionException("I am sorry, I cannot plan SQL \"" + query + "\" with simple jSQLParser planner,"
+                        + " consider setting " + ServerConfiguration.PROPERTY_PLANNER_TYPE + "=" + ServerConfiguration.PLANNER_TYPE_AUTO, err);
             }
             TranslatedQuery res =  fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
             if (allowCache) {
@@ -1347,14 +1347,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
         // add aggregations
         if (containsAggregatedFunctions) {
-            op = planAggregate(selectedFields, op.getSchema(), (BindableTableScanOp) op, plainSelect.getGroupBy());
+            op = planAggregate(selectedFields, op.getOutputSchema(), (BindableTableScanOp) op, plainSelect.getGroupBy());
         }
 
         // TODO: add having
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
-            op = planSort(op, op.getSchema(), plainSelect.getOrderByElements());
+            op = planSort(op, op.getOutputSchema(), plainSelect.getOrderByElements());
         }
 
         // add limit

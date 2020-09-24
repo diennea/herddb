@@ -50,7 +50,7 @@ import java.util.Map;
  *
  * @author eolivelli
  */
-@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class AggregateOp implements PlannerOp {
 
     private final PlannerOp input;
@@ -292,7 +292,7 @@ public class AggregateOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
+    public Column[] getOutputSchema() {
         return columns;
     }
 

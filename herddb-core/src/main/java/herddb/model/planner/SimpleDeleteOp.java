@@ -78,7 +78,7 @@ public class SimpleDeleteOp implements PlannerOp {
     }
 
     @Override
-    public Column[] getSchema() {
+    public Column[] getOutputSchema() {
         return new Column[0];
     }
 
