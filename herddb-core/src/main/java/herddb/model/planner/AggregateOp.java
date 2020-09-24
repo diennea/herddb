@@ -200,7 +200,6 @@ public class AggregateOp implements PlannerOp {
                             values[k++] = cc.getValue();
                         }
                         Tuple tuple = new Tuple(fieldnames, values);
-                        System.out.println("OUTPUT "+tuple.toMap()+" "+Arrays.toString(tuple.getFieldNames())+" "+Arrays.toString(tuple.getValues()));
                         results.add(tuple);
                     }
                     results.writeFinished();
@@ -233,13 +232,15 @@ public class AggregateOp implements PlannerOp {
 
         private Group createGroup() throws DataScannerException, StatementExecutionException {
             AggregatedColumnCalculator[] columns = new AggregatedColumnCalculator[aggtypes.length];
+            int firstIndexAggregatedColumn = fieldnames.length - aggtypes.length;
             for (int i = 0; i < aggtypes.length; i++) {
                 String aggtype = aggtypes[i];
 
                 String fieldName = fieldnames[i];
                 List<Integer> argList = argLists.get(i);
                 CompiledSQLExpression param = argList.isEmpty() ? null : new AccessCurrentRowExpression(argList.get(0)); // TODO, multi params ?
-                AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, param, context);
+                int type = AggregateOp.this.columns[firstIndexAggregatedColumn + i].type;
+                AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, type, param, context);
                 if (calculator == null) {
                     throw new StatementExecutionException("not implemented aggregation type " + aggtype);
                 }

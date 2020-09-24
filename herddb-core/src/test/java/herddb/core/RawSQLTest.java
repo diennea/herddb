@@ -1662,13 +1662,6 @@ public class RawSQLTest {
 
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
-                List<DataAccessor> result = scan1.consume();
-                assertEquals(1, result.size());
-                assertEquals(Long.valueOf(4), result.get(0).get(0));
-                assertEquals(Long.valueOf(4), result.get(0).get("cc"));
-            }
-
             // test "modulo" operator
             try (DataScanner scan1 = scan(manager, "SELECT n1 % 4 as cc FROM tblspace1.tsql where n1 % 4 = 1 and k1='mykey3'", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
@@ -1677,6 +1670,12 @@ public class RawSQLTest {
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
 
+            try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals(Long.valueOf(4), result.get(0).get(0));
+                assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+            }
 
         }
     }

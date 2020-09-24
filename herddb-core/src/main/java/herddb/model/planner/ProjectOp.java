@@ -82,8 +82,8 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "BasicProjection{" + "columns=" + Arrays.toString(columns)
-                    + ", fieldNames=" + Arrays.toString(fieldNames) + ", fields=" + fields + '}';
+            return "BasicProjection{fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns)
+                    + ", fields=" + fields + '}';
         }
 
         @Override
@@ -325,7 +325,7 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames)
+            return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames) + ", schema=" + Arrays.toString(columns)
                     + ", zeroCopyProjections=" + Arrays.toString(zeroCopyProjections) + '}';
         }
 

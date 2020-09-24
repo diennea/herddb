@@ -20,6 +20,7 @@
 
 package herddb.sql.functions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
@@ -55,6 +56,7 @@ public class BuiltinFunctions {
     public static final String EXTRACT = "extract";
     public static final String FLOOR = "floor";
     public static final String RAND = "rand";
+    public static final String AVG = "avg";
 
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
@@ -66,6 +68,7 @@ public class BuiltinFunctions {
     public static final String NAME_SUM = "SUM";
     public static final String NAME_MIN = "MIN";
     public static final String NAME_MAX = "MAX";
+    public static final String NAME_AVG = "AVG"; // only jSQLParser, Calcite translates AVG to SUM/COUNT
     // scalar
     public static final String NAME_LOWERCASE = "LOWER";
     public static final String NAME_UPPER = "UPPER";
@@ -80,7 +83,7 @@ public class BuiltinFunctions {
     public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
 
     public static AggregatedColumnCalculator getColumnCalculator(
-            String functionName, String fieldName,
+            String functionName, String fieldName, int type,
             CompiledSQLExpression firstParam, StatementEvaluationContext context
     ) throws StatementExecutionException {
         switch (functionName) {
@@ -89,6 +92,13 @@ public class BuiltinFunctions {
             case SUM:
             case SUM0:
                 return new SumColumnCalculator(fieldName, firstParam, context);
+            case AVG:
+                if (type == ColumnTypes.NOTNULL_DOUBLE
+                        || type == ColumnTypes.DOUBLE) {
+                    return new FloatingPointAvgColumnCalculator(fieldName, firstParam, context);
+                } else {
+                    return new AvgColumnCalculator(fieldName, type, firstParam, context);
+                }
             case MIN:
                 return new MinColumnCalculator(fieldName, firstParam, context);
             case MAX:
@@ -104,6 +114,7 @@ public class BuiltinFunctions {
         switch (functionNameLowercase) {
             case COUNT:
             case SUM:
+            case AVG:
             case SUM0:
             case MIN:
             case MAX:

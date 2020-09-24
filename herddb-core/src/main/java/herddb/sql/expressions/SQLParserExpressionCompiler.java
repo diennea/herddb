@@ -20,6 +20,7 @@
 package herddb.sql.expressions;
 
 import static herddb.sql.DDLSQLPlanner.checkSupported;
+import static herddb.sql.functions.BuiltinFunctions.AVG;
 import static herddb.sql.functions.BuiltinFunctions.COUNT;
 import static herddb.sql.functions.BuiltinFunctions.MAX;
 import static herddb.sql.functions.BuiltinFunctions.MIN;
@@ -175,6 +176,8 @@ public class SQLParserExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.UPPER, operands);
                 case BuiltinFunctions.NAME_ABS:
                     return new CompiledFunction(BuiltinFunctions.ABS, operands);
+                case BuiltinFunctions.NAME_AVG:
+                    return new CompiledFunction(BuiltinFunctions.AVG, operands);
                 case BuiltinFunctions.NAME_ROUND:
                     return new CompiledFunction(BuiltinFunctions.ROUND, operands);
                 case BuiltinFunctions.NAME_EXTRACT:
@@ -213,6 +216,12 @@ public class SQLParserExpressionCompiler {
             } else {
                 return result;
             }
+        } else if (expression instanceof net.sf.jsqlparser.expression.CastExpression) {
+            net.sf.jsqlparser.expression.CastExpression b = (net.sf.jsqlparser.expression.CastExpression) expression;
+
+            CompiledSQLExpression left = compileExpression(b.getLeftExpression(), tableSchema);
+            int type = DDLSQLPlanner.sqlDataTypeToColumnType(b.getType());
+            return new CastExpression(left, type);
         }
 //        else if (expression instanceof RexLiteral) {
 //            RexLiteral p = (RexLiteral) expression;
@@ -395,26 +404,46 @@ public class SQLParserExpressionCompiler {
                 || columnName.equals("true"));
     }
 
-    public static boolean isAggregatedFunction(Expression expression) {
+    public static Function detectAggregatedFunction(Expression expression) {
+        if (expression instanceof net.sf.jsqlparser.expression.CastExpression) {
+            net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) expression;
+            return detectAggregatedFunction(c.getLeftExpression());
+        }
         if (!(expression instanceof Function)) {
-            return false;
+            return null;
         }
         Function fn = (Function) expression;
-        return BuiltinFunctions.isAggregatedFunction(fn.getName().toLowerCase());
+        if (BuiltinFunctions.isAggregatedFunction(fn.getName().toLowerCase())) {
+            return fn;
+        }
+        return null;
     }
 
-    public static int getAggregateFunctionType(Function fn, Column[] tableSchema) {
+    public static int getAggregateFunctionType(Expression exp, Column[] tableSchema) {
+        if (exp instanceof net.sf.jsqlparser.expression.CastExpression) {
+            // SELECT CAST(avg(n) as DOUBLE)
+            net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) exp;
+            return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+        }
+        Function fn = (Function) exp;
         String functionNameLowercase = fn.getName().toLowerCase();
         switch (functionNameLowercase) {
             case COUNT:
                 return ColumnTypes.LONG;
             case SUM:
             case SUM0:
+            case AVG:
             case MIN:
             case MAX:
                 checkSupported(fn.getParameters().getExpressions().size() == 1);
-                checkSupported(fn.getParameters().getExpressions().get(0) instanceof net.sf.jsqlparser.schema.Column);
-                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) fn.getParameters().getExpressions().get(0);
+                final Expression first = fn.getParameters().getExpressions().get(0);
+                if (first instanceof net.sf.jsqlparser.expression.CastExpression) {
+                    // SELECT AVG(CAST(n) as DOUBLE))
+                    net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) first;
+                    return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+                }
+                checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
+                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
                 checkSupported(cName.getTable() == null);
                 Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
                 checkSupported(col != null);
@@ -432,11 +461,17 @@ public class SQLParserExpressionCompiler {
                 return null;
             case SUM:
             case SUM0:
+            case AVG:
             case MIN:
             case MAX:
                 checkSupported(fn.getParameters().getExpressions().size() == 1);
-                checkSupported(fn.getParameters().getExpressions().get(0) instanceof net.sf.jsqlparser.schema.Column);
-                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) fn.getParameters().getExpressions().get(0);
+                Expression first = fn.getParameters().getExpressions().get(0);
+                if (first instanceof net.sf.jsqlparser.expression.CastExpression) {
+                    // SELECT AVG(CAST(n) as DOUBLE))
+                    first = ((net.sf.jsqlparser.expression.CastExpression) first).getLeftExpression();
+                }
+                checkSupported(first instanceof net.sf.jsqlparser.schema.Column);
+                net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
                 checkSupported(cName.getTable() == null);
                 // validate that it is a valid column referece in the input schema
                 Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());

@@ -287,7 +287,7 @@ public final class ServerConfiguration {
     public static final String PLANNER_TYPE_NONE = "none";
     public static final String PLANNER_TYPE_CALCITE = "calcite";
     public static final String PLANNER_TYPE_JSQLPARSER = "jsqlparser";
-    public static final String PROPERTY_PLANNER_TYPE_DEFAULT = PLANNER_TYPE_JSQLPARSER;
+    public static final String PROPERTY_PLANNER_TYPE_DEFAULT = System.getProperty("herdddb.defaultplannertype", PLANNER_TYPE_CALCITE);
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();

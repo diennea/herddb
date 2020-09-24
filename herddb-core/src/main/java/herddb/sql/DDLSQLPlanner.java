@@ -117,6 +117,7 @@ import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
+import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.Index;
@@ -616,7 +617,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return indexType;
     }
 
-    private int sqlDataTypeToColumnType(String dataType,
+    public static int sqlDataTypeToColumnType(ColDataType dataType) throws StatementExecutionException {
+        return sqlDataTypeToColumnType(dataType.getDataType(), dataType.getArgumentsStringList(), Collections.emptyList());
+    }
+
+    private static int sqlDataTypeToColumnType(String dataType,
             List<String> arguments, List<String> columnSpecs) throws StatementExecutionException {
         int type;
         switch (dataType.toLowerCase()) {
@@ -1310,7 +1315,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 if (item instanceof SelectExpressionItem) {
                     SelectExpressionItem selectExpressionItem = (SelectExpressionItem) item;
                     selectedFields.add(selectExpressionItem);
-                    if (SQLParserExpressionCompiler.isAggregatedFunction(selectExpressionItem.getExpression())) {
+                    if (SQLParserExpressionCompiler.detectAggregatedFunction(selectExpressionItem.getExpression()) != null) {
                         containsAggregatedFunctions = true;
                     }
                 } else {
@@ -1416,10 +1421,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] inputSchema, BindableTableScanOp input,
                                                                                                 GroupByElement groupBy) {
 
-        List<Column> outputSchemaNonAggregatedFields = new ArrayList<>();
-        List<String> fieldnamesNonAggregatedFields = new ArrayList<>();
-        List<Integer> projectionKeys = new ArrayList<>();
-        
+
         List<Column> outputSchemaKeysInGroupBy = new ArrayList<>();
         List<String> fieldnamesKeysInGroupBy = new ArrayList<>();
 
@@ -1442,9 +1444,9 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             Expression exp = sel.getExpression();
 
-            if (SQLParserExpressionCompiler.isAggregatedFunction(exp)) {
-                Function fn = (Function) exp;
-                int type = SQLParserExpressionCompiler.getAggregateFunctionType(fn, inputSchema);
+            Function fn = SQLParserExpressionCompiler.detectAggregatedFunction(exp);
+            if (fn != null) {
+                int type = SQLParserExpressionCompiler.getAggregateFunctionType(exp, inputSchema);
                 Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, inputSchema);
                 aggtypes.add(fn.getName().toLowerCase());
                 if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
@@ -1459,7 +1461,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     fieldName = "agg" + k;
                 }
                 Column col = Column.column(fieldName, type);
-                outputSchemaAggregationResults.add(col);                
+                outputSchemaAggregationResults.add(col);
                 originalFieldNames.add(fieldName);
                 originalOutputSchema.add(col);
                 fieldnamesAggregationResults.add(fieldName);
@@ -1472,21 +1474,18 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     fieldName = colInSchema.getName();
                 }
                 Column col = Column.column(fieldName, colInSchema.type);
-                outputSchemaNonAggregatedFields.add(col);
                 originalFieldNames.add(fieldName);
                 originalOutputSchema.add(col);
-                fieldnamesNonAggregatedFields.add(fieldName);
-                projectionKeys.add(k);
             } else {
                 checkSupported(false);
             }
             k++;
         }
-
-            
-        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY        
+        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY
+        List<Integer> projectionForGroupByFields = new ArrayList<>();
         if (groupBy != null) {
             checkSupported(groupBy.getGroupingSets() == null || groupBy.getGroupingSets().isEmpty());
+            int posInGroupBy = 0;
             for (Expression exp : groupBy.getGroupByExpressions()) {
                 if (exp instanceof net.sf.jsqlparser.schema.Column) {
                     net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
@@ -1496,14 +1495,24 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     groupedFieldsIndexes.add(pos.value);
                     fieldnamesKeysInGroupBy.add(colRef.getColumnName());
                     outputSchemaKeysInGroupBy.add(colInSchema);
+                    projectionForGroupByFields.add(posInGroupBy);
                 } else {
                     checkSupported(false);
                 }
-            }            
+                posInGroupBy++;
+            }
         }
-        
+
         PlannerOp op;
         if (!groupedFieldsIndexes.isEmpty()) {
+            // this is tricky,
+            // the AggregateOp always create a result in the form of
+            // FIELD1,FIELD2......AGG1,AGG2
+            // Basically it puts all of the results of the aggregation to the right
+
+            // So we have to add a projection that makes the resultset appear
+            // as it is defined in the SELECT clause
+
             List<Column> outputSchema = new ArrayList<>();
             outputSchema.addAll(outputSchemaKeysInGroupBy);
             outputSchema.addAll(outputSchemaAggregationResults);
@@ -1511,7 +1520,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
             List<String> aggreateFieldNames = new ArrayList<>();
             aggreateFieldNames.addAll(fieldnamesKeysInGroupBy);
-            aggreateFieldNames.addAll(fieldnamesAggregationResults);           
+            aggreateFieldNames.addAll(fieldnamesAggregationResults);
 
             op = new AggregateOp(input,
                     aggreateFieldNames.toArray(new String[0]),
@@ -1522,15 +1531,19 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             String[] reodereded = originalFieldNames.toArray(new String[0]);
             int[] projections = new int[originalFieldNames.size()];
             int i = 0;
-            for (int pos : projectionKeys) {
+            for (int pos : projectionForGroupByFields) {
                 projections[pos] = i++;
             }
             for (int pos : projectionAggregationResults) {
                 projections[pos] = i++;
             }
-            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(reodereded, outputSchemaArray, projections);
+            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(reodereded,
+                    originalOutputSchema.toArray(new Column[0]),
+                    projections);
             op = new ProjectOp(projection, op);
         } else {
+            // no "GROUP BY", so no need for an additional projection
+            // this is the SELECT COUNT(*) FROM TABLE case
             op = new AggregateOp(input,
                     originalFieldNames.toArray(new String[0]),
                     originalOutputSchema.toArray(new Column[0]),
@@ -2038,6 +2051,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     public static void checkSupported(boolean condition) {
         if (!condition) {
             throw new StatementNotSupportedException();
+        }
+    }
+    public static void checkSupported(boolean condition, Object message) {
+        if (!condition) {
+            throw new StatementNotSupportedException(message + "");
         }
     }
 
