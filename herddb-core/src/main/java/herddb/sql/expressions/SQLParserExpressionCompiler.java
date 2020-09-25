@@ -27,7 +27,6 @@ import static herddb.sql.functions.BuiltinFunctions.MIN;
 import static herddb.sql.functions.BuiltinFunctions.SUM;
 import static herddb.sql.functions.BuiltinFunctions.SUM0;
 import herddb.core.HerdDBInternalException;
-import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.JSQLParserPlanner;
@@ -35,7 +34,6 @@ import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -100,17 +98,14 @@ public class SQLParserExpressionCompiler {
             // mapping a reference to a Column to the index in the schema of the table
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
             String tableAlias = extractTableName(col);
-            if (tableAlias != null && !tableSchema.isTableOrAlias(tableAlias)) {
-                throw new StatementExecutionException("Bad table name "+tableAlias);
-            }
             String columnName = col.getColumnName();
             if (isBooleanLiteral(col)) {
                 return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
             }
             IntHolder indexInSchema = new IntHolder(-1);
-            Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
+            ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
-                checkSupported(false, "Column " + columnName + " not found in target table " + tableSchema);
+                checkSupported(false, "Column " + tableAlias + "." + columnName + " not found in target table " + tableSchema);
             }
             return new AccessCurrentRowExpression(indexInSchema.value);
         } else if (expression instanceof BinaryExpression) {
@@ -449,8 +444,8 @@ public class SQLParserExpressionCompiler {
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
-                checkSupported(cName.getTable() == null);
-                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                String tableAlias = extractTableName(cName);                
+                ColumnRef col = findColumnInSchema(tableAlias, cName.getColumnName(), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 // SUM of INTEGERS is an INTEGER (this is what Calcite does, but it is smarter than this)
                 return col.type;
@@ -459,7 +454,7 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column getAggregateFunctionArgument(Function fn, OpSchema tableSchema) {
+    public static ColumnRef getAggregateFunctionArgument(Function fn, OpSchema tableSchema) {
         String functionNameLowercase = fn.getName().toLowerCase();
         switch (functionNameLowercase) {
             case COUNT:
@@ -477,9 +472,9 @@ public class SQLParserExpressionCompiler {
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column);
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
-                checkSupported(cName.getTable() == null);
+                String tableAlias = extractTableName(cName);
                 // validate that it is a valid column referece in the input schema
-                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                ColumnRef col = findColumnInSchema(tableAlias, cName.getColumnName(), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 return col;
             default:
@@ -487,24 +482,47 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column findColumnInSchema(String columnName, OpSchema tableSchema, IntHolder pos) {
+    public static ColumnRef findColumnInSchema(String tableName, String columnName, OpSchema tableSchema, IntHolder pos) {
         pos.value = 0;
-        for (Column colInSchema : tableSchema.columns) {
-            if (colInSchema.getName().equalsIgnoreCase(columnName)) {
-                return colInSchema;
+        if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {        
+            for (ColumnRef colInSchema : tableSchema.columns) {
+                if (colInSchema.name.equalsIgnoreCase(columnName)
+                        && (colInSchema.tableName == null || colInSchema.tableName.equalsIgnoreCase(tableSchema.name))) {
+                    return colInSchema;
+                }
+                pos.value++;
             }
-            pos.value++;
+        } else {
+            for (ColumnRef colInSchema : tableSchema.columns) {
+                if (colInSchema.name.equalsIgnoreCase(columnName)
+                        && colInSchema.tableName.equalsIgnoreCase(tableName)) {
+                    return colInSchema;
+                }
+                pos.value++;
+            }
         }
         pos.value = -1;
         return null;
     }
 
-    private static String extractTableName(net.sf.jsqlparser.schema.Column col) {
+    public static String extractTableName(net.sf.jsqlparser.schema.Column col) {
         if (col.getTable() != null) {
             Table table = col.getTable();
             checkSupported(table.getAlias() == null);
-            return table.getName();
+            return fixMySqlBackTicks(table.getName());
         }
         return null;
     }
+    
+    
+    public static String fixMySqlBackTicks(String s) {
+        if (s == null || s.length() < 2) {
+            return s;
+        }
+        if (s.startsWith("`") && s.endsWith("`")) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
 }

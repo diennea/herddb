@@ -19,7 +19,7 @@
  */
 package herddb.sql.expressions;
 
-import herddb.model.Column;
+import java.util.Arrays;
 
 /**
  * Represents metadata about a step of the Planner.
@@ -29,18 +29,19 @@ public final class OpSchema {
     public final String tableSpace;
     public final String name;
     public final String alias;
-    public final Column[] columns;
+    public final ColumnRef[] columns;
     public final String[] columnNames;
+    
 
-    public OpSchema(String tableSpace, String name, String alias, String[] columnNames, Column[] tableSchema) {
+    public OpSchema(String tableSpace, String tableName, String alias, String[] columnNames, ColumnRef[] tableSchema) {
         this.tableSpace = tableSpace;
-        this.name = name;
+        this.name = tableName;
         this.alias = alias;
         this.columns = tableSchema;
         this.columnNames = columnNames;
     }
     
-    public OpSchema(String tableSpace, String name, String alias, Column[] tableSchema) {
+    public OpSchema(String tableSpace, String name, String alias, ColumnRef[] tableSchema) {
         this.tableSpace = tableSpace;
         this.name = name;
         this.alias = alias;
@@ -65,4 +66,11 @@ public final class OpSchema {
         }
         return false;
     }
+
+    @Override
+    public String toString() {
+        return "OpSchema{" + "tableSpace=" + tableSpace + ", name=" + name + ", alias=" + alias
+                + ", columns=" + Arrays.toString(columns) + ", columnNames=" + Arrays.toString(columnNames) + '}';
+    }
+    
 }
