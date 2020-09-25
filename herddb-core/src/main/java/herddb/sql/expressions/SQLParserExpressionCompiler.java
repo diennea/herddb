@@ -19,7 +19,7 @@
  */
 package herddb.sql.expressions;
 
-import static herddb.sql.DDLSQLPlanner.checkSupported;
+import static herddb.sql.JSQLParserPlanner.checkSupported;
 import static herddb.sql.functions.BuiltinFunctions.AVG;
 import static herddb.sql.functions.BuiltinFunctions.COUNT;
 import static herddb.sql.functions.BuiltinFunctions.MAX;
@@ -30,7 +30,7 @@ import herddb.core.HerdDBInternalException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
-import herddb.sql.DDLSQLPlanner;
+import herddb.sql.JSQLParserPlanner;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import java.util.AbstractMap;
@@ -73,6 +73,7 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.schema.Table;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -81,7 +82,8 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
  */
 public class SQLParserExpressionCompiler {
 
-    public static CompiledSQLExpression compileExpression(Expression expression, Column[] tableSchema) {
+    
+    public static CompiledSQLExpression compileExpression(Expression expression, OpSchema tableSchema) {
         if (expression == null) {
             return null;
         }
@@ -93,11 +95,14 @@ public class SQLParserExpressionCompiler {
                 || expression instanceof NullValue
                 || expression instanceof DoubleValue
                 || expression instanceof TimestampValue) {
-            return new ConstantExpression(DDLSQLPlanner.resolveValue(expression, false));
+            return new ConstantExpression(JSQLParserPlanner.resolveValue(expression, false));
         } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
             // mapping a reference to a Column to the index in the schema of the table
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
-            checkSupported(col.getTable() == null);
+            String tableAlias = extractTableName(col);
+            if (tableAlias != null && !tableSchema.isTableOrAlias(tableAlias)) {
+                throw new StatementExecutionException("Bad table name "+tableAlias);
+            }
             String columnName = col.getColumnName();
             if (isBooleanLiteral(col)) {
                 return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
@@ -105,7 +110,7 @@ public class SQLParserExpressionCompiler {
             IntHolder indexInSchema = new IntHolder(-1);
             Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
-                checkSupported(false, "Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
+                checkSupported(false, "Column " + columnName + " not found in target table " + tableSchema);
             }
             return new AccessCurrentRowExpression(indexInSchema.value);
         } else if (expression instanceof BinaryExpression) {
@@ -220,7 +225,7 @@ public class SQLParserExpressionCompiler {
             net.sf.jsqlparser.expression.CastExpression b = (net.sf.jsqlparser.expression.CastExpression) expression;
 
             CompiledSQLExpression left = compileExpression(b.getLeftExpression(), tableSchema);
-            int type = DDLSQLPlanner.sqlDataTypeToColumnType(b.getType());
+            int type = JSQLParserPlanner.sqlDataTypeToColumnType(b.getType());
             return new CastExpression(left, type);
         }
 //        else if (expression instanceof RexLiteral) {
@@ -337,7 +342,7 @@ public class SQLParserExpressionCompiler {
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
 
-    private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, Column[] tableSchema) {
+    private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, OpSchema tableSchema) {
         CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema);
         CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema);
         if (expression instanceof EqualsTo) {
@@ -419,11 +424,11 @@ public class SQLParserExpressionCompiler {
         return null;
     }
 
-    public static int getAggregateFunctionType(Expression exp, Column[] tableSchema) {
+    public static int getAggregateFunctionType(Expression exp, OpSchema tableSchema) {
         if (exp instanceof net.sf.jsqlparser.expression.CastExpression) {
             // SELECT CAST(avg(n) as DOUBLE)
             net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) exp;
-            return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+            return JSQLParserPlanner.sqlDataTypeToColumnType(c.getType());
         }
         Function fn = (Function) exp;
         String functionNameLowercase = fn.getName().toLowerCase();
@@ -440,7 +445,7 @@ public class SQLParserExpressionCompiler {
                 if (first instanceof net.sf.jsqlparser.expression.CastExpression) {
                     // SELECT AVG(CAST(n) as DOUBLE))
                     net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) first;
-                    return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+                    return JSQLParserPlanner.sqlDataTypeToColumnType(c.getType());
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
@@ -454,7 +459,7 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column getAggregateFunctionArgument(Function fn, Column[] tableSchema) {
+    public static Column getAggregateFunctionArgument(Function fn, OpSchema tableSchema) {
         String functionNameLowercase = fn.getName().toLowerCase();
         switch (functionNameLowercase) {
             case COUNT:
@@ -482,15 +487,24 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column findColumnInSchema(String columnName, Column[] tableSchema, IntHolder pos) {
+    public static Column findColumnInSchema(String columnName, OpSchema tableSchema, IntHolder pos) {
         pos.value = 0;
-        for (Column colInSchema : tableSchema) {
+        for (Column colInSchema : tableSchema.columns) {
             if (colInSchema.getName().equalsIgnoreCase(columnName)) {
                 return colInSchema;
             }
             pos.value++;
         }
         pos.value = -1;
+        return null;
+    }
+
+    private static String extractTableName(net.sf.jsqlparser.schema.Column col) {
+        if (col.getTable() != null) {
+            Table table = col.getTable();
+            checkSupported(table.getAlias() == null);
+            return table.getName();
+        }
         return null;
     }
 }

@@ -38,7 +38,7 @@ import org.junit.Test;
  *
  * @author enrico.olivelli
  */
-public class DDLSQLPlannerTest {
+public class JSQLParserPlannerTest {
 
     @Test
     public void testColumnWithNameSize() throws Exception {

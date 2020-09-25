@@ -66,6 +66,7 @@ import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
+import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
@@ -79,6 +80,7 @@ import herddb.sql.expressions.CompiledFunction;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.JdbcParameterExpression;
+import herddb.sql.expressions.OpSchema;
 import herddb.sql.expressions.SQLParserExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.sql.functions.BuiltinFunctions;
@@ -127,6 +129,7 @@ import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.FromItem;
 import net.sf.jsqlparser.statement.select.GroupByElement;
+import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.Limit;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 import net.sf.jsqlparser.statement.select.PlainSelect;
@@ -144,7 +147,7 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
  *
  * @author enrico.olivelli
  */
-public class DDLSQLPlanner implements AbstractSQLPlanner {
+public class JSQLParserPlanner implements AbstractSQLPlanner {
 
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
@@ -179,7 +182,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
-    public DDLSQLPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
+    public JSQLParserPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
         this.manager = manager;
         this.cache = plansCache;
         this.fallback = fallback;
@@ -316,11 +319,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 }
             }
             if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
-                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
+                ExecutionPlan executionPlan = ExecutionPlan.simple(JSQLParserPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
             }
             if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
-                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
+                ExecutionPlan executionPlan = ExecutionPlan.simple(JSQLParserPlanner.this.queryConsistencyCheckStatement(query));
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
             }
 
@@ -749,7 +752,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(DDLSQLPlanner.class.getName());
+    private static final Logger LOG = Logger.getLogger(JSQLParserPlanner.class.getName());
 
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
         switch (execute.getName().toUpperCase()) {
@@ -1254,6 +1257,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
+    
     private ExecutionPlan buildSelectStatement(String defaultTableSpace, int maxRows, Select select, boolean forceScan) throws StatementExecutionException {
         checkSupported(select.getWithItemsList() == null);
         SelectBody selectBody = select.getSelectBody();
@@ -1269,8 +1273,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         checkSupported(plainSelect.getForUpdateTable() == null);
         checkSupported(plainSelect.getForXmlPath() == null);
         checkSupported(plainSelect.getHaving() == null);
-        checkSupported(plainSelect.getIntoTables() == null);
-        checkSupported(plainSelect.getJoins() == null);
+        checkSupported(plainSelect.getIntoTables() == null);        
         checkSupported(plainSelect.getOffset() == null);
         checkSupported(plainSelect.getOptimizeFor() == null);
         checkSupported(plainSelect.getOracleHierarchical() == null);
@@ -1278,40 +1281,73 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         checkSupported(plainSelect.getSkip() == null);
         checkSupported(plainSelect.getWait() == null);
         checkSupported(plainSelect.getKsqlWindow() == null);
+        
 
         FromItem fromItem = plainSelect.getFromItem();
         checkSupported(fromItem instanceof net.sf.jsqlparser.schema.Table);
+        
+        OpSchema primaryTableSchema = getTableSchema(defaultTableSpace, (net.sf.jsqlparser.schema.Table) fromItem);
+        OpSchema[] joinedTables = new OpSchema[0];
+        int totalJoinOutputFieldsCount = primaryTableSchema.columns.length;
+        if (plainSelect.getJoins() != null) {
+            joinedTables = new OpSchema[plainSelect.getJoins().size()];
+            int i = 0;
+            for (Join join : plainSelect.getJoins()) {
+                checkSupported(!join.isApply());
+                checkSupported(!join.isCross());
+                checkSupported(!join.isFull());
+                checkSupported(!join.isLeft());
+                checkSupported(!join.isNatural());
+                checkSupported(!join.isRight());
+                checkSupported(!join.isOuter());
+                checkSupported(!join.isSemi());
+                checkSupported(!join.isSimple());
+                checkSupported(!join.isStraight());
+                checkSupported(!join.isWindowJoin());
+                checkSupported(join.getJoinWindow() == null);
+                checkSupported(join.getUsingColumns() == null);
+                FromItem rightItem = join.getRightItem();
+                checkSupported(rightItem instanceof net.sf.jsqlparser.schema.Table);
+                OpSchema joinedTable = getTableSchema(defaultTableSpace, (net.sf.jsqlparser.schema.Table) rightItem);
+                joinedTables[i++] = joinedTable;
+                totalJoinOutputFieldsCount += joinedTable.columns.length;
+            }
+        }
+        int pos = 0;        
+        String[] joinOutputFieldnames = new String[totalJoinOutputFieldsCount];
+        Column[] joinOutputColumns = new Column[totalJoinOutputFieldsCount];
+        System.arraycopy(primaryTableSchema.columnNames, 0, joinOutputFieldnames, 0, primaryTableSchema.columnNames.length);
+        System.arraycopy(primaryTableSchema.columns, 0, joinOutputColumns, 0, primaryTableSchema.columns.length);
+        pos += primaryTableSchema.columnNames.length;
+        for (OpSchema joinedTable : joinedTables) {
+            System.arraycopy(joinedTable.columnNames, 0, joinOutputFieldnames, pos, joinedTable.columnNames.length);
+            System.arraycopy(joinedTable.columns, 0, joinOutputColumns, pos, joinedTable.columns.length);
+            pos += joinedTable.columnNames.length;            
+        }
 
-
-        net.sf.jsqlparser.schema.Table table = (net.sf.jsqlparser.schema.Table) fromItem;
-        String tableSpace = table.getSchemaName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
+        OpSchema currentSchema = primaryTableSchema;
+        checkSupported(joinedTables.length <= 1); // single JOIN only at the moment
+        if (joinedTables.length > 0) {
+            currentSchema = new OpSchema(primaryTableSchema.tableSpace,
+                    null,
+                    null,
+                    joinOutputFieldnames,
+                    joinOutputColumns);
         }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
-        }
-        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
-        }
-        Table tableImpl = tableManager.getTable();
 
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         checkSupported(!selectItems.isEmpty());
         Predicate predicate = new FullTableScanPredicate();
         TupleComparator comparator = null;
-        ScanLimits limits = null;
-        ScanStatement scan;
+        ScanLimits limits = null;        
         Projection projection;
         List<SelectExpressionItem> selectedFields = new ArrayList<>(selectItems.size());
         boolean containsAggregatedFunctions = false;
         if (selectItems.size() == 1 && selectItems.get(0) instanceof AllColumns) {
-            projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+            projection = Projection.IDENTITY(currentSchema.columnNames, currentSchema.columns);                        
         } else {
             checkSupported(!selectItems.isEmpty());
+            checkSupported(joinedTables.length == 0);
             for (SelectItem item : selectItems) {
                 if (item instanceof SelectExpressionItem) {
                     SelectExpressionItem selectExpressionItem = (SelectExpressionItem) item;
@@ -1328,61 +1364,99 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 // we have the current phisical schema, we can create references by position (as Calcite does)
                 // in order to not need accessing columns by name and also making it easier to support
                 // ZeroCopyProjections
-                projection = buildProjection(selectedFields, true, tableImpl.getColumns());
+                projection = buildProjection(selectedFields, true, currentSchema);
             } else {
                 // start by full table scan, the AggregateOp operator will create the final projection
-                projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+                projection = Projection.IDENTITY(currentSchema.columnNames, currentSchema.columns);
             }
         }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(primaryTableSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(primaryTableSchema.name);
+        Table tableImpl = tableManager.getTable();
         if (plainSelect.getWhere() != null) {
-            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), tableImpl.getColumns());
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), primaryTableSchema);
             SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
+            if (joinedTables.length == 0) {
+                IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
+            }
             predicate = sqlWhere;
         }
 
         // start with a TableScan + filters
-        scan = new ScanStatement(tableSpace, tableName, Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns), predicate, comparator, limits);
+        ScanStatement scan = new ScanStatement(primaryTableSchema.tableSpace, primaryTableSchema.name, Projection.IDENTITY(primaryTableSchema.columnNames, primaryTableSchema.columns), predicate, comparator, limits);
         scan.setTableDef(tableImpl);
         PlannerOp op = new BindableTableScanOp(scan);
+                
+        
+        PlannerOp[] scanJoinedTables = new PlannerOp[joinedTables.length];
+        int ji = 0;
+        for (OpSchema joinedTable : joinedTables) {
+            ScanStatement scanSecondaryTable = new ScanStatement(joinedTable.tableSpace, joinedTable.name, Projection.IDENTITY(joinedTable.columnNames, joinedTable.columns), null, null, null);
+            scan.setTableDef(tableImpl);
+            checkSupported(joinedTable.tableSpace.equalsIgnoreCase(primaryTableSchema.tableSpace));                        
+            PlannerOp opSecondaryTable = new BindableTableScanOp(scanSecondaryTable);
+            scanJoinedTables[ji++] = opSecondaryTable;            
+        }
+        
+        if (scanJoinedTables.length > 0) {            
+            op = new JoinOp(joinOutputFieldnames, joinOutputColumns, new int[0], op, new int[0], scanJoinedTables[0],
+                    false, // generateNullsOnLeft
+                    false,  // generateNullsOnLeft
+                    false, // mergeJoin
+                    null);
+        }
 
         // add aggregations
         if (containsAggregatedFunctions) {
-            op = planAggregate(selectedFields, op.getOutputSchema(), (BindableTableScanOp) op, plainSelect.getGroupBy());
+            checkSupported(scanJoinedTables.length == 0);
+            OpSchema opSchema = new OpSchema(
+                    currentSchema.tableSpace,
+                    currentSchema.name,
+                    currentSchema.alias,
+                    op.getOutputSchema());
+            op = planAggregate(selectedFields, opSchema, op, currentSchema, plainSelect.getGroupBy());
         }
 
         // TODO: add having
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
-            op = planSort(op, op.getOutputSchema(), plainSelect.getOrderByElements());
+            checkSupported(scanJoinedTables.length == 0);
+            OpSchema opSchema = new OpSchema(
+                    currentSchema.tableSpace,
+                    currentSchema.name,
+                    currentSchema.alias,
+                    op.getOutputSchema());
+            op = planSort(op, opSchema, plainSelect.getOrderByElements());
         }
 
         // add limit
         if (plainSelect.getLimit() != null) {
+            checkSupported(scanJoinedTables.length == 0);
             // cannot mix LIMIT and TOP
             checkSupported(plainSelect.getTop() == null);
             Limit limit = plainSelect.getLimit();
             CompiledSQLExpression offset;
             if (limit.getOffset() != null) {
-                offset = SQLParserExpressionCompiler.compileExpression(limit.getOffset(), tableImpl.getColumns());
+                offset = SQLParserExpressionCompiler.compileExpression(limit.getOffset(), currentSchema);
             } else {
                 offset = new ConstantExpression(0);
             }
             CompiledSQLExpression rowCount = null;
             if (limit.getRowCount() != null) {
-                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getRowCount(), tableImpl.getColumns());
+                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getRowCount(), currentSchema);
             }
             op = new LimitOp(op, rowCount, offset);
         }
 
         if (plainSelect.getTop() != null) {
+            checkSupported(scanJoinedTables.length == 0);
             // cannot mix LIMIT and TOP
             checkSupported(plainSelect.getLimit() == null);
             Top limit = plainSelect.getTop();
             CompiledSQLExpression rowCount = null;
             if (limit.getExpression() != null) {
-                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getExpression(), tableImpl.getColumns());
+                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getExpression(), currentSchema);
             }
             op = new LimitOp(op, rowCount, new ConstantExpression(0));
         }
@@ -1393,7 +1467,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
 
         // Simplify Scan to Get
-        if (!forceScan) {
+        if (!forceScan && joinedTables.length == 0) {            
             ScanStatement scanStatement = op.unwrap(ScanStatement.class);
             if (scanStatement != null) {
                 Table tableDef = scanStatement.getTableDef();
@@ -1419,7 +1493,30 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return optimizePlan(op);
     }
 
-    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] inputSchema, BindableTableScanOp input,
+    private OpSchema getTableSchema(String defaultTableSpace, net.sf.jsqlparser.schema.Table table) {
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        String aliasTable = tableName;
+        if (table.getAlias() != null) {
+            aliasTable = fixMySqlBackTicks(table.getAlias().getName());
+            checkSupported(table.getAlias().getAliasColumns() == null);
+        }
+        return new OpSchema(tableSpace, tableName, aliasTable, tableImpl.columnNames, tableImpl.getColumns());
+    }
+
+    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, OpSchema inputSchema, PlannerOp input, OpSchema originalTableSchema,
                                                                                                 GroupByElement groupBy) {
 
 
@@ -1434,7 +1531,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
         List<Column> originalOutputSchema = new ArrayList<>();
         List<String> originalFieldNames = new ArrayList<>();
-
+        Set<String> nonAggregateColumns = new HashSet<>();
         int k = 0;
         for (SelectExpressionItem sel : fieldList) {
             Alias alias = sel.getAlias();
@@ -1452,14 +1549,14 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 aggtypes.add(fixMySqlBackTicks(fn.getName().toLowerCase()));
                 if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
                     IntHolder pos = new IntHolder();
-                    findColumnInSchema(fixMySqlBackTicks(additionalColumn.getName()), input.getStatement().getTableDef().getColumns(), pos);
+                    findColumnInSchema(fixMySqlBackTicks(additionalColumn.getName()), originalTableSchema, pos);
                     checkSupported(pos.value >= 0);
                     argLists.add(Collections.singletonList(pos.value));
                 } else {
                     argLists.add(Collections.emptyList());
                 }
                 if (fieldName == null) {
-                    fieldName = "agg" + k;
+                    fieldName = "expr$" + k;
                 }
                 Column col = Column.column(fieldName, type);
                 outputSchemaAggregationResults.add(col);
@@ -1477,6 +1574,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 Column col = Column.column(fieldName, colInSchema.type);
                 originalFieldNames.add(fieldName);
                 originalOutputSchema.add(col);
+                nonAggregateColumns.add(fieldName);
             } else {
                 checkSupported(false);
             }
@@ -1501,6 +1599,12 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                     checkSupported(false);
                 }
                 posInGroupBy++;
+            }
+        } else {
+            // SELECT COUNT(*), column FROM TABLE
+            // -> column MUST be in GROUP BY !
+            for (String s : nonAggregateColumns) {
+                throw new StatementExecutionException("field " + s + " MUST appear in GROUP BY clause");
             }
         }
 
@@ -1560,7 +1664,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
     }
 
-    private PlannerOp planSort(PlannerOp input, Column[] columns, List<OrderByElement> fieldCollations) {
+    private PlannerOp planSort(PlannerOp input,OpSchema columns, List<OrderByElement> fieldCollations) {
         boolean[] directions = new boolean[fieldCollations.size()];
         boolean[] nullLastdirections = new boolean[fieldCollations.size()];
         int[] fields = new int[fieldCollations.size()];
@@ -1584,7 +1688,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     private Projection buildProjection(
             final List<SelectExpressionItem> projects,
             final boolean allowIdentity,
-            final Column[] tableSchema
+            final OpSchema tableSchema
     ) {
         boolean allowZeroCopyProjection = true;
         List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
@@ -1594,7 +1698,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         int[] zeroCopyProjections = new int[fieldNames.length];
         boolean identity = allowIdentity
                 && tableSchema != null
-                && tableSchema.length == fieldNames.length;
+                && tableSchema.columns.length == fieldNames.length;
         for (SelectExpressionItem node : projects) {
             int type = ColumnTypes.ANYTYPE;
             CompiledSQLExpression exp;
@@ -1638,7 +1742,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             }
             fields.add(exp);
             Column col = Column.column(alias, type);
-            identity = identity && col.name.equals(tableSchema[i].name);
+            identity = identity && col.name.equals(tableSchema.columns[i].name);
             fieldNames[i] = alias;
             columns[i++] = col;
         }
@@ -1660,19 +1764,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table table = insert.getTable();
-        String tableSpace = table.getSchemaName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
-        }
-        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
-        }
+        checkSupported(table.getAlias() == null); // no alias for INSERT!
+        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
         Table tableImpl = tableManager.getTable();
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
@@ -1695,7 +1790,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
         for (net.sf.jsqlparser.schema.Column column : columns) {
             CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
             String columnName = fixMySqlBackTicks(column.getColumnName());
             if (exp instanceof ConstantExpression
                     || exp instanceof JdbcParameterExpression
@@ -1738,7 +1833,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
             }
             RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, false).setReturnValues(returnValues);
+            statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, false).setReturnValues(returnValues);
         } else {
             throw new StatementNotSupportedException();
         }
@@ -1749,19 +1844,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private ExecutionPlan buildUpsertStatement(String defaultTableSpace, Upsert upsert, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table table = upsert.getTable();
-        String tableSpace = table.getSchemaName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
-        }
-        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
-        }
+        checkSupported(table.getAlias() == null); // no alias for UPSERT!
+        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
         Table tableImpl = tableManager.getTable();
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
@@ -1786,7 +1872,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         }
         for (net.sf.jsqlparser.schema.Column column : columns) {
             CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
             String columnName = fixMySqlBackTicks(column.getColumnName());
             if (exp instanceof ConstantExpression
                     || exp instanceof JdbcParameterExpression
@@ -1829,7 +1915,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
             }
             RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, true).setReturnValues(returnValues);
+            statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, true).setReturnValues(returnValues);
         } else {
             throw new StatementNotSupportedException();
         }
@@ -1841,19 +1927,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update update, boolean returnValues) throws StatementExecutionException {
         final boolean upsert = false;
         net.sf.jsqlparser.schema.Table table = update.getTable();
-        String tableSpace = table.getSchemaName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
-        }
-        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
-        }
+        checkSupported(table.getAlias() == null); // no alias for UPDATE!
+        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
         Table tableImpl = tableManager.getTable();
         checkSupported(update.getSelect() == null);
         checkSupported(update.getJoins() == null);
@@ -1868,7 +1945,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             checkSupported(column.getTable() == null);
             updateColumnList.add(fixMySqlBackTicks(column.getColumnName()));
             CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
             expressions.add(exp);
             index++;
         }
@@ -1876,33 +1953,23 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         RecordFunction function = new SQLRecordFunction(updateColumnList, tableImpl, expressions);
         Predicate where = new FullTableScanPredicate();
         if (update.getWhere() != null) {
-            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(update.getWhere(), tableImpl.getColumns());
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(update.getWhere(), tableSchema);
             SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
+            IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
             where = sqlWhere;
         }
 
-        PlannerOp op = new SimpleUpdateOp(new UpdateStatement(tableSpace, tableName, null, function, where)
+        PlannerOp op = new SimpleUpdateOp(new UpdateStatement(tableSchema.tableSpace, tableSchema.name, null, function, where)
                                                     .setReturnValues(returnValues));
         return optimizePlan(op);
     }
 
     private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete delete) throws StatementExecutionException {
-        final boolean upsert = false;
         net.sf.jsqlparser.schema.Table table = delete.getTable();
-        String tableSpace = table.getSchemaName();
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
-        if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
-        }
-        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
-        }
+        checkSupported(table.getAlias() == null); // no alias for DELETE!
+        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
         Table tableImpl = tableManager.getTable();
         checkSupported(delete.getLimit() == null);
         checkSupported(delete.getJoins() == null);
@@ -1911,13 +1978,13 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
 
         Predicate where = new FullTableScanPredicate();
         if (delete.getWhere() != null) {
-            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns());
-            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns()));
-            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableSchema);
+            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableSchema));
+            IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
             where = sqlWhere;
         }
 
-        PlannerOp op = new SimpleDeleteOp(new DeleteStatement(tableSpace, tableName, null, where));
+        PlannerOp op = new SimpleDeleteOp(new DeleteStatement(tableSchema.tableSpace, tableSchema.name, null, where));
         return optimizePlan(op);
     }
 

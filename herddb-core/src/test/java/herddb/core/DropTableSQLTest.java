@@ -36,7 +36,7 @@ import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.DDLSQLPlanner;
+import herddb.sql.JSQLParserPlanner;
 import herddb.utils.DataAccessor;
 import java.util.Collections;
 import java.util.List;
@@ -148,7 +148,7 @@ public class DropTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList())) {
                 fail();
             } catch (TableDoesNotExistException ok) {
-                assertTrue(manager.getPlanner() instanceof DDLSQLPlanner);
+                assertTrue(manager.getPlanner() instanceof JSQLParserPlanner);
             } catch (StatementExecutionException ok) {
                 assertEquals("From line 1, column 15 to line 1, column 28: Object 'TSQL' not found within 'tblspace1'", ok.getMessage());
                 assertTrue(manager.getPlanner() instanceof CalcitePlanner);

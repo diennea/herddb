@@ -200,7 +200,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         this.manager = manager;
         this.cache = plansCache;
         //used only for DDL
-        this.fallback = new DDLSQLPlanner(manager, cache, null);
+        this.fallback = new JSQLParserPlanner(manager, cache, null);
     }
 
     private final PlansCache cache;
@@ -264,15 +264,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         if (isDDL(query)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (!isCachable(query)) {
