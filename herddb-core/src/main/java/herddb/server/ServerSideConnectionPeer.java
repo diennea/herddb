@@ -496,7 +496,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan);
                 channel.sendReplyMessage(message.messageId, error);
             }
-        } catch (DataScannerException | StatementExecutionException err) {
+        } catch (DataScannerException | HerdDBInternalException err) {
             if (err.getCause() != null && err.getCause() instanceof ValidationException) {
                 // no stacktraces for bad queries
                 LOGGER.log(Level.FINE, "SQL error on scanner " + scannerId + ": " + err);

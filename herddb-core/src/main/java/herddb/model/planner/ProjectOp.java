@@ -82,8 +82,8 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "BasicProjection{" + "columns=" + Arrays.toString(columns)
-                    + ", fieldNames=" + Arrays.toString(fieldNames) + ", fields=" + fields + '}';
+            return "BasicProjection{fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns)
+                    + ", fields=" + fields + '}';
         }
 
         @Override
@@ -175,6 +175,10 @@ public class ProjectOp implements PlannerOp {
     @Override
     public PlannerOp optimize() {
         if (input instanceof TableScanOp) {
+            // this simplification works only with TableScanOp
+            // and not with for instance BindableTableScanOp
+            // because we are going to push the projection into the
+            // ScanStatement
             return new ProjectedTableScanOp(this, (TableScanOp) input);
         }
         return this;
@@ -225,6 +229,12 @@ public class ProjectOp implements PlannerOp {
         public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
             return tuple;
         }
+
+        @Override
+        public String toString() {
+            return "IdentityProjection{" + "columns=" + Arrays.toString(columns) + ", fieldNames=" + Arrays.toString(fieldNames) + '}';
+        }
+
     }
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
@@ -318,7 +328,7 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public String toString() {
-            return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames)
+            return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames) + ", schema=" + Arrays.toString(columns)
                     + ", zeroCopyProjections=" + Arrays.toString(zeroCopyProjections) + '}';
         }
 
@@ -370,6 +380,11 @@ public class ProjectOp implements PlannerOp {
     public String toString() {
         return "ProjectOp{" + "projection=" + projection + ",\n"
                 + "input=" + input + '}';
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return projection.getColumns();
     }
 
 }

@@ -49,7 +49,7 @@ import org.apache.calcite.rel.core.JoinRelType;
  *
  * @author eolivelli
  */
-@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class NestedLoopJoinOp implements PlannerOp {
 
     private final PlannerOp left;
@@ -173,6 +173,11 @@ public class NestedLoopJoinOp implements PlannerOp {
 
     public PlannerOp getRight() {
         return right;
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return columns;
     }
 
 }

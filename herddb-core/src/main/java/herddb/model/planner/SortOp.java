@@ -228,7 +228,12 @@ public class SortOp implements PlannerOp, TupleComparator {
 
     @Override
     public String toString() {
-        return "SortOp{fields=" + Arrays.toString(fields) + ", dirs=" + Arrays.toString(directions) + ",nullDirs=" + Arrays.toString(nullLastDirections) + ", onlyPrimaryKeyAndAscending=" + onlyPrimaryKeyAndAscending + '}';
+        return "SortOp{fields=" + Arrays.toString(fields) + ",dirs=" + Arrays.toString(directions) + ",nullDirs=" + Arrays.toString(nullLastDirections) + ",onlyPrimaryKeyAndAscending=" + onlyPrimaryKeyAndAscending
+                + "\ninput=" + input + '}';
     }
 
+    @Override
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
+    }
 }

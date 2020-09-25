@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionResult;
@@ -76,4 +77,8 @@ public class SimpleUpdateOp implements PlannerOp {
         return "SimpleUpdateOp{" + "statement=" + statement + '}';
     }
 
+    @Override
+    public Column[] getOutputSchema() {
+        return new Column[0];
+    }
 }

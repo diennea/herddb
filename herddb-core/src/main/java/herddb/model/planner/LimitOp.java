@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.LimitedDataScanner;
@@ -129,4 +130,8 @@ public class LimitOp implements PlannerOp, ScanLimits {
         return String.format("LimitOp{maxRows = %s}", this.maxRows.toString());
     }
 
+    @Override
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
+    }
 }

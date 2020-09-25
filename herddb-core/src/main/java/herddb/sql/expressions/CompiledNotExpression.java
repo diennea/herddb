@@ -23,35 +23,39 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
-import herddb.utils.SQLRecordPredicateFunctions.CompareResult;
 
-public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpression {
+public class CompiledNotExpression implements CompiledSQLExpression {
 
-    public CompiledGreaterThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
-        super(left, right);
+    private final CompiledSQLExpression left;
+
+    public CompiledNotExpression(CompiledSQLExpression left) {
+        this.left = left;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
-        return res == CompareResult.GREATER || res == CompareResult.EQUALS;
+        Object leftValue = left.evaluate(bean, context);
+        if (leftValue == null) {
+            return null;
+        }
+        return !SQLRecordPredicateFunctions.toBoolean(leftValue);
+
     }
 
     @Override
-    public String getOperator() {
-        return ">=";
-    }
-
-    @Override
-    public String toString() {
-        return "CompiledGreaterThenEqualsExpression{left=" + left + ", right=" + right + "}";
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        left.validate(context);
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledGreaterThenEqualsExpression(
-                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
-                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+        return new CompiledNotExpression(
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
+    @Override
+    public String toString() {
+        return "CompiledNotExpression{" + "left=" + left + '}';
     }
 
 }

@@ -19,20 +19,31 @@
  */
 package herddb.sql;
 
+import static herddb.sql.expressions.SQLParserExpressionCompiler.findColumnInSchema;
+import static herddb.sql.expressions.SQLParserExpressionCompiler.isBooleanLiteral;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
+import herddb.core.HerdDBInternalException;
 import herddb.core.TableSpaceManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
+import herddb.model.FullTableScanPredicate;
+import herddb.model.Predicate;
+import herddb.model.Projection;
+import herddb.model.RecordFunction;
+import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TupleComparator;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
@@ -40,16 +51,41 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
+import herddb.model.commands.UpdateStatement;
+import herddb.model.planner.AggregateOp;
+import herddb.model.planner.BindableTableScanOp;
+import herddb.model.planner.LimitOp;
+import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp;
+import herddb.model.planner.SimpleDeleteOp;
+import herddb.model.planner.SimpleInsertOp;
+import herddb.model.planner.SimpleUpdateOp;
+import herddb.model.planner.SortOp;
 import herddb.server.ServerConfiguration;
+import herddb.sql.expressions.AccessCurrentRowExpression;
+import herddb.sql.expressions.CompiledFunction;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
+import herddb.sql.expressions.JdbcParameterExpression;
+import herddb.sql.expressions.SQLParserExpressionCompiler;
+import herddb.sql.expressions.TypedJdbcParameterExpression;
+import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
+import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
+import herddb.utils.SystemProperties;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,14 +94,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import net.sf.jsqlparser.expression.Alias;
+import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.parser.CCJSqlParser;
 import net.sf.jsqlparser.parser.ParseException;
 import net.sf.jsqlparser.parser.StringProvider;
@@ -73,12 +116,28 @@ import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
+import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.Index;
+import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.FromItem;
+import net.sf.jsqlparser.statement.select.GroupByElement;
+import net.sf.jsqlparser.statement.select.Limit;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.truncate.Truncate;
+import net.sf.jsqlparser.statement.update.Update;
+import net.sf.jsqlparser.statement.upsert.Upsert;
 
 /**
  * Translates SQL to Internal API
@@ -87,8 +146,15 @@ import net.sf.jsqlparser.statement.truncate.Truncate;
  */
 public class DDLSQLPlanner implements AbstractSQLPlanner {
 
+    private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
+    public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
+    public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
     private final DBManager manager;
     private final PlansCache cache;
+    /**
+     * Used in case of unsupported Statement
+     */
+    private final AbstractSQLPlanner fallback;
 
     @Override
     public long getCacheSize() {
@@ -108,11 +174,15 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     @Override
     public void clearCache() {
         cache.clear();
+        if (fallback != null) {
+            fallback.clearCache();
+        }
     }
 
-    public DDLSQLPlanner(DBManager manager, PlansCache plansCache) {
+    public DDLSQLPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
         this.manager = manager;
         this.cache = plansCache;
+        this.fallback = fallback;
     }
 
     public static String rewriteExecuteSyntax(String query) {
@@ -230,31 +300,55 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                 + ",query:" + query
                 + ",returnValues:" + returnValues
                 + ",maxRows:" + maxRows;
-        if (allowCache) {
-            ExecutionPlan cached = cache.get(cacheKey);
-            if (cached != null) {
-                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, false, false));
+        try {
+            boolean forceAcquireWriteLock;
+            if (query.endsWith(" FOR UPDATE") // this looks very hacky
+                    && query.substring(0, 6).toLowerCase().equals("select")) {
+                forceAcquireWriteLock = true;
+                query = query.substring(0, query.length() - " FOR UPDATE".length());
+            } else {
+                forceAcquireWriteLock = false;
             }
-        }
-        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-        }
-        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
-            ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-        }
+            if (allowCache) {
+                ExecutionPlan cached = cache.get(cacheKey);
+                if (cached != null) {
+                    return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
+                }
+            }
+            if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
+                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(defaultTableSpace, query, parameters));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            }
+            if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
+                ExecutionPlan executionPlan = ExecutionPlan.simple(DDLSQLPlanner.this.queryConsistencyCheckStatement(query));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            }
 
-        net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
-        if (!isCachable(stmt)) {
-            allowCache = false;
+            net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
+            if (!isCachable(stmt)) {
+                allowCache = false;
+            }
+            ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
+            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
+                        new Object[]{query, executionPlan.mainStatement});
+            }
+            if (allowCache) {
+                cache.put(cacheKey, executionPlan);
+            }
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
+        } catch (StatementNotSupportedException err) {
+            if (fallback == null) {
+                throw new StatementExecutionException("I am sorry, I cannot plan SQL \"" + query + "\" with simple jSQLParser planner,"
+                        + " consider setting " + ServerConfiguration.PROPERTY_PLANNER_TYPE + "=" + ServerConfiguration.PLANNER_TYPE_AUTO, err);
+            }
+            TranslatedQuery res =  fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+            if (allowCache) {
+                // cache plan from Calcite, not need to try jSQLParser again
+                cache.put(cacheKey, res.plan);
+            }
+            return res;
         }
-        ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
-        if (allowCache) {
-            cache.put(cacheKey, executionPlan);
-        }
-        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-
     }
 
     private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
@@ -287,8 +381,18 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
         } else if (stmt instanceof Truncate) {
             result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
+        } else if (stmt instanceof Insert) {
+            result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
+        } else if (stmt instanceof Upsert) {
+            result = buildUpsertStatement(defaultTableSpace, (Upsert) stmt, returnValues);
+        } else if (stmt instanceof Update) {
+            result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
+        } else if (stmt instanceof Select) {
+            result = buildSelectStatement(defaultTableSpace, maxRows, (Select) stmt, scan);
+        } else if (stmt instanceof Delete) {
+            result = buildDeleteStatement(defaultTableSpace, (Delete) stmt);
         } else {
-            return null;
+            throw new StatementNotSupportedException("Not implemented " + stmt.getClass().getName());
         }
         return result;
     }
@@ -391,7 +495,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
                             || index.getType().equalsIgnoreCase("KEY")
                             || index.getType().equalsIgnoreCase("UNIQUE KEY")
                             ) {
-                        String indexName = index.getName().toLowerCase();
+                        String indexName = fixMySqlBackTicks(index.getName().toLowerCase());
                         String indexType = convertIndexType(null);
                         boolean unique = index.getType().equalsIgnoreCase("UNIQUE KEY");
 
@@ -514,7 +618,11 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return indexType;
     }
 
-    private int sqlDataTypeToColumnType(String dataType,
+    public static int sqlDataTypeToColumnType(ColDataType dataType) throws StatementExecutionException {
+        return sqlDataTypeToColumnType(dataType.getDataType(), dataType.getArgumentsStringList(), Collections.emptyList());
+    }
+
+    private static int sqlDataTypeToColumnType(String dataType,
             List<String> arguments, List<String> columnSpecs) throws StatementExecutionException {
         int type;
         switch (dataType.toLowerCase()) {
@@ -594,7 +702,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return type;
     }
 
-    private static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
+    public static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
         } else if (allowColumn && expression instanceof net.sf.jsqlparser.schema.Column) {
@@ -604,6 +712,10 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        } else if (expression instanceof DoubleValue) {
+            return ((DoubleValue) expression).getValue();
+        } else if (expression instanceof NullValue) {
+            return null;
         } else if (expression instanceof TimestampValue) {
             return ((TimestampValue) expression).getValue();
         } else if (expression instanceof SignedExpression) {
@@ -876,7 +988,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     public Statement queryConsistencyCheckStatement(String defaultTablespace, String query, List<Object> parameters) {
-        if (query.startsWith(CalcitePlanner.TABLE_CONSISTENCY_COMMAND)) {
+        if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
             query = query.substring(query.substring(0, 21).length());
             String tableSpace = defaultTablespace;
             String tableName;
@@ -906,7 +1018,7 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
     }
 
     public Statement queryConsistencyCheckStatement(String query) {
-        if (query.startsWith(CalcitePlanner.TABLESPACE_CONSISTENCY_COMMAND)) {
+        if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
             String tableSpace = query.substring(query.substring(0, 26).length()).replace("\'", "");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace.trim());
 
@@ -1142,6 +1254,673 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, int maxRows, Select select, boolean forceScan) throws StatementExecutionException {
+        checkSupported(select.getWithItemsList() == null);
+        SelectBody selectBody = select.getSelectBody();
+        checkSupported(selectBody instanceof PlainSelect);
+        PlainSelect plainSelect = (PlainSelect) selectBody;
+
+        checkSupported(!plainSelect.getMySqlHintStraightJoin());
+        checkSupported(!plainSelect.getMySqlSqlCalcFoundRows());
+        checkSupported(!plainSelect.getMySqlSqlNoCache());
+        checkSupported(plainSelect.getDistinct() == null);
+        checkSupported(plainSelect.getFetch() == null);
+        checkSupported(plainSelect.getFirst() == null);
+        checkSupported(plainSelect.getForUpdateTable() == null);
+        checkSupported(plainSelect.getForXmlPath() == null);
+        checkSupported(plainSelect.getHaving() == null);
+        checkSupported(plainSelect.getIntoTables() == null);
+        checkSupported(plainSelect.getJoins() == null);
+        checkSupported(plainSelect.getOffset() == null);
+        checkSupported(plainSelect.getOptimizeFor() == null);
+        checkSupported(plainSelect.getOracleHierarchical() == null);
+        checkSupported(plainSelect.getOracleHint() == null);
+        checkSupported(plainSelect.getSkip() == null);
+        checkSupported(plainSelect.getWait() == null);
+        checkSupported(plainSelect.getKsqlWindow() == null);
+
+        FromItem fromItem = plainSelect.getFromItem();
+        checkSupported(fromItem instanceof net.sf.jsqlparser.schema.Table);
+
+
+        net.sf.jsqlparser.schema.Table table = (net.sf.jsqlparser.schema.Table) fromItem;
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+
+        List<SelectItem> selectItems = plainSelect.getSelectItems();
+        checkSupported(!selectItems.isEmpty());
+        Predicate predicate = new FullTableScanPredicate();
+        TupleComparator comparator = null;
+        ScanLimits limits = null;
+        ScanStatement scan;
+        Projection projection;
+        List<SelectExpressionItem> selectedFields = new ArrayList<>(selectItems.size());
+        boolean containsAggregatedFunctions = false;
+        if (selectItems.size() == 1 && selectItems.get(0) instanceof AllColumns) {
+            projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+        } else {
+            checkSupported(!selectItems.isEmpty());
+            for (SelectItem item : selectItems) {
+                if (item instanceof SelectExpressionItem) {
+                    SelectExpressionItem selectExpressionItem = (SelectExpressionItem) item;
+                    selectedFields.add(selectExpressionItem);
+                    if (SQLParserExpressionCompiler.detectAggregatedFunction(selectExpressionItem.getExpression()) != null) {
+                        containsAggregatedFunctions = true;
+                    }
+                } else {
+                    checkSupported(false);
+                }
+            }
+            if (!containsAggregatedFunctions) {
+                // building the projection
+                // we have the current phisical schema, we can create references by position (as Calcite does)
+                // in order to not need accessing columns by name and also making it easier to support
+                // ZeroCopyProjections
+                projection = buildProjection(selectedFields, true, tableImpl.getColumns());
+            } else {
+                // start by full table scan, the AggregateOp operator will create the final projection
+                projection = Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns);
+            }
+        }
+        if (plainSelect.getWhere() != null) {
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), tableImpl.getColumns());
+            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
+            predicate = sqlWhere;
+        }
+
+        // start with a TableScan + filters
+        scan = new ScanStatement(tableSpace, tableName, Projection.IDENTITY(tableImpl.columnNames, tableImpl.columns), predicate, comparator, limits);
+        scan.setTableDef(tableImpl);
+        PlannerOp op = new BindableTableScanOp(scan);
+
+        // add aggregations
+        if (containsAggregatedFunctions) {
+            op = planAggregate(selectedFields, op.getOutputSchema(), (BindableTableScanOp) op, plainSelect.getGroupBy());
+        }
+
+        // TODO: add having
+
+        // add order by
+        if (plainSelect.getOrderByElements() != null) {
+            op = planSort(op, op.getOutputSchema(), plainSelect.getOrderByElements());
+        }
+
+        // add limit
+        if (plainSelect.getLimit() != null) {
+            // cannot mix LIMIT and TOP
+            checkSupported(plainSelect.getTop() == null);
+            Limit limit = plainSelect.getLimit();
+            CompiledSQLExpression offset;
+            if (limit.getOffset() != null) {
+                offset = SQLParserExpressionCompiler.compileExpression(limit.getOffset(), tableImpl.getColumns());
+            } else {
+                offset = new ConstantExpression(0);
+            }
+            CompiledSQLExpression rowCount = null;
+            if (limit.getRowCount() != null) {
+                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getRowCount(), tableImpl.getColumns());
+            }
+            op = new LimitOp(op, rowCount, offset);
+        }
+
+        if (plainSelect.getTop() != null) {
+            // cannot mix LIMIT and TOP
+            checkSupported(plainSelect.getLimit() == null);
+            Top limit = plainSelect.getTop();
+            CompiledSQLExpression rowCount = null;
+            if (limit.getExpression() != null) {
+                rowCount = SQLParserExpressionCompiler.compileExpression(limit.getExpression(), tableImpl.getColumns());
+            }
+            op = new LimitOp(op, rowCount, new ConstantExpression(0));
+        }
+
+        if (!containsAggregatedFunctions) {
+            // add projection
+            op = new ProjectOp(projection, op);
+        }
+
+        // Simplify Scan to Get
+        if (!forceScan) {
+            ScanStatement scanStatement = op.unwrap(ScanStatement.class);
+            if (scanStatement != null) {
+                Table tableDef = scanStatement.getTableDef();
+                CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
+                SQLRecordKeyFunction keyFunction = IndexUtils.findIndexAccess(where, tableDef.getPrimaryKey(),
+                        tableDef, "=", tableDef);
+                if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
+                    throw new StatementExecutionException("unsupported GET not on PK (" + keyFunction + ")");
+                }
+                GetStatement get = new GetStatement(scanStatement.getTableSpace(),
+                        scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
+                return ExecutionPlan.simple(get);
+            }
+        }
+
+        // additional maxrows from JDBC PreparedStatement
+        if (maxRows > 0) {
+            op = new LimitOp(op,
+                    new ConstantExpression(maxRows), new ConstantExpression(0))
+                    .optimize();
+        }
+
+        return optimizePlan(op);
+    }
+
+    private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, Column[] inputSchema, BindableTableScanOp input,
+                                                                                                GroupByElement groupBy) {
+
+
+        List<Column> outputSchemaKeysInGroupBy = new ArrayList<>();
+        List<String> fieldnamesKeysInGroupBy = new ArrayList<>();
+
+        List<Column> outputSchemaAggregationResults = new ArrayList<>();
+        List<String> fieldnamesAggregationResults = new ArrayList<>();
+        List<Integer> projectionAggregationResults = new ArrayList<>();
+        List<List<Integer>> argLists = new ArrayList<>();
+        List<String> aggtypes = new ArrayList<>();
+
+        List<Column> originalOutputSchema = new ArrayList<>();
+        List<String> originalFieldNames = new ArrayList<>();
+
+        int k = 0;
+        for (SelectExpressionItem sel : fieldList) {
+            Alias alias = sel.getAlias();
+            String fieldName = null;
+            if (alias != null) {
+                checkSupported(alias.getAliasColumns() == null);
+                fieldName = fixMySqlBackTicks(alias.getName().toLowerCase());
+            }
+            Expression exp = sel.getExpression();
+
+            Function fn = SQLParserExpressionCompiler.detectAggregatedFunction(exp);
+            if (fn != null) {
+                int type = SQLParserExpressionCompiler.getAggregateFunctionType(exp, inputSchema);
+                Column additionalColumn = SQLParserExpressionCompiler.getAggregateFunctionArgument(fn, inputSchema);
+                aggtypes.add(fixMySqlBackTicks(fn.getName().toLowerCase()));
+                if (additionalColumn != null) { // SELECT min(col) -> we have to add "col" to the scan
+                    IntHolder pos = new IntHolder();
+                    findColumnInSchema(fixMySqlBackTicks(additionalColumn.getName()), input.getStatement().getTableDef().getColumns(), pos);
+                    checkSupported(pos.value >= 0);
+                    argLists.add(Collections.singletonList(pos.value));
+                } else {
+                    argLists.add(Collections.emptyList());
+                }
+                if (fieldName == null) {
+                    fieldName = "agg" + k;
+                }
+                Column col = Column.column(fieldName, type);
+                outputSchemaAggregationResults.add(col);
+                originalFieldNames.add(fieldName);
+                originalOutputSchema.add(col);
+                fieldnamesAggregationResults.add(fieldName);
+                projectionAggregationResults.add(k);
+            } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
+                Column colInSchema = findColumnInSchema(fixMySqlBackTicks(colRef.getColumnName()), inputSchema, new IntHolder());
+                checkSupported(colInSchema != null);
+                if (fieldName == null) {
+                    fieldName = colInSchema.getName();
+                }
+                Column col = Column.column(fieldName, colInSchema.type);
+                originalFieldNames.add(fieldName);
+                originalOutputSchema.add(col);
+            } else {
+                checkSupported(false);
+            }
+            k++;
+        }
+        List<Integer> groupedFieldsIndexes = new ArrayList<>(); // GROUP BY
+        List<Integer> projectionForGroupByFields = new ArrayList<>();
+        if (groupBy != null) {
+            checkSupported(groupBy.getGroupingSets() == null || groupBy.getGroupingSets().isEmpty());
+            int posInGroupBy = 0;
+            for (Expression exp : groupBy.getGroupByExpressions()) {
+                if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                    net.sf.jsqlparser.schema.Column colRef = (net.sf.jsqlparser.schema.Column) exp;
+                    IntHolder pos = new IntHolder();
+                    Column colInSchema = findColumnInSchema(fixMySqlBackTicks(colRef.getColumnName()), inputSchema, pos);
+                    checkSupported(colInSchema != null);
+                    groupedFieldsIndexes.add(pos.value);
+                    fieldnamesKeysInGroupBy.add(fixMySqlBackTicks(colRef.getColumnName()));
+                    outputSchemaKeysInGroupBy.add(colInSchema);
+                    projectionForGroupByFields.add(posInGroupBy);
+                } else {
+                    checkSupported(false);
+                }
+                posInGroupBy++;
+            }
+        }
+
+        PlannerOp op;
+        if (!groupedFieldsIndexes.isEmpty()) {
+            // this is tricky,
+            // the AggregateOp always create a result in the form of
+            // FIELD1,FIELD2......AGG1,AGG2
+            // Basically it puts all of the results of the aggregation to the right
+
+            // So we have to add a projection that makes the resultset appear
+            // as it is defined in the SELECT clause
+
+            List<Column> outputSchema = new ArrayList<>();
+            outputSchema.addAll(outputSchemaKeysInGroupBy);
+            outputSchema.addAll(outputSchemaAggregationResults);
+            Column[] outputSchemaArray = outputSchema.toArray(new Column[0]);
+
+            List<String> aggreateFieldNames = new ArrayList<>();
+            aggreateFieldNames.addAll(fieldnamesKeysInGroupBy);
+            aggreateFieldNames.addAll(fieldnamesAggregationResults);
+
+            op = new AggregateOp(input,
+                    aggreateFieldNames.toArray(new String[0]),
+                    outputSchemaArray,
+                    aggtypes.toArray(new String[0]),
+                    argLists,
+                    groupedFieldsIndexes);
+            String[] reodereded = originalFieldNames.toArray(new String[0]);
+            int[] projections = new int[originalFieldNames.size()];
+            int i = 0;
+            for (int pos : projectionForGroupByFields) {
+                projections[pos] = i++;
+            }
+            for (int pos : projectionAggregationResults) {
+                projections[pos] = i++;
+            }
+            ProjectOp.ZeroCopyProjection projection = new ProjectOp.ZeroCopyProjection(reodereded,
+                    originalOutputSchema.toArray(new Column[0]),
+                    projections);
+            op = new ProjectOp(projection, op);
+        } else {
+            // no "GROUP BY", so no need for an additional projection
+            // this is the SELECT COUNT(*) FROM TABLE case
+            op = new AggregateOp(input,
+                    originalFieldNames.toArray(new String[0]),
+                    originalOutputSchema.toArray(new Column[0]),
+                    aggtypes.toArray(new String[0]),
+                    argLists,
+                    groupedFieldsIndexes);
+        }
+        return op;
+    }
+
+    private static ExecutionPlan optimizePlan(PlannerOp op) {
+        op = op.optimize();
+        return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
+    }
+
+    private PlannerOp planSort(PlannerOp input, Column[] columns, List<OrderByElement> fieldCollations) {
+        boolean[] directions = new boolean[fieldCollations.size()];
+        boolean[] nullLastdirections = new boolean[fieldCollations.size()];
+        int[] fields = new int[fieldCollations.size()];
+        int i = 0;
+        for (OrderByElement col : fieldCollations) {
+            OrderByElement.NullOrdering nullDirection = col.getNullOrdering();
+            CompiledSQLExpression columnPos = SQLParserExpressionCompiler.compileExpression(col.getExpression(), columns);
+            checkSupported(columnPos instanceof AccessCurrentRowExpression);
+            AccessCurrentRowExpression pos = (AccessCurrentRowExpression) columnPos;
+            int index = pos.getIndex();
+            directions[i] = col.isAsc();
+            // default is NULL LAST
+            nullLastdirections[i] = nullDirection == OrderByElement.NullOrdering.NULLS_LAST
+                    || nullDirection == null;
+            fields[i++] = index;
+        }
+        return new SortOp(input, directions, fields, nullLastdirections);
+
+    }
+
+    private Projection buildProjection(
+            final List<SelectExpressionItem> projects,
+            final boolean allowIdentity,
+            final Column[] tableSchema
+    ) {
+        boolean allowZeroCopyProjection = true;
+        List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
+        Column[] columns = new Column[projects.size()];
+        String[] fieldNames = new String[columns.length];
+        int i = 0;
+        int[] zeroCopyProjections = new int[fieldNames.length];
+        boolean identity = allowIdentity
+                && tableSchema != null
+                && tableSchema.length == fieldNames.length;
+        for (SelectExpressionItem node : projects) {
+            int type = ColumnTypes.ANYTYPE;
+            CompiledSQLExpression exp;
+            String alias = null;
+            if (node.getAlias() != null) {
+                alias = fixMySqlBackTicks(node.getAlias().getName().toLowerCase());
+                checkSupported(node.getAlias().getAliasColumns() == null);
+            }
+            if (node.getExpression() instanceof net.sf.jsqlparser.schema.Column
+                    && !isBooleanLiteral((net.sf.jsqlparser.schema.Column) node.getExpression())) {
+                net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) node.getExpression();
+//                checkSupported(col.getTable() == null);
+                String columnName = fixMySqlBackTicks(col.getColumnName());
+
+                if (alias == null) {
+                    alias = columnName;
+                }
+                IntHolder indexInSchema = new IntHolder(-1);
+                Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
+                if (indexInSchema.value == -1 || found == null) {
+                    throw new StatementExecutionException("Column " + columnName + " not found in target table");
+                }
+                exp = new AccessCurrentRowExpression(indexInSchema.value);
+                type = found.type;
+            } else {
+                exp = SQLParserExpressionCompiler.compileExpression(node.getExpression(), tableSchema);
+                if (alias == null) {
+                    alias = "col" + i;
+                }
+            }
+
+            if (exp instanceof AccessCurrentRowExpression) {
+                AccessCurrentRowExpression accessCurrentRowExpression = (AccessCurrentRowExpression) exp;
+                int mappedIndex = accessCurrentRowExpression.getIndex();
+                zeroCopyProjections[i] = mappedIndex;
+                if (i != mappedIndex) {
+                    identity = false;
+                }
+            } else {
+                allowZeroCopyProjection = false;
+            }
+            fields.add(exp);
+            Column col = Column.column(alias, type);
+            identity = identity && col.name.equals(tableSchema[i].name);
+            fieldNames[i] = alias;
+            columns[i++] = col;
+        }
+        if (allowZeroCopyProjection) {
+            if (identity) {
+                return Projection.IDENTITY(fieldNames, columns);
+            }
+            return new ProjectOp.ZeroCopyProjection(
+                    fieldNames,
+                    columns,
+                    zeroCopyProjections);
+        } else {
+            return new ProjectOp.BasicProjection(
+                    fieldNames,
+                    columns,
+                    fields);
+        }
+    }
+
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
+        net.sf.jsqlparser.schema.Table table = insert.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
+        List<String> keyExpressionToColumn = new ArrayList<>();
+        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+        List<String> valuesColumns = new ArrayList<>();
+            boolean invalid = false;
+        checkSupported(insert.getSelect() == null);
+
+        ItemsList itemsList = insert.getItemsList();
+        checkSupported(itemsList instanceof ExpressionList);
+
+        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
+        int index = 0;
+        List<net.sf.jsqlparser.schema.Column> columns = insert.getColumns();
+        if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
+            columns = new ArrayList<>();
+            for (Column c : tableImpl.getColumns()) {
+                columns.add(new net.sf.jsqlparser.schema.Column(c.name));
+            }
+        }
+        for (net.sf.jsqlparser.schema.Column column : columns) {
+            CompiledSQLExpression exp =
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+            String columnName = fixMySqlBackTicks(column.getColumnName());
+            if (exp instanceof ConstantExpression
+                    || exp instanceof JdbcParameterExpression
+                    || exp instanceof TypedJdbcParameterExpression
+                    || exp instanceof CompiledFunction) {
+                boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                        && ((ConstantExpression) exp).isNull();
+                if (!isAlwaysNull) {
+                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
+                        keyExpressionToColumn.add(columnName);
+                        keyValueExpression.add(exp);
+                    }
+                    valuesColumns.add(columnName);
+                    valuesExpressions.add(exp);
+                }
+                index++;
+            } else {
+                invalid = true;
+                break;
+            }
+        }
+        // handle default values
+        for (Column col : tableImpl.getColumns()) {
+            if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
+                valuesColumns.add(col.name);
+                CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
+                valuesExpressions.add(defaultValueExpression);
+            }
+        }
+        DMLStatement statement;
+        if (!invalid) {
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty()
+                    && tableImpl.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                }
+                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
+            }
+            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
+            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, false).setReturnValues(returnValues);
+        } else {
+            throw new StatementNotSupportedException();
+        }
+
+        PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
+        return optimizePlan(op);
+    }
+
+    private ExecutionPlan buildUpsertStatement(String defaultTableSpace, Upsert upsert, boolean returnValues) throws StatementExecutionException {
+        net.sf.jsqlparser.schema.Table table = upsert.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
+        List<String> keyExpressionToColumn = new ArrayList<>();
+        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+        List<String> valuesColumns = new ArrayList<>();
+            boolean invalid = false;
+        checkSupported(upsert.getSelect() == null);
+        checkSupported(upsert.getDuplicateUpdateColumns() == null);
+        checkSupported(upsert.getDuplicateUpdateExpressionList() == null);
+
+        ItemsList itemsList = upsert.getItemsList();
+        checkSupported(itemsList instanceof ExpressionList);
+
+        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
+        int index = 0;
+        List<net.sf.jsqlparser.schema.Column> columns = upsert.getColumns();
+        if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
+            columns = new ArrayList<>();
+            for (Column c : tableImpl.getColumns()) {
+                columns.add(new net.sf.jsqlparser.schema.Column(c.name));
+            }
+        }
+        for (net.sf.jsqlparser.schema.Column column : columns) {
+            CompiledSQLExpression exp =
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+            String columnName = fixMySqlBackTicks(column.getColumnName());
+            if (exp instanceof ConstantExpression
+                    || exp instanceof JdbcParameterExpression
+                    || exp instanceof TypedJdbcParameterExpression
+                    || exp instanceof CompiledFunction) {
+                boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                        && ((ConstantExpression) exp).isNull();
+                if (!isAlwaysNull) {
+                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
+                        keyExpressionToColumn.add(columnName);
+                        keyValueExpression.add(exp);
+                    }
+                    valuesColumns.add(columnName);
+                    valuesExpressions.add(exp);
+                }
+                index++;
+            } else {
+                invalid = true;
+                break;
+            }
+        }
+        // handle default values
+        for (Column col : tableImpl.getColumns()) {
+            if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
+                valuesColumns.add(col.name);
+                CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
+                valuesExpressions.add(defaultValueExpression);
+            }
+        }
+        DMLStatement statement;
+        if (!invalid) {
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty()
+                    && tableImpl.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                }
+                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
+            }
+            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
+            statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction, true).setReturnValues(returnValues);
+        } else {
+            throw new StatementNotSupportedException();
+        }
+
+        PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
+        return optimizePlan(op);
+    }
+
+    private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update update, boolean returnValues) throws StatementExecutionException {
+        final boolean upsert = false;
+        net.sf.jsqlparser.schema.Table table = update.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        checkSupported(update.getSelect() == null);
+        checkSupported(update.getJoins() == null);
+        checkSupported(update.getOrderByElements() == null);
+        checkSupported(update.getReturningExpressionList() == null);
+        checkSupported(update.getStartJoins() == null || update.getStartJoins().isEmpty());
+        List<Expression> projects = update.getExpressions();
+        List<CompiledSQLExpression> expressions = new ArrayList<>(projects.size());
+        int index = 0;
+        List<String> updateColumnList = new ArrayList<>(projects.size());
+        for (net.sf.jsqlparser.schema.Column column : update.getColumns()) {
+            checkSupported(column.getTable() == null);
+            updateColumnList.add(fixMySqlBackTicks(column.getColumnName()));
+            CompiledSQLExpression exp =
+                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableImpl.getColumns());
+            expressions.add(exp);
+            index++;
+        }
+
+        RecordFunction function = new SQLRecordFunction(updateColumnList, tableImpl, expressions);
+        Predicate where = new FullTableScanPredicate();
+        if (update.getWhere() != null) {
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(update.getWhere(), tableImpl.getColumns());
+            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
+            where = sqlWhere;
+        }
+
+        PlannerOp op = new SimpleUpdateOp(new UpdateStatement(tableSpace, tableName, null, function, where)
+                                                    .setReturnValues(returnValues));
+        return optimizePlan(op);
+    }
+
+    private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete delete) throws StatementExecutionException {
+        final boolean upsert = false;
+        net.sf.jsqlparser.schema.Table table = delete.getTable();
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        Table tableImpl = tableManager.getTable();
+        checkSupported(delete.getLimit() == null);
+        checkSupported(delete.getJoins() == null);
+        checkSupported(delete.getOrderByElements() == null);
+        checkSupported(delete.getTables() == null || delete.getTables().isEmpty());
+
+        Predicate where = new FullTableScanPredicate();
+        if (delete.getWhere() != null) {
+            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns());
+            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableImpl.getColumns()));
+            IndexUtils.discoverIndexOperations(tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
+            where = sqlWhere;
+        }
+
+        PlannerOp op = new SimpleDeleteOp(new DeleteStatement(tableSpace, tableName, null, where));
+        return optimizePlan(op);
+    }
+
 
     private static boolean containsDefaultClause(ColumnDefinition cf) {
         List<String> specs = cf.getColumnSpecs();
@@ -1232,6 +2011,53 @@ public class DDLSQLPlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException("Bad default constraint specs: " + specs, err);
         }
 
+    }
+
+    private static CompiledSQLExpression makeDefaultValue(Column col) {
+        switch (col.type) {
+            case ColumnTypes.NOTNULL_STRING:
+            case ColumnTypes.STRING:
+                return new ConstantExpression(col.defaultValue.to_string());
+            case ColumnTypes.NOTNULL_INTEGER:
+            case ColumnTypes.INTEGER:
+                return new ConstantExpression(col.defaultValue.to_int());
+            case ColumnTypes.NOTNULL_LONG:
+            case ColumnTypes.LONG:
+                return new ConstantExpression(col.defaultValue.to_long());
+            case ColumnTypes.NOTNULL_DOUBLE:
+            case ColumnTypes.DOUBLE:
+                return new ConstantExpression(col.defaultValue.to_double());
+            case ColumnTypes.NOTNULL_BOOLEAN:
+            case ColumnTypes.BOOLEAN:
+                return new ConstantExpression(col.defaultValue.to_boolean());
+            case ColumnTypes.NOTNULL_TIMESTAMP:
+            case ColumnTypes.TIMESTAMP:
+                return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
+            default:
+                throw new UnsupportedOperationException("Not supported for type " + ColumnTypes.typeToString(col.type));
+        }
+    }
+
+    private static class StatementNotSupportedException extends HerdDBInternalException {
+
+        public StatementNotSupportedException() {
+        }
+
+        public StatementNotSupportedException(String message) {
+            super(message);
+        }
+
+    }
+
+    public static void checkSupported(boolean condition) {
+        if (!condition) {
+            throw new StatementNotSupportedException();
+        }
+    }
+    public static void checkSupported(boolean condition, Object message) {
+        if (!condition) {
+            throw new StatementNotSupportedException(message + "");
+        }
     }
 
 }

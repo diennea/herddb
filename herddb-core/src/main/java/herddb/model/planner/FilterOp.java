@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
@@ -169,5 +170,10 @@ public class FilterOp implements PlannerOp {
     @Override
     public String toString() {
         return String.format("FilterOp {input=[ %s ] condition=[ %s] }", input.toString(), condition.toString());
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return input.getOutputSchema();
     }
 }

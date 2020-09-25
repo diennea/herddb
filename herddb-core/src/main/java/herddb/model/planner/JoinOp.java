@@ -46,7 +46,7 @@ import org.apache.calcite.linq4j.function.Predicate2;
  *
  * @author eolivelli
  */
-@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class JoinOp implements PlannerOp {
 
     private final int[] leftKeys;
@@ -196,6 +196,12 @@ public class JoinOp implements PlannerOp {
                 + "\ngenerateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + ","
                 + "\nleftKeys=" + Arrays.toString(leftKeys) + ",left=" + left + ","
                 + "\nrightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + '}';
+    }
+
+
+    @Override
+    public Column[] getOutputSchema() {
+        return columns;
     }
 
 }

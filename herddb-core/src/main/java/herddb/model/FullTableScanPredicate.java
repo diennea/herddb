@@ -32,4 +32,9 @@ public class FullTableScanPredicate extends Predicate {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "FullTableScan";
+    }
+
 }

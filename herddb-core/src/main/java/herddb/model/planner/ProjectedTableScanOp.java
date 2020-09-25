@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.Projection;
 import herddb.model.ScanResult;
@@ -78,7 +79,12 @@ public class ProjectedTableScanOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return "ProjectedTableScanOp{" + "statement=" + statement + '}';
+        return "ProjectedTableScanOp{projection = " + statement.getProjection() + "\ninput=" + statement + '}';
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return statement.getSchema();
     }
 
 }

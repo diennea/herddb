@@ -42,6 +42,7 @@ import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -604,6 +605,8 @@ public final class RecordSerializer {
 
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(UTC);
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER_WITH_MILLIS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S").withZone(UTC);
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER_ONLY_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(UTC);
 
     public static DateTimeFormatter getUTCTimestampFormatter() {
         return TIMESTAMP_FORMATTER;
@@ -618,8 +621,17 @@ public final class RecordSerializer {
                 } else if (value instanceof RawString
                         || value instanceof String) {
                     try {
-
-                        ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), TIMESTAMP_FORMATTER);
+                        String asString = value.toString();
+                        ZonedDateTime dateTime;
+                        try {
+                            dateTime = ZonedDateTime.parse(asString, TIMESTAMP_FORMATTER);
+                        } catch (DateTimeParseException tryAgain) {
+                            try {
+                                dateTime = ZonedDateTime.parse(asString, TIMESTAMP_FORMATTER_WITH_MILLIS);
+                            } catch (DateTimeParseException again) {
+                                dateTime = LocalDate.parse(asString, TIMESTAMP_FORMATTER_ONLY_DATE).atStartOfDay(UTC);
+                            }
+                        }
                         Instant toInstant = dateTime.toInstant();
                         long millis = (toInstant.toEpochMilli());
                         Timestamp timestamp = new java.sql.Timestamp(millis);

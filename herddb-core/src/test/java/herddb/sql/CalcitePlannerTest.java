@@ -92,7 +92,6 @@ public class CalcitePlannerTest {
     public void simplePlansTests() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
 
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -101,6 +100,17 @@ public class CalcitePlannerTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("mykey", 1234), TransactionContext.NO_TRANSACTION);
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
+                assertEquals(1, scan.consume().size());
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql", Collections.emptyList())) {
+                assertEquals(1, scan.consume().size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql", Collections.emptyList())) {
+                assertEquals(1, scan.consume().size());
+            }
 
             try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql where k1='mykey'", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());

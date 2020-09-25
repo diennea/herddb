@@ -24,27 +24,37 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.SQLRecordPredicateFunctions;
 
-public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpression {
+public class CompiledGreaterThanExpression extends CompiledBinarySQLExpression {
 
-    public CompiledMinorThenEqualsExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledGreaterThanExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         super(left, right);
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         SQLRecordPredicateFunctions.CompareResult res = left.opCompareTo(bean, context, right);
-        return res == SQLRecordPredicateFunctions.CompareResult.MINOR || res == SQLRecordPredicateFunctions.CompareResult.EQUALS;
+        return res == SQLRecordPredicateFunctions.CompareResult.GREATER;
     }
 
     @Override
     public String getOperator() {
-        return "<=";
+        return ">";
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return new CompiledMinorThenEqualsExpression(
+        return new CompiledGreaterThanExpression(
                 left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
                 right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
+    @Override
+    public CompiledBinarySQLExpression negate() {
+        return new CompiledMinorThanEqualsExpression(left, right);
+    }
+
+    @Override
+    public boolean isNegateSupported() {
+        return true;
     }
 }

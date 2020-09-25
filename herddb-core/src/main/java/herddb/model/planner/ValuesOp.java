@@ -96,4 +96,9 @@ public class ValuesOp implements PlannerOp {
     public String toString() {
         return new StringBuilder().append("ValuesOp(tuples=" + this.tuples + ")").append(": count = ").append(this.tuples.size()).toString();
     }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return new Column[0];
+    }
 }

@@ -208,4 +208,9 @@ public class InsertOp implements PlannerOp {
     public String toString() {
         return new StringBuilder().append("InsertOp=").append(input.toString()).toString();
     }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return new Column[0];
+    }
 }

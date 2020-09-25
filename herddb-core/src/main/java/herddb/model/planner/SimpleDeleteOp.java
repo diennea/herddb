@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -74,6 +75,11 @@ public class SimpleDeleteOp implements PlannerOp {
     @Override
     public String toString() {
         return "SimpleDeleteOp{" + "statement=" + statement + '}';
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return new Column[0];
     }
 
 }

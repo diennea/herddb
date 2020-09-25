@@ -94,4 +94,17 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
         return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD + right.estimateObjectSizeForCache() + left.estimateObjectSizeForCache();
     }
 
+    @Override
+    public String toString() {
+        return "BINARY-EXP{op=" + getOperator() + ", left=" + left + ", right=" + right + '}';
+    }
+
+    public boolean isNegateSupported() {
+        return false;
+    }
+
+    public CompiledBinarySQLExpression negate() {
+        throw new UnsupportedOperationException();
+    }
+
 }

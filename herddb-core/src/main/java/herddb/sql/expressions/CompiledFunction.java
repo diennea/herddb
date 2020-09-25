@@ -73,6 +73,7 @@ public class CompiledFunction implements CompiledSQLExpression {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:
             case BuiltinFunctions.MIN:
+            case BuiltinFunctions.AVG:
             case BuiltinFunctions.MAX:
                 // AGGREGATED FUNCTION
                 return null;

@@ -50,7 +50,7 @@ import java.util.Map;
  *
  * @author eolivelli
  */
-@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class AggregateOp implements PlannerOp {
 
     private final PlannerOp input;
@@ -66,13 +66,13 @@ public class AggregateOp implements PlannerOp {
             Column[] columns,
             String[] aggtypes,
             List<List<Integer>> argLists,
-            List<Integer> groupedFiledsIndexes
+            List<Integer> groupedFieldsIndexes
     ) {
         this.input = input;
         this.fieldnames = fieldnames;
         this.columns = columns;
         this.aggtypes = aggtypes;
-        this.groupedFiledsIndexes = groupedFiledsIndexes;
+        this.groupedFiledsIndexes = groupedFieldsIndexes;
         this.argLists = argLists;
     }
 
@@ -232,13 +232,15 @@ public class AggregateOp implements PlannerOp {
 
         private Group createGroup() throws DataScannerException, StatementExecutionException {
             AggregatedColumnCalculator[] columns = new AggregatedColumnCalculator[aggtypes.length];
+            int firstIndexAggregatedColumn = fieldnames.length - aggtypes.length;
             for (int i = 0; i < aggtypes.length; i++) {
                 String aggtype = aggtypes[i];
 
                 String fieldName = fieldnames[i];
                 List<Integer> argList = argLists.get(i);
                 CompiledSQLExpression param = argList.isEmpty() ? null : new AccessCurrentRowExpression(argList.get(0)); // TODO, multi params ?
-                AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, param, context);
+                int type = AggregateOp.this.columns[firstIndexAggregatedColumn + i].type;
+                AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, type, param, context);
                 if (calculator == null) {
                     throw new StatementExecutionException("not implemented aggregation type " + aggtype);
                 }
@@ -284,6 +286,14 @@ public class AggregateOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("AggregateOp {GroupedFieldsIndexes = %d ArgList = %d }", groupedFiledsIndexes.size() , argLists.size());
+        return "AggregateOp{" + "fieldnames=" + Arrays.toString(fieldnames)
+                + ", columns=" + Arrays.toString(columns) + ", aggtypes=" + Arrays.toString(aggtypes)
+                + ", groupedFiledsIndexes=" + groupedFiledsIndexes + ", argLists=" + argLists + "\ninput=" + input + '}';
     }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return columns;
+    }
+
 }

@@ -21,6 +21,7 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionResult;
@@ -69,5 +70,10 @@ public class SimpleInsertOp implements PlannerOp {
     @Override
     public String toString() {
         return String.format("SimpleInsert= statement %s ", statement.toString());
+    }
+
+    @Override
+    public Column[] getOutputSchema() {
+        return new Column[0];
     }
 }
