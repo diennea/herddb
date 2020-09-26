@@ -23,18 +23,18 @@ package herddb.jdbc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
-import herddb.sql.DDLSQLPlanner;
+import herddb.sql.JSQLParserPlanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import static org.junit.Assume.assumeTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -159,7 +159,6 @@ public class MysqlCompatilityTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            assumeTrue(server.getManager().getPlanner() instanceof DDLSQLPlanner);
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -170,11 +169,13 @@ public class MysqlCompatilityTest {
                     con.setAutoCommit(false);
                     statement.execute("CREATE TABLE `queuebouncecategory_history` (\n"
                             + "  `queueid` int(11) NOT NULL,\n"
-                            + "  `idbouncecategory` smallint(6) NOT NULL,\n"
-                            + "  `refdate` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n"
+                            + "  `idbouncecategory` int(6) NOT NULL,\n"
+                            + "  `refdate` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
                             + "  `messagecount` bigint(20) NOT NULL,\n"
                             + "  PRIMARY KEY (`queueid`,`refdate`,`idbouncecategory`)\n"
                             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+                    assumeTrue(server.getManager().getPlanner() instanceof JSQLParserPlanner);
 
                     statement.executeUpdate("INSERT INTO `queuebouncecategory_history` VALUES (1,3,'2015-03-29 01:00:00',1)");
                     statement.executeUpdate("INSERT INTO `queuebouncecategory_history` VALUES (1,3,'2015-03-29 02:00:00',1)");

@@ -26,7 +26,7 @@ import herddb.model.Column;
  * @author enrico.olivelli
  */
 public final class ColumnRef {
-    
+
     public final String name;
     public final String tableName; // can be an alias
     public final int type;
@@ -42,7 +42,7 @@ public final class ColumnRef {
         this.tableName = tableName;
         this.type = type;
     }
-    
+
     public static Column[] toColumnsArray(ColumnRef[] a) {
         Column[] c = new Column[a.length];
         for (int i = 0; i < c.length; i++) {
@@ -50,7 +50,7 @@ public final class ColumnRef {
         }
         return c;
     }
-    
+
     public static ColumnRef[] toColumnsRefsArray(String tableName, Column[] a) {
         ColumnRef[] c = new ColumnRef[a.length];
         for (int i = 0; i < c.length; i++) {
@@ -67,5 +67,5 @@ public final class ColumnRef {
     public String toString() {
         return tableName + "." + name + " (type=" + type + ")";
     }
-    
+
 }

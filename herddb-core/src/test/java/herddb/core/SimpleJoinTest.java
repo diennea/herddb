@@ -85,10 +85,12 @@ public class SimpleJoinTest {
                     + " ON t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
                 translated.context.setForceRetainReadLock(true);
-                assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
-                NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
-                assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
-                assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                if (manager.getPlanner() instanceof CalcitePlanner) {
+                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                }
                 // we want that the left branch of the join starts the transactoion
                 ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
                 List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
@@ -129,50 +131,6 @@ public class SimpleJoinTest {
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('c',3,'A')", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('d',4,'A')", Collections.emptyList());
 
-            {
-                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-                    + " tblspace1.table1 t1"
-                    + " JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
-                for (DataAccessor t : tuples) {
-                    System.out.println("t:" + t);
-                    assertEquals(6, t.getFieldNames().length);
-                    assertEquals("k1", t.getFieldNames()[0]);
-                    assertEquals("n1", t.getFieldNames()[1]);
-                    assertEquals("s1", t.getFieldNames()[2]);
-                    assertEquals("k2", t.getFieldNames()[3]);
-                    assertEquals("n2", t.getFieldNames()[4]);
-                    assertEquals("s2", t.getFieldNames()[5]);
-                }
-                assertEquals(4, tuples.size());
-
-                assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
-                ))));
-
-                assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "d", "n2", 4, "s2", "A"
-                ))));
-
-                assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
-                ))));
-
-                assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "d", "n2", 4, "s2", "A"
-                ))));
-
-            }
-            
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                     + " tblspace1.table1 t1"
@@ -997,7 +955,6 @@ public class SimpleJoinTest {
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
                 tmoDir, null)) {
-            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
             manager.start();
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
 

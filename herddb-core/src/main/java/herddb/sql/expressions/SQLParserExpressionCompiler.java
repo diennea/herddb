@@ -80,7 +80,7 @@ import net.sf.jsqlparser.schema.Table;
  */
 public class SQLParserExpressionCompiler {
 
-    
+
     public static CompiledSQLExpression compileExpression(Expression expression, OpSchema tableSchema) {
         if (expression == null) {
             return null;
@@ -444,7 +444,7 @@ public class SQLParserExpressionCompiler {
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
-                String tableAlias = extractTableName(cName);                
+                String tableAlias = extractTableName(cName);
                 ColumnRef col = findColumnInSchema(tableAlias, cName.getColumnName(), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 // SUM of INTEGERS is an INTEGER (this is what Calcite does, but it is smarter than this)
@@ -484,7 +484,7 @@ public class SQLParserExpressionCompiler {
 
     public static ColumnRef findColumnInSchema(String tableName, String columnName, OpSchema tableSchema, IntHolder pos) {
         pos.value = 0;
-        if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {        
+        if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {
             for (ColumnRef colInSchema : tableSchema.columns) {
                 if (colInSchema.name.equalsIgnoreCase(columnName)
                         && (colInSchema.tableName == null || colInSchema.tableName.equalsIgnoreCase(tableSchema.name))) {
@@ -513,8 +513,8 @@ public class SQLParserExpressionCompiler {
         }
         return null;
     }
-    
-    
+
+
     public static String fixMySqlBackTicks(String s) {
         if (s == null || s.length() < 2) {
             return s;

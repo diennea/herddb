@@ -25,13 +25,13 @@ import java.util.Arrays;
  * Represents metadata about a step of the Planner.
  */
 public final class OpSchema {
-    
+
     public final String tableSpace;
     public final String name;
     public final String alias;
     public final ColumnRef[] columns;
     public final String[] columnNames;
-    
+
 
     public OpSchema(String tableSpace, String tableName, String alias, String[] columnNames, ColumnRef[] tableSchema) {
         this.tableSpace = tableSpace;
@@ -40,7 +40,7 @@ public final class OpSchema {
         this.columns = tableSchema;
         this.columnNames = columnNames;
     }
-    
+
     public OpSchema(String tableSpace, String name, String alias, ColumnRef[] tableSchema) {
         this.tableSpace = tableSpace;
         this.name = name;
@@ -53,7 +53,7 @@ public final class OpSchema {
         }
         this.columnNames = _columnNames;
     }
-    
+
     public boolean isTableOrAlias(String name) {
         if (name == null) {
             return false;
@@ -72,5 +72,5 @@ public final class OpSchema {
         return "OpSchema{" + "tableSpace=" + tableSpace + ", name=" + name + ", alias=" + alias
                 + ", columns=" + Arrays.toString(columns) + ", columnNames=" + Arrays.toString(columnNames) + '}';
     }
-    
+
 }

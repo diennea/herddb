@@ -65,7 +65,6 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
 import herddb.sql.JSQLParserPlanner;
 import herddb.sql.TranslatedQuery;
@@ -1455,14 +1454,14 @@ public class RawSQLTest {
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
-            
+
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList())) {
                    List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(Long.valueOf(4), result.get(0).get(0));
                 assertEquals(Long.valueOf(4), result.get(0).get("expr$0"));
             }
-            
+
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList())) {

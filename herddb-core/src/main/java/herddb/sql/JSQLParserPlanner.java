@@ -68,6 +68,7 @@ import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
+import herddb.model.planner.FilterOp;
 import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
@@ -79,7 +80,9 @@ import herddb.model.planner.SortOp;
 import herddb.server.ServerConfiguration;
 import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.ColumnRef;
+import herddb.sql.expressions.CompiledEqualsExpression;
 import herddb.sql.expressions.CompiledFunction;
+import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.JdbcParameterExpression;
@@ -130,6 +133,7 @@ import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.AllTableColumns;
 import net.sf.jsqlparser.statement.select.FromItem;
 import net.sf.jsqlparser.statement.select.GroupByElement;
 import net.sf.jsqlparser.statement.select.Join;
@@ -1250,7 +1254,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         return new TruncateTableStatement(tableSpace, tableName);
     }
 
-    
+
     private ExecutionPlan buildSelectStatement(String defaultTableSpace, int maxRows, Select select, boolean forceScan) throws StatementExecutionException {
         checkSupported(select.getWithItemsList() == null);
         SelectBody selectBody = select.getSelectBody();
@@ -1266,7 +1270,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         checkSupported(plainSelect.getForUpdateTable() == null);
         checkSupported(plainSelect.getForXmlPath() == null);
         checkSupported(plainSelect.getHaving() == null);
-        checkSupported(plainSelect.getIntoTables() == null);        
+        checkSupported(plainSelect.getIntoTables() == null);
         checkSupported(plainSelect.getOffset() == null);
         checkSupported(plainSelect.getOptimizeFor() == null);
         checkSupported(plainSelect.getOracleHierarchical() == null);
@@ -1274,14 +1278,15 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         checkSupported(plainSelect.getSkip() == null);
         checkSupported(plainSelect.getWait() == null);
         checkSupported(plainSelect.getKsqlWindow() == null);
-        
+
 
         FromItem fromItem = plainSelect.getFromItem();
         checkSupported(fromItem instanceof net.sf.jsqlparser.schema.Table);
-        
+
         OpSchema primaryTableSchema = getTableSchema(defaultTableSpace, (net.sf.jsqlparser.schema.Table) fromItem);
         OpSchema[] joinedTables = new OpSchema[0];
         int totalJoinOutputFieldsCount = primaryTableSchema.columns.length;
+
         if (plainSelect.getJoins() != null) {
             joinedTables = new OpSchema[plainSelect.getJoins().size()];
             int i = 0;
@@ -1290,11 +1295,9 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 checkSupported(!join.isCross());
                 checkSupported(!join.isFull());
                 checkSupported(!join.isLeft());
-                checkSupported(!join.isNatural());
                 checkSupported(!join.isRight());
                 checkSupported(!join.isOuter());
                 checkSupported(!join.isSemi());
-                checkSupported(!join.isSimple());
                 checkSupported(!join.isStraight());
                 checkSupported(!join.isWindowJoin());
                 checkSupported(join.getJoinWindow() == null);
@@ -1306,7 +1309,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 totalJoinOutputFieldsCount += joinedTable.columns.length;
             }
         }
-        int pos = 0;        
+        int pos = 0;
         String[] joinOutputFieldnames = new String[totalJoinOutputFieldsCount];
         ColumnRef[] joinOutputColumns = new ColumnRef[totalJoinOutputFieldsCount];
         System.arraycopy(primaryTableSchema.columnNames, 0, joinOutputFieldnames, 0, primaryTableSchema.columnNames.length);
@@ -1315,7 +1318,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         for (OpSchema joinedTable : joinedTables) {
             System.arraycopy(joinedTable.columnNames, 0, joinOutputFieldnames, pos, joinedTable.columnNames.length);
             System.arraycopy(joinedTable.columns, 0, joinOutputColumns, pos, joinedTable.columns.length);
-            pos += joinedTable.columnNames.length;            
+            pos += joinedTable.columnNames.length;
         }
 
         OpSchema currentSchema = primaryTableSchema;
@@ -1332,7 +1335,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         checkSupported(!selectItems.isEmpty());
         Predicate predicate = new FullTableScanPredicate();
         TupleComparator comparator = null;
-        ScanLimits limits = null;        
+        ScanLimits limits = null;
         Projection projection;
         List<SelectExpressionItem> selectedFields = new ArrayList<>(selectItems.size());
         boolean containsAggregatedFunctions = false;
@@ -1340,7 +1343,6 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             projection = Projection.IDENTITY(currentSchema.columnNames, ColumnRef.toColumnsArray(currentSchema.columns));
         } else {
             checkSupported(!selectItems.isEmpty());
-            checkSupported(joinedTables.length == 0);
             for (SelectItem item : selectItems) {
                 if (item instanceof SelectExpressionItem) {
                     SelectExpressionItem selectExpressionItem = (SelectExpressionItem) item;
@@ -1348,13 +1350,43 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     if (SQLParserExpressionCompiler.detectAggregatedFunction(selectExpressionItem.getExpression()) != null) {
                         containsAggregatedFunctions = true;
                     }
+                } else if (item instanceof AllTableColumns) {
+                    // expand  alias.* to the full list of columns (according to pyhsical schema!)
+                    AllTableColumns allTablesColumn = (AllTableColumns) item;
+                    net.sf.jsqlparser.schema.Table table = allTablesColumn.getTable();
+                    String tableName = fixMySqlBackTicks(table.getName());
+                    boolean found = false;
+                    if (primaryTableSchema.isTableOrAlias(tableName)) {
+                        for (ColumnRef col : primaryTableSchema.columns) {
+                            net.sf.jsqlparser.schema.Column c = new net.sf.jsqlparser.schema.Column(table, col.name);
+                            SelectExpressionItem selectExpressionItem = new SelectExpressionItem(c);
+                            selectedFields.add(selectExpressionItem);
+                            found = true;
+                        }
+                    } else {
+                        for (OpSchema joinedTableSchema : joinedTables) {
+                            if (joinedTableSchema.isTableOrAlias(tableName)) {
+                                for (ColumnRef col : joinedTableSchema.columns) {
+                                    net.sf.jsqlparser.schema.Column c = new net.sf.jsqlparser.schema.Column(table, col.name);
+                                    SelectExpressionItem selectExpressionItem = new SelectExpressionItem(c);
+                                    selectedFields.add(selectExpressionItem);
+                                }
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!found) {
+                        checkSupported(false, "Bad table ref " + tableName + ".*");
+                    }
+
                 } else {
                     checkSupported(false);
                 }
             }
             if (!containsAggregatedFunctions) {
                 // building the projection
-                // we have the current phisical schema, we can create references by position (as Calcite does)
+                // we have the current physical schema, we can create references by position (as Calcite does)
                 // in order to not need accessing columns by name and also making it easier to support
                 // ZeroCopyProjections
                 projection = buildProjection(selectedFields, true, currentSchema);
@@ -1366,33 +1398,16 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(primaryTableSchema.tableSpace);
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(primaryTableSchema.name);
         Table tableImpl = tableManager.getTable();
-        
+
         SQLRecordPredicate[] predicatesForJoinedTables = new SQLRecordPredicate[joinedTables.length];
+        CompiledSQLExpression whereExpression = null;
         if (plainSelect.getWhere() != null) {
-            // gather a predicate for each table
-            // predicates that correlate more than one table are join predicates
-            CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), primaryTableSchema);
-            
+            whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), currentSchema);
+
             if (joinedTables.length == 0) {
                 SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
                 IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
                 predicate = sqlWhere;
-            } else {                
-                CompiledSQLExpression primaryTableConditions = stripConditionsOnTable(primaryTableSchema, whereExpression);
-                SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, primaryTableConditions);
-                IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
-                predicate = sqlWhere;
-                int k = 0;
-                for (OpSchema joinedTable : joinedTables) {
-                    CompiledSQLExpression whereExpressionForJoinedTable = stripConditionsOnTable(joinedTable, whereExpression);
-                    AbstractTableManager joinedTableManager = tableSpaceManager.getTableManager(joinedTable.name);
-                    Table joinedTableImpl = joinedTableManager.getTable();
-                    SQLRecordPredicate sqlWhereJoinedTable = new SQLRecordPredicate(joinedTableImpl, null, whereExpressionForJoinedTable);
-                    IndexUtils.discoverIndexOperations(joinedTable.tableSpace, whereExpressionForJoinedTable, joinedTableImpl, sqlWhereJoinedTable, select, tableSpaceManager);
-                    predicatesForJoinedTables[k++] = sqlWhereJoinedTable;
-                }
-                
-                // TODO: estract JOIN conditions on WHERE
             }
         }
 
@@ -1401,8 +1416,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 ColumnRef.toColumnsArray(primaryTableSchema.columns)), predicate, comparator, limits);
         scan.setTableDef(tableImpl);
         PlannerOp op = new BindableTableScanOp(scan);
-                
-        
+
+
         PlannerOp[] scanJoinedTables = new PlannerOp[joinedTables.length];
         int ji = 0;
         for (OpSchema joinedTable : joinedTables) {
@@ -1410,17 +1425,55 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             ScanStatement scanSecondaryTable = new ScanStatement(joinedTable.tableSpace, joinedTable.name, Projection.IDENTITY(joinedTable.columnNames,
                     ColumnRef.toColumnsArray(joinedTable.columns)), predicatedForJoinedTable, null, null);
             scan.setTableDef(tableImpl);
-            checkSupported(joinedTable.tableSpace.equalsIgnoreCase(primaryTableSchema.tableSpace));                        
+            checkSupported(joinedTable.tableSpace.equalsIgnoreCase(primaryTableSchema.tableSpace));
             PlannerOp opSecondaryTable = new BindableTableScanOp(scanSecondaryTable);
-            scanJoinedTables[ji++] = opSecondaryTable;            
+            scanJoinedTables[ji++] = opSecondaryTable;
         }
-        
-        if (scanJoinedTables.length > 0) {            
+
+        if (scanJoinedTables.length > 0) {
+
+            // assuming only one JOIN clause
             op = new JoinOp(joinOutputFieldnames, ColumnRef.toColumnsArray(joinOutputColumns), new int[0], op, new int[0], scanJoinedTables[0],
                     false, // generateNullsOnLeft
-                    false,  // generateNullsOnLeft
+                    false,  // generateNullsOnRight
                     false, // mergeJoin
                     null);
+
+            Join joinClause = plainSelect.getJoins().get(0);
+            if (joinClause.isNatural()) {
+                // NATURAL join adds a constraint on every column with the same name
+                List<CompiledSQLExpression> naturalJoinConstraints = new ArrayList<>();
+                int posInRowLeft = 0;
+                for (ColumnRef ref : primaryTableSchema.columns) {
+                    int posInRowRight = primaryTableSchema.columns.length;
+                    for (ColumnRef ref2 : joinedTables[0].columns) { // assuming only one join
+                        if (ref2.name.equalsIgnoreCase(ref.name)) {
+                            CompiledSQLExpression equals = new CompiledEqualsExpression(
+                                    new AccessCurrentRowExpression(posInRowLeft),
+                                    new AccessCurrentRowExpression(posInRowRight)
+                            );
+                            naturalJoinConstraints.add(equals);
+                        }
+                        posInRowRight++;
+                    }
+                    posInRowLeft++;
+                }
+                CompiledSQLExpression naturalJoin = new CompiledMultiAndExpression(naturalJoinConstraints.toArray(new CompiledSQLExpression[0]));
+                op = new FilterOp(op, naturalJoin);
+            }
+
+            // handle "ON" clause
+            Expression onExpression = joinClause.getOnExpression();
+            if (onExpression != null) {
+                //TODO: this works for INNER join, but not for LEFT/RIGHT joins
+                CompiledSQLExpression onCondition = SQLParserExpressionCompiler.compileExpression(onExpression, currentSchema);
+                op = new FilterOp(op, onCondition);
+            }
+
+            // handle "WHERE" in case of JOIN
+            if (whereExpression != null) {
+                op = new FilterOp(op, whereExpression);
+            }
         }
 
         // add aggregations
@@ -1438,7 +1491,6 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
-            checkSupported(scanJoinedTables.length == 0);
             OpSchema opSchema = new OpSchema(
                     currentSchema.tableSpace,
                     currentSchema.name,
@@ -1484,7 +1536,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
 
         // Simplify Scan to Get
-        if (!forceScan && joinedTables.length == 0) {            
+        if (!forceScan && joinedTables.length == 0) {
             ScanStatement scanStatement = op.unwrap(ScanStatement.class);
             if (scanStatement != null) {
                 Table tableDef = scanStatement.getTableDef();
@@ -1687,7 +1739,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
     }
 
-    private PlannerOp planSort(PlannerOp input,OpSchema columns, List<OrderByElement> fieldCollations) {
+    private PlannerOp planSort(PlannerOp input, OpSchema columns, List<OrderByElement> fieldCollations) {
         boolean[] directions = new boolean[fieldCollations.size()];
         boolean[] nullLastdirections = new boolean[fieldCollations.size()];
         int[] fields = new int[fieldCollations.size()];
@@ -2130,7 +2182,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     }
 
     /**
-     * Estract conditions on the given Table (or Table Alias).     
+     * Estract conditions on the given Table (or Table Alias).
      */
     private CompiledSQLExpression stripConditionsOnTable(OpSchema table, CompiledSQLExpression whereExpression) {
         throw new UnsupportedOperationException("Not supported yet.");
