@@ -69,6 +69,7 @@ import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.FilterOp;
+import herddb.model.planner.InsertOp;
 import herddb.model.planner.JoinOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
@@ -77,6 +78,7 @@ import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
+import herddb.model.planner.ValuesOp;
 import herddb.server.ServerConfiguration;
 import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.ColumnRef;
@@ -117,6 +119,7 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.ItemsList;
+import net.sf.jsqlparser.expression.operators.relational.MultiExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParser;
 import net.sf.jsqlparser.parser.ParseException;
 import net.sf.jsqlparser.parser.StringProvider;
@@ -156,6 +159,7 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
  */
 public class JSQLParserPlanner implements AbstractSQLPlanner {
 
+    private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
@@ -1567,7 +1571,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
-        TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(tableSpace);
+        TableSpaceManager tableSpaceManager = getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no tablespace " + tableSpace + " here");
         }
@@ -1587,6 +1591,28 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             refs[i] = new ColumnRef(aliasTable, tableImpl.columns[i]);
         }
         return new OpSchema(tableSpace, tableName, aliasTable, tableImpl.columnNames, refs);
+    }
+
+    private TableSpaceManager getTableSpaceManager(String tableSpace) {
+        long startTs = System.currentTimeMillis();
+        while (true) {
+            TableSpaceManager result = manager.getTableSpaceManager(tableSpace);
+            if (result != null) {
+                return result;
+            }
+            long delta = System.currentTimeMillis() - startTs;
+            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
+                    new Object[]{tableSpace, delta, WAIT_FOR_SCHEMA_UP_TIMEOUT});
+            if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
+                return null;
+            }
+            clearCache();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException err) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, OpSchema inputSchema, PlannerOp input, OpSchema originalTableSchema,
@@ -1849,13 +1875,11 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         List<String> keyExpressionToColumn = new ArrayList<>();
         List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
         List<String> valuesColumns = new ArrayList<>();
-            boolean invalid = false;
+        boolean invalid = false;
         checkSupported(insert.getSelect() == null);
 
         ItemsList itemsList = insert.getItemsList();
-        checkSupported(itemsList instanceof ExpressionList);
 
-        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
         int index = 0;
         List<net.sf.jsqlparser.schema.Column> columns = insert.getColumns();
         if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
@@ -1864,58 +1888,97 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 columns.add(new net.sf.jsqlparser.schema.Column(c.name));
             }
         }
-        for (net.sf.jsqlparser.schema.Column column : columns) {
-            CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
-            String columnName = fixMySqlBackTicks(column.getColumnName());
-            if (exp instanceof ConstantExpression
-                    || exp instanceof JdbcParameterExpression
-                    || exp instanceof TypedJdbcParameterExpression
-                    || exp instanceof CompiledFunction) {
-                boolean isAlwaysNull = (exp instanceof ConstantExpression)
-                        && ((ConstantExpression) exp).isNull();
-                if (!isAlwaysNull) {
-                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
-                        keyExpressionToColumn.add(columnName);
-                        keyValueExpression.add(exp);
-                    }
-                    valuesColumns.add(columnName);
-                    valuesExpressions.add(exp);
-                }
-                index++;
-            } else {
-                invalid = true;
-                break;
-            }
-        }
-        // handle default values
-        for (Column col : tableImpl.getColumns()) {
-            if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
-                valuesColumns.add(col.name);
-                CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
-                valuesExpressions.add(defaultValueExpression);
-            }
-        }
-        DMLStatement statement;
-        if (!invalid) {
-            RecordFunction keyfunction;
-            if (keyValueExpression.isEmpty()
-                    && tableImpl.auto_increment) {
-                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-            } else {
-                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
-                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-                }
-                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
-            }
-            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-            statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, false).setReturnValues(returnValues);
-        } else {
-            throw new StatementNotSupportedException();
-        }
+        if (itemsList instanceof ExpressionList) {
+            List<Expression> values = ((ExpressionList) itemsList).getExpressions();
 
-        PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
-        return optimizePlan(op);
+            for (net.sf.jsqlparser.schema.Column column : columns) {
+                CompiledSQLExpression exp
+                        = SQLParserExpressionCompiler.compileExpression(values.get(index), tableSchema);
+                String columnName = fixMySqlBackTicks(column.getColumnName());
+                if (exp instanceof ConstantExpression
+                        || exp instanceof JdbcParameterExpression
+                        || exp instanceof TypedJdbcParameterExpression
+                        || exp instanceof CompiledFunction) {
+                    boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                            && ((ConstantExpression) exp).isNull();
+                    if (!isAlwaysNull) {
+                        if (tableImpl.isPrimaryKeyColumn(columnName)) {
+                            keyExpressionToColumn.add(columnName);
+                            keyValueExpression.add(exp);
+                        }
+                        valuesColumns.add(columnName);
+                        valuesExpressions.add(exp);
+                    }
+                    index++;
+                } else {
+                    invalid = true;
+                    break;
+                }
+            }
+            // handle default values
+            for (Column col : tableImpl.getColumns()) {
+                if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
+                    valuesColumns.add(col.name);
+                    CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
+                    valuesExpressions.add(defaultValueExpression);
+                }
+            }
+            DMLStatement statement;
+            if (!invalid) {
+                RecordFunction keyfunction;
+                if (keyValueExpression.isEmpty()
+                        && tableImpl.auto_increment) {
+                    keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+                } else {
+                    if (keyValueExpression.size() != tableImpl.primaryKey.length) {
+                        throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                    }
+                    keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
+                }
+                RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
+                statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, false).setReturnValues(returnValues);
+            } else {
+                throw new StatementNotSupportedException();
+            }
+
+            PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
+            return optimizePlan(op);
+        } else if (itemsList instanceof MultiExpressionList) {
+            List<ExpressionList> records = ((MultiExpressionList) itemsList).getExprList();
+            ValuesOp values = planValues(columns, tableSchema, records);
+            InsertOp op = new InsertOp(tableImpl.tablespace, tableImpl.name, values, returnValues, false);
+            return optimizePlan(op);
+        } else {
+            checkSupported(false);
+            return null;
+        }
+    }
+
+    private ValuesOp planValues(List<net.sf.jsqlparser.schema.Column> fieldList,
+            OpSchema tableSchema, List<ExpressionList> op) {
+
+        List<List<CompiledSQLExpression>> tuples = new ArrayList<>(op.size());
+
+        Column[] columns = new Column[fieldList.size()];
+        for (ExpressionList tuple : op) {
+            List<CompiledSQLExpression> row = new ArrayList<>(tuple.getExpressions().size());
+            for (Expression node : tuple.getExpressions()) {
+                CompiledSQLExpression exp = SQLParserExpressionCompiler.compileExpression(node, tableSchema);
+                row.add(exp);
+            }
+            tuples.add(row);
+        }
+        int i = 0;
+        String[] fieldNames = new String[fieldList.size()];
+        for (net.sf.jsqlparser.schema.Column field : fieldList) {
+            String tableAlias = extractTableName(field);
+            ColumnRef col = findColumnInSchema(tableAlias, field.getColumnName(), tableSchema, new IntHolder());
+            fieldNames[i] = col.name;
+            columns[i++] = col.toColumn();
+        }
+        return new ValuesOp(manager.getNodeId(), fieldNames,
+                columns, tuples);
+
     }
 
     private ExecutionPlan buildUpsertStatement(String defaultTableSpace, Upsert upsert, boolean returnValues) throws StatementExecutionException {
