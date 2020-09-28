@@ -1443,4 +1443,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return this.mainStatsLogger;
     }
 
+    // visible
+    public boolean isFullSQLSupportEnabled() {
+         String plannerType = serverConfiguration.getString(ServerConfiguration.PROPERTY_PLANNER_TYPE,
+                ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
+        return plannerType.equals(ServerConfiguration.PLANNER_TYPE_CALCITE)
+                            || plannerType.equals(ServerConfiguration.PLANNER_TYPE_AUTO);
+    }
 }

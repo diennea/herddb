@@ -72,6 +72,7 @@ import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 import net.sf.jsqlparser.schema.Table;
+import net.sf.jsqlparser.statement.select.SubSelect;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -98,7 +99,7 @@ public class SQLParserExpressionCompiler {
             // mapping a reference to a Column to the index in the schema of the table
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
             String tableAlias = extractTableName(col);
-            String columnName = col.getColumnName();
+            String columnName = col.getColumnName(); // no fix backtick, handle false/true literals, without backticks
             if (isBooleanLiteral(col)) {
                 return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
             }
@@ -142,6 +143,9 @@ public class SQLParserExpressionCompiler {
             checkSupported(eq.getRightExpression() == null);
             CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
             ItemsList rightItemsList = eq.getRightItemsList();
+            if (rightItemsList instanceof SubSelect) {
+                checkSupported(rightItemsList instanceof ExpressionList, "Sub Selects are not supported with jSQLParser");
+            }
             checkSupported(rightItemsList instanceof ExpressionList);
             ExpressionList expressionList = (ExpressionList) rightItemsList;
             CompiledSQLExpression[] values = new CompiledSQLExpression[expressionList.getExpressions().size()];
@@ -445,7 +449,7 @@ public class SQLParserExpressionCompiler {
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
                 String tableAlias = extractTableName(cName);
-                ColumnRef col = findColumnInSchema(tableAlias, cName.getColumnName(), tableSchema, new IntHolder());
+                ColumnRef col = findColumnInSchema(tableAlias, fixMySqlBackTicks(cName.getColumnName()), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 // SUM of INTEGERS is an INTEGER (this is what Calcite does, but it is smarter than this)
                 return col.type;
@@ -474,7 +478,7 @@ public class SQLParserExpressionCompiler {
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
                 String tableAlias = extractTableName(cName);
                 // validate that it is a valid column referece in the input schema
-                ColumnRef col = findColumnInSchema(tableAlias, cName.getColumnName(), tableSchema, new IntHolder());
+                ColumnRef col = findColumnInSchema(tableAlias, fixMySqlBackTicks(cName.getColumnName()), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 return col;
             default:
@@ -483,6 +487,7 @@ public class SQLParserExpressionCompiler {
     }
 
     public static ColumnRef findColumnInSchema(String tableName, String columnName, OpSchema tableSchema, IntHolder pos) {
+        columnName = fixMySqlBackTicks(columnName);
         pos.value = 0;
         if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {
             for (ColumnRef colInSchema : tableSchema.columns) {

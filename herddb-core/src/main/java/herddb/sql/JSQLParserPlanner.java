@@ -1897,8 +1897,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             List<Expression> values = ((ExpressionList) itemsList).getExpressions();
 
             for (net.sf.jsqlparser.schema.Column column : columns) {
-                CompiledSQLExpression exp
-                        = SQLParserExpressionCompiler.compileExpression(values.get(index), inputSchema);
+                CompiledSQLExpression exp =
+                        SQLParserExpressionCompiler.compileExpression(values.get(index), inputSchema);
                 String columnName = fixMySqlBackTicks(column.getColumnName());
                 if (exp instanceof ConstantExpression
                         || exp instanceof JdbcParameterExpression
@@ -1922,10 +1922,14 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             }
             // handle default values
             for (Column col : tableImpl.getColumns()) {
-                if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
-                    valuesColumns.add(col.name);
-                    CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
-                    valuesExpressions.add(defaultValueExpression);
+                if (!valuesColumns.contains(col.name)) {
+                    if (col.defaultValue != null) {
+                        valuesColumns.add(col.name);
+                        CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
+                        valuesExpressions.add(defaultValueExpression);
+                    } else if (ColumnTypes.isNotNullDataType(col.type)) {
+                        throw new StatementExecutionException("Column '" + col.name + "' has no default value and does not allow NULLs");
+                    }
                 }
             }
             DMLStatement statement;
@@ -1976,24 +1980,27 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             List<CompiledSQLExpression> row = new ArrayList<>(tuple.getExpressions().size());
             List<Expression> values = tuple.getExpressions();
             // we must follow exactly the physical model of the table, see InsertOp
-                for (Column tableColumn : tableSchema.columns) {
-                    int pos = 0;
-                    CompiledSQLExpression exp = null;
-                    for (net.sf.jsqlparser.schema.Column field : fieldList) {
-                        if (field.getColumnName().equalsIgnoreCase(tableColumn.name)) {
-                            Expression corresponding = values.get(pos);
-                            exp = SQLParserExpressionCompiler.compileExpression(corresponding, insertSchema);
-                            break;
-                        }
-                        pos++;
+            for (Column tableColumn : tableSchema.columns) {
+                int pos = 0;
+                CompiledSQLExpression exp = null;
+                for (net.sf.jsqlparser.schema.Column field : fieldList) {
+                    if (fixMySqlBackTicks(field.getColumnName()).equalsIgnoreCase(tableColumn.name)) {
+                        Expression corresponding = values.get(pos);
+                        exp = SQLParserExpressionCompiler.compileExpression(corresponding, insertSchema);
+                        break;
                     }
-                    if (exp == null) {
-                        // handle DEFAULT
-                        exp = makeDefaultValue(tableColumn);
-                    }
-
-                    row.add(exp);
+                    pos++;
                 }
+                if (exp == null) {
+                    if (tableColumn.defaultValue == null && ColumnTypes.isNotNullDataType(tableColumn.type)) {
+                        throw new StatementExecutionException("Column '" + tableColumn.name + "' has no default value and does not allow NULLs");
+                    }
+                    // handle DEFAULT
+                    exp = makeDefaultValue(tableColumn);
+                }
+
+                row.add(exp);
+            }
             tuples.add(row);
         }
         return new ValuesOp(manager.getNodeId(), fieldNames,

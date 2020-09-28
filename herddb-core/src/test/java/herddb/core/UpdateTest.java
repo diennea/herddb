@@ -26,8 +26,10 @@ import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -190,7 +192,7 @@ public class UpdateTest {
 
     }
 
-     @Test
+    @Test
     public void upsertTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
@@ -234,7 +236,7 @@ public class UpdateTest {
                     herddb.utils.TestUtils.expectThrows(StatementExecutionException.class, () ->  {
                         executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235)));
                     });
-            assertEquals("From line 1, column 13 to line 1, column 26: Column 's1' has no default value and does not allow NULLs", error.getMessage());
+            assertThat(error.getMessage(), containsString("Column 's1' has no default value and does not allow NULLs"));
 
             // insert a value, n1 has a value
             assertEquals(1, executeUpdate(manager, "UPSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,'non-empty')", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
