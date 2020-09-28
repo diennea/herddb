@@ -110,7 +110,7 @@ public class SQLParserExpressionCompiler {
             }
             return new AccessCurrentRowExpression(indexInSchema.value);
         } else if (expression instanceof BinaryExpression) {
-            return compileBinaryExpression((BinaryExpression) expression, tableSchema);
+            return compileBinaryExpression((BinaryExpression) expression, tableSchema).simplify();
         } else if (expression instanceof IsNullExpression) {
             IsNullExpression eq = (IsNullExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
@@ -342,8 +342,8 @@ public class SQLParserExpressionCompiler {
     }
 
     private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, OpSchema tableSchema) {
-        CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema);
-        CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema);
+        CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema).simplify();
+        CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema).simplify();
         if (expression instanceof EqualsTo) {
             EqualsTo eq = (EqualsTo) expression;
             checkSupported(eq.getOldOracleJoinSyntax() == EqualsTo.NO_ORACLE_JOIN);

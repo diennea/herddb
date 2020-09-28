@@ -119,9 +119,9 @@ public class ScanStatement extends TableAwareStatement {
         }
         String schema = Arrays.toString(getSchema());
         if (limits != null) {
-            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparatorString + ",limits=" + limits.toStringForScan() + ", schema=" + schema + '}';
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",proj=" + projection + ", comparator=" + comparatorString + ",limits=" + limits.toStringForScan() + ", schema=" + schema + '}';
         } else {
-            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",comparator=" + comparatorString + ", schema=" + schema + '}';
+            return "ScanStatement{table=" + table + "," + "predicate=" + predicate + ",proj=" + projection + ", comparator=" + comparatorString + ", schema=" + schema + '}';
         }
     }
 

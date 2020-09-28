@@ -129,7 +129,12 @@ public class CalcitePlannerTest {
                 assertThat(equals.getRight(), instanceOf(ConstantExpression.class));
             }
 
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
+
+            if (manager.getPlanner() instanceof JSQLParserPlanner) {
+                 assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), BindableTableScanOp.class);
+            } else {
+                assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
+            }
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);

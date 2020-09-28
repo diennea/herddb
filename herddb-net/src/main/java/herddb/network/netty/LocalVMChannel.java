@@ -163,6 +163,12 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
         public boolean isLocalChannel() {
             return true;
         }
+
+        @Override
+        public String toString() {
+            return "server-localvm-channel";
+        }
+
     }
 
 }

@@ -78,6 +78,8 @@ import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
+import herddb.model.planner.TableScanOp;
+import herddb.model.planner.UnionAllOp;
 import herddb.model.planner.ValuesOp;
 import herddb.server.ServerConfiguration;
 import herddb.sql.expressions.AccessCurrentRowExpression;
@@ -147,7 +149,10 @@ import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectBody;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SetOperation;
+import net.sf.jsqlparser.statement.select.SetOperationList;
 import net.sf.jsqlparser.statement.select.Top;
+import net.sf.jsqlparser.statement.select.UnionOp;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
@@ -1262,7 +1267,36 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     private ExecutionPlan buildSelectStatement(String defaultTableSpace, int maxRows, Select select, boolean forceScan) throws StatementExecutionException {
         checkSupported(select.getWithItemsList() == null);
         SelectBody selectBody = select.getSelectBody();
-        checkSupported(selectBody instanceof PlainSelect);
+        PlannerOp op = buildSelectBody(defaultTableSpace, maxRows, selectBody, forceScan)
+                .optimize();
+
+        // Simplify Scan to Get
+        if (!forceScan && op instanceof BindableTableScanOp) {
+            ScanStatement scanStatement = op.unwrap(ScanStatement.class);
+            if (scanStatement != null) {
+                Table tableDef = scanStatement.getTableDef();
+                CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
+                SQLRecordKeyFunction keyFunction = IndexUtils.findIndexAccess(where, tableDef.getPrimaryKey(),
+                        tableDef, "=", tableDef);
+                if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
+                    throw new StatementExecutionException("unsupported GET not on PK (" + keyFunction + ")");
+                }
+                GetStatement get = new GetStatement(scanStatement.getTableSpace(),
+                        scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
+                return ExecutionPlan.simple(get);
+            }
+        }
+        return ExecutionPlan.simple(new SQLPlannedOperationStatement(op), op);
+    }
+
+    private PlannerOp buildSelectBody(String defaultTableSpace, int maxRows, SelectBody selectBody, boolean forceScan) throws StatementExecutionException {
+
+        if (selectBody instanceof SetOperationList) {
+            SetOperationList list = (SetOperationList) selectBody;
+            return buildSetOperationList(defaultTableSpace, maxRows, list, forceScan);
+        }
+
+        checkSupported(selectBody instanceof PlainSelect, selectBody.getClass().getName());
         PlainSelect plainSelect = (PlainSelect) selectBody;
 
         checkSupported(!plainSelect.getMySqlHintStraightJoin());
@@ -1298,8 +1332,6 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 checkSupported(!join.isApply());
                 checkSupported(!join.isCross());
                 checkSupported(!join.isFull());
-                checkSupported(!join.isLeft());
-                checkSupported(!join.isRight());
                 checkSupported(!join.isOuter());
                 checkSupported(!join.isSemi());
                 checkSupported(!join.isStraight());
@@ -1337,14 +1369,16 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
 
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         checkSupported(!selectItems.isEmpty());
-        Predicate predicate = new FullTableScanPredicate();
+        Predicate predicate = null;
         TupleComparator comparator = null;
         ScanLimits limits = null;
+        boolean identityProjection = false;
         Projection projection;
         List<SelectExpressionItem> selectedFields = new ArrayList<>(selectItems.size());
         boolean containsAggregatedFunctions = false;
         if (selectItems.size() == 1 && selectItems.get(0) instanceof AllColumns) {
             projection = Projection.IDENTITY(currentSchema.columnNames, ColumnRef.toColumnsArray(currentSchema.columns));
+            identityProjection = true;
         } else {
             checkSupported(!selectItems.isEmpty());
             for (SelectItem item : selectItems) {
@@ -1397,20 +1431,20 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             } else {
                 // start by full table scan, the AggregateOp operator will create the final projection
                 projection = Projection.IDENTITY(currentSchema.columnNames, ColumnRef.toColumnsArray(currentSchema.columns));
+                identityProjection = true;
             }
         }
         TableSpaceManager tableSpaceManager = this.manager.getTableSpaceManager(primaryTableSchema.tableSpace);
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(primaryTableSchema.name);
         Table tableImpl = tableManager.getTable();
 
-        SQLRecordPredicate[] predicatesForJoinedTables = new SQLRecordPredicate[joinedTables.length];
         CompiledSQLExpression whereExpression = null;
         if (plainSelect.getWhere() != null) {
             whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), currentSchema);
 
             if (joinedTables.length == 0) {
                 SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-                IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, select, tableSpaceManager);
+                IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, selectBody, tableSpaceManager);
                 predicate = sqlWhere;
             }
         }
@@ -1421,13 +1455,11 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         scan.setTableDef(tableImpl);
         PlannerOp op = new BindableTableScanOp(scan);
 
-
         PlannerOp[] scanJoinedTables = new PlannerOp[joinedTables.length];
         int ji = 0;
         for (OpSchema joinedTable : joinedTables) {
-            SQLRecordPredicate predicatedForJoinedTable = predicatesForJoinedTables[ji];
             ScanStatement scanSecondaryTable = new ScanStatement(joinedTable.tableSpace, joinedTable.name, Projection.IDENTITY(joinedTable.columnNames,
-                    ColumnRef.toColumnsArray(joinedTable.columns)), predicatedForJoinedTable, null, null);
+                    ColumnRef.toColumnsArray(joinedTable.columns)), null, null, null);
             scan.setTableDef(tableImpl);
             checkSupported(joinedTable.tableSpace.equalsIgnoreCase(primaryTableSchema.tableSpace));
             PlannerOp opSecondaryTable = new BindableTableScanOp(scanSecondaryTable);
@@ -1435,15 +1467,11 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
 
         if (scanJoinedTables.length > 0) {
-
             // assuming only one JOIN clause
-            op = new JoinOp(joinOutputFieldnames, ColumnRef.toColumnsArray(joinOutputColumns), new int[0], op, new int[0], scanJoinedTables[0],
-                    false, // generateNullsOnLeft
-                    false,  // generateNullsOnRight
-                    false, // mergeJoin
-                    null);
-
             Join joinClause = plainSelect.getJoins().get(0);
+
+            List<CompiledSQLExpression> joinConditions = new ArrayList<>();
+
             if (joinClause.isNatural()) {
                 // NATURAL join adds a constraint on every column with the same name
                 List<CompiledSQLExpression> naturalJoinConstraints = new ArrayList<>();
@@ -1463,7 +1491,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     posInRowLeft++;
                 }
                 CompiledSQLExpression naturalJoin = new CompiledMultiAndExpression(naturalJoinConstraints.toArray(new CompiledSQLExpression[0]));
-                op = new FilterOp(op, naturalJoin);
+                joinConditions.add(naturalJoin);
             }
 
             // handle "ON" clause
@@ -1471,8 +1499,14 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             if (onExpression != null) {
                 //TODO: this works for INNER join, but not for LEFT/RIGHT joins
                 CompiledSQLExpression onCondition = SQLParserExpressionCompiler.compileExpression(onExpression, currentSchema);
-                op = new FilterOp(op, onCondition);
+                joinConditions.add(onCondition);
             }
+
+            op = new JoinOp(joinOutputFieldnames, ColumnRef.toColumnsArray(joinOutputColumns), new int[0], op, new int[0], scanJoinedTables[0],
+                    joinClause.isRight() || (joinClause.isFull() && joinClause.isOuter()), // generateNullsOnLeft
+                    joinClause.isLeft() || (joinClause.isFull() && joinClause.isOuter()),  // generateNullsOnRight
+                    false, // mergeJoin
+                    joinConditions); // "ON" conditions
 
             // handle "WHERE" in case of JOIN
             if (whereExpression != null) {
@@ -1534,26 +1568,9 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             op = new LimitOp(op, rowCount, new ConstantExpression(0));
         }
 
-        if (!containsAggregatedFunctions) {
+        if (!containsAggregatedFunctions && !identityProjection) {
             // add projection
             op = new ProjectOp(projection, op);
-        }
-
-        // Simplify Scan to Get
-        if (!forceScan && joinedTables.length == 0) {
-            ScanStatement scanStatement = op.unwrap(ScanStatement.class);
-            if (scanStatement != null) {
-                Table tableDef = scanStatement.getTableDef();
-                CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
-                SQLRecordKeyFunction keyFunction = IndexUtils.findIndexAccess(where, tableDef.getPrimaryKey(),
-                        tableDef, "=", tableDef);
-                if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
-                    throw new StatementExecutionException("unsupported GET not on PK (" + keyFunction + ")");
-                }
-                GetStatement get = new GetStatement(scanStatement.getTableSpace(),
-                        scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
-                return ExecutionPlan.simple(get);
-            }
         }
 
         // additional maxrows from JDBC PreparedStatement
@@ -1563,7 +1580,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     .optimize();
         }
 
-        return optimizePlan(op);
+        return op;
     }
 
     private OpSchema getTableSchema(String defaultTableSpace, net.sf.jsqlparser.schema.Table table) {
@@ -2202,11 +2219,27 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
     }
 
-    /**
-     * Estract conditions on the given Table (or Table Alias).
-     */
-    private CompiledSQLExpression stripConditionsOnTable(OpSchema table, CompiledSQLExpression whereExpression) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    private PlannerOp buildSetOperationList(String defaultTableSpace, int maxRows, SetOperationList list, boolean forceScan) {
+        checkSupported(list.getFetch() == null);
+        checkSupported(list.getLimit() == null);
+        checkSupported(list.getOffset() == null);
+        checkSupported(list.getOrderByElements() == null);
+        checkSupported(list.getOperations().size() == 1);
+        checkSupported(list.getSelects().size() == 2);
+        final SetOperation operation = list.getOperations().get(0);
+        checkSupported(operation instanceof UnionOp);
+        UnionOp unionOp = (UnionOp) operation;
+        checkSupported(unionOp.isAll()); // only "UNION ALL"
+        checkSupported(!unionOp.isDistinct());
+        List<PlannerOp> inputs = new ArrayList<>();
+        for (SelectBody body : list.getSelects()) {
+            inputs.add(buildSelectBody(defaultTableSpace, -1, body, forceScan));
+        }
+        PlannerOp op = new UnionAllOp(inputs);
+        if (maxRows > 0) {
+            op = new LimitOp(op, new ConstantExpression(maxRows), null);
+        }
+        return op;
     }
 
     private static class StatementNotSupportedException extends HerdDBInternalException {

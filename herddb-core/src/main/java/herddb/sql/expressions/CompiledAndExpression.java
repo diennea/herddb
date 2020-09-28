@@ -74,4 +74,34 @@ public class CompiledAndExpression extends CompiledBinarySQLExpression {
         return new CompiledAndExpression(remappedLeft, remappedRight);
     }
 
+    @Override
+    public CompiledSQLExpression simplify() {
+        // naive simplifications, needed only for jSQLParser based planner
+        
+        // select * from tblspace1.tsql where n1 = 1 and n1 is not null
+        // -> "n1 is not null" is redundant
+        if (left instanceof CompiledBinarySQLExpression) {
+            CompiledBinarySQLExpression l = (CompiledBinarySQLExpression) left;
+            if (l instanceof CompiledEqualsExpression) {
+                CompiledEqualsExpression eq = (CompiledEqualsExpression) l;
+                if (eq.getLeft() instanceof AccessCurrentRowExpression) {
+                    AccessCurrentRowExpression accessField = (AccessCurrentRowExpression) eq.getLeft();
+                    
+                    if (right instanceof CompiledIsNullExpression) {
+                        CompiledIsNullExpression r = (CompiledIsNullExpression) right;
+                        if (r.isNot() && r.getLeft() instanceof AccessCurrentRowExpression) {
+                            AccessCurrentRowExpression accessFieldOnRight = (AccessCurrentRowExpression) r.getLeft();
+                            
+                            if (accessFieldOnRight.getIndex() == accessField.getIndex()) {
+                                return left;
+                            }
+                            
+                        }
+                    }
+                    
+                }
+            }
+        }
+        return null;
+    }
 }
