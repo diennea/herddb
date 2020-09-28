@@ -497,7 +497,7 @@ public class SQLParserExpressionCompiler {
         } else {
             for (ColumnRef colInSchema : tableSchema.columns) {
                 if (colInSchema.name.equalsIgnoreCase(columnName)
-                        && (colInSchema.tableName.equalsIgnoreCase(tableName)
+                        && (colInSchema.tableName != null && colInSchema.tableName.equalsIgnoreCase(tableName)
                             || tableName.equalsIgnoreCase(tableSchema.alias))) {
                     return colInSchema;
                 }
