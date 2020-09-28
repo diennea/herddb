@@ -1867,21 +1867,26 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert insert, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table table = insert.getTable();
         checkSupported(table.getAlias() == null); // no alias for INSERT!
-        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
+        checkSupported(insert.getSelect() == null);
+        ItemsList itemsList = insert.getItemsList();
+        List<net.sf.jsqlparser.schema.Column> columns = insert.getColumns();
+
+        return planerInsertOrUpsert(defaultTableSpace, table, columns, itemsList, returnValues, false);
+    }
+
+    private ExecutionPlan planerInsertOrUpsert(String defaultTableSpace, net.sf.jsqlparser.schema.Table table,
+            List<net.sf.jsqlparser.schema.Column> columns, ItemsList itemsList, boolean returnValues, boolean upsert) throws StatementExecutionException, StatementNotSupportedException {
+        OpSchema inputSchema = getTableSchema(defaultTableSpace, table);
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(inputSchema.tableSpace);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(inputSchema.name);
         Table tableImpl = tableManager.getTable();
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
         List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
         List<String> valuesColumns = new ArrayList<>();
         boolean invalid = false;
-        checkSupported(insert.getSelect() == null);
-
-        ItemsList itemsList = insert.getItemsList();
 
         int index = 0;
-        List<net.sf.jsqlparser.schema.Column> columns = insert.getColumns();
         if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
             columns = new ArrayList<>();
             for (Column c : tableImpl.getColumns()) {
@@ -1893,7 +1898,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
 
             for (net.sf.jsqlparser.schema.Column column : columns) {
                 CompiledSQLExpression exp
-                        = SQLParserExpressionCompiler.compileExpression(values.get(index), tableSchema);
+                        = SQLParserExpressionCompiler.compileExpression(values.get(index), inputSchema);
                 String columnName = fixMySqlBackTicks(column.getColumnName());
                 if (exp instanceof ConstantExpression
                         || exp instanceof JdbcParameterExpression
@@ -1936,7 +1941,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
                 }
                 RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-                statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, false).setReturnValues(returnValues);
+                statement = new InsertStatement(inputSchema.tableSpace, inputSchema.name, keyfunction, valuesfunction, upsert).setReturnValues(returnValues);
             } else {
                 throw new StatementNotSupportedException();
             }
@@ -1945,8 +1950,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             return optimizePlan(op);
         } else if (itemsList instanceof MultiExpressionList) {
             List<ExpressionList> records = ((MultiExpressionList) itemsList).getExprList();
-            ValuesOp values = planValues(columns, tableSchema, records);
-            InsertOp op = new InsertOp(tableImpl.tablespace, tableImpl.name, values, returnValues, false);
+            ValuesOp values = planValuesForInsertOp(columns, tableImpl, inputSchema, records);
+            InsertOp op = new InsertOp(tableImpl.tablespace, tableImpl.name, values, returnValues, upsert);
             return optimizePlan(op);
         } else {
             checkSupported(false);
@@ -1954,27 +1959,42 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
     }
 
-    private ValuesOp planValues(List<net.sf.jsqlparser.schema.Column> fieldList,
-            OpSchema tableSchema, List<ExpressionList> op) {
+    private ValuesOp planValuesForInsertOp(List<net.sf.jsqlparser.schema.Column> fieldList,
+            Table tableSchema, OpSchema insertSchema, List<ExpressionList> op) {
 
         List<List<CompiledSQLExpression>> tuples = new ArrayList<>(op.size());
 
-        Column[] columns = new Column[fieldList.size()];
+        Column[] columns = new Column[tableSchema.columns.length];
+        int i = 0;
+        String[] fieldNames = new String[tableSchema.columns.length];
+        for (Column tableColumn : tableSchema.columns) {
+            columns[i] = tableColumn;
+            fieldNames[i++] = tableColumn.name;
+        }
+
         for (ExpressionList tuple : op) {
             List<CompiledSQLExpression> row = new ArrayList<>(tuple.getExpressions().size());
-            for (Expression node : tuple.getExpressions()) {
-                CompiledSQLExpression exp = SQLParserExpressionCompiler.compileExpression(node, tableSchema);
-                row.add(exp);
-            }
+            List<Expression> values = tuple.getExpressions();
+            // we must follow exactly the physical model of the table, see InsertOp
+                for (Column tableColumn : tableSchema.columns) {
+                    int pos = 0;
+                    CompiledSQLExpression exp = null;
+                    for (net.sf.jsqlparser.schema.Column field : fieldList) {
+                        if (field.getColumnName().equalsIgnoreCase(tableColumn.name)) {
+                            Expression corresponding = values.get(pos);
+                            exp = SQLParserExpressionCompiler.compileExpression(corresponding, insertSchema);
+                            break;
+                        }
+                        pos++;
+                    }
+                    if (exp == null) {
+                        // handle DEFAULT
+                        exp = makeDefaultValue(tableColumn);
+                    }
+
+                    row.add(exp);
+                }
             tuples.add(row);
-        }
-        int i = 0;
-        String[] fieldNames = new String[fieldList.size()];
-        for (net.sf.jsqlparser.schema.Column field : fieldList) {
-            String tableAlias = extractTableName(field);
-            ColumnRef col = findColumnInSchema(tableAlias, field.getColumnName(), tableSchema, new IntHolder());
-            fieldNames[i] = col.name;
-            columns[i++] = col.toColumn();
         }
         return new ValuesOp(manager.getNodeId(), fieldNames,
                 columns, tuples);
@@ -1983,84 +2003,12 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
 
     private ExecutionPlan buildUpsertStatement(String defaultTableSpace, Upsert upsert, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table table = upsert.getTable();
-        checkSupported(table.getAlias() == null); // no alias for UPSERT!
-        OpSchema tableSchema = getTableSchema(defaultTableSpace, table);
-        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSchema.tableSpace);
-        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableSchema.name);
-        Table tableImpl = tableManager.getTable();
-        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
-        List<String> keyExpressionToColumn = new ArrayList<>();
-        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-        List<String> valuesColumns = new ArrayList<>();
-            boolean invalid = false;
         checkSupported(upsert.getSelect() == null);
         checkSupported(upsert.getDuplicateUpdateColumns() == null);
         checkSupported(upsert.getDuplicateUpdateExpressionList() == null);
-
         ItemsList itemsList = upsert.getItemsList();
-        checkSupported(itemsList instanceof ExpressionList);
-
-        List<Expression> projects = ((ExpressionList) itemsList).getExpressions();
-        int index = 0;
         List<net.sf.jsqlparser.schema.Column> columns = upsert.getColumns();
-        if (columns == null) { // INSERT INTO TABLE VALUES (xxxx) (no column list)
-            columns = new ArrayList<>();
-            for (Column c : tableImpl.getColumns()) {
-                columns.add(new net.sf.jsqlparser.schema.Column(c.name));
-            }
-        }
-        for (net.sf.jsqlparser.schema.Column column : columns) {
-            CompiledSQLExpression exp =
-                    SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
-            String columnName = fixMySqlBackTicks(column.getColumnName());
-            if (exp instanceof ConstantExpression
-                    || exp instanceof JdbcParameterExpression
-                    || exp instanceof TypedJdbcParameterExpression
-                    || exp instanceof CompiledFunction) {
-                boolean isAlwaysNull = (exp instanceof ConstantExpression)
-                        && ((ConstantExpression) exp).isNull();
-                if (!isAlwaysNull) {
-                    if (tableImpl.isPrimaryKeyColumn(columnName)) {
-                        keyExpressionToColumn.add(columnName);
-                        keyValueExpression.add(exp);
-                    }
-                    valuesColumns.add(columnName);
-                    valuesExpressions.add(exp);
-                }
-                index++;
-            } else {
-                invalid = true;
-                break;
-            }
-        }
-        // handle default values
-        for (Column col : tableImpl.getColumns()) {
-            if (col.defaultValue != null && !valuesColumns.contains(col.name)) {
-                valuesColumns.add(col.name);
-                CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
-                valuesExpressions.add(defaultValueExpression);
-            }
-        }
-        DMLStatement statement;
-        if (!invalid) {
-            RecordFunction keyfunction;
-            if (keyValueExpression.isEmpty()
-                    && tableImpl.auto_increment) {
-                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-            } else {
-                if (keyValueExpression.size() != tableImpl.primaryKey.length) {
-                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-                }
-                keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, tableImpl);
-            }
-            RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, tableImpl, valuesExpressions);
-            statement = new InsertStatement(tableSchema.tableSpace, tableSchema.name, keyfunction, valuesfunction, true).setReturnValues(returnValues);
-        } else {
-            throw new StatementNotSupportedException();
-        }
-
-        PlannerOp op = new SimpleInsertOp(statement.setReturnValues(returnValues));
-        return optimizePlan(op);
+        return planerInsertOrUpsert(defaultTableSpace, table, columns, itemsList, returnValues, true);
     }
 
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update update, boolean returnValues) throws StatementExecutionException {
@@ -2220,6 +2168,9 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     }
 
     private static CompiledSQLExpression makeDefaultValue(Column col) {
+        if (col.defaultValue == null) {
+            return new ConstantExpression(null);
+        }
         switch (col.type) {
             case ColumnTypes.NOTNULL_STRING:
             case ColumnTypes.STRING:
