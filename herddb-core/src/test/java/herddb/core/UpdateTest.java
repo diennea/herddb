@@ -175,7 +175,7 @@ public class UpdateTest {
                                 "UPDATE tblspace1.tsql set n1 = null WHERE n1=1",
                                 Collections.emptyList(), ctx);
                     });
-            assertEquals("error on column n1 (integer not null):Cannot have null value in non null type integer", error.getMessage());
+            assertEquals("error on column n1 (integer not null):Cannot have null value in non-NULL type integer", error.getMessage());
 
             // multi record failed update
             StatementExecutionException errors =
@@ -184,7 +184,7 @@ public class UpdateTest {
                                 "UPDATE tblspace1.tsql set n1 = null",
                                 Collections.emptyList(), ctx);
                     });
-            assertEquals("error on column n1 (integer not null):Cannot have null value in non null type integer", errors.getMessage());
+            assertEquals("error on column n1 (integer not null):Cannot have null value in non-NULL type integer", errors.getMessage());
 
             commitTransaction(manager, "tblspace1", tx);
 
