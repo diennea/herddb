@@ -1158,6 +1158,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             case DOUBLE:
                 return ColumnTypes.DOUBLE;
             case ANY:
+            case SYMBOL:
+            case INTERVAL_DAY:
                 return ColumnTypes.ANYTYPE;
             default:
                 throw new StatementExecutionException("unsupported expression type " + type.getSqlTypeName());
