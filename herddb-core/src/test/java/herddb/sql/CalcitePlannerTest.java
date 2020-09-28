@@ -30,8 +30,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
 import herddb.codec.DataAccessorForFullRecord;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
@@ -66,6 +64,7 @@ import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAcc
 import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
+import herddb.model.planner.SimpleScanOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.SortedBindableTableScanOp;
@@ -139,15 +138,23 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
-            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
-                    + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            if (manager.isFullSQLSupportEnabled()) {
+                assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
+                        + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            }
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
-            assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
+            if (manager.isFullSQLSupportEnabled()) {
+                assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
+            }
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
 
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
+            if (manager.getPlanner() instanceof JSQLParserPlanner) {
+                assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+            } else {
+                assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
+            }
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
             {
@@ -190,7 +197,12 @@ public class CalcitePlannerTest {
                 assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), SortedTableScanOp.class);
+                SimpleScanOp plan = (SimpleScanOp) plan(manager, "select * from tblspace1.tsql order by n1");
+                if (manager.getPlanner() instanceof JSQLParserPlanner) {
+                    assertThat(plan, instanceOf(SortedBindableTableScanOp.class));
+                } else {
+                    assertThat(plan, instanceOf(SortedTableScanOp.class));
+                }
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
@@ -206,7 +218,12 @@ public class CalcitePlannerTest {
                 assertFalse(sortOp.isOnlyPrimaryKeyAndAscending());
             }
             {
-                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
+                SimpleScanOp plan = (SimpleScanOp) plan(manager, "select * from tblspace1.tsql order by k1");
+                if (manager.getPlanner() instanceof JSQLParserPlanner) {
+                    assertThat(plan, instanceOf(SortedBindableTableScanOp.class));
+                } else {
+                    assertThat(plan, instanceOf(SortedTableScanOp.class));
+                }
                 Projection projection = plan.getStatement().getProjection();
                 System.out.println("projection:" + projection);
                 assertThat(projection, instanceOf(IdentityProjection.class));
@@ -229,7 +246,7 @@ public class CalcitePlannerTest {
     public void dirtySQLPlansTests() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+
 
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -242,16 +259,24 @@ public class CalcitePlannerTest {
                 assertEquals(1, scan.consume().size());
             }
 
-            assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), TableScanOp.class);
+            if (manager.getPlanner() instanceof JSQLParserPlanner) {
+                assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), BindableTableScanOp.class);
+            } else {
+                assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), TableScanOp.class);
+            }
             assertInstanceOf(plan(manager, "/* multiline\ncomment */\nselect * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "\n\nselect n1 from tblspace1.tsql"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "-- comment\nupdate tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "/* multiline\ncomment */\nupdate tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
-            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
-                    + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            if (manager.isFullSQLSupportEnabled()) {
+                assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
+                        + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            }
             assertInstanceOf(plan(manager, "-- comment\ndelete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "/* multiline\ncomment */\ndelete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
-            assertInstanceOf(plan(manager, "\n\ndelete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
+            if (manager.isFullSQLSupportEnabled()) {
+                assertInstanceOf(plan(manager, "\n\ndelete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
+            }
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
@@ -269,7 +294,7 @@ public class CalcitePlannerTest {
     public void joinsPlansTests() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -282,7 +307,7 @@ public class CalcitePlannerTest {
             execute(manager, "INSERT INTO tblspace1.tsql2 (k2,n2) values(?,?)", Arrays.asList("mykey2", 1234), TransactionContext.NO_TRANSACTION);
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2,n1 "
-                        + "  from tblspace1.tsql2 join tblspace1.tsql on k2<>k1 "
+                        + "  from tblspace1.tsql2 join tblspace1.tsql on k2<>k1 " // here we are not specification a table for k2/k1
                         + "  where n2 > 1 "
                         + " ", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
@@ -353,7 +378,7 @@ public class CalcitePlannerTest {
                         ))));
 
             }
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where k2 not in (select k1 from tblspace1.tsql)"
                         + " ", Collections.emptyList()).consumeAndClose();
@@ -371,7 +396,7 @@ public class CalcitePlannerTest {
                         ))));
 
             }
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                    )"
@@ -395,7 +420,7 @@ public class CalcitePlannerTest {
 
             }
 
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where exists (select * from tblspace1.tsql"
                         + "                                     where n1=n2)"
@@ -423,7 +448,7 @@ public class CalcitePlannerTest {
             execute(manager, "INSERT INTO tblspace1.tsql2 (k2,n2) values(?,?)", Arrays.asList("mykey6a", 1236), TransactionContext.NO_TRANSACTION);
 
             // sort not as top level node
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                     order by n1 desc limit 1)"
@@ -442,7 +467,7 @@ public class CalcitePlannerTest {
                         ))));
 
             }
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 ProjectOp plan = assertInstanceOf(plan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where n2 in (select n1 from tblspace1.tsql"
                         + "                                     order by n1 asc limit 1)"), ProjectOp.class);
@@ -470,7 +495,7 @@ public class CalcitePlannerTest {
                         ))));
 
             }
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 ProjectOp plan = assertInstanceOf(plan(manager, "select k2,n2 from tblspace1.tsql2"
                         + "                     where exists (select 1 from tblspace1.tsql a where a.n1=n2)"), ProjectOp.class);
                 assertThat(plan.getInput(), instanceOf(SemiJoinOp.class));
@@ -508,7 +533,6 @@ public class CalcitePlannerTest {
     public void explainPlanTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -543,7 +567,6 @@ public class CalcitePlannerTest {
     public void showCreateTableTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -598,7 +621,6 @@ public class CalcitePlannerTest {
     public void showCreateTableTest_with_Indexes() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -661,7 +683,6 @@ public class CalcitePlannerTest {
     public void showCreateTable_with_recreating_table_from_command_output() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -708,7 +729,6 @@ public class CalcitePlannerTest {
     public void showCreateTable_Non_Existent_Table() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -723,7 +743,6 @@ public class CalcitePlannerTest {
     public void showCreateTable_Non_Existent_TableSpace() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
 
             TranslatedQuery translatedQuery = manager.getPlanner().translate("herd", "SHOW CREATE TABLE tblspace1.test223", Collections.emptyList(),
@@ -735,7 +754,6 @@ public class CalcitePlannerTest {
     public void showCreateTable_Within_TransactionContext() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -756,7 +774,6 @@ public class CalcitePlannerTest {
     public void zeroCopyProjectionTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
-            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

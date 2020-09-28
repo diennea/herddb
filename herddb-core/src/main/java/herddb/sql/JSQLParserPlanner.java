@@ -19,10 +19,12 @@
  */
 package herddb.sql;
 
+import static herddb.model.Column.column;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.extractTableName;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.findColumnInSchema;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.fixMySqlBackTicks;
 import static herddb.sql.expressions.SQLParserExpressionCompiler.isBooleanLiteral;
+import static herddb.sql.functions.ShowCreateTableCalculator.calculateShowCreateTable;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
@@ -34,7 +36,6 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
-import herddb.model.FullTableScanPredicate;
 import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
@@ -78,7 +79,6 @@ import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.SortOp;
-import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UnionAllOp;
 import herddb.model.planner.ValuesOp;
 import herddb.server.ServerConfiguration;
@@ -314,6 +314,47 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
 
         query = rewriteExecuteSyntax(query);
+        if (query.startsWith("EXPLAIN ")) {
+            query = query.substring("EXPLAIN ".length());
+            net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
+            if (!isCachable(stmt)) {
+                allowCache = false;
+            }
+            ExecutionPlan queryExecutionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
+            PlannerOp finalPlan = queryExecutionPlan.originalRoot;
+
+            ValuesOp values = new ValuesOp(manager.getNodeId(),
+                    new String[]{"name", "value"},
+                    new Column[]{
+                        column("name", ColumnTypes.STRING),
+                        column("value", ColumnTypes.STRING)},
+                    java.util.Arrays.asList(
+                            java.util.Arrays.asList(
+                                    new ConstantExpression("query", ColumnTypes.NOTNULL_STRING),
+                                    new ConstantExpression(query, ColumnTypes.NOTNULL_STRING)
+                            ),
+                            java.util.Arrays.asList(
+                                    new ConstantExpression("logicalplan", ColumnTypes.NOTNULL_STRING),
+                                    new ConstantExpression(stmt + "", ColumnTypes.NOTNULL_STRING)
+                            ),
+                            java.util.Arrays.asList(
+                                    new ConstantExpression("plan", ColumnTypes.NOTNULL_STRING),
+                                    new ConstantExpression(finalPlan + "", ColumnTypes.NOTNULL_STRING)
+                            ),
+                            java.util.Arrays.asList(
+                                    new ConstantExpression("finalplan", ColumnTypes.NOTNULL_STRING),
+                                    new ConstantExpression(finalPlan.optimize(), ColumnTypes.NOTNULL_STRING) // same as "plan"
+                            )
+                    ));
+            ExecutionPlan executionPlan = ExecutionPlan.simple(
+                    new SQLPlannedOperationStatement(values),
+                    values
+            );
+            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+        }
+        if (query.startsWith("SHOW")) {
+            return calculateShowCreateTable(query, defaultTableSpace, parameters, manager);
+        }
         String cacheKey = "scan:" + scan
                 + ",defaultTableSpace:" + defaultTableSpace
                 + ",query:" + query
@@ -711,6 +752,25 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         return type;
     }
 
+    public static ConstantExpression resolveValueAsCompiledSQLExpression(Expression expression, boolean allowColumn) throws StatementExecutionException {
+        Object res = resolveValue(expression, allowColumn);
+        if (res == null) {
+            return new ConstantExpression(null, ColumnTypes.NULL);
+        }
+        if (res instanceof String) {
+            return new ConstantExpression(res, ColumnTypes.NOTNULL_STRING);
+        } else if (res instanceof Long) {
+            return new ConstantExpression(res, ColumnTypes.NOTNULL_LONG);
+        } else if (res instanceof Integer) {
+            return new ConstantExpression(res, ColumnTypes.NOTNULL_INTEGER);
+        } else if (res instanceof Double) {
+            return new ConstantExpression(res, ColumnTypes.NOTNULL_DOUBLE);
+        } else if (res instanceof java.sql.Timestamp) {
+            return new ConstantExpression(res, ColumnTypes.NOTNULL_TIMESTAMP);
+        } else {
+            return new ConstantExpression(res, ColumnTypes.ANYTYPE);
+        }
+    }
     public static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
@@ -1273,7 +1333,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         // Simplify Scan to Get
         if (!forceScan && op instanceof BindableTableScanOp) {
             ScanStatement scanStatement = op.unwrap(ScanStatement.class);
-            if (scanStatement != null) {
+            if (scanStatement != null && scanStatement.getPredicate() != null) {
                 Table tableDef = scanStatement.getTableDef();
                 CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
                 SQLRecordKeyFunction keyFunction = IndexUtils.findIndexAccess(where, tableDef.getPrimaryKey(),
@@ -1331,8 +1391,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             for (Join join : plainSelect.getJoins()) {
                 checkSupported(!join.isApply());
                 checkSupported(!join.isCross());
-                checkSupported(!join.isFull());
-                checkSupported(!join.isOuter());
+                checkSupported(!join.isFull() || (join.isFull() && join.isOuter()));
                 checkSupported(!join.isSemi());
                 checkSupported(!join.isStraight());
                 checkSupported(!join.isWindowJoin());
@@ -1442,7 +1501,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         if (plainSelect.getWhere() != null) {
             whereExpression = SQLParserExpressionCompiler.compileExpression(plainSelect.getWhere(), currentSchema);
 
-            if (joinedTables.length == 0) {
+            if (joinedTables.length == 0 && whereExpression != null) {
                 SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
                 IndexUtils.discoverIndexOperations(primaryTableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, selectBody, tableSpaceManager);
                 predicate = sqlWhere;
@@ -1481,8 +1540,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     for (ColumnRef ref2 : joinedTables[0].columns) { // assuming only one join
                         if (ref2.name.equalsIgnoreCase(ref.name)) {
                             CompiledSQLExpression equals = new CompiledEqualsExpression(
-                                    new AccessCurrentRowExpression(posInRowLeft),
-                                    new AccessCurrentRowExpression(posInRowRight)
+                                    new AccessCurrentRowExpression(posInRowLeft, ref.type),
+                                    new AccessCurrentRowExpression(posInRowRight, ref2.type)
                             );
                             naturalJoinConstraints.add(equals);
                         }
@@ -1547,7 +1606,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             if (limit.getOffset() != null) {
                 offset = SQLParserExpressionCompiler.compileExpression(limit.getOffset(), currentSchema);
             } else {
-                offset = new ConstantExpression(0);
+                offset = new ConstantExpression(0, ColumnTypes.NOTNULL_LONG);
             }
             CompiledSQLExpression rowCount = null;
             if (limit.getRowCount() != null) {
@@ -1565,7 +1624,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             if (limit.getExpression() != null) {
                 rowCount = SQLParserExpressionCompiler.compileExpression(limit.getExpression(), currentSchema);
             }
-            op = new LimitOp(op, rowCount, new ConstantExpression(0));
+            op = new LimitOp(op, rowCount, new ConstantExpression(0, ColumnTypes.NOTNULL_LONG));
         }
 
         if (!containsAggregatedFunctions && !identityProjection) {
@@ -1576,7 +1635,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         // additional maxrows from JDBC PreparedStatement
         if (maxRows > 0) {
             op = new LimitOp(op,
-                    new ConstantExpression(maxRows), new ConstantExpression(0))
+                    new ConstantExpression(maxRows, ColumnTypes.NOTNULL_LONG), new ConstantExpression(0, ColumnTypes.NOTNULL_LONG))
                     .optimize();
         }
 
@@ -1838,9 +1897,9 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 IntHolder indexInSchema = new IntHolder(-1);
                 ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
                 if (indexInSchema.value == -1 || found == null) {
-                    throw new StatementExecutionException("Column " + columnName + " not found in target table");
+                    throw new StatementExecutionException("Column " + tableAlias + "." + columnName + " not found in target table (schema " + tableSchema + ")");
                 }
-                exp = new AccessCurrentRowExpression(indexInSchema.value);
+                exp = new AccessCurrentRowExpression(indexInSchema.value, found.type);
                 type = found.type;
             } else {
                 exp = SQLParserExpressionCompiler.compileExpression(node.getExpression(), tableSchema);
@@ -1944,7 +2003,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                         valuesColumns.add(col.name);
                         CompiledSQLExpression defaultValueExpression = makeDefaultValue(col);
                         valuesExpressions.add(defaultValueExpression);
-                    } else if (ColumnTypes.isNotNullDataType(col.type)) {
+                    } else if (ColumnTypes.isNotNullDataType(col.type) && !tableImpl.auto_increment) {
                         throw new StatementExecutionException("Column '" + col.name + "' has no default value and does not allow NULLs");
                     }
                 }
@@ -2009,7 +2068,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                     pos++;
                 }
                 if (exp == null) {
-                    if (tableColumn.defaultValue == null && ColumnTypes.isNotNullDataType(tableColumn.type)) {
+                    if (tableColumn.defaultValue == null && ColumnTypes.isNotNullDataType(tableColumn.type)
+                             && !tableSchema.auto_increment) {
                         throw new StatementExecutionException("Column '" + tableColumn.name + "' has no default value and does not allow NULLs");
                     }
                     // handle DEFAULT
@@ -2062,12 +2122,14 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
 
         RecordFunction function = new SQLRecordFunction(updateColumnList, tableImpl, expressions);
-        Predicate where = new FullTableScanPredicate();
+        Predicate where = null;
         if (update.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(update.getWhere(), tableSchema);
-            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
-            IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
-            where = sqlWhere;
+            if (whereExpression != null) {
+                SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
+                IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, update, tableSpaceManager);
+                where = sqlWhere;
+            }
         }
 
         PlannerOp op = new SimpleUpdateOp(new UpdateStatement(tableSchema.tableSpace, tableSchema.name, null, function, where)
@@ -2087,12 +2149,14 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         checkSupported(delete.getOrderByElements() == null);
         checkSupported(delete.getTables() == null || delete.getTables().isEmpty());
 
-        Predicate where = new FullTableScanPredicate();
+        Predicate where = null;
         if (delete.getWhere() != null) {
             CompiledSQLExpression whereExpression = SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableSchema);
-            SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, SQLParserExpressionCompiler.compileExpression(delete.getWhere(), tableSchema));
-            IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
-            where = sqlWhere;
+            if (whereExpression != null) {
+                SQLRecordPredicate sqlWhere = new SQLRecordPredicate(tableImpl, null, whereExpression);
+                IndexUtils.discoverIndexOperations(tableSchema.tableSpace, whereExpression, tableImpl, sqlWhere, delete, tableSpaceManager);
+                where = sqlWhere;
+            }
         }
 
         PlannerOp op = new SimpleDeleteOp(new DeleteStatement(tableSchema.tableSpace, tableSchema.name, null, where));
@@ -2193,24 +2257,24 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
 
     private static CompiledSQLExpression makeDefaultValue(Column col) {
         if (col.defaultValue == null) {
-            return new ConstantExpression(null);
+            return new ConstantExpression(null, ColumnTypes.NULL);
         }
         switch (col.type) {
             case ColumnTypes.NOTNULL_STRING:
             case ColumnTypes.STRING:
-                return new ConstantExpression(col.defaultValue.to_string());
+                return new ConstantExpression(col.defaultValue.to_string(), ColumnTypes.NOTNULL_STRING);
             case ColumnTypes.NOTNULL_INTEGER:
             case ColumnTypes.INTEGER:
-                return new ConstantExpression(col.defaultValue.to_int());
+                return new ConstantExpression(col.defaultValue.to_int(), ColumnTypes.NOTNULL_INTEGER);
             case ColumnTypes.NOTNULL_LONG:
             case ColumnTypes.LONG:
-                return new ConstantExpression(col.defaultValue.to_long());
+                return new ConstantExpression(col.defaultValue.to_long(), ColumnTypes.NOTNULL_LONG);
             case ColumnTypes.NOTNULL_DOUBLE:
             case ColumnTypes.DOUBLE:
-                return new ConstantExpression(col.defaultValue.to_double());
+                return new ConstantExpression(col.defaultValue.to_double(), ColumnTypes.NOTNULL_DOUBLE);
             case ColumnTypes.NOTNULL_BOOLEAN:
             case ColumnTypes.BOOLEAN:
-                return new ConstantExpression(col.defaultValue.to_boolean());
+                return new ConstantExpression(col.defaultValue.to_boolean(), ColumnTypes.NOTNULL_BOOLEAN);
             case ColumnTypes.NOTNULL_TIMESTAMP:
             case ColumnTypes.TIMESTAMP:
                 return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
@@ -2237,7 +2301,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
         PlannerOp op = new UnionAllOp(inputs);
         if (maxRows > 0) {
-            op = new LimitOp(op, new ConstantExpression(maxRows), null);
+            op = new LimitOp(op, new ConstantExpression(maxRows, ColumnTypes.NOTNULL_LONG), null);
         }
         return op;
     }

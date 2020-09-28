@@ -58,4 +58,18 @@ public class CompiledNotExpression implements CompiledSQLExpression {
         return "CompiledNotExpression{" + "left=" + left + '}';
     }
 
+    @Override
+    public CompiledSQLExpression simplify() {
+        // trying to reproduce Calcite behaviour
+        // NOT (a <= 5)  -> (a > 5)
+        // this can be wrong while dealing with NULL values, but it is the current behaviour
+        if (left instanceof CompiledBinarySQLExpression) {
+            CompiledBinarySQLExpression binaryLeft = (CompiledBinarySQLExpression) left;
+            if (binaryLeft.isNegateSupported()) {
+                return binaryLeft.negate();
+            }
+        }
+        return this;
+    }
+
 }

@@ -66,6 +66,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
+import herddb.sql.CalcitePlanner;
 import herddb.sql.JSQLParserPlanner;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
@@ -154,7 +155,7 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            if (manager.getPlanner() instanceof JSQLParserPlanner) {
+            if (manager.isFullSQLSupportEnabled()) {
                 try {
                     scan(manager, "SELECT * FROM tblspace1.tsql where n1 = 1234 and k1 in "
                             + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?) and n1 = ?", Arrays.asList(1));
@@ -181,19 +182,22 @@ public class RawSQLTest {
                     assertEquals(1, ok.getIndex());
                 }
             }
-            try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)", Collections.emptyList());
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(1, ok.getIndex());
+            if (manager.isFullSQLSupportEnabled()) {
+                try {
+                    scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)", Collections.emptyList());
+                    fail();
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(1, ok.getIndex());
+                }
             }
-
-            try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where n1=? and k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)",
-                        Arrays.asList(1));
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(2, ok.getIndex());
+            if (manager.isFullSQLSupportEnabled()) {
+                try {
+                    scan(manager, "SELECT * FROM tblspace1.tsql where n1=? and k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)",
+                            Arrays.asList(1));
+                    fail();
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(2, ok.getIndex());
+                }
             }
 
             try {
@@ -209,7 +213,7 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            if (manager.getPlanner() instanceof JSQLParserPlanner) {
+            if (manager.isFullSQLSupportEnabled()) {
                 try {
                     scan(manager, "SELECT sum(n1), sum(?) FROM tblspace1.tsql", Collections.emptyList());
                 } catch (MissingJDBCParameterException ok) {
@@ -546,63 +550,65 @@ public class RawSQLTest {
                 assertEquals(3, res.size());
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey", "mycase", "a"
-                        ))));
+                        "k1", "mykey", "mycase", "a"
+                ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey2", "mycase", "b"
-                        ))));
+                        "k1", "mykey2", "mycase", "b"
+                ))));
                 assertTrue(
                         res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey3", "mycase", null
-                        ))));
+                        "k1", "mykey3", "mycase", null
+                ))));
             }
-            try (DataScanner scan = scan(manager, "SELECT k1, "
-                            + "SUM(CASE "
-                            + "WHEN k1='mykey'  THEN 1 "
-                            + "WHEN k1='mykey2' THEN 2 "
-                            + "ELSE 3  "
-                            + "END) as mysum "
-                            + "FROM tblspace1.tsql "
-                            + "GROUP BY k1",
-                    Collections.emptyList())) {
-                List<DataAccessor> res = scan.consume();
-                for (DataAccessor t : res) {
-                    System.out.println("t2:" + t);
+            if (manager.isFullSQLSupportEnabled()) {
+                try (DataScanner scan = scan(manager, "SELECT k1, "
+                        + "SUM(CASE "
+                        + "WHEN k1='mykey'  THEN 1 "
+                        + "WHEN k1='mykey2' THEN 2 "
+                        + "ELSE 3  "
+                        + "END) as mysum "
+                        + "FROM tblspace1.tsql "
+                        + "GROUP BY k1",
+                        Collections.emptyList())) {
+                    List<DataAccessor> res = scan.consume();
+                    for (DataAccessor t : res) {
+                        System.out.println("t2:" + t);
+                    }
+                    assertEquals(3, res.size());
+                    assertTrue(
+                            res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                            "k1", "mykey", "mysum", 1L
+                    ))));
+                    assertTrue(
+                            res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                            "k1", "mykey2", "mysum", 2L
+                    ))));
+                    assertTrue(
+                            res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                            "k1", "mykey3", "mysum", 3L
+                    ))));
                 }
-                assertEquals(3, res.size());
-                assertTrue(
-                        res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey", "mysum", 1L
-                        ))));
-                assertTrue(
-                        res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey2", "mysum", 2L
-                        ))));
-                assertTrue(
-                        res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "mykey3", "mysum", 3L
-                        ))));
-            }
-            try (DataScanner scan = scan(manager, "SELECT "
-                            + "SUM(CASE "
-                            + "WHEN k1='mykey'  THEN 1 "
-                            + "WHEN k1='mykey2' THEN 2 "
-                            + "ELSE 3  "
-                            + "END) as mysum "
-                            + "FROM tblspace1.tsql "
-                            + "",
-                    Collections.emptyList())) {
-                List<DataAccessor> res = scan.consume();
-                for (DataAccessor t : res) {
-                    System.out.println("t:" + t);
-                }
-                assertEquals(1, res.size());
-                assertTrue(
-                        res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "mysum", 6L
-                        ))));
+                try (DataScanner scan = scan(manager, "SELECT "
+                        + "SUM(CASE "
+                        + "WHEN k1='mykey'  THEN 1 "
+                        + "WHEN k1='mykey2' THEN 2 "
+                        + "ELSE 3  "
+                        + "END) as mysum "
+                        + "FROM tblspace1.tsql "
+                        + "",
+                        Collections.emptyList())) {
+                    List<DataAccessor> res = scan.consume();
+                    for (DataAccessor t : res) {
+                        System.out.println("t:" + t);
+                    }
+                    assertEquals(1, res.size());
+                    assertTrue(
+                            res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                            "mysum", 6L
+                    ))));
 
+                }
             }
         }
     }
@@ -626,6 +632,7 @@ public class RawSQLTest {
     public void insertFromSelect() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            assumeTrue(manager.isFullSQLSupportEnabled());
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -815,11 +822,13 @@ public class RawSQLTest {
                 assertEquals(timestamp, all.get(0).get("bar"));
             }
 
-            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
-                List<DataAccessor> all = scan.consume();
-                assertEquals(1, all.size());
-                assertEquals(Long.valueOf(1), all.get(0).get("foo"));
-                assertEquals(timestamp, all.get(0).get("bar"));
+            if (manager.isFullSQLSupportEnabled()) {
+                try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
+                    List<DataAccessor> all = scan.consume();
+                    assertEquals(1, all.size());
+                    assertEquals(Long.valueOf(1), all.get(0).get("foo"));
+                    assertEquals(timestamp, all.get(0).get("bar"));
+                }
             }
 
             executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList());
@@ -829,11 +838,13 @@ public class RawSQLTest {
                 assertEquals(0, all.size());
             }
 
-            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
-                List<DataAccessor> all = scan.consume();
-                assertEquals(1, all.size());
-                assertNull(all.get(0).get("foo"));
-                assertNull(all.get(0).get("bar"));
+            if (manager.isFullSQLSupportEnabled()) {
+                try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp))) {
+                    List<DataAccessor> all = scan.consume();
+                    assertEquals(1, all.size());
+                    assertNull(all.get(0).get("foo"));
+                    assertNull(all.get(0).get("bar"));
+                }
             }
         }
     }
@@ -856,36 +867,40 @@ public class RawSQLTest {
 
             execute(manager, "ALTER TABLE tblspace1.tsql add (t1 timestamp)", Collections.emptyList());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey3',1,'c','1970-01-01 01:00:00.0')", Collections.emptyList()).getUpdateCount());
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList()).consumeAndClose().size());
 
-            // cast timestamp to string
-            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
-            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-            Date timestamp = fmt.parse("1970-01-01 01:00:00.0");
-            fmt.setTimeZone(TimeZone.getDefault());
-            String formattedInLocalServerTime = fmt.format(timestamp);
+            if (manager.getPlanner() instanceof CalcitePlanner) {
+                // https://github.com/JSQLParser/JSqlParser/pull/1057
+                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList()).consumeAndClose().size());
 
-            // literals are expressed in UTC in WHERE (this is Calcite....)
-            // but the CAST operation uses local server side Timezone, this is done in SQLRecordPredicate
-            try (DataScanner scanner = scan(manager, "SELECT cast(t1 as varchar) FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList())) {
-                int count = 0;
-                for (DataAccessor da : scanner.consume()) {
-                    assertEquals(formattedInLocalServerTime, da.get(0));
-                    count++;
+                // cast timestamp to string
+                SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+                fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+                Date timestamp = fmt.parse("1970-01-01 01:00:00.0");
+                fmt.setTimeZone(TimeZone.getDefault());
+                String formattedInLocalServerTime = fmt.format(timestamp);
+
+                // literals are expressed in UTC in WHERE (this is Calcite....)
+                // but the CAST operation uses local server side Timezone, this is done in SQLRecordPredicate
+                try (DataScanner scanner = scan(manager, "SELECT cast(t1 as varchar) FROM tblspace1.tsql where t1='1970-01-01 01:00:00.0'", Collections.emptyList())) {
+                    int count = 0;
+                    for (DataAccessor da : scanner.consume()) {
+                        assertEquals(formattedInLocalServerTime, da.get(0));
+                        count++;
+                    }
+                    assertEquals(1, count);
                 }
-                assertEquals(1, count);
-            }
-            // use JDBC syntax, always use UTC timezone
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey4',1,'c',{ts '2012-12-13 10:34:33.15'})", Collections.emptyList()).getUpdateCount());
-            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-            timestamp = fmt.parse("2012-12-13 10:34:33.0");
-            try (DataScanner scanner = scan(manager, "SELECT t1 FROM tblspace1.tsql where t1={ts '2012-12-13 10:34:33.0'}", Collections.emptyList())) {
-                int count = 0;
-                for (DataAccessor da : scanner.consume()) {
-                    assertEquals(new java.sql.Timestamp(timestamp.getTime()), da.get(0));
-                    count++;
+                // use JDBC syntax, always use UTC timezone
+                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values('mykey4',1,'c',{ts '2012-12-13 10:34:33.15'})", Collections.emptyList()).getUpdateCount());
+                fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+                timestamp = fmt.parse("2012-12-13 10:34:33.0");
+                try (DataScanner scanner = scan(manager, "SELECT t1 FROM tblspace1.tsql where t1={ts '2012-12-13 10:34:33.0'}", Collections.emptyList())) {
+                    int count = 0;
+                    for (DataAccessor da : scanner.consume()) {
+                        assertEquals(new java.sql.Timestamp(timestamp.getTime()), da.get(0));
+                        count++;
+                    }
+                    assertEquals(1, count);
                 }
-                assertEquals(1, count);
             }
 
         }
@@ -913,6 +928,7 @@ public class RawSQLTest {
     public void timestampFunctionsTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            assumeTrue(manager.isFullSQLSupportEnabled());
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -975,13 +991,15 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey", now)).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,d1) values(?,?)", Arrays.asList("mykey2", now)).getUpdateCount());
 
-            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql"
-                    + " order by rand()", Collections.emptyList()).consumeAndClose().size());
-            List<DataAccessor> c = scan(manager, "SELECT k1, rand() as ss  FROM tblspace1.tsql"
-                    + " order by rand()", Collections.emptyList()).consumeAndClose();
-            assertEquals(2, c.size());
-            // verify we don't get the same record twice
-            assertNotEquals(c.get(0).get(0), c.get(1).get(0));
+            if (manager.isFullSQLSupportEnabled()) {
+                assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql"
+                        + " order by rand()", Collections.emptyList()).consumeAndClose().size());
+                List<DataAccessor> c = scan(manager, "SELECT k1, rand() as ss  FROM tblspace1.tsql"
+                        + " order by rand()", Collections.emptyList()).consumeAndClose();
+                assertEquals(2, c.size());
+                // verify we don't get the same record twice
+                assertNotEquals(c.get(0).get(0), c.get(1).get(0));
+            }
 
         }
     }
@@ -1669,11 +1687,13 @@ public class RawSQLTest {
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
-                List<DataAccessor> result = scan1.consume();
-                assertEquals(1, result.size());
-                assertEquals(Long.valueOf(4), result.get(0).get(0));
-                assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+            if (manager.isFullSQLSupportEnabled()) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList())) {
+                    List<DataAccessor> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(4), result.get(0).get(0));
+                    assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+                }
             }
 
         }

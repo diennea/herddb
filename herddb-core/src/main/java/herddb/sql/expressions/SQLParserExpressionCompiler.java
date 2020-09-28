@@ -81,8 +81,12 @@ import net.sf.jsqlparser.statement.select.SubSelect;
  */
 public class SQLParserExpressionCompiler {
 
-
     public static CompiledSQLExpression compileExpression(Expression expression, OpSchema tableSchema) {
+        return compileExpressionInternal(expression, tableSchema)
+                .simplify();
+    }
+
+    private static CompiledSQLExpression compileExpressionInternal(Expression expression, OpSchema tableSchema) {
         if (expression == null) {
             return null;
         }
@@ -94,23 +98,23 @@ public class SQLParserExpressionCompiler {
                 || expression instanceof NullValue
                 || expression instanceof DoubleValue
                 || expression instanceof TimestampValue) {
-            return new ConstantExpression(JSQLParserPlanner.resolveValue(expression, false));
+            return JSQLParserPlanner.resolveValueAsCompiledSQLExpression(expression, false);
         } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
             // mapping a reference to a Column to the index in the schema of the table
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
             String tableAlias = extractTableName(col);
             String columnName = col.getColumnName(); // no fix backtick, handle false/true literals, without backticks
             if (isBooleanLiteral(col)) {
-                return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
+                return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()), ColumnTypes.NOTNULL_BOOLEAN);
             }
             IntHolder indexInSchema = new IntHolder(-1);
             ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
                 checkSupported(false, "Column " + tableAlias + "." + columnName + " not found in target table " + tableSchema);
             }
-            return new AccessCurrentRowExpression(indexInSchema.value);
+            return new AccessCurrentRowExpression(indexInSchema.value, found.type);
         } else if (expression instanceof BinaryExpression) {
-            return compileBinaryExpression((BinaryExpression) expression, tableSchema).simplify();
+            return compileBinaryExpression((BinaryExpression) expression, tableSchema);
         } else if (expression instanceof IsNullExpression) {
             IsNullExpression eq = (IsNullExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
@@ -118,15 +122,6 @@ public class SQLParserExpressionCompiler {
         } else if (expression instanceof NotExpression) {
             NotExpression eq = (NotExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getExpression(), tableSchema);
-            // trying to reproduce Calcite behaviour
-            // NOT (a <= 5)  -> (a > 5)
-            // this can be wrong while dealing with NULL values, but it is the current behaviour
-            if (left instanceof CompiledBinarySQLExpression) {
-                CompiledBinarySQLExpression binaryLeft = (CompiledBinarySQLExpression) left;
-                if (binaryLeft.isNegateSupported()) {
-                    return binaryLeft.negate();
-                }
-            }
             return new CompiledNotExpression(left);
         } else if (expression instanceof Parenthesis) {
             Parenthesis eq = (Parenthesis) expression;
@@ -170,7 +165,7 @@ public class SQLParserExpressionCompiler {
             List<CompiledSQLExpression> operands = new ArrayList<>();
             if (eq.getParameters() != null) {
                 for (Expression e : eq.getParameters().getExpressions()) {
-                    operands.add(compileExpression(e, tableSchema));
+                   operands.add(compileExpression(e, tableSchema));
                 }
             }
             switch (eq.getName().toUpperCase()) {
@@ -342,8 +337,8 @@ public class SQLParserExpressionCompiler {
     }
 
     private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, OpSchema tableSchema) {
-        CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema).simplify();
-        CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema).simplify();
+        CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema);
+        CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema);
         if (expression instanceof EqualsTo) {
             EqualsTo eq = (EqualsTo) expression;
             checkSupported(eq.getOldOracleJoinSyntax() == EqualsTo.NO_ORACLE_JOIN);
@@ -375,7 +370,7 @@ public class SQLParserExpressionCompiler {
             }
             CompiledSQLExpression res;
             if (eq.getEscape() != null) {
-                CompiledSQLExpression escape = new ConstantExpression(eq.getEscape());
+                CompiledSQLExpression escape = new ConstantExpression(eq.getEscape(), ColumnTypes.NOTNULL_STRING);
                 res = new CompiledLikeExpression(left, right, escape);
             } else {
                 res = new CompiledLikeExpression(left, right);
@@ -492,7 +487,9 @@ public class SQLParserExpressionCompiler {
         if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {
             for (ColumnRef colInSchema : tableSchema.columns) {
                 if (colInSchema.name.equalsIgnoreCase(columnName)
-                        && (colInSchema.tableName == null || colInSchema.tableName.equalsIgnoreCase(tableSchema.name))) {
+                        && (colInSchema.tableName == null
+                        || tableName == null
+                        || colInSchema.tableName.equalsIgnoreCase(tableSchema.name))) {
                     return colInSchema;
                 }
                 pos.value++;
@@ -500,7 +497,8 @@ public class SQLParserExpressionCompiler {
         } else {
             for (ColumnRef colInSchema : tableSchema.columns) {
                 if (colInSchema.name.equalsIgnoreCase(columnName)
-                        && colInSchema.tableName.equalsIgnoreCase(tableName)) {
+                        && (colInSchema.tableName.equalsIgnoreCase(tableName)
+                            || tableName.equalsIgnoreCase(tableSchema.alias))) {
                     return colInSchema;
                 }
                 pos.value++;

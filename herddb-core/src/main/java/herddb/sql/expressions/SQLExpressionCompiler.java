@@ -20,6 +20,7 @@
 
 package herddb.sql.expressions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.functions.BuiltinFunctions;
@@ -59,13 +60,13 @@ public class SQLExpressionCompiler {
         } else if (expression instanceof RexLiteral) {
             RexLiteral p = (RexLiteral) expression;
             if (p.isNull()) {
-                return new ConstantExpression(null);
+                return new ConstantExpression(null, ColumnTypes.NULL);
             } else {
-                return new ConstantExpression(safeValue(p.getValue3(), p.getType(), p.getTypeName()));
+                return new ConstantExpression(safeValue(p.getValue3(), p.getType(), p.getTypeName()), CalcitePlanner.convertToHerdType(p.getType()));
             }
         } else if (expression instanceof RexInputRef) {
             RexInputRef p = (RexInputRef) expression;
-            return new AccessCurrentRowExpression(p.getIndex());
+            return new AccessCurrentRowExpression(p.getIndex(), CalcitePlanner.convertToHerdType(p.getType()));
         } else if (expression instanceof RexCall) {
             RexCall p = (RexCall) expression;
             SqlOperator op = p.op;

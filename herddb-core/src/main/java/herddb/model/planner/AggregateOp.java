@@ -238,8 +238,9 @@ public class AggregateOp implements PlannerOp {
 
                 String fieldName = fieldnames[i];
                 List<Integer> argList = argLists.get(i);
-                CompiledSQLExpression param = argList.isEmpty() ? null : new AccessCurrentRowExpression(argList.get(0)); // TODO, multi params ?
                 int type = AggregateOp.this.columns[firstIndexAggregatedColumn + i].type;
+                CompiledSQLExpression param = argList.isEmpty() ? null : new AccessCurrentRowExpression(argList.get(0), type); // TODO, multi params ?
+
                 AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(aggtype.toLowerCase(), fieldName, type, param, context);
                 if (calculator == null) {
                     throw new StatementExecutionException("not implemented aggregation type " + aggtype);

@@ -120,9 +120,9 @@ public interface CompiledSQLExpression {
     default int estimateObjectSizeForCache() {
         return ObjectSizeUtils.DEFAULT_OBJECT_SIZE_OVERHEAD;
     }
-    
+
     /**
-     * Naive simplifications, for jSQLParser based planner
+     * Naive simplifications, for jSQLParser based planner.
      */
     default CompiledSQLExpression simplify() {
         return this;

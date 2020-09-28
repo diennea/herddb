@@ -181,6 +181,25 @@ public class ProjectOp implements PlannerOp {
             // ScanStatement
             return new ProjectedTableScanOp(this, (TableScanOp) input);
         }
+        if (input instanceof BindableTableScanOp) {
+            BindableTableScanOp op = (BindableTableScanOp) input;
+            if (op.getStatement().getProjection() instanceof IdentityProjection) {
+                op.getStatement().setProjection(this.projection);
+                return op;
+            }
+        } else if (input instanceof SortedBindableTableScanOp) {
+            SortedBindableTableScanOp op = (SortedBindableTableScanOp) input;
+            if (op.getStatement().getProjection() instanceof IdentityProjection) {
+                op.getStatement().setProjection(this.projection);
+                return op;
+            }
+        } else if (input instanceof LimitedSortedBindableTableScanOp) {
+            LimitedSortedBindableTableScanOp op = (LimitedSortedBindableTableScanOp) input;
+            if (op.getStatement().getProjection() instanceof IdentityProjection) {
+                op.getStatement().setProjection(this.projection);
+                return op;
+            }
+        }
         return this;
     }
 

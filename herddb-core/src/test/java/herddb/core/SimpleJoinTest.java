@@ -229,7 +229,7 @@ public class SimpleJoinTest {
                 ))));
 
             }
-            
+
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                     + " tblspace1.table1 t1"
@@ -938,7 +938,7 @@ public class SimpleJoinTest {
                         "k1", "a", "k2", "d", "s1", "A", "s2", "A"
                 ))));
             }
-            
+
         }
     }
 

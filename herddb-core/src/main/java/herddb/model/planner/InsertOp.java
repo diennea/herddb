@@ -105,7 +105,7 @@ public class InsertOp implements PlannerOp {
                 for (Column column : table.getColumns()) {
                     Object value = row.get(index++);
                     if (value != null) {
-                        ConstantExpression exp = new ConstantExpression(value);
+                        ConstantExpression exp = new ConstantExpression(value, column.type);
                         if (table.isPrimaryKeyColumn(column.name)) {
                             keyExpressionToColumn.add(column.name);
                             keyValueExpression.add(exp);

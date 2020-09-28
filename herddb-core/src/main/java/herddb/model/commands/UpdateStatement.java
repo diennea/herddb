@@ -22,6 +22,7 @@ package herddb.model.commands;
 import herddb.index.PrimaryIndexSeek;
 import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
+import herddb.model.FullTableScanPredicate;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
@@ -49,7 +50,7 @@ public class UpdateStatement extends DMLStatement {
         this.function = function;
         if (predicate == null) {
             // please not that we are mutating this predicate below, this cannot be a constant
-            predicate = new EmptyPredicate();
+            predicate = new FullTableScanPredicate();
         }
         if (key != null) {
             predicate.setIndexOperation(new PrimaryIndexSeek(key));
@@ -82,11 +83,4 @@ public class UpdateStatement extends DMLStatement {
                 + function.estimateObjectSizeForCache() + predicate.estimateObjectSizeForCache();
     }
 
-    private static class EmptyPredicate extends Predicate {
-
-        @Override
-        public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-            return true;
-        }
-    }
 }

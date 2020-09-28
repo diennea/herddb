@@ -279,7 +279,7 @@ public class SimpleClientScanTest {
         long tx = withTransaction ? connection.beginTransaction(TableSpace.DEFAULT) : 0;
 
         ServerSideConnectionPeer peerWithScanner = null;
-        
+
         try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT,
                 "SELECT count(*) FROM mytable "
                 + "UNION ALL "

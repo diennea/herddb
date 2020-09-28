@@ -20,6 +20,7 @@
 
 package herddb.sql.expressions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
@@ -27,9 +28,15 @@ import herddb.sql.SQLRecordPredicate;
 public class ConstantExpression implements CompiledSQLExpression {
 
     private final Object value;
+    private final int type;
 
-    public ConstantExpression(Object value) {
+    public ConstantExpression(Object value, int type) {
         this.value = value;
+        this.type = type;
+    }
+
+    public Object getValue() {
+        return value;
     }
 
     @Override
@@ -40,7 +47,7 @@ public class ConstantExpression implements CompiledSQLExpression {
     @Override
     public String toString() {
         if (value != null) {
-            return "ConstantExpression{" + "value=" + value + ", " + value.getClass().getSimpleName() + '}';
+            return "ConstantExpression{" + "value=" + value + ", " + value.getClass().getSimpleName() + ", type=" + ColumnTypes.typeToString(type) + '}';
         } else {
             return "ConstantExpression{null}";
         }
@@ -48,7 +55,10 @@ public class ConstantExpression implements CompiledSQLExpression {
 
     @Override
     public CompiledSQLExpression cast(int type) {
-        return new ConstantExpression(SQLRecordPredicate.cast(value, type));
+        if (this.type == type) {
+            return this;
+        }
+        return new ConstantExpression(SQLRecordPredicate.cast(value, type), type);
     }
 
     @Override
@@ -58,6 +68,10 @@ public class ConstantExpression implements CompiledSQLExpression {
 
     public boolean isNull() {
         return value == null;
+    }
+
+    public int getType() {
+        return type;
     }
 
 }
