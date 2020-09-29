@@ -109,10 +109,8 @@ public class SQLParserExpressionCompiler {
             IntHolder indexInSchema = new IntHolder(-1);
             ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
-                checkSupported(false, "Column " + tableAlias + "." + columnName + " not found in target table " + tableSchema);
-                // checkSupported will also throw, but we must make spotbugs happy
-                // it is better to not return null, as this method can't return null
-                throw new RuntimeException();
+                String nameInError = tableAlias != null ? tableAlias + "." + columnName : columnName;
+                throw new StatementExecutionException("Column " + nameInError + " not found in target table (schema " + tableSchema + ")");
             }
             return new AccessCurrentRowExpression(indexInSchema.value, found.type);
         } else if (expression instanceof BinaryExpression) {

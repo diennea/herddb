@@ -1897,7 +1897,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 IntHolder indexInSchema = new IntHolder(-1);
                 ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
                 if (indexInSchema.value == -1 || found == null) {
-                    throw new StatementExecutionException("Column " + tableAlias + "." + columnName + " not found in target table (schema " + tableSchema + ")");
+                    String nameInError = tableAlias != null ? tableAlias + "." + columnName : columnName;
+                    throw new StatementExecutionException("Column " + nameInError + " not found in target table (schema " + tableSchema + ")");
                 }
                 exp = new AccessCurrentRowExpression(indexInSchema.value, found.type);
                 type = found.type;
@@ -1975,7 +1976,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             for (net.sf.jsqlparser.schema.Column column : columns) {
                 CompiledSQLExpression exp =
                         SQLParserExpressionCompiler.compileExpression(values.get(index), inputSchema);
-                String columnName = fixMySqlBackTicks(column.getColumnName());
+                String columnName = fixMySqlBackTicks(column.getColumnName()).toLowerCase();
                 if (exp instanceof ConstantExpression
                         || exp instanceof JdbcParameterExpression
                         || exp instanceof TypedJdbcParameterExpression
@@ -1987,12 +1988,16 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                             keyExpressionToColumn.add(columnName);
                             keyValueExpression.add(exp);
                         }
-                        valuesColumns.add(columnName);
+                        Column columnFromSchema = tableImpl.getColumn(columnName);
+                        if (columnFromSchema == null) {
+                            throw new StatementExecutionException("Column '" + columnName + "' not found in table " + tableImpl.name);
+                        }
+                        valuesColumns.add(columnFromSchema.name);
                         valuesExpressions.add(exp);
                     }
                     index++;
                 } else {
-                    invalid = true;
+                    checkSupported(false, "Unsupported expression type " + exp.getClass().getName());
                     break;
                 }
             }
