@@ -72,7 +72,6 @@ import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 import net.sf.jsqlparser.schema.Table;
-import net.sf.jsqlparser.statement.select.SubSelect;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -111,6 +110,9 @@ public class SQLParserExpressionCompiler {
             ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
                 checkSupported(false, "Column " + tableAlias + "." + columnName + " not found in target table " + tableSchema);
+                // checkSupported will also throw, but we must make spotbugs happy
+                // it is better to not return null, as this method can't return null
+                throw new RuntimeException();
             }
             return new AccessCurrentRowExpression(indexInSchema.value, found.type);
         } else if (expression instanceof BinaryExpression) {
@@ -138,10 +140,7 @@ public class SQLParserExpressionCompiler {
             checkSupported(eq.getRightExpression() == null);
             CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
             ItemsList rightItemsList = eq.getRightItemsList();
-            if (rightItemsList instanceof SubSelect) {
-                checkSupported(rightItemsList instanceof ExpressionList, "Sub Selects are not supported with jSQLParser");
-            }
-            checkSupported(rightItemsList instanceof ExpressionList);
+            checkSupported(rightItemsList instanceof ExpressionList, "Sub Selects are not supported with jSQLParser");
             ExpressionList expressionList = (ExpressionList) rightItemsList;
             CompiledSQLExpression[] values = new CompiledSQLExpression[expressionList.getExpressions().size()];
             int i = 0;
