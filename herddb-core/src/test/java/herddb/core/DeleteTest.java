@@ -36,7 +36,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.utils.IllegalDataAccessException;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
