@@ -72,7 +72,7 @@ public class SimpleSubqueryTest {
                         + "FROM tblspace1.table1 t1", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("unexpected error " + ok, "invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                assertTrue("unexpected error " + ok, "From line 1, column 8 to line 1, column 9: Table 'T2' not found".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t2.k1 not found"));
             }
             try {
@@ -81,7 +81,7 @@ public class SimpleSubqueryTest {
                         + "WHERE t2.n1=123", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name n1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                assertTrue("From line 1, column 42 to line 1, column 43: Table 'T2' not found".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t2.n1 not found"));
             }
             try {
@@ -90,7 +90,7 @@ public class SimpleSubqueryTest {
                         + "WHERE t2.k1='aaa'", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                assertTrue("From line 1, column 42 to line 1, column 43: Table 'T2' not found".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t2.k1 not found"));
 
             }
@@ -101,7 +101,7 @@ public class SimpleSubqueryTest {
                         + "WHERE t1.k1='mykey2'", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name k1 invalid table name t1, expecting t2".equals(ok.getMessage())
+                assertTrue("From line 1, column 41 to line 1, column 42: Table 'T1' not found".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t1.k1 not found"));
 
             }
@@ -112,7 +112,7 @@ public class SimpleSubqueryTest {
                         + "ORDER BY t1.n1", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name n1 invalid table name t1, expecting t2".equals(ok.getMessage())
+                assertTrue("From line 1, column 44 to line 1, column 45: Table 'T1' not found".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t1.n1 not found"));
 
             }
