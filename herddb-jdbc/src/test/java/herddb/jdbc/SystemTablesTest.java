@@ -333,7 +333,7 @@ public class SystemTablesTest {
                     insertPs.executeBatch();
                 } catch (SQLException ex) {
                     assertTrue(ex.getMessage().contains("StatementExecutionException"));
-                    assertTrue(ex.getMessage().contains("Cannot have null value in non null type string"));
+                    assertTrue(ex.getMessage().contains("Cannot have null value in non-NULL type string"));
                 }
             }
         }
