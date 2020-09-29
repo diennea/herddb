@@ -72,7 +72,7 @@ public class SimpleSubqueryTest {
                         + "FROM tblspace1.table1 t1", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                assertTrue("unexpected error " + ok, "invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
                         || ok.getMessage().contains("Column t2.k1 not found"));
             }
             try {

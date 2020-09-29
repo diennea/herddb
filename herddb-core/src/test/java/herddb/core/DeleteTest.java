@@ -66,9 +66,7 @@ public class DeleteTest {
                 executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE badfield=1234", Collections.emptyList());
                 fail();
             } catch (StatementExecutionException ok) {
-                ok.printStackTrace();
-                assertTrue(ok.getCause() instanceof IllegalDataAccessException
-                        || ok.getMessage().contains("badfield"));
+                assertTrue(ok.getMessage().toLowerCase().contains("badfield"));
             }
 
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());
