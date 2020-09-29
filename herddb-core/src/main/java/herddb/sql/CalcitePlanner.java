@@ -21,6 +21,7 @@
 package herddb.sql;
 
 import static herddb.model.Column.column;
+import static herddb.sql.functions.ShowCreateTableCalculator.calculateShowCreateTable;
 import com.google.common.collect.ImmutableList;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
@@ -36,8 +37,6 @@ import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-import herddb.model.TableDoesNotExistException;
-import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -71,12 +70,10 @@ import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.JdbcParameterExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
-import herddb.sql.functions.ShowCreateTableCalculator;
 import herddb.utils.SQLUtils;
 import herddb.utils.SystemProperties;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -87,7 +84,6 @@ import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
@@ -200,7 +196,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         this.manager = manager;
         this.cache = plansCache;
         //used only for DDL
-        this.fallback = new DDLSQLPlanner(manager, cache, null);
+        this.fallback = new JSQLParserPlanner(manager, cache, null);
     }
 
     private final PlansCache cache;
@@ -264,15 +260,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         if (isDDL(query)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (query.startsWith(TABLE_CONSISTENCY_COMMAND)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (!isCachable(query)) {
@@ -292,20 +288,20 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                                 column("value", ColumnTypes.STRING)},
                         java.util.Arrays.asList(
                                 java.util.Arrays.asList(
-                                        new ConstantExpression("query"),
-                                        new ConstantExpression(query)
+                                        new ConstantExpression("query", ColumnTypes.NOTNULL_STRING),
+                                        new ConstantExpression(query, ColumnTypes.NOTNULL_STRING)
                                 ),
                                 java.util.Arrays.asList(
-                                        new ConstantExpression("logicalplan"),
+                                        new ConstantExpression("logicalplan", ColumnTypes.NOTNULL_STRING),
                                         new ConstantExpression(RelOptUtil.dumpPlan("", plan.logicalPlan, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES)
-                                        )),
+                                        , ColumnTypes.NOTNULL_STRING)),
                                 java.util.Arrays.asList(
-                                        new ConstantExpression("plan"),
-                                        new ConstantExpression(RelOptUtil.dumpPlan("", plan.topNode, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES))
+                                        new ConstantExpression("plan", ColumnTypes.NOTNULL_STRING),
+                                        new ConstantExpression(RelOptUtil.dumpPlan("", plan.topNode, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES), ColumnTypes.NOTNULL_STRING)
                                 ),
                                 java.util.Arrays.asList(
-                                        new ConstantExpression("finalplan"),
-                                        new ConstantExpression(finalPlan + "")
+                                        new ConstantExpression("finalplan", ColumnTypes.NOTNULL_STRING),
+                                        new ConstantExpression(finalPlan + "", ColumnTypes.NOTNULL_STRING)
                                 )
                         )
                 );
@@ -317,7 +313,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
 
             if (query.startsWith("SHOW")) {
-                return calculateShowCreateTable(query, defaultTableSpace, parameters);
+                return calculateShowCreateTable(query, defaultTableSpace, parameters, manager);
             }
 
             PlannerResult plan = runPlanner(defaultTableSpace, query);
@@ -352,7 +348,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             if (maxRows > 0) {
                 PlannerOp op = new LimitOp(sqlPlannedOperationStatement.getRootOp(),
-                        new ConstantExpression(maxRows), new ConstantExpression(0))
+                        new ConstantExpression(maxRows, ColumnTypes.NOTNULL_LONG), new ConstantExpression(0, ColumnTypes.NOTNULL_LONG))
                         .optimize();
                 sqlPlannedOperationStatement = new SQLPlannedOperationStatement(op);
             }
@@ -387,59 +383,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return si.isUpsert();
         }
         return false;
-    }
-
-
-    private TranslatedQuery calculateShowCreateTable(String query, String defaultTablespace, List<Object> parameters) {
-        String[] items = {"SHOW", "CREATE", "TABLE"};
-        if (Arrays.stream(items).allMatch(query::contains)) {
-            query = query.substring(Arrays.stream(items).collect(Collectors.joining(" ")).length()).trim();
-            String tableSpace = defaultTablespace;
-            String tableName;
-            boolean showCreateIndex = query.contains("WITH INDEXES");
-            if (showCreateIndex) {
-                query = query.substring(0, query.indexOf("WITH INDEXES"));
-            }
-
-            if (query.contains(".")) {
-                String[] tokens = query.split("\\.");
-                tableSpace = tokens[0].trim();
-                tableName = tokens[1].trim();
-            } else {
-                tableName = query.trim();
-            }
-
-            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-
-            if (tableSpaceManager == null) {
-                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
-            }
-
-            AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-
-            if (tableManager == null || tableManager.getCreatedInTransaction() > 0) {
-                throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
-            }
-
-            String showCreateResult = ShowCreateTableCalculator.calculate(showCreateIndex, tableName, tableSpace, tableManager);
-            ValuesOp values = new ValuesOp(manager.getNodeId(),
-                    new String[]{"tabledef"},
-                    new Column[]{
-                            column("tabledef", ColumnTypes.STRING)},
-                    Arrays.asList(
-                            Arrays.asList(
-                                    new ConstantExpression(showCreateResult)
-                            )
-                    )
-            );
-            ExecutionPlan executionPlan = ExecutionPlan.simple(
-                    new SQLPlannedOperationStatement(values),
-                    values
-            );
-            return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
-        } else {
-            throw new StatementExecutionException(String.format("Incorrect Syntax for SHOW CREATE TABLE tablespace.tablename"));
-        }
     }
 
     private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) throws MetadataStorageManagerException {
@@ -1215,6 +1158,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             case DOUBLE:
                 return ColumnTypes.DOUBLE;
             case ANY:
+            case SYMBOL:
+            case INTERVAL_DAY:
                 return ColumnTypes.ANYTYPE;
             default:
                 throw new StatementExecutionException("unsupported expression type " + type.getSqlTypeName());

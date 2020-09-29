@@ -36,7 +36,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.utils.IllegalDataAccessException;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
@@ -66,9 +65,7 @@ public class DeleteTest {
                 executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE badfield=1234", Collections.emptyList());
                 fail();
             } catch (StatementExecutionException ok) {
-                ok.printStackTrace();
-                assertTrue(ok.getCause() instanceof IllegalDataAccessException
-                        || ok.getMessage().contains("BADFIELD"));
+                assertTrue(ok.getMessage().toLowerCase().contains("badfield"));
             }
 
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());

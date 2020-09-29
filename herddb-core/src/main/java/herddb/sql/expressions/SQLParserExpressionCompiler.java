@@ -19,7 +19,7 @@
  */
 package herddb.sql.expressions;
 
-import static herddb.sql.DDLSQLPlanner.checkSupported;
+import static herddb.sql.JSQLParserPlanner.checkSupported;
 import static herddb.sql.functions.BuiltinFunctions.AVG;
 import static herddb.sql.functions.BuiltinFunctions.COUNT;
 import static herddb.sql.functions.BuiltinFunctions.MAX;
@@ -27,15 +27,13 @@ import static herddb.sql.functions.BuiltinFunctions.MIN;
 import static herddb.sql.functions.BuiltinFunctions.SUM;
 import static herddb.sql.functions.BuiltinFunctions.SUM0;
 import herddb.core.HerdDBInternalException;
-import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
-import herddb.sql.DDLSQLPlanner;
+import herddb.sql.JSQLParserPlanner;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +71,7 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.schema.Table;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -81,7 +80,12 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
  */
 public class SQLParserExpressionCompiler {
 
-    public static CompiledSQLExpression compileExpression(Expression expression, Column[] tableSchema) {
+    public static CompiledSQLExpression compileExpression(Expression expression, OpSchema tableSchema) {
+        return compileExpressionInternal(expression, tableSchema)
+                .simplify();
+    }
+
+    private static CompiledSQLExpression compileExpressionInternal(Expression expression, OpSchema tableSchema) {
         if (expression == null) {
             return null;
         }
@@ -93,21 +97,22 @@ public class SQLParserExpressionCompiler {
                 || expression instanceof NullValue
                 || expression instanceof DoubleValue
                 || expression instanceof TimestampValue) {
-            return new ConstantExpression(DDLSQLPlanner.resolveValue(expression, false));
+            return JSQLParserPlanner.resolveValueAsCompiledSQLExpression(expression, false);
         } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
             // mapping a reference to a Column to the index in the schema of the table
             net.sf.jsqlparser.schema.Column col = (net.sf.jsqlparser.schema.Column) expression;
-            checkSupported(col.getTable() == null);
-            String columnName = col.getColumnName();
+            String tableAlias = extractTableName(col);
+            String columnName = col.getColumnName(); // no fix backtick, handle false/true literals, without backticks
             if (isBooleanLiteral(col)) {
-                return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()));
+                return new ConstantExpression(Boolean.parseBoolean(columnName.toLowerCase()), ColumnTypes.NOTNULL_BOOLEAN);
             }
             IntHolder indexInSchema = new IntHolder(-1);
-            Column found = findColumnInSchema(columnName, tableSchema, indexInSchema);
+            ColumnRef found = findColumnInSchema(tableAlias, columnName, tableSchema, indexInSchema);
             if (indexInSchema.value == -1 || found == null) {
-                checkSupported(false, "Column " + columnName + " not found in target table " + Arrays.toString(tableSchema));
+                String nameInError = tableAlias != null ? tableAlias + "." + columnName : columnName;
+                throw new StatementExecutionException("Column " + nameInError + " not found in target table (schema " + tableSchema + ")");
             }
-            return new AccessCurrentRowExpression(indexInSchema.value);
+            return new AccessCurrentRowExpression(indexInSchema.value, found.type);
         } else if (expression instanceof BinaryExpression) {
             return compileBinaryExpression((BinaryExpression) expression, tableSchema);
         } else if (expression instanceof IsNullExpression) {
@@ -117,15 +122,6 @@ public class SQLParserExpressionCompiler {
         } else if (expression instanceof NotExpression) {
             NotExpression eq = (NotExpression) expression;
             CompiledSQLExpression left = compileExpression(eq.getExpression(), tableSchema);
-            // trying to reproduce Calcite behaviour
-            // NOT (a <= 5)  -> (a > 5)
-            // this can be wrong while dealing with NULL values, but it is the current behaviour
-            if (left instanceof CompiledBinarySQLExpression) {
-                CompiledBinarySQLExpression binaryLeft = (CompiledBinarySQLExpression) left;
-                if (binaryLeft.isNegateSupported()) {
-                    return binaryLeft.negate();
-                }
-            }
             return new CompiledNotExpression(left);
         } else if (expression instanceof Parenthesis) {
             Parenthesis eq = (Parenthesis) expression;
@@ -142,7 +138,7 @@ public class SQLParserExpressionCompiler {
             checkSupported(eq.getRightExpression() == null);
             CompiledSQLExpression left = compileExpression(eq.getLeftExpression(), tableSchema);
             ItemsList rightItemsList = eq.getRightItemsList();
-            checkSupported(rightItemsList instanceof ExpressionList);
+            checkSupported(rightItemsList instanceof ExpressionList, "Sub Selects are not supported with jSQLParser");
             ExpressionList expressionList = (ExpressionList) rightItemsList;
             CompiledSQLExpression[] values = new CompiledSQLExpression[expressionList.getExpressions().size()];
             int i = 0;
@@ -166,7 +162,7 @@ public class SQLParserExpressionCompiler {
             List<CompiledSQLExpression> operands = new ArrayList<>();
             if (eq.getParameters() != null) {
                 for (Expression e : eq.getParameters().getExpressions()) {
-                    operands.add(compileExpression(e, tableSchema));
+                   operands.add(compileExpression(e, tableSchema));
                 }
             }
             switch (eq.getName().toUpperCase()) {
@@ -220,7 +216,7 @@ public class SQLParserExpressionCompiler {
             net.sf.jsqlparser.expression.CastExpression b = (net.sf.jsqlparser.expression.CastExpression) expression;
 
             CompiledSQLExpression left = compileExpression(b.getLeftExpression(), tableSchema);
-            int type = DDLSQLPlanner.sqlDataTypeToColumnType(b.getType());
+            int type = JSQLParserPlanner.sqlDataTypeToColumnType(b.getType());
             return new CastExpression(left, type);
         }
 //        else if (expression instanceof RexLiteral) {
@@ -337,7 +333,7 @@ public class SQLParserExpressionCompiler {
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
 
-    private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, Column[] tableSchema) {
+    private static CompiledSQLExpression compileBinaryExpression(BinaryExpression expression, OpSchema tableSchema) {
         CompiledSQLExpression left = compileExpression(expression.getLeftExpression(), tableSchema);
         CompiledSQLExpression right = compileExpression(expression.getRightExpression(), tableSchema);
         if (expression instanceof EqualsTo) {
@@ -371,7 +367,7 @@ public class SQLParserExpressionCompiler {
             }
             CompiledSQLExpression res;
             if (eq.getEscape() != null) {
-                CompiledSQLExpression escape = new ConstantExpression(eq.getEscape());
+                CompiledSQLExpression escape = new ConstantExpression(eq.getEscape(), ColumnTypes.NOTNULL_STRING);
                 res = new CompiledLikeExpression(left, right, escape);
             } else {
                 res = new CompiledLikeExpression(left, right);
@@ -419,11 +415,11 @@ public class SQLParserExpressionCompiler {
         return null;
     }
 
-    public static int getAggregateFunctionType(Expression exp, Column[] tableSchema) {
+    public static int getAggregateFunctionType(Expression exp, OpSchema tableSchema) {
         if (exp instanceof net.sf.jsqlparser.expression.CastExpression) {
             // SELECT CAST(avg(n) as DOUBLE)
             net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) exp;
-            return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+            return JSQLParserPlanner.sqlDataTypeToColumnType(c.getType());
         }
         Function fn = (Function) exp;
         String functionNameLowercase = fn.getName().toLowerCase();
@@ -440,12 +436,12 @@ public class SQLParserExpressionCompiler {
                 if (first instanceof net.sf.jsqlparser.expression.CastExpression) {
                     // SELECT AVG(CAST(n) as DOUBLE))
                     net.sf.jsqlparser.expression.CastExpression c = (net.sf.jsqlparser.expression.CastExpression) first;
-                    return DDLSQLPlanner.sqlDataTypeToColumnType(c.getType());
+                    return JSQLParserPlanner.sqlDataTypeToColumnType(c.getType());
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column, first.getClass());
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
-                checkSupported(cName.getTable() == null);
-                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                String tableAlias = extractTableName(cName);
+                ColumnRef col = findColumnInSchema(tableAlias, fixMySqlBackTicks(cName.getColumnName()), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 // SUM of INTEGERS is an INTEGER (this is what Calcite does, but it is smarter than this)
                 return col.type;
@@ -454,7 +450,7 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column getAggregateFunctionArgument(Function fn, Column[] tableSchema) {
+    public static ColumnRef getAggregateFunctionArgument(Function fn, OpSchema tableSchema) {
         String functionNameLowercase = fn.getName().toLowerCase();
         switch (functionNameLowercase) {
             case COUNT:
@@ -472,9 +468,9 @@ public class SQLParserExpressionCompiler {
                 }
                 checkSupported(first instanceof net.sf.jsqlparser.schema.Column);
                 net.sf.jsqlparser.schema.Column cName = (net.sf.jsqlparser.schema.Column) first;
-                checkSupported(cName.getTable() == null);
+                String tableAlias = extractTableName(cName);
                 // validate that it is a valid column referece in the input schema
-                Column col = findColumnInSchema(cName.getColumnName(), tableSchema, new IntHolder());
+                ColumnRef col = findColumnInSchema(tableAlias, fixMySqlBackTicks(cName.getColumnName()), tableSchema, new IntHolder());
                 checkSupported(col != null);
                 return col;
             default:
@@ -482,15 +478,51 @@ public class SQLParserExpressionCompiler {
         }
     }
 
-    public static Column findColumnInSchema(String columnName, Column[] tableSchema, IntHolder pos) {
+    public static ColumnRef findColumnInSchema(String tableName, String columnName, OpSchema tableSchema, IntHolder pos) {
+        columnName = fixMySqlBackTicks(columnName);
         pos.value = 0;
-        for (Column colInSchema : tableSchema) {
-            if (colInSchema.getName().equalsIgnoreCase(columnName)) {
-                return colInSchema;
+        if (tableName == null || tableName.equalsIgnoreCase(tableSchema.name)) {
+            for (ColumnRef colInSchema : tableSchema.columns) {
+                if (colInSchema.name.equalsIgnoreCase(columnName)
+                        && (colInSchema.tableName == null
+                        || tableName == null
+                        || colInSchema.tableName.equalsIgnoreCase(tableSchema.name))) {
+                    return colInSchema;
+                }
+                pos.value++;
             }
-            pos.value++;
+        } else {
+            for (ColumnRef colInSchema : tableSchema.columns) {
+                if (colInSchema.name.equalsIgnoreCase(columnName)
+                        && (colInSchema.tableName != null && colInSchema.tableName.equalsIgnoreCase(tableName)
+                            || tableName.equalsIgnoreCase(tableSchema.alias))) {
+                    return colInSchema;
+                }
+                pos.value++;
+            }
         }
         pos.value = -1;
         return null;
     }
+
+    public static String extractTableName(net.sf.jsqlparser.schema.Column col) {
+        if (col.getTable() != null) {
+            Table table = col.getTable();
+            checkSupported(table.getAlias() == null);
+            return fixMySqlBackTicks(table.getName());
+        }
+        return null;
+    }
+
+
+    public static String fixMySqlBackTicks(String s) {
+        if (s == null || s.length() < 2) {
+            return s;
+        }
+        if (s.startsWith("`") && s.endsWith("`")) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
 }

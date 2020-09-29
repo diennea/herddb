@@ -65,6 +65,7 @@ public final class RecordSerializer {
     public static Object deserialize(Bytes data, int type) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 return data.to_array();
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -76,12 +77,15 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_STRING:
                 return data.to_RawString();
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 return data.to_timestamp();
             case ColumnTypes.NULL:
                 return null;
             case ColumnTypes.BOOLEAN:
+            case ColumnTypes.NOTNULL_BOOLEAN:
                 return data.to_boolean();
             case ColumnTypes.DOUBLE:
+            case ColumnTypes.NOTNULL_DOUBLE:
                 return data.to_double();
             default:
                 throw new IllegalArgumentException("bad column type " + type);
@@ -455,7 +459,12 @@ public final class RecordSerializer {
                     return;
                 }
                 if (!(v instanceof java.sql.Timestamp)) {
-                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
+                    if (v instanceof String) {
+                        // handle mysql like queries
+                        v = (java.sql.Timestamp) convert(type, v.toString());
+                    } else {
+                        throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
+                    }
                 }
                 out.writeArray(Bytes.timestampToByteArray((java.sql.Timestamp) v));
                 return;
@@ -613,9 +622,13 @@ public final class RecordSerializer {
     }
 
     public static Object convert(int type, Object value) throws StatementExecutionException {
+        if (value == null && ColumnTypes.isNotNullDataType(type)) {
+            throw new StatementExecutionException("Cannot have null value in non-NULL type " + ColumnTypes.sqlDataType(type));
+        }
         // CHECKSTYLE.OFF: FallThrough
         switch (type) {
             case ColumnTypes.TIMESTAMP:
+            case ColumnTypes.NOTNULL_TIMESTAMP:
                 if ((value instanceof java.sql.Timestamp)) {
                     return value;
                 } else if (value instanceof RawString
@@ -644,21 +657,12 @@ public final class RecordSerializer {
                     }
                 }
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 if (value instanceof RawString) {
                     // TODO: apply a real conversion from MySQL dump format
                     return ((RawString) value).toByteArray();
                 }
                 return value;
-            case ColumnTypes.NOTNULL_INTEGER:
-            case ColumnTypes.NOTNULL_STRING:
-            case ColumnTypes.NOTNULL_LONG:
-            case ColumnTypes.NOTNULL_BYTEARRAY:
-            case ColumnTypes.NOTNULL_TIMESTAMP:
-            case ColumnTypes.NOTNULL_BOOLEAN:
-            case ColumnTypes.NOTNULL_DOUBLE:
-                if (value == null) {
-                    throw new StatementExecutionException("Cannot have null value in non null type " + ColumnTypes.sqlDataType(type));
-                }
             default:
                 return value;
         }

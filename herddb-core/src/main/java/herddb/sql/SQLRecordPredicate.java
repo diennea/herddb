@@ -26,8 +26,6 @@ import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-import herddb.model.Tuple;
-import herddb.model.TuplePredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
@@ -48,7 +46,7 @@ import net.sf.jsqlparser.expression.TimestampValue;
  *
  * @author enrico.olivelli
  */
-public class SQLRecordPredicate extends Predicate implements TuplePredicate {
+public class SQLRecordPredicate extends Predicate {
 
     private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
 
@@ -91,11 +89,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
                     : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
-    }
-
-    @Override
-    public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException {
-        return SQLRecordPredicateFunctions.toBoolean(where.evaluate(a, context));
     }
 
     @Override

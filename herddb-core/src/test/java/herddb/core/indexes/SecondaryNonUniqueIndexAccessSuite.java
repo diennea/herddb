@@ -826,7 +826,7 @@ public abstract class SecondaryNonUniqueIndexAccessSuite {
                 }
             }
 
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * "
                         + "FROM q1.q1_message "
                         + "WHERE id in "
@@ -840,7 +840,7 @@ public abstract class SecondaryNonUniqueIndexAccessSuite {
                 }
             }
 
-            {
+            if (manager.isFullSQLSupportEnabled()) {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * "
                         + "FROM q1.q1_message "
                         + "WHERE id in "

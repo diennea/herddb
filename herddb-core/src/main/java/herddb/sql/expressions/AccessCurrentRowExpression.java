@@ -20,6 +20,7 @@
 
 package herddb.sql.expressions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
@@ -34,9 +35,11 @@ import java.util.Arrays;
 public class AccessCurrentRowExpression implements CompiledSQLExpression {
 
     private final int index;
+    private final int expectedType;
 
-    public AccessCurrentRowExpression(int index) {
+    public AccessCurrentRowExpression(int index, int type) {
         this.index = index;
+        this.expectedType = type;
     }
 
     @Override
@@ -79,7 +82,7 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
 
     @Override
     public String toString() {
-        return "AccessCurrentRow{" + index + '}';
+        return "AccessCurrentRow{" + index + ", type=" + ColumnTypes.typeToString(expectedType) + '}';
     }
 
     @Override
@@ -89,7 +92,11 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
         if (_index < 0) {
             throw new IllegalStateException("column " + index + " not in pk, projection:" + Arrays.toString(projection));
         }
-        return new AccessCurrentRowExpression(_index);
+        return new AccessCurrentRowExpression(_index, expectedType);
+    }
+
+    public int getExpectedType() {
+        return expectedType;
     }
 
 }

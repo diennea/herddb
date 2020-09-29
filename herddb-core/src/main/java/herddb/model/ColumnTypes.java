@@ -111,20 +111,30 @@ public class ColumnTypes {
     public static int getNonNullTypeForPrimitiveType(int type) throws StatementExecutionException {
         switch (type) {
             case STRING:
+            case NOTNULL_STRING:
                 return NOTNULL_STRING;
             case INTEGER:
+            case NOTNULL_INTEGER:
                 return NOTNULL_INTEGER;
             case LONG:
+            case NOTNULL_LONG:
                 return NOTNULL_LONG;
             case BYTEARRAY:
+            case NOTNULL_BYTEARRAY:
                 return NOTNULL_BYTEARRAY;
             case TIMESTAMP:
+            case NOTNULL_TIMESTAMP:
                 return NOTNULL_TIMESTAMP;
             case DOUBLE:
+            case NOTNULL_DOUBLE:
                 return NOTNULL_DOUBLE;
             case BOOLEAN:
+            case NOTNULL_BOOLEAN:
                 return NOTNULL_BOOLEAN;
             case NULL:
+            case ANYTYPE:
+                // not much sense
+                return type;
             default:
                 throw new StatementExecutionException("Not null constraints not supported for column type " + type);
         }
@@ -193,6 +203,13 @@ public class ColumnTypes {
             default:
                 return Types.OTHER;
         }
+    }
+
+    public static boolean sameRawDataType(int type, int otherType) {
+        if (type == otherType) {
+            return true;
+        }
+        return getNonNullTypeForPrimitiveType(type) != getNonNullTypeForPrimitiveType(otherType);
     }
 
     public static boolean isNotNullToNullConversion(int oldType, int newType) {

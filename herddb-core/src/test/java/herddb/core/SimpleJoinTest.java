@@ -85,10 +85,12 @@ public class SimpleJoinTest {
                     + " ON t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
                 translated.context.setForceRetainReadLock(true);
-                assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
-                NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
-                assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
-                assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                if (manager.getPlanner() instanceof CalcitePlanner) {
+                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                }
                 // we want that the left branch of the join starts the transactoion
                 ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
                 List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
@@ -128,6 +130,105 @@ public class SimpleJoinTest {
 
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('c',3,'A')", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('d',4,'A')", Collections.emptyList());
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                        + " tblspace1.table3 t3"
+                        + " LEFT JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
+                         Collections.emptyList()).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n3", t.getFieldNames()[1]);
+                    assertEquals("s3", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n3", 1, "s3", "A",
+                        "k2", null, "n2", null, "s2", null
+                ))));
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n3", 3, "s3", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                        + " tblspace1.table3 t3"
+                        + " RIGHT JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
+                         Collections.emptyList()).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n3", t.getFieldNames()[1]);
+                    assertEquals("s3", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n3", 3, "s3", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", null, "n3", null, "s3", null,
+                        "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
+                        + " tblspace1.table3 t3"
+                        + " FULL OUTER JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
+                         Collections.emptyList()).consumeAndClose();
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n3", t.getFieldNames()[1]);
+                    assertEquals("s3", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(3, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n3", 3, "s3", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                ))));
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", null, "n3", null, "s3", null,
+                        "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", null, "n3", null, "s3", null,
+                        "k2", "d", "n2", 4, "s2", "A"
+                ))));
+
+            }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
@@ -783,8 +884,7 @@ public class SimpleJoinTest {
                         ))));
 
             }
-            if (manager.getPlanner() instanceof CalcitePlanner) {
-
+            {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2, t1.s1, t2.s2 FROM"
                         + " tblspace1.table1 t1 "
                         + " LEFT JOIN tblspace1.table2 t2 "
@@ -802,20 +902,18 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "k2", "c", "s1", "A", "s2", "A"
-                        ))));
+                        "k1", "a", "k2", "c", "s1", "A", "s2", "A"
+                ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "k2", "d", "s1", "A", "s2", "A"
-                        ))));
+                        "k1", "a", "k2", "d", "s1", "A", "s2", "A"
+                ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "b", "k2", null, "s1", "B", "s2", null
-                        ))));
-
+                        "k1", "b", "k2", null, "s1", "B", "s2", null
+                ))));
             }
-            if (manager.getPlanner() instanceof CalcitePlanner) {
-
+            {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2, t1.s1, t2.s2 FROM"
                         + " tblspace1.table1 t1 "
                         + " RIGHT JOIN tblspace1.table2 t2 "
@@ -833,14 +931,14 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "k2", "c", "s1", "A", "s2", "A"
-                        ))));
+                        "k1", "a", "k2", "c", "s1", "A", "s2", "A"
+                ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "k2", "d", "s1", "A", "s2", "A"
-                        ))));
-
+                        "k1", "a", "k2", "d", "s1", "A", "s2", "A"
+                ))));
             }
+
         }
     }
 
@@ -953,7 +1051,6 @@ public class SimpleJoinTest {
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath),
                 tmoDir, null)) {
-            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
             manager.start();
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
 

@@ -73,7 +73,7 @@ import herddb.server.ServerConfiguration;
 import herddb.server.ServerSidePreparedStatementCache;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.DDLSQLPlanner;
+import herddb.sql.JSQLParserPlanner;
 import herddb.sql.NullSQLPlanner;
 import herddb.sql.PlansCache;
 import herddb.storage.DataStorageManager;
@@ -227,11 +227,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 break;
             case ServerConfiguration.PLANNER_TYPE_JSQLPARSER:
                  // no Calcite fallback, you can drop Calcite dependecy
-                planner = new DDLSQLPlanner(this, plansCache, null);
+                planner = new JSQLParserPlanner(this, plansCache, null);
                 break;
             case ServerConfiguration.PLANNER_TYPE_AUTO:
                 // try with jSQLParser, fallback to Calcite
-                planner = new DDLSQLPlanner(this, plansCache,
+                planner = new JSQLParserPlanner(this, plansCache,
                         new CalcitePlanner(this, plansCache));
                 break;
             case ServerConfiguration.PLANNER_TYPE_NONE:
@@ -1443,4 +1443,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return this.mainStatsLogger;
     }
 
+    // visible
+    public boolean isFullSQLSupportEnabled() {
+         String plannerType = serverConfiguration.getString(ServerConfiguration.PROPERTY_PLANNER_TYPE,
+                ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
+        return plannerType.equals(ServerConfiguration.PLANNER_TYPE_CALCITE)
+                            || plannerType.equals(ServerConfiguration.PLANNER_TYPE_AUTO);
+    }
 }

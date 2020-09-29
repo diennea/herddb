@@ -20,6 +20,7 @@
 
 package herddb.sql.expressions;
 
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 
@@ -57,6 +58,20 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
     public CompiledSQLExpression getRight() {
         return right;
+    }
+
+    @Override
+    public CompiledSQLExpression simplify() {
+        if (left instanceof AccessCurrentRowExpression
+                && right instanceof ConstantExpression)  {
+            AccessCurrentRowExpression r = (AccessCurrentRowExpression) left;
+            int expectedType = r.getExpectedType();
+            ConstantExpression constType = (ConstantExpression) right;
+            if (ColumnTypes.sameRawDataType(constType.getType(), expectedType)) {
+                return new CompiledEqualsExpression(left, constType.cast(expectedType));
+            }
+        }
+        return this;
     }
 
 }

@@ -34,8 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import net.sf.jsqlparser.schema.Column;
 
 /**
  * Record mutator using SQL
@@ -46,16 +44,6 @@ public class SQLRecordFunction extends RecordFunction {
 
     private final Table table;
     private final Map<String, CompiledSQLExpression> expressionsByColumnName;
-
-    public SQLRecordFunction(Table table, List<Column> columns, List<CompiledSQLExpression> expressions) {
-        this.table = table;
-        List<String> _columns = columns.stream().map(Column::getColumnName).collect(Collectors.toList());
-        this.expressionsByColumnName = new HashMap<>();
-        final int size = _columns.size();
-        for (int i = 0; i < size; i++) {
-            expressionsByColumnName.put(_columns.get(i), expressions.get(i));
-        }
-    }
 
     public SQLRecordFunction(List<String> columns, Table table, List<CompiledSQLExpression> expressions) {
         this.table = table;

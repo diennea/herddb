@@ -61,4 +61,12 @@ public class CompiledIsNullExpression implements CompiledSQLExpression {
         return "CompiledIsNullExpression{" + "left=" + left + ", not=" + not + '}';
     }
 
+    public CompiledSQLExpression getLeft() {
+        return left;
+    }
+
+    public boolean isNot() {
+        return not;
+    }
+
 }

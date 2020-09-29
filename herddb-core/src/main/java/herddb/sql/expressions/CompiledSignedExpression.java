@@ -70,4 +70,20 @@ public class CompiledSignedExpression implements CompiledSQLExpression {
         inner.validate(context);
     }
 
+    @Override
+    public CompiledSQLExpression simplify() {
+        if (inner instanceof ConstantExpression) {
+            ConstantExpression con = (ConstantExpression) inner;
+            Object rawValue = con.getValue();
+            if (rawValue instanceof Integer) {
+                return new ConstantExpression(-((Integer) rawValue), con.getType());
+            } else if (rawValue instanceof Long) {
+                return new ConstantExpression(-((Long) rawValue), con.getType());
+            } else if (rawValue instanceof Double) {
+                return new ConstantExpression(-((Double) rawValue), con.getType());
+            }
+        }
+        return this;
+    }
+
 }
