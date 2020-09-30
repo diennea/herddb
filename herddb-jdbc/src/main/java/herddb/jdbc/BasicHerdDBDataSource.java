@@ -26,6 +26,8 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import herddb.utils.QueryParser;
+
 import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -36,13 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
-
-import org.apache.commons.pool2.PooledObject;
-import org.apache.commons.pool2.PooledObjectFactory;
-import org.apache.commons.pool2.impl.DefaultPooledObject;
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 /**
  * HerdDB DataSource
@@ -164,18 +159,14 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     public synchronized void setUrl(String url) {
         this.url = url;
-        final int sep = url.indexOf('?');
-        if (sep > 0) {
-            final String sub = url.substring(sep + 1);
-            if (!sub.isEmpty()) {
-                Stream.of(sub.split("&"))
-                        .map(it -> {
-                            final int subSep = it.indexOf('=');
-                            return subSep > 0 ? new String[]{it.substring(0, subSep), it.substring(subSep + 1)} : new String[]{it, ""};
-                        })
-                        .forEach(pair -> properties.setProperty(pair[0], pair[1]));
+        client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_INITIALIZED, "true");
+        QueryParser.parseQueryKeyPairs(url).forEach(pair -> {
+            if (pair[0].startsWith("client.") && client != null) {
+                client.getConfiguration().set(pair[0], pair[1]);
+            } else {
+                properties.setProperty(pair[0], pair[1]);
             }
-        }
+        });
     }
 
     public synchronized boolean isPoolConnections() {
@@ -219,6 +210,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             if (properties.containsKey("discoverTableSpaceFromQuery")) {
                 this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
             }
+            properties.stringPropertyNames().stream()
+                    .filter(it -> it.startsWith("client."))
+                    .forEach(key -> clientConfiguration.set(key, properties.getProperty(key)));
             client = new HDBClient(clientConfiguration);
         }
         if (poolRuntime == null) {

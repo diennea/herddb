@@ -20,6 +20,8 @@
 
 package herddb.client;
 
+import herddb.utils.QueryParser;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -102,6 +104,9 @@ public class ClientConfiguration {
 
     public static final String PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER = "client.network.connect.localvm";
     public static final boolean PROPERTY_CLIENT_CONNECT_LOCALVM_SERVER_DEFAULT = true;
+
+    public static final String PROPERTY_CLIENT_INITIALIZED = "client.initialized";
+    public static final boolean PROPERTY_CLIENT_INITIALIZED_DEFAULT = false;
 
 
     public ClientConfiguration(Properties properties) {
@@ -210,6 +215,9 @@ public class ClientConfiguration {
             set(PROPERTY_CLIENT_CALLBACKS, 0);
             set(PROPERTY_MAX_CONNECTIONS_PER_SERVER, 1);
             set(PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, false);
+        }
+        if (!getBoolean(ClientConfiguration.PROPERTY_CLIENT_INITIALIZED, PROPERTY_CLIENT_INITIALIZED_DEFAULT)) {
+            QueryParser.parseQueryKeyPairs(url).forEach(kv -> set(kv[0], kv[1]));
         }
         readAdditionalProperties();
 
