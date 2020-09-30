@@ -27,7 +27,6 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
 import herddb.utils.QueryParser;
-
 import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -159,7 +158,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     public synchronized void setUrl(String url) {
         this.url = url;
-        client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_INITIALIZED, "true");
+        if (client != null) {
+            client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_INITIALIZED, "true");
+        }
         QueryParser.parseQueryKeyPairs(url).forEach(pair -> {
             if (pair[0].startsWith("client.") && client != null) {
                 client.getConfiguration().set(pair[0], pair[1]);
