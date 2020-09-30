@@ -18,7 +18,7 @@
 
  */
 
-package herddb.core;
+package herddb.sql;
 
 import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.commitTransaction;
@@ -31,6 +31,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;

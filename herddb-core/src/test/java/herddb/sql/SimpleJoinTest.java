@@ -18,7 +18,7 @@
 
  */
 
-package herddb.core;
+package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
@@ -27,6 +27,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -41,8 +43,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.planner.NestedLoopJoinOp;
 import herddb.model.planner.SimpleScanOp;
-import herddb.sql.CalcitePlanner;
-import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
@@ -104,6 +104,65 @@ public class SimpleJoinTest {
                     assertEquals("k2", t.getFieldNames()[3]);
                     assertEquals("n2", t.getFieldNames()[4]);
                     assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+                TestUtils.commitTransaction(manager, "tblspace1", scanResult.transactionId);
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM"
+                        + " tblspace1.table1 t1"
+                        + " JOIN tblspace1.table2 t2"
+                        + " ON t1.n1 > 0"
+                        + "   and t2.n2 >= 1"
+                        + "   order by t1.n1, t2.n2", Collections.emptyList(), true, true, false, -1); // with order by
+                translated.context.setForceRetainReadLock(true);
+                if (manager.getPlanner() instanceof CalcitePlanner) {
+                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                }
+                // we want that the left branch of the join starts the transactoion
+                ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
+                List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
+                assertTrue(scanResult.transactionId > 0);
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(6, t.getFieldNames().length);
+                    assertEquals("k1", t.getFieldNames()[0]);
+                    assertEquals("n1", t.getFieldNames()[1]);
+                    assertEquals("s1", t.getFieldNames()[2]);
+                    assertEquals("k2", t.getFieldNames()[3]);
+                    assertEquals("n2", t.getFieldNames()[4]);
+                    assertEquals("s2", t.getFieldNames()[5]);
+                }
+                assertEquals(4, tuples.size());
+                TestUtils.commitTransaction(manager, "tblspace1", scanResult.transactionId);
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT t1.s1 FROM"
+                        + " tblspace1.table1 t1"
+                        + " JOIN tblspace1.table2 t2"
+                        + " ON t1.n1 > 0"
+                        + "   and t2.n2 >= 1"
+                        + "   order by t1.n1, t2.n2", Collections.emptyList(), true, true, false, -1); // with order by on non selected fields
+                translated.context.setForceRetainReadLock(true);
+                if (manager.getPlanner() instanceof CalcitePlanner) {
+                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                }
+                // we want that the left branch of the join starts the transactoion
+                ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
+                List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
+                assertTrue(scanResult.transactionId > 0);
+                for (DataAccessor t : tuples) {
+                    System.out.println("t:" + t);
+                    assertEquals(1, t.getFieldNames().length);
+                    assertEquals("s1", t.getFieldNames()[0]);
                 }
                 assertEquals(4, tuples.size());
                 TestUtils.commitTransaction(manager, "tblspace1", scanResult.transactionId);

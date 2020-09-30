@@ -18,13 +18,15 @@
 
  */
 
-package herddb.core;
+package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import herddb.core.DBManager;
+import herddb.core.RunningStatementInfo;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;

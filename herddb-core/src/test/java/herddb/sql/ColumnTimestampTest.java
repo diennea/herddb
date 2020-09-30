@@ -18,11 +18,12 @@
 
 */
 
-package herddb.core;
+package herddb.sql;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
+import herddb.core.BaseTestcase;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.Record;

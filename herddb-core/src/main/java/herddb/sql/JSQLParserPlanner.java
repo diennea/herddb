@@ -1576,24 +1576,19 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         // add aggregations
         if (containsAggregatedFunctions) {
             checkSupported(scanJoinedTables.length == 0);
-            OpSchema opSchema = new OpSchema(
+            op = planAggregate(selectedFields, currentSchema, op, currentSchema, plainSelect.getGroupBy());
+            currentSchema = new OpSchema(
                     currentSchema.tableSpace,
                     currentSchema.name,
                     currentSchema.alias,
                     ColumnRef.toColumnsRefsArray(currentSchema.name, op.getOutputSchema()));
-            op = planAggregate(selectedFields, opSchema, op, currentSchema, plainSelect.getGroupBy());
         }
 
         // TODO: add having
 
         // add order by
         if (plainSelect.getOrderByElements() != null) {
-            OpSchema opSchema = new OpSchema(
-                    currentSchema.tableSpace,
-                    currentSchema.name,
-                    currentSchema.alias,
-                    ColumnRef.toColumnsRefsArray(currentSchema.name, op.getOutputSchema()));
-            op = planSort(op, opSchema, plainSelect.getOrderByElements());
+            op = planSort(op, currentSchema, plainSelect.getOrderByElements());
         }
 
         // add limit
