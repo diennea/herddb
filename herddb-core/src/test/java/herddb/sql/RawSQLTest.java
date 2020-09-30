@@ -18,7 +18,7 @@
 
  */
 
-package herddb.core;
+package herddb.sql;
 
 import static herddb.core.TestUtils.commitTransaction;
 import static herddb.core.TestUtils.execute;
@@ -40,6 +40,9 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 import herddb.codec.DataAccessorForFullRecord;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractIndexManager;
+import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -66,9 +69,6 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
-import herddb.sql.CalcitePlanner;
-import herddb.sql.JSQLParserPlanner;
-import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
@@ -1159,16 +1159,16 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
 
-//            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
-//                List<DataAccessor> result = scan1.consume();
-//                assertArrayEquals(new String[]{"k1", "n1", "s1"}, scan1.getFieldNames());
-//                assertEquals(3, result.size());
-//                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
-//                assertEquals(RawString.of("mykey"), result.get(0).get(0));
-//            }
-            try (DataScanner scan1 = scan(manager, "SELECT k1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList())) {
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
-                assertArrayEquals(new String[]{"k1"}, scan1.getFieldNames());
+                assertArrayEquals(new String[]{"k1", "n1", "s1"}, scan1.getFieldNames());
+                assertEquals(3, result.size());
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get(0));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY tsql.k1", Collections.emptyList());) {
+                List<DataAccessor> result = scan1.consume();
+                assertArrayEquals(new String[]{"k1", "n1", "s1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), result.get(0).get(0));
@@ -1594,7 +1594,6 @@ public class RawSQLTest {
                 assertEquals(null, result.get(2).get(1));
                 assertEquals(null, result.get(2).get("s1"));
             }
-
             try (DataScanner scan1 = scan(manager, "SELECT CAST(AVG(n1) as DOUBLE) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList())) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());

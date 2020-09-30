@@ -204,4 +204,12 @@ public class JoinOp implements PlannerOp {
         return columns;
     }
 
+    public PlannerOp getLeft() {
+        return left;
+    }
+
+    public PlannerOp getRight() {
+        return right;
+    }
+
 }
