@@ -22,6 +22,7 @@ package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
@@ -46,6 +47,7 @@ public class BetterExecuteSyntaxTest {
 
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
 
