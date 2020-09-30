@@ -1,23 +1,22 @@
 /*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
+ * Licensed to Diennea S.r.l. under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Diennea S.r.l. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
  */
-
 package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
@@ -41,8 +40,11 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.planner.JoinOp;
 import herddb.model.planner.NestedLoopJoinOp;
+import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SimpleScanOp;
+import herddb.model.planner.SortOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
@@ -80,10 +82,10 @@ public class SimpleJoinTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM"
-                    + " tblspace1.table1 t1"
-                    + " JOIN tblspace1.table2 t2"
-                    + " ON t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
+                        + " tblspace1.table1 t1"
+                        + " JOIN tblspace1.table2 t2"
+                        + " ON t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList(), true, true, false, -1);
                 translated.context.setForceRetainReadLock(true);
                 if (manager.getPlanner() instanceof CalcitePlanner) {
                     assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
@@ -117,12 +119,18 @@ public class SimpleJoinTest {
                         + "   and t2.n2 >= 1"
                         + "   order by t1.n1, t2.n2", Collections.emptyList(), true, true, false, -1); // with order by
                 translated.context.setForceRetainReadLock(true);
+
+                assertThat(translated.plan.originalRoot, instanceOf(SortOp.class));
                 if (manager.getPlanner() instanceof CalcitePlanner) {
-                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
-                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) ((SortOp) translated.plan.originalRoot).getInput();
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                } else {
+                    JoinOp join = (JoinOp) ((SortOp) translated.plan.originalRoot).getInput();
                     assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
                     assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
                 }
+
                 // we want that the left branch of the join starts the transactoion
                 ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
                 List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
@@ -149,12 +157,20 @@ public class SimpleJoinTest {
                         + "   and t2.n2 >= 1"
                         + "   order by t1.n1, t2.n2", Collections.emptyList(), true, true, false, -1); // with order by on non selected fields
                 translated.context.setForceRetainReadLock(true);
+
+                assertThat(translated.plan.originalRoot, instanceOf(ProjectOp.class));
+                SortOp sort = (SortOp) ((ProjectOp) translated.plan.originalRoot).getInput();
+                assertThat(((ProjectOp) translated.plan.originalRoot).getProjection(), instanceOf(ProjectOp.ZeroCopyProjection.class));
                 if (manager.getPlanner() instanceof CalcitePlanner) {
-                    assertThat(translated.plan.originalRoot, instanceOf(NestedLoopJoinOp.class));
-                    NestedLoopJoinOp join = (NestedLoopJoinOp) translated.plan.originalRoot;
+                    NestedLoopJoinOp join = (NestedLoopJoinOp) sort.getInput();
+                    assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
+                    assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
+                } else {
+                    JoinOp join = (JoinOp) sort.getInput();
                     assertThat(join.getLeft(), instanceOf(SimpleScanOp.class));
                     assertThat(join.getRight(), instanceOf(SimpleScanOp.class));
                 }
+
                 // we want that the left branch of the join starts the transactoion
                 ScanResult scanResult = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.AUTOTRANSACTION_TRANSACTION));
                 List<DataAccessor> tuples = scanResult.dataScanner.consumeAndClose();
@@ -169,6 +185,7 @@ public class SimpleJoinTest {
             }
         }
     }
+
     @Test
     public void testSimpleJoinNoWhere() throws Exception {
         String nodeId = "localhost";
@@ -194,7 +211,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                         + " tblspace1.table3 t3"
                         + " LEFT JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
-                         Collections.emptyList()).consumeAndClose();
+                        Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
                     assertEquals(6, t.getFieldNames().length);
@@ -225,7 +242,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                         + " tblspace1.table3 t3"
                         + " RIGHT JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
-                         Collections.emptyList()).consumeAndClose();
+                        Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
                     assertEquals(6, t.getFieldNames().length);
@@ -256,7 +273,7 @@ public class SimpleJoinTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
                         + " tblspace1.table3 t3"
                         + " FULL OUTER JOIN tblspace1.table2 t2 ON t3.n3 = t2.n2",
-                         Collections.emptyList()).consumeAndClose();
+                        Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
                     assertEquals(6, t.getFieldNames().length);
@@ -291,10 +308,10 @@ public class SimpleJoinTest {
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
                     assertEquals(6, t.getFieldNames().length);
@@ -308,37 +325,37 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
-                    + " tblspace1.table1 t1 "
-                    + " NATURAL JOIN tblspace1.table2 t2 "
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " NATURAL JOIN tblspace1.table2 t2 "
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(2, t.getFieldNames().length);
@@ -348,37 +365,37 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a",
-                    "k2", "c"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a",
+                        "k2", "c"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a",
-                    "k2", "d"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a",
+                        "k2", "d"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b",
-                    "k2", "c"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b",
+                        "k2", "c"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b",
-                    "k2", "d"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b",
+                        "k2", "d"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
-                    + " tblspace1.table1 t1 "
-                    + " NATURAL JOIN tblspace1.table2 t2 "
-                    + " WHERE t1.n1 >= 2"
-                    + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " NATURAL JOIN tblspace1.table2 t2 "
+                        + " WHERE t1.n1 >= 2"
+                        + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(2, t.getFieldNames().length);
@@ -388,19 +405,19 @@ public class SimpleJoinTest {
                 assertEquals(1, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b",
-                    "k2", "d"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b",
+                        "k2", "d"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.*,t2.* FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -414,37 +431,37 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.* FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(3, t.getFieldNames().length);
@@ -455,33 +472,33 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t2.* FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(3, t.getFieldNames().length);
@@ -492,33 +509,33 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t2.s2 FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 1", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(1, t.getFieldNames().length);
@@ -527,33 +544,33 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 > 0"
-                    + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 > 0"
+                        + "   and t2.n2 >= 4", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -567,24 +584,24 @@ public class SimpleJoinTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM"
-                    + " tblspace1.table1 t1"
-                    + " NATURAL JOIN tblspace1.table2 t2"
-                    + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1"
+                        + " NATURAL JOIN tblspace1.table2 t2"
+                        + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -598,37 +615,37 @@ public class SimpleJoinTest {
                 assertEquals(4, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "d", "n2", 4, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
-                    + " tblspace1.table1 t1 "
-                    + " NATURAL JOIN tblspace1.table2 t2 "
-                    + " WHERE t1.n1 <= t2.n2 "
-                    + "and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " NATURAL JOIN tblspace1.table2 t2 "
+                        + " WHERE t1.n1 <= t2.n2 "
+                        + "and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -642,24 +659,24 @@ public class SimpleJoinTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM "
-                    + " tblspace1.table1 t1 "
-                    + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
-                    + " and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
+                        + " and t2.n2 <= 3", Collections.emptyList()).consumeAndClose();
                 for (DataAccessor t : tuples) {
 
                     assertEquals(6, t.getFieldNames().length);
@@ -673,15 +690,15 @@ public class SimpleJoinTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "a", "n1", 1, "s1", "A",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
                 assertTrue(
-                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                    "k1", "b", "n1", 2, "s1", "B",
-                    "k2", "c", "n2", 3, "s2", "A"
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
                 ))));
 
             }
@@ -700,14 +717,14 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "first", "a",
-                                "seco", "a"
-                        ))));
+                        "first", "a",
+                        "seco", "a"
+                ))));
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "first", "b",
-                                "seco", "b"
-                        ))));
+                        "first", "b",
+                        "seco", "b"
+                ))));
             }
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
@@ -724,11 +741,10 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "first", "b",
-                                "seco", "b"
-                        ))));
+                        "first", "b",
+                        "seco", "b"
+                ))));
             }
-
 
             {
                 List<DataAccessor> tuples = scan(manager, "SELECT t1.k1 as first, t2.k1 as seco FROM"
@@ -745,9 +761,9 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "first", "b",
-                                "seco", "b"
-                        ))));
+                        "first", "b",
+                        "seco", "b"
+                ))));
 
             }
 
@@ -767,27 +783,27 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "s1", "A",
-                                "k2", "c", "n2", 3
-                        ))));
+                        "s1", "A",
+                        "k2", "c", "n2", 3
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "s1", "A",
-                                "k2", "d", "n2", 4
-                        ))));
+                        "s1", "A",
+                        "k2", "d", "n2", 4
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "s1", "B",
-                                "k2", "c", "n2", 3
-                        ))));
+                        "s1", "B",
+                        "k2", "c", "n2", 3
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "s1", "B",
-                                "k2", "d", "n2", 4
-                        ))));
+                        "s1", "B",
+                        "k2", "d", "n2", 4
+                ))));
 
             }
 
@@ -811,27 +827,27 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "n1", 1, "s1", "A",
-                                "k2", "c", "n2", 3, "s2", "A"
-                        ))));
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a", "n1", 1, "s1", "A",
-                                "k2", "d", "n2", 4, "s2", "A"
-                        ))));
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "b", "n1", 2, "s1", "B",
-                                "k2", "c", "n2", 3, "s2", "A"
-                        ))));
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "b", "n1", 2, "s1", "B",
-                                "k2", "d", "n2", 4, "s2", "A"
-                        ))));
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
+                ))));
 
             }
 
@@ -938,9 +954,9 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", "a",
-                                "k2", "d"
-                        ))));
+                        "k1", "a",
+                        "k2", "d"
+                ))));
 
             }
             {
@@ -1023,8 +1039,8 @@ public class SimpleJoinTest {
             {
                 List<DataAccessor> tuples = scan(manager,
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
-                                + " tblspace1.table1 t1 "
-                                + " group by k1", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " group by k1", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
@@ -1038,22 +1054,22 @@ public class SimpleJoinTest {
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4
-                        ))));
+                        "k1", RawString.of("a"), "maxn1", 1, "maxn2", 4
+                ))));
 
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                                "k1", RawString.of("b"), "maxn1", 2, "maxn2", null
-                        ))));
+                        "k1", RawString.of("b"), "maxn1", 2, "maxn2", null
+                ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager,
                         "SELECT t1.k1, max(n1) as maxn1, max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) as maxn2 FROM "
-                                + " tblspace1.table1 t1 "
-                                + " group by k1"
-                                + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consumeAndClose();
+                        + " tblspace1.table1 t1 "
+                        + " group by k1"
+                        + " order by max(select n2 from tblspace1.table2 t2 WHERE t1.s1=t2.s2) desc", Collections.emptyList()).consumeAndClose();
 
                 for (DataAccessor t : tuples) {
                     System.out.println("t:" + t);
@@ -1075,7 +1091,7 @@ public class SimpleJoinTest {
 
             }
 
-             execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('a',1,'A')", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.table2 (k2,n2,s2) values('a',1,'A')", Collections.emptyList());
 
             {
 
@@ -1271,5 +1287,3 @@ public class SimpleJoinTest {
 
     }
 }
-
-
