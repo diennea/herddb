@@ -53,6 +53,7 @@ public class DataConsistencyCheckTest {
 
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 'consistence'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
             execute(manager, "CREATE TABLE consistence.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -94,6 +95,7 @@ public class DataConsistencyCheckTest {
         String tableName = "t1";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
             Table table = Table
@@ -121,6 +123,7 @@ public class DataConsistencyCheckTest {
         String tableName = "t1";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
             Table table = Table
@@ -147,6 +150,7 @@ public class DataConsistencyCheckTest {
         String tableSpaceName = "tblspace1";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
             manager.waitForTablespace(tableSpaceName, 10000, false);
@@ -189,6 +193,7 @@ public class DataConsistencyCheckTest {
         String tableName = "nulltable";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
             execute(manager, "CREATE TABLESPACE 't1'", Collections.emptyList());
             manager.waitForTablespace(tableSpaceName, 10000);
             Table table = Table

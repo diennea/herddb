@@ -38,6 +38,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
+import herddb.model.NotLeaderException;
 import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
@@ -739,7 +740,7 @@ public class CalcitePlannerTest {
         }
     }
 
-    @Test(expected = TableSpaceDoesNotExistException.class)
+    @Test(expected = NotLeaderException.class)
     public void showCreateTable_Non_Existent_TableSpace() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
