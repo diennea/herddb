@@ -46,7 +46,6 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
-import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
