@@ -71,7 +71,6 @@ import herddb.sql.expressions.JdbcParameterExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.SQLUtils;
-import herddb.utils.SystemProperties;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -179,8 +178,6 @@ public class CalcitePlanner extends AbstractSQLPlanner {
     /**
      * Time to wait for the requested tablespace to be up
      */
-    private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
-    private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
 
     private static final Pattern USE_DDL_PARSER = Pattern.compile("^[\\s]*(EXECUTE|CREATE|DROP|ALTER|TRUNCATE|BEGIN|COMMIT|ROLLBACK).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
@@ -394,9 +391,9 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.INFO, "schema {0} not available yet, after waiting {1}/{2} ms",
-                    new Object[]{defaultTableSpace, delta, WAIT_FOR_SCHEMA_UP_TIMEOUT});
-            if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
+            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
+                    new Object[]{defaultTableSpace, delta, waitForSchemaTimeout});
+            if (delta >= waitForSchemaTimeout) {
                 return null;
             }
             clearCache();

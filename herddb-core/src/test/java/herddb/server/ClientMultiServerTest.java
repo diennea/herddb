@@ -97,6 +97,7 @@ public class ClientMultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PLANNER_WAITFORTABLESPACE_TIMEOUT, 1000);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()

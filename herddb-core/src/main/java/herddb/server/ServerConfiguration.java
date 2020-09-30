@@ -290,6 +290,9 @@ public final class ServerConfiguration {
     public static final String PLANNER_TYPE_AUTO = "auto";
     public static final String PROPERTY_PLANNER_TYPE_DEFAULT = System.getProperty("herdddb.defaultplannertype", PLANNER_TYPE_CALCITE);
 
+    public static final String PROPERTY_PLANNER_WAITFORTABLESPACE_TIMEOUT = "server.planner.waitfortablespace.timeout";
+    public static final int PROPERTY_PLANNER_WAITFORTABLESPACE_TIMEOUT_DEFAULT = SystemProperties.getIntSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
+
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();
         this.properties.putAll(properties);
