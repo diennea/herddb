@@ -22,12 +22,9 @@ package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
 import static org.junit.Assert.assertEquals;
-<<<<<<< HEAD:herddb-core/src/test/java/herddb/sql/BetterExecuteSyntaxTest.java
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.core.TestUtils;
-=======
-import static org.junit.Assert.assertTrue;
->>>>>>> fix flaky tests:herddb-core/src/test/java/herddb/core/BetterExecuteSyntaxTest.java
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
