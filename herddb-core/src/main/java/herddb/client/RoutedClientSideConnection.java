@@ -103,17 +103,17 @@ public class RoutedClientSideConnection implements ChannelEventListener {
     }
 
     private void performAuthentication(Channel channel, String serverHostname) throws Exception {
-        SaslNettyClient saslNettyClient = new SaslNettyClient(
-                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
-                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
-                serverHostname
-        );
-
         // no need to perform auth in "local" mode
         String mode = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_STANDALONE);
         if (ClientConfiguration.PROPERTY_MODE_LOCAL.equals(mode) && channel.isLocalChannel()) {
             return;
         }
+
+        SaslNettyClient saslNettyClient = new SaslNettyClient(
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
+                serverHostname
+        );
 
         byte[] firstToken = new byte[0];
         if (saslNettyClient.hasInitialResponse()) {

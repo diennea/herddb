@@ -136,7 +136,7 @@ public class SaslNettyClient {
         try {
             LoginContext loginContext = new LoginContext(clientSection, new ClientCallbackHandler(null));
             loginContext.login();
-            LOG.log(Level.SEVERE, "Using JAAS Configuration subject: " + loginContext.getSubject());
+            LOG.log(Level.INFO, "Using JAAS Configuration subject: " + loginContext.getSubject());
             return loginContext.getSubject();
         } catch (LoginException error) {
             LOG.log(Level.SEVERE, "Error JAAS Configuration subject: " + error, error);
