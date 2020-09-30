@@ -20,22 +20,35 @@
 
 package herddb.sql;
 
+import herddb.core.DBManager;
+import herddb.model.NotLeaderException;
 import herddb.model.StatementExecutionException;
 import java.util.List;
 
 /**
  * @author eolivelli
  */
-public interface AbstractSQLPlanner {
+public abstract class AbstractSQLPlanner {
 
-    void clearCache();
+    protected final DBManager manager;
 
-    long getCacheHits();
+    public AbstractSQLPlanner(DBManager manager) {
+        this.manager = manager;
+    }
 
-    long getCacheMisses();
+    public abstract void clearCache();
 
-    long getCacheSize();
+    public abstract long getCacheHits();
 
-    TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException;
+    public abstract long getCacheMisses();
 
+    public abstract long getCacheSize();
+
+    public abstract TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException;
+
+    final void ensureDefaultTableSpaceBootedLocally(String defaultTableSpace) {
+        if (manager.getTableSpaceManager(defaultTableSpace) == null) {
+            throw new NotLeaderException("tablespace " + defaultTableSpace + " not available here (at server " + manager.getNodeId() + ")");
+        }
+    }
 }

@@ -20,6 +20,7 @@
 
 package herddb.sql;
 
+import herddb.core.DBManager;
 import herddb.model.StatementExecutionException;
 import java.util.List;
 
@@ -28,7 +29,11 @@ import java.util.List;
  *
  * @author enrico.olivelli
  */
-public class NullSQLPlanner implements AbstractSQLPlanner {
+public class NullSQLPlanner extends AbstractSQLPlanner {
+
+    public NullSQLPlanner(DBManager manager) {
+        super(manager);
+    }
 
     @Override
     public void clearCache() {
@@ -54,7 +59,8 @@ public class NullSQLPlanner implements AbstractSQLPlanner {
             String defaultTableSpace, String query, List<Object> parameters, boolean scan,
             boolean allowCache, boolean returnValues, int maxRows
     ) throws StatementExecutionException {
-        throw new StatementExecutionException("SQL planner is disable on this server (query was '" + query + "'");
+        ensureDefaultTableSpaceBootedLocally(defaultTableSpace);
+        throw new StatementExecutionException("SQL planner is disabled on this server (query was '" + query + "'");
     }
 
 }

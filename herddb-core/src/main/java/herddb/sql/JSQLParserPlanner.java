@@ -162,13 +162,12 @@ import net.sf.jsqlparser.statement.upsert.Upsert;
  *
  * @author enrico.olivelli
  */
-public class JSQLParserPlanner implements AbstractSQLPlanner {
+public class JSQLParserPlanner extends AbstractSQLPlanner {
 
     private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
     private static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
-    private final DBManager manager;
     private final PlansCache cache;
     /**
      * Used in case of unsupported Statement
@@ -199,7 +198,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     }
 
     public JSQLParserPlanner(DBManager manager, PlansCache plansCache,  AbstractSQLPlanner fallback) {
-        this.manager = manager;
+        super(manager);
         this.cache = plansCache;
         this.fallback = fallback;
     }
@@ -301,6 +300,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
             String defaultTableSpace, String query, List<Object> parameters,
             boolean scan, boolean allowCache, boolean returnValues, int maxRows
     ) throws StatementExecutionException {
+        ensureDefaultTableSpaceBootedLocally(defaultTableSpace);
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -1644,7 +1644,8 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
         }
         TableSpaceManager tableSpaceManager = getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no tablespace " + tableSpace + " here");
+            clearCache();
+            throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
         }
         String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
@@ -1672,7 +1673,7 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
+            LOG.log(Level.INFO, "schema {0} not available yet, after waiting {1}/{2} ms",
                     new Object[]{tableSpace, delta, WAIT_FOR_SCHEMA_UP_TIMEOUT});
             if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
                 return null;
@@ -2096,7 +2097,6 @@ public class JSQLParserPlanner implements AbstractSQLPlanner {
     }
 
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update update, boolean returnValues) throws StatementExecutionException {
-        final boolean upsert = false;
         net.sf.jsqlparser.schema.Table table = update.getTable();
         checkSupported(table.getAlias() == null); // no alias for UPDATE!
         OpSchema tableSchema = getTableSchema(defaultTableSpace, table);

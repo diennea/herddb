@@ -174,7 +174,7 @@ import org.apache.calcite.util.ImmutableBitSet;
  *
  * @author eolivelli
  */
-public class CalcitePlanner implements AbstractSQLPlanner {
+public class CalcitePlanner extends AbstractSQLPlanner {
 
     /**
      * Time to wait for the requested tablespace to be up
@@ -184,7 +184,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private static final Pattern USE_DDL_PARSER = Pattern.compile("^[\\s]*(EXECUTE|CREATE|DROP|ALTER|TRUNCATE|BEGIN|COMMIT|ROLLBACK).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    private final DBManager manager;
     private final AbstractSQLPlanner fallback;
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
@@ -193,7 +192,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private static final RexBuilder REX_BUILDER  = new RexBuilder(SQL_TYPE_FACTORY_IMPL);
 
     public CalcitePlanner(DBManager manager, PlansCache plansCache) {
-        this.manager = manager;
+        super(manager);
         this.cache = plansCache;
         //used only for DDL
         this.fallback = new JSQLParserPlanner(manager, cache, null);
@@ -231,6 +230,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
+        ensureDefaultTableSpaceBootedLocally(defaultTableSpace);
         /* Strips out leading comments */
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
@@ -385,7 +385,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return false;
     }
 
-    private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) throws MetadataStorageManagerException {
+    private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) {
         long startTs = System.currentTimeMillis();
         while (true) {
             SchemaPlus schema = getRootSchema();
@@ -394,7 +394,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
+            LOG.log(Level.INFO, "schema {0} not available yet, after waiting {1}/{2} ms",
                     new Object[]{defaultTableSpace, delta, WAIT_FOR_SCHEMA_UP_TIMEOUT});
             if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
                 return null;
@@ -512,7 +512,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private SchemaPlus getRootSchema() throws MetadataStorageManagerException {
+    private SchemaPlus getRootSchema() {
         if (rootSchema != null) {
             return rootSchema;
         }

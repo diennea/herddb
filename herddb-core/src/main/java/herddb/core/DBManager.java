@@ -235,7 +235,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         new CalcitePlanner(this, plansCache));
                 break;
             case ServerConfiguration.PLANNER_TYPE_NONE:
-                planner = new NullSQLPlanner();
+                planner = new NullSQLPlanner(this);
                 break;
             default:
                 throw new IllegalArgumentException("invalid planner type " + plannerType);
@@ -698,7 +698,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
-            return Futures.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here. "
+            return Futures.exception(new NotLeaderException("No such tableSpace " + tableSpace + " here (at " + nodeId + "). "
                     + "Maybe the server is starting "));
         }
         if (errorIfNotLeader && !manager.isLeader()) {
