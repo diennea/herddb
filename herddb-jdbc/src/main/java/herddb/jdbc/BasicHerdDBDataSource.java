@@ -20,6 +20,7 @@
 
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
@@ -156,6 +157,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         return url;
     }
 
+    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC") // sb is lost by the lambda of forEach and does not see we are still in a synchronized block
     public synchronized void setUrl(String url) {
         this.url = url;
         if (client != null) {
