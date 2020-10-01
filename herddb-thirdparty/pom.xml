@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
-        <version>0.20.0BETA</version>
+        <version>0.20.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
