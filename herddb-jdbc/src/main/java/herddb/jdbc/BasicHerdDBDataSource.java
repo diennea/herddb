@@ -20,12 +20,14 @@
 
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import herddb.utils.QueryParser;
 import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -155,8 +157,19 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         return url;
     }
 
+    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC") // sb is lost by the lambda of forEach and does not see we are still in a synchronized block
     public synchronized void setUrl(String url) {
         this.url = url;
+        if (client != null) {
+            client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_INITIALIZED, "true");
+        }
+        QueryParser.parseQueryKeyPairs(url).forEach(pair -> {
+            if (pair[0].startsWith("client.") && client != null) {
+                client.getConfiguration().set(pair[0], pair[1]);
+            } else {
+                properties.setProperty(pair[0], pair[1]);
+            }
+        });
     }
 
     public synchronized boolean isPoolConnections() {
@@ -200,6 +213,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             if (properties.containsKey("discoverTableSpaceFromQuery")) {
                 this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
             }
+            properties.stringPropertyNames().stream()
+                    .filter(it -> it.startsWith("client."))
+                    .forEach(key -> clientConfiguration.set(key, properties.getProperty(key)));
             client = new HDBClient(clientConfiguration);
         }
         if (poolRuntime == null) {
