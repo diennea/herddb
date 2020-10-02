@@ -1837,6 +1837,10 @@ public abstract class PduCodec {
             }
         }
 
+        public static boolean isDontKeepReadLocks(byte trailer) {
+            return ((trailer & Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS) == Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS);
+        }
+
     }
 
     private static void writeObject(ByteBuf byteBuf, Object v) {

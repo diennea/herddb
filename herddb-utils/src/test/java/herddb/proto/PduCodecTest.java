@@ -19,7 +19,9 @@
  */
 package herddb.proto;
 
+import static herddb.proto.PduCodec.ObjectListReader.isDontKeepReadLocks;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
@@ -61,7 +63,7 @@ public class PduCodecTest {
             assertEquals(params.get(1), paramsReader.nextObject());
             assertEquals(params.get(2), paramsReader.nextObject());
             byte trailer = paramsReader.readTrailer();
-            assertTrue((trailer & Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS) == Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS);
+            assertTrue(isDontKeepReadLocks(trailer));
         }
 
         keepReadLocks = true; // NO TRAILER, this is what 0.19.0 clients did
@@ -83,6 +85,7 @@ public class PduCodecTest {
             assertEquals(params.get(2), paramsReader.nextObject());
             byte trailer = paramsReader.readTrailer();
             assertEquals(0, trailer);
+            assertFalse(isDontKeepReadLocks(trailer));
         }
 
     }
