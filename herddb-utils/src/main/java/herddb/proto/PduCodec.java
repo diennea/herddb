@@ -621,11 +621,7 @@ public abstract class PduCodec {
                                     + 1 + params.size() * 8);
 
             byteBuf.writeByte(VERSION_3);
-            int flags = Pdu.FLAGS_ISREQUEST;
-            if (!keepReadLocks) {
-                flags = flags | Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS;
-            }
-            byteBuf.writeByte(flags);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
             byteBuf.writeByte(Pdu.TYPE_OPENSCANNER);
             byteBuf.writeLong(messageId);
             byteBuf.writeLong(tx);
@@ -640,7 +636,10 @@ public abstract class PduCodec {
             for (Object p : params) {
                 writeObject(byteBuf, p);
             }
-
+            // trailer
+            if (!keepReadLocks) {
+                byteBuf.writeByte(Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS);
+            }
             return byteBuf;
 
         }
@@ -651,13 +650,6 @@ public abstract class PduCodec {
                     + FLAGS_SIZE
                     + TYPE_SIZE
                     + MSGID_SIZE);
-        }
-
-        public static boolean readDontKeepReadLocks(Pdu pdu) {
-            ByteBuf buffer = pdu.buffer;
-            byte flags =  buffer.getByte(VERSION_SIZE);
-            return (flags & Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS)
-                    == Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS;
         }
 
         public static long readStatementId(Pdu pdu) {
@@ -1834,6 +1826,15 @@ public abstract class PduCodec {
         public Object nextObject() {
             // assuming that the readerIndex is not altered but other direct accesses to the ByteBuf
             return readObject(pdu.buffer);
+        }
+
+        public byte readTrailer() {
+            // assuming that the readerIndex is not altered but other direct accesses to the ByteBuf
+            if (pdu.buffer.isReadable()) {
+                return pdu.buffer.readByte();
+            } else {
+                return 0;
+            }
         }
 
     }

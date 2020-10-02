@@ -443,7 +443,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             parameters.add(parametersReader.nextObject());
         }
         // with clients older than 0.20.0 keepReadLocks will be always true
-        boolean keepReadLocks = !PduCodec.OpenScanner.readDontKeepReadLocks(message);
+        byte trailer = parametersReader.readTrailer();
+        boolean keepReadLocks = (trailer & Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS) == Pdu.FLAGS_OPENSCANNER_DONTKEEP_READ_LOCKS;
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + ", keepReadLocks " + keepReadLocks + ", " + query + " with " + parameters);
         }
