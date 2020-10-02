@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.proto.PduCodec.ObjectListReader.isDontKeepReadLocks;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_BEGIN_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
@@ -443,7 +444,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             parameters.add(parametersReader.nextObject());
         }
         // with clients older than 0.20.0 keepReadLocks will be always true
-        boolean keepReadLocks = !PduCodec.OpenScanner.readDontKeepReadLocks(message);
+        byte trailer = parametersReader.readTrailer();
+        boolean keepReadLocks = !isDontKeepReadLocks(trailer);
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + ", keepReadLocks " + keepReadLocks + ", " + query + " with " + parameters);
         }
