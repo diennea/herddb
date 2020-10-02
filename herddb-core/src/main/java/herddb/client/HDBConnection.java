@@ -23,6 +23,7 @@ package herddb.client;
 import static herddb.utils.QueryUtils.discoverTablespace;
 import herddb.client.impl.LeaderChangedException;
 import herddb.client.impl.RetryRequestException;
+import herddb.client.impl.UnreachableServerException;
 import herddb.model.TransactionContext;
 import herddb.network.ServerHostData;
 import herddb.utils.Futures;
@@ -440,6 +441,16 @@ public class HDBConnection implements AutoCloseable {
 
     void requestMetadataRefresh(Exception err) throws ClientSideMetadataProviderException {
         client.getClientSideMetadataProvider().requestMetadataRefresh(err);
+        if (err instanceof UnreachableServerException) {
+            UnreachableServerException u = (UnreachableServerException) err;
+            String nodeId = u.getNodeId();
+            RoutedClientSideConnection[] all = routes.remove(nodeId);
+            if (all != null) {
+                for (RoutedClientSideConnection con : all) {
+                    con.close();
+                }
+            }
+        }
     }
 
     public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws ClientSideMetadataProviderException, HDBException {

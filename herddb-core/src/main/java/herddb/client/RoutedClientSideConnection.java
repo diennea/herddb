@@ -341,7 +341,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
             }
         } catch (java.net.ConnectException err) {
             // this error will be retryed by the client
-            throw new UnreachableServerException(err);
+            throw new UnreachableServerException("Cannot connect to " + nodeId, err, nodeId);
         } catch (HDBException err) {
             throw err;
         } catch (Exception err) {
