@@ -65,14 +65,12 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
         private ZooKeeper makeZooKeeper() {
              try {
                 CountDownLatch waitForConnection = new CountDownLatch(1);
-                final ZooKeeper z =  new ZooKeeper(zkAddress, zkSessionTimeout, new WatcherImpl(waitForConnection, null), true);
+                final ZooKeeper z =  new ZooKeeper(zkAddress, zkSessionTimeout, new WatcherImpl(waitForConnection), true);
                 boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.MILLISECONDS);
                 if (!waitResult) {
                     LOG.log(Level.SEVERE, "ZK session to ZK " + zkAddress + " did not establish within "
                             + (zkSessionTimeout * 2L) + " ms");
                 }
-                // re-register the watcher, we want the handle to be recreated in case of "session expired"
-                z.register(new WatcherImpl(waitForConnection, z));
                 return z;
             } catch (IOException err) {
                 LOG.log(Level.SEVERE, "zk client error " + err, err);
@@ -124,14 +122,12 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
             }
         }
 
-        class WatcherImpl implements Watcher {
+        static class WatcherImpl implements Watcher {
 
             private final CountDownLatch waitForConnection;
-            private final ZooKeeper handle;
 
-            public WatcherImpl(CountDownLatch waitForConnection, ZooKeeper handle) {
+            public WatcherImpl(CountDownLatch waitForConnection) {
                 this.waitForConnection = waitForConnection;
-                this.handle = handle;
             }
 
             @Override
@@ -145,7 +141,6 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
                         break;
                     case Expired:
                         LOG.log(Level.INFO, "zk client event {0}", event);
-                        ZookKeeperHolder.this.zk.compareAndSet(handle, null);
                         break;
                     default:
                         LOG.log(Level.INFO, "zk client event {0}", event);
