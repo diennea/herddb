@@ -88,20 +88,19 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
         }
 
         private ZooKeeper get() throws InterruptedException {
-            ZooKeeper current = zk.get();
-            if (current != null
-                    && current.getState() != ZooKeeper.States.CLOSED) {
-                return current;
-            }
-
             makeLock.lockInterruptibly(); // we don't want to race creating ZK handles
             try {
+                ZooKeeper current = zk.get();
+                if (current != null
+                        && current.getState() != ZooKeeper.States.CLOSED) {
+                    return current;
+                }
+
                 ZooKeeper newHandle = makeZooKeeper();
                 boolean ok = zk.compareAndSet(current, newHandle);
                 if (ok) {
                     return newHandle;
                 } else {
-                    // we failed setting the reference ? this should not be possible
                     newHandle.close();
                     return current;
                 }
