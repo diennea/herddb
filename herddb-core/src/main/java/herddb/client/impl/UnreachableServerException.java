@@ -27,21 +27,20 @@ package herddb.client.impl;
  */
 public class UnreachableServerException extends RetryRequestException {
 
-    public UnreachableServerException(String message) {
-        super(message);
-    }
+    private final String nodeId;
 
-    public UnreachableServerException(Throwable cause) {
-        super(cause);
-    }
-
-    public UnreachableServerException(String message, Throwable cause) {
+    public UnreachableServerException(String message, Throwable cause, String nodeId) {
         super(message, cause);
+        this.nodeId = nodeId;
     }
 
     @Override
     public boolean isRequireMetadataRefresh() {
         return true;
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
 }
