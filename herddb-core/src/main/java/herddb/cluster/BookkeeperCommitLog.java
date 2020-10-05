@@ -49,6 +49,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
+import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.LastConfirmedAndEntry;
@@ -147,15 +148,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 int actualWriteQuorumSize = Math.max(expectedReplicaCount, writeQuorumSize);
                 int actualAckQuorumSize = Math.max(expectedReplicaCount, ackQuorumSize);
 
-                this.out = FutureUtils.result(bookKeeper.
-                        newCreateLedgerOp()
-                        .withEnsembleSize(actualEnsembleSize)
-                        .withWriteQuorumSize(actualWriteQuorumSize)
-                        .withAckQuorumSize(actualAckQuorumSize)
-                        .withDigestType(DigestType.CRC32C)
-                        .withPassword(SHARED_SECRET.getBytes(StandardCharsets.UTF_8))
-                        .withCustomMetadata(metadata)
-                        .execute(), BKException.HANDLER);
+                this.out = makeNewWriteHandle(actualEnsembleSize, actualWriteQuorumSize, actualAckQuorumSize, metadata);
                 this.ledgerId = this.out.getId();
                 LOGGER.log(Level.INFO, "{0} created ledger {1} (" + actualEnsembleSize + "/" + actualWriteQuorumSize + "/" + actualAckQuorumSize + ") bookies: {2}",
                         new Object[]{tableSpaceDescription(), ledgerId, this.out.getLedgerMetadata().getAllEnsembles()});
@@ -165,6 +158,41 @@ public class BookkeeperCommitLog extends CommitLog {
                 throw new LogNotAvailableException(err);
             }
         }
+
+        private WriteHandle makeNewWriteHandle(int actualEnsembleSize, int actualWriteQuorumSize, int actualAckQuorumSize,
+                                               Map<String, byte[]> metadata) throws BKException, LogNotAvailableException {
+            BKNotEnoughBookiesException lastError = null;
+            long maxTime = System.currentTimeMillis() + parent.getBookkeeperClusterReadyWaitTime();
+            while (System.currentTimeMillis() <= maxTime) {
+                try {
+                    return FutureUtils.result(bookKeeper.
+                            newCreateLedgerOp()
+                            .withEnsembleSize(actualEnsembleSize)
+                            .withWriteQuorumSize(actualWriteQuorumSize)
+                            .withAckQuorumSize(actualAckQuorumSize)
+                            .withDigestType(DigestType.CRC32C)
+                            .withPassword(SHARED_SECRET.getBytes(StandardCharsets.UTF_8))
+                            .withCustomMetadata(metadata)
+                            .execute(), BKException.HANDLER);
+                } catch (BKNotEnoughBookiesException clusterNotReady) {
+                    lastError = clusterNotReady;
+                    // no stacktrace, it is only noise
+                    LOGGER.log(Level.INFO, "{0} BK cluster not ready (BKNotEnoughBookiesException) while creating a ledger (" + actualEnsembleSize + "/" + actualWriteQuorumSize + "/" + actualAckQuorumSize + ")",
+                            new Object[]{tableSpaceDescription()});
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new LogNotAvailableException(ex);
+                    }
+                }
+            }
+            if (lastError == null) {
+                lastError = new BKNotEnoughBookiesException();
+            }
+            throw new LogNotAvailableException(lastError.fillInStackTrace());
+        }
+
 
         public long getLedgerId() {
             return ledgerId;
@@ -854,7 +882,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 LOGGER.fine(tableSpaceDescription() + " ledgers list " + actualList);
             }
             if (actualList.isEmpty()) {
-                LOGGER.severe(tableSpaceDescription() + " no ledger in list?");
+                LOGGER.fine(tableSpaceDescription() + " no ledger in list?");
                 return;
             }
             if (ledgerToTail == -1) {
