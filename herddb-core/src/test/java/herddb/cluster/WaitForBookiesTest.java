@@ -106,7 +106,7 @@ public class WaitForBookiesTest {
                     .build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-            try ( DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList())) {
+            try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }
