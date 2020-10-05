@@ -92,13 +92,13 @@ public class WaitForBookiesTest {
         }
 
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT, 10000);
-        try (Server server_1 = new Server(serverconfig_1)) {                         
+        try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             // add a second bookie after starting the server
             testEnv.startNewBookie();
             server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 5000, true);
-                       
-            // verify server is working at it is able to write to the WAL           
+
+            // verify server is working at it is able to write to the WAL
             Table table = Table.builder()
                     .name("t1")
                     .column("c", ColumnTypes.INTEGER)

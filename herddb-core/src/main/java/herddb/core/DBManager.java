@@ -465,7 +465,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         // that if you lose the node with the server you will have at most 1 minute of unavailability (no leader)
         if (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode)) {
             initialDefaultTableSpaceReplicaNode = TableSpace.ANY_NODE;
-            initialDefaultTableSpaceMaxLeaderInactivityTime = 60_000; // 1 minute            
+            initialDefaultTableSpaceMaxLeaderInactivityTime = 60_000; // 1 minute
             expectedreplicacount = serverConfiguration.getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
         } else if (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode)) {
             expectedreplicacount = serverConfiguration.getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
