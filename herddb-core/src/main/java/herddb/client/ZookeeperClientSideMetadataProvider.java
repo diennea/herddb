@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -45,7 +47,7 @@ import org.apache.zookeeper.data.Stat;
  *
  * @author enrico.olivelli
  */
-public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataProvider {
+public final class ZookeeperClientSideMetadataProvider implements ClientSideMetadataProvider {
 
     private static final Logger LOG = Logger.getLogger(ZookeeperClientSideMetadataProvider.class.getName());
 
@@ -55,39 +57,22 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
 
     private static class ZookKeeperHolder {
 
-        private volatile ZooKeeper zk;
+        private final AtomicReference<ZooKeeper> zk = new AtomicReference<>();
         private final String zkAddress;
         private final int zkSessionTimeout;
+        private final ReentrantLock makeLock = new ReentrantLock();
 
         private ZooKeeper makeZooKeeper() {
              try {
                 CountDownLatch waitForConnection = new CountDownLatch(1);
-                ZooKeeper z =  new ZooKeeper(zkAddress, zkSessionTimeout, new Watcher() {
-                    @Override
-                    public void process(WatchedEvent event) {
-                        switch (event.getState()) {
-                            case SyncConnected:
-                            case SaslAuthenticated:
-                            case ConnectedReadOnly:
-                                LOG.log(Level.FINE, "zk client event {0}", event);
-                                waitForConnection.countDown();
-                                break;
-                            case Expired:
-                                LOG.log(Level.INFO, "zk client event {0}", event);
-                                ZookKeeperHolder.this.zk = null;
-                                break;
-                            default:
-                                LOG.log(Level.INFO, "zk client event {0}", event);
-                                break;
-                        }
-                    }
-                }, true);
-
+                final ZooKeeper z =  new ZooKeeper(zkAddress, zkSessionTimeout, new WatcherImpl(waitForConnection, null), true);
                 boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.MILLISECONDS);
                 if (!waitResult) {
-                    LOG.log(Level.SEVERE, "ZK session to ZK did not establish within "
+                    LOG.log(Level.SEVERE, "ZK session to ZK " + zkAddress + " did not establish within "
                             + (zkSessionTimeout * 2L) + " ms");
                 }
+                // re-register the watcher, we want the handle to be recreated in case of "session expired"
+                z.register(new WatcherImpl(waitForConnection, z));
                 return z;
             } catch (IOException err) {
                 LOG.log(Level.SEVERE, "zk client error " + err, err);
@@ -104,24 +89,68 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
             makeZooKeeper();
         }
 
-        private synchronized ZooKeeper get() {
-            if (zk != null) {
-                return zk;
+        private ZooKeeper get() throws InterruptedException {
+            ZooKeeper current = zk.get();
+            if (current != null
+                    && current.getState() != ZooKeeper.States.CLOSED) {
+                return current;
             }
-            zk = makeZooKeeper();
-            // zk can be null !
-            return zk;
+
+            makeLock.lockInterruptibly(); // we don't want to race creating ZK handles
+            try {
+                ZooKeeper newHandle = makeZooKeeper();
+                boolean ok = zk.compareAndSet(current, newHandle);
+                if (ok) {
+                    return newHandle;
+                } else {
+                    // we failed setting the reference ? this should not be possible
+                    newHandle.close();
+                    return current;
+                }
+            } finally {
+                makeLock.unlock();
+            }
         }
 
-        private synchronized void close() {
+        private void close() {
             try {
-                if (zk != null) {
-                    zk.close(1000);
+                ZooKeeper current = zk.get();
+                zk.compareAndSet(current, null);
+                if (current != null) {
+                    current.close(1000);
                 }
             } catch (InterruptedException err) {
                 Thread.currentThread().interrupt();
-            } finally {
-                zk = null;
+            }
+        }
+
+        class WatcherImpl implements Watcher {
+
+            private final CountDownLatch waitForConnection;
+            private final ZooKeeper handle;
+
+            public WatcherImpl(CountDownLatch waitForConnection, ZooKeeper handle) {
+                this.waitForConnection = waitForConnection;
+                this.handle = handle;
+            }
+
+            @Override
+            public void process(WatchedEvent event) {
+                switch (event.getState()) {
+                    case SyncConnected:
+                    case SaslAuthenticated:
+                    case ConnectedReadOnly:
+                        LOG.log(Level.FINE, "zk client event {0}", event);
+                        waitForConnection.countDown();
+                        break;
+                    case Expired:
+                        LOG.log(Level.INFO, "zk client event {0}", event);
+                        ZookKeeperHolder.this.zk.compareAndSet(handle, null);
+                        break;
+                    default:
+                        LOG.log(Level.INFO, "zk client event {0}", event);
+                        break;
+                }
             }
         }
     }
@@ -242,16 +271,24 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         throw new ClientSideMetadataProviderException("Could not find a server info for node " + nodeId + " in time");
     }
 
-    private ZooKeeper getZooKeeper() throws ClientSideMetadataProviderException {
-        ZooKeeper zooKeeper = zookeeperSupplier.get();
-        if (zooKeeper == null) {
-            throw new ClientSideMetadataProviderException(new Exception("ZooKeeper client is not available"));
+    // visible for testing
+    protected ZooKeeper getZooKeeper() throws ClientSideMetadataProviderException {
+        try {
+            ZooKeeper zooKeeper = zookeeperSupplier.get();
+            if (zooKeeper == null) {
+                throw new ClientSideMetadataProviderException(new Exception("ZooKeeper client is not available"));
+            }
+            return zooKeeper;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ClientSideMetadataProviderException(ex);
         }
-        return zooKeeper;
     }
 
     @Override
     public void close() {
         zookeeperSupplier.close();
     }
+
+
 }
