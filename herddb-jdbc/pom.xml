@@ -247,6 +247,17 @@
                             </transformers>
                             <filters>
                                 <filter>
+                                    <artifact>com.google.guava:guava</artifact>
+                                    <includes>
+                                        <include>com/google/common/collect/**</include>
+                                        <include>com/google/common/util/concurrent/**</include>
+                                        <include>com/google/common/cache/**</include>
+                                        <include>com/google/common/base/**</include>
+                                        <include>com/google/common/primitives/**</include> <!-- Calcite -->
+                                       <include>com/google/common/math/**</include> <!-- Calcite -->
+                                    </includes>
+                                </filter>
+                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>META-INF/*.SF</exclude>

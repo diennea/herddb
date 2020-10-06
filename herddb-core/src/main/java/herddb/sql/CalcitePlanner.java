@@ -438,73 +438,79 @@ public class CalcitePlanner extends AbstractSQLPlanner {
 
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException, StatementExecutionException {
-        SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
-        if (subSchema == null) {
-            clearCache();
-            throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
-        }
-        Properties props = new Properties();
-        props.put(CalciteConnectionProperty.TIME_ZONE.camelName(), TimeZone.getDefault().getID());
-        props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
-        props.put(CalciteConnectionProperty.DEFAULT_NULL_COLLATION.camelName(), NullCollation.LAST.toString());
-        final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
-
-        final FrameworkConfig config = Frameworks.newConfigBuilder()
-                .parserConfig(SQL_PARSER_CONFIG)
-                .defaultSchema(subSchema)
-                .traitDefs(TRAITS)
-                .context(new Context() {
-                    @Override
-                    public <C> C unwrap(Class<C> aClass) {
-                        if (aClass == CalciteConnectionConfigImpl.class
-                                || aClass == CalciteConnectionConfig.class) {
-                            return (C) calciteRuntimeContextConfig;
-                        }
-                        return null;
-                    }
-                })
-                // define the rules you want to apply
-                .programs(Programs.ofRules(Programs.RULE_SET))
-                .build();
-        Planner planner = new PlannerImpl(config);
-        if (LOG.isLoggable(Level.FINER)) {
-            LOG.log(Level.FINER, "Query: {0}", query);
-        }
         try {
-            SqlNode n = planner.parse(query);
-            n = planner.validate(n);
-            RelNode logicalPlan = planner.rel(n).project();
-            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
-                    RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
-                    SqlExplainLevel.ALL_ATTRIBUTES)});
+            SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
+            if (subSchema == null) {
+                clearCache();
+                throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
             }
-            RelDataType originalRowType = logicalPlan.getRowType();
-            RelOptCluster cluster = logicalPlan.getCluster();
-            final RelOptPlanner optPlanner = cluster.getPlanner();
+     
+            Properties props = new Properties();
+            props.put(CalciteConnectionProperty.TIME_ZONE.camelName(), TimeZone.getDefault().getID());
+            props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
+            props.put(CalciteConnectionProperty.DEFAULT_NULL_COLLATION.camelName(), NullCollation.LAST.toString());
+            final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
 
-            optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
-            RelTraitSet desiredTraits =
-                    cluster.traitSet()
-                            .replace(EnumerableConvention.INSTANCE);
-            final RelCollation collation =
-                    logicalPlan instanceof Sort
-                            ? ((Sort) logicalPlan).collation
-                            : null;
-            if (collation != null) {
-                desiredTraits = desiredTraits.replace(collation);
+            final FrameworkConfig config = Frameworks.newConfigBuilder()
+                    .parserConfig(SQL_PARSER_CONFIG)
+                    .defaultSchema(subSchema)
+                    .traitDefs(TRAITS)
+                    .context(new Context() {
+                        @Override
+                        public <C> C unwrap(Class<C> aClass) {
+                            if (aClass == CalciteConnectionConfigImpl.class
+                                    || aClass == CalciteConnectionConfig.class) {
+                                return (C) calciteRuntimeContextConfig;
+                            }
+                            return null;
+                        }
+                    })
+                    // define the rules you want to apply
+                    .programs(Programs.ofRules(Programs.RULE_SET))
+                    .build();
+            Planner planner = new PlannerImpl(config);
+            if (LOG.isLoggable(Level.FINER)) {
+                LOG.log(Level.FINER, "Query: {0}", query);
             }
-            final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
-            optPlanner.setRoot(newRoot);
-            RelNode bestExp = optPlanner.findBestExp();
-            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
-                    RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
-                    SqlExplainLevel.ALL_ATTRIBUTES)});
-            }
+            try {
+                SqlNode n = planner.parse(query);
+                n = planner.validate(n);
+                RelNode logicalPlan = planner.rel(n).project();
+                if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                    LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+                        RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
+                        SqlExplainLevel.ALL_ATTRIBUTES)});
+                }
+                RelDataType originalRowType = logicalPlan.getRowType();
+                RelOptCluster cluster = logicalPlan.getCluster();
+                final RelOptPlanner optPlanner = cluster.getPlanner();
 
-            return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
-        } catch (AssertionError err) {
+                optPlanner.addRule(CoreRules.FILTER_REDUCE_EXPRESSIONS);
+                RelTraitSet desiredTraits =
+                        cluster.traitSet()
+                                .replace(EnumerableConvention.INSTANCE);
+                final RelCollation collation =
+                        logicalPlan instanceof Sort
+                                ? ((Sort) logicalPlan).collation
+                                : null;
+                if (collation != null) {
+                    desiredTraits = desiredTraits.replace(collation);
+                }
+                final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
+                optPlanner.setRoot(newRoot);
+                RelNode bestExp = optPlanner.findBestExp();
+                if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
+                    LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+                        RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
+                        SqlExplainLevel.ALL_ATTRIBUTES)});
+                }
+
+                return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
+            } catch (AssertionError err) {
+                throw new StatementExecutionException("Internal Calcite error " + err, err);
+            }
+        } catch (java.lang.LinkageError err) {
+            LOG.log(Level.SEVERE, "Error on Java Classpath", err);
             throw new StatementExecutionException("Internal Calcite error " + err, err);
         }
     }
