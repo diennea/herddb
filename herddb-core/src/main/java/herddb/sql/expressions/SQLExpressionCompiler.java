@@ -138,6 +138,8 @@ public class SQLExpressionCompiler {
                     return new CompiledCaseExpression(cases, elseExp);
                 case BuiltinFunctions.NAME_CURRENT_TIMESTAMP:
                     return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
+                case BuiltinFunctions.NAME_CURRENT_DATE:
+                    return new CompiledFunction(BuiltinFunctions.NAME_CURRENT_DATE, Collections.emptyList());
                 case BuiltinFunctions.NAME_LOWERCASE:
                     return new CompiledFunction(BuiltinFunctions.LOWER, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_UPPER:

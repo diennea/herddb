@@ -1691,7 +1691,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
-            LOGGER.log(Level.INFO, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
+            LOGGER.log(Level.FINE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(false);
         }
     }
@@ -2740,9 +2740,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             double dirtyThreshold, double fillThreshold,
             long checkpointTargetTime, long cleanupTargetTime, long compactionTargetTime, boolean pin
     ) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
+        LOGGER.log(Level.FINE, "tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
         if (createdInTransaction > 0) {
-            LOGGER.log(Level.INFO, "checkpoint for table " + table.name + " skipped,"
+            LOGGER.log(Level.FINE, "checkpoint for table " + table.name + " skipped,"
                     + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return null;
         }
@@ -2968,8 +2968,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             newPagesFlush = System.currentTimeMillis();
 
-            LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} small pages, {4} new pages, {5} records",
+            if (flushedDirtyPages > 0 || flushedSmallPages > 0 || flushedNewPages > 0 || flushedRecords > 0) {
+                LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} small pages, {4} new pages, {5} records",
                     new Object[]{table.name, sequenceNumber, flushedDirtyPages, flushedSmallPages, flushedNewPages, flushedRecords});
+        
+            }
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed pages: {2}",
@@ -3014,11 +3017,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             result = new TableCheckpoint(table.name, sequenceNumber, actions);
 
             end = System.currentTimeMillis();
-
-            LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
-                            + "flushed {4} records, total time {5} ms",
-                    new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
-                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
+            long totalTime = end - start;
+            if (totalTime > 0) {
+                LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
+                        + "flushed {4} records, total time {5} ms",
+                        new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
+                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(totalTime)});
+            }
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",

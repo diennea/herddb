@@ -1298,7 +1298,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String indexName = fixMySqlBackTicks(drop.getName().getName());
+            String indexName = fixMySqlBackTicks(drop.getName().getName()).toLowerCase();
             return new DropIndexStatement(tableSpace, indexName, drop.isIfExists());
         }
         throw new StatementExecutionException(
