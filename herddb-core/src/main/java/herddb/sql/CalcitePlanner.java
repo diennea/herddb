@@ -444,7 +444,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 clearCache();
                 throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
             }
-     
+
             Properties props = new Properties();
             props.put(CalciteConnectionProperty.TIME_ZONE.camelName(), TimeZone.getDefault().getID());
             props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
