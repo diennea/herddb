@@ -40,6 +40,11 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-mock</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>herddb-net</artifactId>
             <version>${project.version}</version>
         </dependency>

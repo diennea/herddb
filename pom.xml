@@ -587,6 +587,7 @@
             </activation>
             <modules>
                 <module>herddb-utils</module>
+                <module>herddb-mock</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
@@ -688,6 +689,7 @@
             </activation>
             <modules>
                 <module>herddb-utils</module>
+                <module>herddb-mock</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
@@ -790,6 +792,7 @@
             </activation>
             <modules>
                 <module>herddb-utils</module>
+                <module>herddb-mock</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
