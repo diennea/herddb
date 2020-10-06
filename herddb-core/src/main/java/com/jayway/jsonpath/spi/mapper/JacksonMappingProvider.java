@@ -19,6 +19,9 @@
  */
 package com.jayway.jsonpath.spi.mapper;
 
+/**
+ * This is only a dummy class to allow us to not depend on JSONPath.
+ */
 public class JacksonMappingProvider extends MappingProvider {
-    
+
 }

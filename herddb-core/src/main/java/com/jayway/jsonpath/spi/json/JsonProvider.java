@@ -20,9 +20,8 @@
 package com.jayway.jsonpath.spi.json;
 
 /**
- *
- * @author eolivelli
+ * This is only a dummy class to allow us to not depend on JSONPath.
  */
 public interface JsonProvider {
-    
+
 }

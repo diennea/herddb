@@ -19,6 +19,9 @@
  */
 package com.esri.core.geometry;
 
+/**
+ * This is only a dummy class to allow us to not depend on Geometry.
+ */
 public interface Point extends Geometry {
-    
+
 }
