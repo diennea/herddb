@@ -3018,7 +3018,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             end = System.currentTimeMillis();
             long totalTime = end - start;
-            if (totalTime > 0) {
+            if (totalTime > 100) {
                 LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
                         + "flushed {4} records, total time {5} ms",
                         new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
