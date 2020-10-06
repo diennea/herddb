@@ -467,6 +467,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             initialDefaultTableSpaceReplicaNode = TableSpace.ANY_NODE;
             initialDefaultTableSpaceMaxLeaderInactivityTime = 60_000; // 1 minute
             expectedreplicacount = serverConfiguration.getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
+        } else if (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode)) {
+            expectedreplicacount = serverConfiguration.getInt(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT_DEFAULT);
         }
         boolean created = metadataStorageManager.ensureDefaultTableSpace(initialDefaultTableSpaceLeader, initialDefaultTableSpaceReplicaNode,
                 initialDefaultTableSpaceMaxLeaderInactivityTime, expectedreplicacount);

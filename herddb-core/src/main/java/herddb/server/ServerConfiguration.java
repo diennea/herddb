@@ -148,6 +148,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
 
+    public static final String PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT = "server.bookkeeper.wait.cluser.ready.timeout";
+    public static final int PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT_DEFAULT = 60_000 * 2; // 2 minutes
+
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE = "server.bookkeeper.ledgers.max.size";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE_DEFAULT = 1024L * 1024 * 1024;
 

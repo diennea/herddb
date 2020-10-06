@@ -62,10 +62,13 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
     private long maxLedgerSizeBytes = 100 * 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
+    private long bookkeeperClusterReadyWaitTime = 60_000;
+
     private ConcurrentHashMap<String, BookkeeperCommitLog> activeLogs = new ConcurrentHashMap<>();
 
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration, StatsLogger statsLogger) {
         this.statsLogger = statsLogger;
+        this.bookkeeperClusterReadyWaitTime = serverConfiguration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT, ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT_DEFAULT);
         config = new ClientConfiguration();
 
         config.setThrottleValue(0);
@@ -202,6 +205,14 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
 
     public void setMaxIdleTime(long maxIdleTime) {
         this.maxIdleTime = maxIdleTime;
+    }
+
+    public long getBookkeeperClusterReadyWaitTime() {
+        return bookkeeperClusterReadyWaitTime;
+    }
+
+    public void setBookkeeperClusterReadyWaitTime(long bookkeeperClusterReadyWaitTime) {
+        this.bookkeeperClusterReadyWaitTime = bookkeeperClusterReadyWaitTime;
     }
 
     @Override
