@@ -195,6 +195,14 @@
                                     <shadedPattern>herddb.io.netty</shadedPattern>
                                 </relocation>
                                 <relocation>
+                                    <pattern>com.esri</pattern>
+                                    <shadedPattern>herddb.com.esri</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.jayway</pattern>
+                                    <shadedPattern>herddb.com.jayway</shadedPattern>
+                                </relocation>
+                                <relocation>
                                     <pattern>com.fasterxml</pattern>
                                     <shadedPattern>herddb.com.fasterxml</shadedPattern>
                                 </relocation>
