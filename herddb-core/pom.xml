@@ -143,6 +143,10 @@
             <artifactId>calcite-core</artifactId>
             <exclusions>
                 <exclusion>
+                    <groupId>com.jayway.jsonpath</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
                     <groupId>com.fasterxml.jackson.dataformat</groupId>
                     <artifactId>jackson-dataformat-yaml</artifactId>
                 </exclusion>
