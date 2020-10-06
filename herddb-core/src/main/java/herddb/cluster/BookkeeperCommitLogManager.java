@@ -68,7 +68,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
 
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration, StatsLogger statsLogger) {
         this.statsLogger = statsLogger;
-        this.bookkeeperClusterReadyWaitTime = serverConfiguration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT, ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT_DEFAULT);
+        this.bookkeeperClusterReadyWaitTime = serverConfiguration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT, ServerConfiguration.PROPERTY_BOOKKEEPER_WAIT_CLUSTER_READY_TIMEOUT_DEFAULT);
         config = new ClientConfiguration();
 
         config.setThrottleValue(0);
