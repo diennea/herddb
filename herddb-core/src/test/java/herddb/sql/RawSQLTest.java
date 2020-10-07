@@ -451,6 +451,13 @@ public class RawSQLTest {
             java.sql.Timestamp now2 = new java.sql.Timestamp(now.getTime() + 1000);
             // standard syntax, but timezone dependant
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,{ts '" + now2 + "'})", Arrays.asList("mykey3", Integer.valueOf(1234))).getUpdateCount());
+
+            assertEquals(3, executeUpdate(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList()).getUpdateCount());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_DATE)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            Thread.sleep(500);
+            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_DATE", Collections.emptyList()).consumeAndClose().get(0).get("n1"));
+
         }
     }
 
@@ -2710,8 +2717,24 @@ public class RawSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,"
                     + "INDEX ix1 (n1,s1))", Collections.emptyList());
 
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix1'", Collections.emptyList());) {
+                assertEquals(1, scan.consume().size());
+            }
+
             execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
 
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix1'", Collections.emptyList());) {
+                assertEquals(0, scan.consume().size());
+            }
+
+            execute(manager, "CREATE INDEX iX2 on tblspace1.tsql(n1)", Collections.emptyList());
+
+            // non case sensitive
+            execute(manager, "DROP INDEX IF EXISTS tblspace1.iX2", Collections.emptyList());
+            // indexes are always lowercase in metadata
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix2'", Collections.emptyList());) {
+                assertEquals(0, scan.consume().size());
+            }
         }
     }
 

@@ -1156,6 +1156,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             case NULL:
                 return ColumnTypes.NULL;
             case TIMESTAMP:
+            case DATE:
                 return ColumnTypes.TIMESTAMP;
             case DECIMAL:
             case DOUBLE:

@@ -95,6 +95,8 @@ public class CompiledFunction implements CompiledSQLExpression {
             }
             case BuiltinFunctions.CURRENT_TIMESTAMP:
                 return context.getCurrentTimestamp();
+            case BuiltinFunctions.NAME_CURRENT_DATE:
+                return context.getCurrentTimestamp();
             case BuiltinFunctions.RAND:
                 return ThreadLocalRandom.current().nextInt();
             case BuiltinFunctions.ROUND: {
