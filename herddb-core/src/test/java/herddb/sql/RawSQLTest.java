@@ -2717,15 +2717,22 @@ public class RawSQLTest {
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,"
                     + "INDEX ix1 (n1,s1))", Collections.emptyList());
 
-            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
-
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where indexname='ix1'", Collections.emptyList());) {
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix1'", Collections.emptyList());) {
                 assertEquals(1, scan.consume().size());
             }
 
+            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix1'", Collections.emptyList());) {
+                assertEquals(0, scan.consume().size());
+            }
+
+            execute(manager, "CREATE INDEX iX2 on tblspace1.tsql(n1)", Collections.emptyList());
+
             // non case sensitive
-            execute(manager, "DROP INDEX IF EXISTS tblspace1.IX1", Collections.emptyList());
-            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where indexname='ix1'", Collections.emptyList());) {
+            execute(manager, "DROP INDEX IF EXISTS tblspace1.iX2", Collections.emptyList());
+            // indexes are always lowercase in metadata
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes where index_name='ix2'", Collections.emptyList());) {
                 assertEquals(0, scan.consume().size());
             }
         }
