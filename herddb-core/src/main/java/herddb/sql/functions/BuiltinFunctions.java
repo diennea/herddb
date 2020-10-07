@@ -81,7 +81,7 @@ public class BuiltinFunctions {
     public static final String NAME_REINTERPRET = "Reinterpret";
     // special
     public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
-    public static final String NAME_CURRENT_DATE = "NAME_CURRENT_DATE";
+    public static final String NAME_CURRENT_DATE = "CURRENT_DATE";
 
     public static AggregatedColumnCalculator getColumnCalculator(
             String functionName, String fieldName, int type,
