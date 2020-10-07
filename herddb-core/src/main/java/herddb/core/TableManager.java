@@ -2971,7 +2971,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (flushedDirtyPages > 0 || flushedSmallPages > 0 || flushedNewPages > 0 || flushedRecords > 0) {
                 LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} small pages, {4} new pages, {5} records",
                     new Object[]{table.name, sequenceNumber, flushedDirtyPages, flushedSmallPages, flushedNewPages, flushedRecords});
-        
+
             }
 
             if (LOGGER.isLoggable(Level.FINE)) {
