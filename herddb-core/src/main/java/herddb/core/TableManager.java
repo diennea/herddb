@@ -3017,12 +3017,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             result = new TableCheckpoint(table.name, sequenceNumber, actions);
 
             end = System.currentTimeMillis();
-            long totalTime = end - start;
-            if (totalTime > 100) {
+            if (flushedRecords > 0) {
                 LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
                         + "flushed {4} records, total time {5} ms",
                         new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
-                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(totalTime)});
+                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
             }
 
             if (LOGGER.isLoggable(Level.FINE)) {
