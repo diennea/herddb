@@ -2926,4 +2926,28 @@ public class RawSQLTest {
 
         }
     }
+
+    @Test
+    public void selectFromDualTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT 'one' as theStringConstant,3 LongConstant FROM DUAL", Collections.emptyList())) {
+                List<DataAccessor> records = scan.consume();
+                assertEquals(1, records.size());
+                assertEquals("one", records.get(0).get("theStringConstant").toString());
+                assertEquals(3L, records.get(0).get("LongConstant"));
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT 'one' as theStringConstant,3  LongConstant FROM tblspace1.Dual", Collections.emptyList())) {
+                List<DataAccessor> records = scan.consume();
+                assertEquals(1, records.size());
+                assertEquals("one", records.get(0).get("theStringConstant").toString());
+                assertEquals(3L, records.get(0).get("LongConstant"));
+            }
+        }
+    }
 }

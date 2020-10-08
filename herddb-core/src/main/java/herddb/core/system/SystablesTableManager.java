@@ -61,7 +61,7 @@ public class SystablesTableManager extends AbstractSystemTableManager {
                         "table_name", r.name,
                         "table_uuid", r.uuid,
                         "systemtable",
-                        r.name.startsWith("sys") ? "true" : "false"
+                        r.name.startsWith("sys") || r.name.equals("dual") ? "true" : "false"
                 ))
                 .collect(Collectors.toList());
     }
