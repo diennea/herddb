@@ -32,7 +32,7 @@
         <div class="header">
             <div class="wrap">
                 <div class="logo">
-                    <a href="http://www.diennea.com/engineering" target="_blank">          
+                    <a href="http://www.diennea.com/" target="_blank">          
                         <img src="media/diennea.png" alt="Diennea">
                     </a>
                 </div>
@@ -76,12 +76,10 @@
 #end
 
             <div class="footer">
-                <div class="separator"><img src="media/separator.png"></div>                
                 <div class="links">
                     <a href="http://www.diennea.com/" target="_blank">Diennea</a>&nbsp; | &nbsp;
                     <a href="http://www.magnews.com/" target="_blank">MagNews</a>&nbsp; | &nbsp;
-                    <a href="http://www.emailsuccess.com/" target="_blank">EmailSuccess</a>&nbsp; | &nbsp;
-                    <a href="http://www.diennea.com/en/contact-us" target="_blank">Contact us</a>&nbsp; | &nbsp;
+                    <a href="http://www.emailsuccess.com/" target="_blank">EmailSuccess</a>
                 </div>
             </div>
         </div>
