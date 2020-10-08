@@ -180,7 +180,7 @@ public class SystemTablesTest {
                         })
                         .findAny()
                         .isPresent());
-                assertEquals(24, records.size());
+                assertEquals(25, records.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns where table_name like '%tsql' order by index_name, column_name",
