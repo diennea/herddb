@@ -54,6 +54,7 @@ import herddb.model.planner.LimitOp;
 import herddb.model.planner.NestedLoopJoinOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
+import herddb.model.planner.ReplaceOp;
 import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
@@ -718,52 +719,72 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class
                 );
         Table table = tableImpl.tableManager.getTable();
-        List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
+        List<CompiledSQLExpression> expressionsForValue = new ArrayList<>(sourceExpressionList.size());
+        List<CompiledSQLExpression> expressionsForKey = new ArrayList<>(sourceExpressionList.size());
 
-        for (RexNode node : sourceExpressionList) {
+        List<String> updateColumnListInValue = new ArrayList<>(updateColumnList.size());
+        List<String> updateColumnListInPk = new ArrayList<>();
+        for (int i = 0; i < updateColumnList.size(); i++) {
+            String columnName = updateColumnList.get(i);
+            boolean isPk = table.isPrimaryKeyColumn(columnName);
+            RexNode node = sourceExpressionList.get(i);
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
-            expressions.add(exp);
-        }
-        RecordFunction function = new SQLRecordFunction(updateColumnList, table, expressions);
-        UpdateStatement update = null;
-        if (input instanceof TableScanOp) {
-            update = new UpdateStatement(tableSpace, tableName, null, function, null);
-        } else if (input instanceof FilterOp) {
-            FilterOp filter = (FilterOp) input;
-            if (filter.getInput() instanceof TableScanOp) {
-                SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
-                update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+            if (isPk) {
+                updateColumnListInPk.add(columnName);
+                expressionsForKey.add(exp);
+            } else {
+                updateColumnListInValue.add(columnName);
+                expressionsForValue.add(exp);
             }
-        } else if (input instanceof ProjectOp) {
-            ProjectOp proj = (ProjectOp) input;
-            if (proj.getInput() instanceof TableScanOp) {
+        }
+        if (expressionsForKey.isEmpty()) {
+            // standard UPDATE, we are not updating any column in the PK
+            RecordFunction function = new SQLRecordFunction(updateColumnListInValue, table, expressionsForValue);
+            UpdateStatement update = null;
+            if (input instanceof TableScanOp) {
                 update = new UpdateStatement(tableSpace, tableName, null, function, null);
-            } else if (proj.getInput() instanceof FilterOp) {
-                FilterOp filter = (FilterOp) proj.getInput();
+            } else if (input instanceof FilterOp) {
+                FilterOp filter = (FilterOp) input;
                 if (filter.getInput() instanceof TableScanOp) {
                     SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
                     update = new UpdateStatement(tableSpace, tableName, null, function, pred);
                 }
-            } else if (proj.getInput() instanceof FilteredTableScanOp) {
-                FilteredTableScanOp filter = (FilteredTableScanOp) proj.getInput();
-                Predicate pred = filter.getPredicate();
-                update = new UpdateStatement(tableSpace, tableName, null, function, pred);
-            } else if (proj.getInput() instanceof BindableTableScanOp) {
-                BindableTableScanOp filter = (BindableTableScanOp) proj.getInput();
-                ScanStatement scan = filter.getStatement();
-                if (scan.getComparator() == null && scan.getLimits() == null
-                        && scan.getTableDef() != null) {
-                    Predicate pred = scan.getPredicate();
+            } else if (input instanceof ProjectOp) {
+                ProjectOp proj = (ProjectOp) input;
+                if (proj.getInput() instanceof TableScanOp) {
+                    update = new UpdateStatement(tableSpace, tableName, null, function, null);
+                } else if (proj.getInput() instanceof FilterOp) {
+                    FilterOp filter = (FilterOp) proj.getInput();
+                    if (filter.getInput() instanceof TableScanOp) {
+                        SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
+                        update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+                    }
+                } else if (proj.getInput() instanceof FilteredTableScanOp) {
+                    FilteredTableScanOp filter = (FilteredTableScanOp) proj.getInput();
+                    Predicate pred = filter.getPredicate();
                     update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+                } else if (proj.getInput() instanceof BindableTableScanOp) {
+                    BindableTableScanOp filter = (BindableTableScanOp) proj.getInput();
+                    ScanStatement scan = filter.getStatement();
+                    if (scan.getComparator() == null && scan.getLimits() == null
+                            && scan.getTableDef() != null) {
+                        Predicate pred = scan.getPredicate();
+                        update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+                    }
                 }
             }
-        }
-        if (update != null) {
-            return new SimpleUpdateOp(update.setReturnValues(returnValues));
+            if (update != null) {
+                return new SimpleUpdateOp(update.setReturnValues(returnValues));
+            } else {
+                return new UpdateOp(tableSpace, tableName, input, returnValues, function);
+            }
         } else {
-            return new UpdateOp(tableSpace, tableName, input, returnValues, function);
+            // bad stuff ! we are updating the PK, we need to transform this to a sequence of delete and inserts
+            // ReplaceOp won't execute the two statements atomically
+            RecordFunction functionForValue = new SQLRecordFunction(updateColumnListInValue, table, expressionsForValue);
+            SQLRecordKeyFunction functionForKey = new SQLRecordKeyFunction(updateColumnListInPk, expressionsForKey, table);
+            return new ReplaceOp(tableSpace, tableName, input, returnValues, functionForKey, functionForValue);
         }
-
     }
 
     private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {

@@ -21,13 +21,14 @@
 package herddb.model.planner;
 
 import herddb.codec.RecordSerializer;
+import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
-import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
@@ -35,8 +36,10 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.TableContext;
 import herddb.model.TransactionContext;
-import herddb.model.commands.UpdateStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
@@ -48,22 +51,25 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.logging.Logger;
 
-public class UpdateOp implements PlannerOp {
+public class ReplaceOp implements PlannerOp {
 
     private final String tableSpace;
     private final String tableName;
     private final PlannerOp input;
     private final boolean returnValues;
+    private final RecordFunction keyFunction;
     private final RecordFunction recordFunction;
 
-    public UpdateOp(
+    public ReplaceOp(
             String tableSpace, String tableName, PlannerOp input, boolean returnValues,
+            RecordFunction keyFunction,
             RecordFunction recordFunction
     ) {
         this.tableSpace = tableSpace;
         this.tableName = tableName;
         this.input = input.optimize();
         this.returnValues = returnValues;
+        this.keyFunction = keyFunction;
         this.recordFunction = recordFunction;
     }
 
@@ -79,7 +85,9 @@ public class UpdateOp implements PlannerOp {
     ) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
-        final Table table = tableSpaceManager.getTableManager(tableName).getTable();
+        TableManager tableManager = (TableManager) tableSpaceManager.getTableManager(tableName);
+        final Table table = tableManager.getTable();
+        TableContext tableContext = tableManager.buildTableContext();
         long transactionId = transactionContext.transactionId;
 
         List<DMLStatement> statements = new ArrayList<>();
@@ -93,12 +101,22 @@ public class UpdateOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                Bytes key = RecordSerializer.serializeIndexKey(row, table, table.getPrimaryKey());
-                DMLStatement updateStatement = new UpdateStatement(tableSpace, tableName,
-                        new ConstValueRecordFunction(key), this.recordFunction, null)
+                Bytes oldKey = RecordSerializer.serializeIndexKey(row, table, table.getPrimaryKey());
+                byte[] oldValue = RecordSerializer.serializeValueRaw(row.toMap(), table, -1);
+
+                DMLStatement deleteStatement = new DeleteStatement(tableSpace, tableName, oldKey, null);
+                statements.add(deleteStatement);
+
+                Record oldRecord = new Record(oldKey, Bytes.from_array(oldValue));
+
+                byte[] newKey = this.keyFunction.computeNewValue(oldRecord, context, tableContext);
+                byte[] newValue = this.recordFunction.computeNewValue(oldRecord, context, tableContext);
+
+                DMLStatement insertStatement = new InsertStatement(tableSpace, tableName,
+                        new Record(Bytes.from_array(newKey), Bytes.from_array(newValue)))
                         .setReturnValues(returnValues);
 
-                statements.add(updateStatement);
+                statements.add(insertStatement);
 
             }
             if (statements.isEmpty()) {
@@ -162,7 +180,7 @@ public class UpdateOp implements PlannerOp {
 
     }
 
-    private static final Logger LOG = Logger.getLogger(UpdateOp.class.getName());
+    private static final Logger LOG = Logger.getLogger(ReplaceOp.class.getName());
 
     @Override
     public <T> T unwrap(Class<T> clazz) {
@@ -175,7 +193,7 @@ public class UpdateOp implements PlannerOp {
 
     @Override
     public String toString() {
-        return String.format("UpdateOp=[ input=%s recordFunction= %s", input, recordFunction.toString());
+        return String.format("ReplaceOp=[ input=%s keyFunction=%s, recordFunction= %s", input, keyFunction.toString(), recordFunction.toString());
     }
 
     @Override

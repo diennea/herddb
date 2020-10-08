@@ -22,6 +22,7 @@ package herddb.sql;
 
 import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.commitTransaction;
+import static herddb.core.TestUtils.dump;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
@@ -31,6 +32,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -319,6 +321,66 @@ public class UpdateTest {
                 assertEquals(0, recordSet.size());
             }
 
+        }
+    }
+
+    @Test
+    public void updatePrimaryKeyTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            assumeTrue(manager.isFullSQLSupportEnabled());
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 int not null primary key, k2 int)", Collections.emptyList());
+
+            executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,k2) values(?,?)",
+                    Arrays.asList(Integer.valueOf(78), Integer.valueOf(99)), TransactionContext.NO_TRANSACTION);
+
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=?", Arrays.asList(78), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(1, recordSet.size());
+            }
+
+            executeUpdate(manager, "UPDATE tblspace1.tsql set k1=? where k1=?",
+                    Arrays.asList(Integer.valueOf(72), Integer.valueOf(78)), TransactionContext.NO_TRANSACTION);
+
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=?", Arrays.asList(78), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(0, recordSet.size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=?", Arrays.asList(72), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(1, recordSet.size());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=? and k2=?", Arrays.asList(72, 99), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(1, recordSet.size());
+            }
+            dump(manager, "SELECT * from tblspace1.tsql", null, TransactionContext.NO_TRANSACTION);
+            // complicate the problem, use the old value to build the new one
+            executeUpdate(manager, "UPDATE tblspace1.tsql set k1=k1 * 2 + k2 where k2 >= ?",
+                    Arrays.asList(Integer.valueOf(99)), TransactionContext.NO_TRANSACTION);
+
+            dump(manager, "SELECT * from tblspace1.tsql", null, TransactionContext.NO_TRANSACTION);
+
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=? and k2=?", Arrays.asList(243, 99), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(1, recordSet.size());
+            }
+
+            // update other values not in pk, using old pk value
+            executeUpdate(manager, "UPDATE tblspace1.tsql set k1=k1 - 10, k2=k1 * 2",
+                    Collections.emptyList(), TransactionContext.NO_TRANSACTION);
+
+            dump(manager, "SELECT * from tblspace1.tsql", null, TransactionContext.NO_TRANSACTION);
+
+            try (DataScanner scan = scan(manager, "SELECT * from tblspace1.tsql where k1=? and k2=?", Arrays.asList(233, 486), TransactionContext.NO_TRANSACTION)) {
+                List<DataAccessor> recordSet = scan.consume();
+                assertEquals(1, recordSet.size());
+            }
         }
     }
 
