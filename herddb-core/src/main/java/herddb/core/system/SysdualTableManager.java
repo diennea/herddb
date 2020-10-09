@@ -47,7 +47,7 @@ public class SysdualTableManager extends AbstractSystemTableManager {
             .primaryKey("dummy")
             .build();
     private final List<Record> result;
-        
+
     public SysdualTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
         this.result = Collections.singletonList(RecordSerializer.makeRecord(
