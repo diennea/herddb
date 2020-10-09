@@ -22,6 +22,7 @@ package herddb.core;
 
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -29,8 +30,13 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.DataAccessor;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Utility
@@ -78,6 +84,41 @@ public class TestUtils {
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
+    }
+
+    private static final Logger LOG = Logger.getLogger(TestUtils.class.getName());
+    public static final Consumer<DataAccessor> DEBUG = (da) -> {
+        StringBuilder msg = new StringBuilder("Record: " + Arrays.toString(da.getFieldNames()) + " ");
+        for (int i = 0; i < da.getNumFields(); i++) {
+            if (i > 0) {
+                msg.append(',');
+            }
+            msg.append(da.getFieldNames()[i]);
+            msg.append('=');
+            msg.append(da.get(i));
+        }
+        msg.append(" - " + da.getClass().getName());
+        LOG.info(msg.toString());
+    };
+
+    public static void dump(DBManager manager, String query, List<Object> parameters,
+                                                                  TransactionContext transactionContext) throws StatementExecutionException, DataScannerException {
+        dump(manager, query, parameters, transactionContext, DEBUG);
+    }
+
+    public static void dump(DBManager manager, String query, List<Object> parameters,
+                                                                  TransactionContext transactionContext,
+                                                                  Consumer<DataAccessor> sink) throws StatementExecutionException, DataScannerException {
+        LOG.log(Level.INFO, "Dump {0} parameters: {1}", new Object[]{query, parameters});
+        if (parameters == null) {
+            parameters = Collections.emptyList();
+        }
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
+        try (DataScanner scanner = ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner) {
+            while (scanner.hasNext()) {
+                sink.accept(scanner.next());
+            }
+        }
     }
 
     public static DataScanner scanKeepReadLocks(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {

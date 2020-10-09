@@ -429,7 +429,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
     }
 
-    private TableContext buildTableContext() {
+    public TableContext buildTableContext() {
         TableContext tableContext;
         if (!table.auto_increment) {
             tableContext = new TableContext() {
@@ -1118,6 +1118,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
         } catch (StatementExecutionException validationError) {
             return Futures.exception(validationError);
+        } catch (Throwable validationError) {
+            return Futures.exception(new StatementExecutionException(validationError));
         }
         List<UniqueIndexLockReference> uniqueIndexes = null;
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);

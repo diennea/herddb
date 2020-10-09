@@ -2088,7 +2088,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         List<String> updateColumnList = new ArrayList<>(projects.size());
         for (net.sf.jsqlparser.schema.Column column : update.getColumns()) {
             checkSupported(column.getTable() == null);
-            updateColumnList.add(fixMySqlBackTicks(column.getColumnName()));
+            String columnName = fixMySqlBackTicks(column.getColumnName().toLowerCase());
+            checkSupported(!tableImpl.isPrimaryKeyColumn(columnName));
+            updateColumnList.add(columnName);
             CompiledSQLExpression exp =
                     SQLParserExpressionCompiler.compileExpression(projects.get(index), tableSchema);
             expressions.add(exp);

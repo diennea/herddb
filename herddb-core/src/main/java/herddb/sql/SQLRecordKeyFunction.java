@@ -98,12 +98,13 @@ public class SQLRecordKeyFunction extends RecordFunction {
                 return cachedResult;
             }
         }
+        final DataAccessor prevRecord = previous == null ? DataAccessor.NULL : previous.getDataAccessor(tableContext.getTable());
 
         Map<String, Object> pk = new HashMap<>();
         for (int i = 0; i < columns.length; i++) {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
-            Object value = expression.evaluate(DataAccessor.NULL, context);
+            Object value = expression.evaluate(prevRecord, context);
             if (value == null) {
                 throw new InvalidNullValueForKeyException("error while converting primary key " + pk + ", keys cannot be null");
             }
