@@ -25,7 +25,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -46,19 +46,19 @@ public class SysdualTableManager extends AbstractSystemTableManager {
             .column("dummy", ColumnTypes.STRING)
             .primaryKey("dummy")
             .build();
-
+    private final List<Record> result;
+        
     public SysdualTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
+        this.result = Collections.singletonList(RecordSerializer.makeRecord(
+                table,
+                "dummy", "X"
+        ));
     }
 
     @Override
     protected Iterable<Record> buildVirtualRecordList(Transaction transaction) {
-        List<Record> result = new ArrayList<>(1);
-        result.add(RecordSerializer.makeRecord(
-                table,
-                "dummy", "X"
-        ));
-        return result;
+       return result;
     }
 
 }
