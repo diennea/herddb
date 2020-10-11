@@ -124,6 +124,7 @@ public class ShowCreateTableCalculator {
                 tableName = query.trim();
             }
 
+            tableName = tableName.toLowerCase();
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
 
             if (tableSpaceManager == null) {
@@ -136,7 +137,7 @@ public class ShowCreateTableCalculator {
                 throw new TableDoesNotExistException(String.format("Table %s does not exist.", tableName));
             }
 
-            String showCreateResult = ShowCreateTableCalculator.calculate(showCreateIndex, tableName, tableSpace, tableManager);
+            String showCreateResult = calculate(showCreateIndex, tableName, tableSpace, tableManager);
             ValuesOp values = new ValuesOp(manager.getNodeId(),
                     new String[]{"tabledef"},
                     new Column[]{
