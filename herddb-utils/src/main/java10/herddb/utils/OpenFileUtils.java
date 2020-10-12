@@ -40,7 +40,7 @@ public class OpenFileUtils {
     private static final Logger LOG = Logger.getLogger(OpenFileUtils.class.getName());
 
     static {
-        LOG.info("This JVM is able to use O_DIRECT");
+        LOG.fine("This JVM is able to use O_DIRECT");
     }
 
     public static FileChannel openFileChannelWithO_DIRECT(Path path, OpenOption... options) throws IOException {
