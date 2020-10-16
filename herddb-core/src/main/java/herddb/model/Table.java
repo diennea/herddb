@@ -59,6 +59,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     private static final int COLUMNFLAGS_NO_FLAGS = 0;
     private static final int COLUMNFLAGS_HAS_DEFAULT_VALUE = 1;
+    private static final int TABLEFLAGS_HAS_FOREIGN_KEYS = 1;
 
     public final String uuid;
     public final String name;
@@ -74,6 +75,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     // CHECKSTYLE.ON: MemberName
     private final Set<String> primaryKeyColumns;
     public final int maxSerialPosition;
+    public final ForeignKeyDef[] foreignKeys;
 
     /**
      * Best case:
@@ -88,11 +90,12 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
      */
     public final boolean physicalLayoutLikeLogicalLayout;
 
-    private Table(String uuid, String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
+    private Table(String uuid, String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition, ForeignKeyDef[] foreignKeys) {
         this.uuid = uuid;
         this.name = name;
         this.columns = columns;
         this.maxSerialPosition = maxSerialPosition;
+        this.foreignKeys = foreignKeys;
         this.primaryKey = primaryKey;
         this.tablespace = tablespace;
         this.columnsByName = new HashMap<>();
@@ -152,6 +155,10 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return primaryKeyProjection[index] >= 0;
     }
 
+    public ForeignKeyDef[] getForeignKeys() {
+        return foreignKeys;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -176,7 +183,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             for (int i = 0; i < pkcols; i++) {
                 primaryKey[i] = dii.readUTF();
             }
-            dii.readVInt(); // for future implementations
+            int flags = dii.readVInt(); // for future implementations
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
             for (int i = 0; i < ncols; i++) {
@@ -196,7 +203,31 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 }
                 columns[i] = Column.column(cname, type, serialPosition, defaultValue);
             }
-            return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
+            ForeignKeyDef[] foreignKeys = null;
+            if ((flags & TABLEFLAGS_HAS_FOREIGN_KEYS) == TABLEFLAGS_HAS_FOREIGN_KEYS) {
+                int numForeignKeys = dii.readVInt();
+                if (numForeignKeys > 0) {
+                    foreignKeys = new ForeignKeyDef[numForeignKeys];
+                    for (int i = 0; i < numForeignKeys; i++) {
+                        ForeignKeyDef.Builder builder = ForeignKeyDef.bulder();
+                        String parentTableId = dii.readUTF();
+                        builder.parentTableColumn(parentTableId);
+                        int numColumns = dii.readVInt();
+                        for (int k = 0; k < numColumns; k++) {
+                            String col = dii.readUTF();
+                            builder.column(col);
+                        }
+                        for (int k = 0; k < numColumns; k++) {
+                            String col = dii.readUTF();
+                            builder.parentTableColumn(col);
+                        }
+                        int cascadeAction = dii.readVInt();
+                        builder.cascadeAction(cascadeAction);
+                        foreignKeys[i] = builder.build();
+                    }
+                }
+            }
+            return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition, foreignKeys);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -216,7 +247,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             for (String primaryKeyColumn : primaryKey) {
                 doo.writeUTF(primaryKeyColumn);
             }
-            doo.writeVInt(0); // flags for future implementations
+            doo.writeVInt(0 + ((foreignKeys != null && foreignKeys.length > 0) ? TABLEFLAGS_HAS_FOREIGN_KEYS : 0)); // flags for future implementations
             doo.writeVInt(columns.length);
             for (Column c : columns) {
                 doo.writeVLong(COLUMNVERSION_1); // version
@@ -230,6 +261,20 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                 doo.writeVInt(c.serialPosition);
                 if (c.defaultValue != null) {
                     doo.writeArray(c.defaultValue);
+                }
+            }
+            if (foreignKeys != null && foreignKeys.length > 0) {
+                doo.writeVInt(foreignKeys.length);
+                for (ForeignKeyDef k : foreignKeys) {
+                    doo.writeUTF(k.parentTableId);
+                    doo.writeVInt(k.columns.length);
+                    for (String col : k.columns) {
+                        doo.writeUTF(col);
+                    }
+                    for (String col : k.parentTableColumns) {
+                        doo.writeUTF(col);
+                    }
+                    doo.writeVInt(k.cascadeAction);
                 }
             }
         } catch (IOException ee) {
@@ -384,6 +429,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     public static class Builder {
 
         private final List<Column> columns = new ArrayList<>();
+        private final List<ForeignKeyDef> foreignKeys = new ArrayList<>();
         private String name;
         private String uuid;
         private final List<String> primaryKey = new ArrayList<>();
@@ -437,6 +483,11 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             return this;
         }
 
+        public Builder foreingKey(ForeignKeyDef fk) {
+            this.foreignKeys.add(fk);
+            return this;
+        }
+
         public Builder column(String name, int type) {
             return column(name, type, maxSerialPosition++, null);
         }
@@ -481,7 +532,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
             return new Table(uuid, name,
                     columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
-                    tablespace, auto_increment, maxSerialPosition);
+                    tablespace, auto_increment, maxSerialPosition, foreignKeys.toArray(new ForeignKeyDef[foreignKeys.size()]));
         }
 
         /**
