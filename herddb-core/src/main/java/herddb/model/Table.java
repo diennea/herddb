@@ -159,6 +159,18 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return foreignKeys;
     }
 
+    public boolean isChildTable(String parentUuid) {
+        if (foreignKeys == null) {
+            return false;
+        }
+        for (ForeignKeyDef fk : foreignKeys) {
+            if (fk.parentTableId.equals(parentUuid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Builder builder() {
         return new Builder();
     }

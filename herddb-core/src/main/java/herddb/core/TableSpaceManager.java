@@ -847,6 +847,27 @@ public class TableSpaceManager {
         throw new HerdDBInternalException("Cannot find tablemanager for " + parentTableId);
     }
 
+    Table[] collectChildrenTables(Table childTable) {
+        List<Table> list = new ArrayList<>();
+        for (AbstractTableManager manager : tables.values()) {
+            Table table = manager.getTable();
+            if (table.isChildTable(childTable.uuid)) {
+                list.add(table);
+            }
+        }
+        // selft reference
+        if (childTable.isChildTable(childTable.uuid)) {
+            list.add(childTable);
+        }
+        return list.isEmpty() ? null : list.toArray(new Table[0]);
+    }
+
+    void rebuildForeignKeyReferences(Table table) {
+        for (AbstractTableManager manager : tables.values()) {
+            manager.rebuildForeignKeyReferences(table);
+        }
+    }
+
     private static class CheckpointFuture extends CompletableFuture {
 
         private final String tableName;
@@ -1874,6 +1895,7 @@ public class TableSpaceManager {
                 indexesByTable.put(table.name, removed);
             }
         }
+        rebuildForeignKeyReferences(table);
         return tableManager;
     }
 
