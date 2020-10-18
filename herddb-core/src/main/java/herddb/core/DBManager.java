@@ -76,6 +76,7 @@ import herddb.sql.CalcitePlanner;
 import herddb.sql.JSQLParserPlanner;
 import herddb.sql.NullSQLPlanner;
 import herddb.sql.PlansCache;
+import herddb.sql.TranslatedQuery;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
@@ -772,6 +773,18 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "uncaught error", err);
             return Futures.exception(err);
         }
+    }
+
+    /**
+     * Internal method used to execute simple data accesses, like foreign key checks.
+     */
+    public DataScanner executeSimpleQuery(String tableSpace, String query, List<Object> parameters,
+            int maxRows, boolean keepReadLocks, TransactionContext transactionContext) {
+        TranslatedQuery translatedQuery = planner.translate(tableSpace,
+                query, parameters, true, true, false, maxRows);
+        translatedQuery.context.setForceRetainReadLock(keepReadLocks);
+        ScanResult scanResult = (ScanResult) executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+        return scanResult.dataScanner;
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {

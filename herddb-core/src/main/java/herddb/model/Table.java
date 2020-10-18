@@ -436,17 +436,6 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition, foreignKeys);
     }
 
-    public int getColumnIndex(String column) {
-        int i = 0;
-        for (String c : columnNames) {
-            if (c.equals(column)) {
-                return i;
-            }
-            i++;
-        }
-        throw new IllegalArgumentException("Cannot find column " + column);
-    }
-
     public static class Builder {
 
         private final List<Column> columns = new ArrayList<>();

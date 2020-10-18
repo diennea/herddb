@@ -20,15 +20,22 @@
 
 package herddb.sql;
 
+import static herddb.core.TestUtils.beginTransaction;
+import static herddb.core.TestUtils.dump;
 import static herddb.core.TestUtils.execute;
+import static herddb.utils.TestUtils.expectThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import herddb.core.DBManager;
+import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DataScannerException;
 import herddb.model.ForeignKeyDef;
+import herddb.model.ForeignKeyViolationException;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -65,8 +72,35 @@ public class ForeignKeySQLTest {
             assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
 
+            testChildSideOfForeignKey(manager, 0); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            long tx = beginTransaction(manager, "tblspace1");
+            testChildSideOfForeignKey(manager, tx);  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
 
         }
+    }
+
+    private void testChildSideOfForeignKey(final DBManager manager, long tx) throws DataScannerException, StatementExecutionException {
+        ForeignKeyViolationException err = expectThrows(ForeignKeyViolationException.class, () -> {
+            execute(manager, "INSERT INTO tblspace1.child(k2,n2,s2) values('a',2,'pvalue')", Collections.emptyList(), new TransactionContext(tx));
+        });
+        assertEquals("fk1", err.getForeignKeyName());
+
+        execute(manager, "INSERT INTO tblspace1.parent(k1,n1,s1) values('a',2,'pvalue')", Collections.emptyList(), new TransactionContext(tx));
+        execute(manager, "INSERT INTO tblspace1.child(k2,n2,s2) values('c1',2,'a')", Collections.emptyList(), new TransactionContext(tx));
+
+        ForeignKeyViolationException errOnUpdate = expectThrows(ForeignKeyViolationException.class, () -> {
+            execute(manager, "UPDATE tblspace1.child set s2='badvalue'", Collections.emptyList(), new TransactionContext(tx));
+        });
+        assertEquals("fk1", errOnUpdate.getForeignKeyName());
+
+        execute(manager, "INSERT INTO tblspace1.parent(k1,n1,s1) values('newvalue',2,'foo')", Collections.emptyList(), new TransactionContext(tx));
+        dump(manager, "SELECT * FROM tblspace1.parent", Collections.emptyList(), new TransactionContext(tx));
+        execute(manager, "UPDATE tblspace1.child set s2='newvalue'", Collections.emptyList(), new TransactionContext(tx));
     }
 
 }

@@ -27,7 +27,6 @@ import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexSeek;
-import herddb.index.SecondaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
@@ -60,6 +59,7 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
+import herddb.model.TransactionContext;
 import herddb.model.TupleComparator;
 import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.DeleteStatement;
@@ -70,9 +70,6 @@ import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.server.ServerConfiguration;
-import herddb.sql.SQLRecordKeyFunction;
-import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.ConstantExpression;
 import herddb.storage.DataPageDoesNotExistException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -92,7 +89,6 @@ import herddb.utils.NullLockManager;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -271,6 +267,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final boolean keyToPageSortedAscending;
 
     private volatile boolean closed;
+
+    private final ConcurrentHashMap<String, String> childForeignKeyQueries = new ConcurrentHashMap<>();
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
@@ -1240,66 +1238,50 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void checkForeignKeyConstraintsAsChildTable(ForeignKeyDef fk, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
-        AbstractTableManager parentTableManager = tableSpaceManager.getTableManagerByUUID(fk.parentTableId);
-        final Table parentTable = parentTableManager.getTable();
-        final int[] columnIndexesInParentTable = new int[fk.parentTableColumns.length];
-        final Object[] valuesToMatch = new Object[fk.columns.length];
-        int i = 0;
-        for (String parentColumnName : fk.parentTableColumns) {
-            valuesToMatch[i] = values.get(table.getColumnIndex(fk.columns[i]));
-            columnIndexesInParentTable[i++] = parentTable.getColumnIndex(parentColumnName);
-        }
-        // TODO: precompile this ScanOperation
-        ScanStatement scanStatement = new ScanStatement(tableSpaceManager.getTableSpaceName(), parentTable, new Predicate() {
-            @Override
-            public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-                DataAccessor accessor = record.getDataAccessor(parentTable);
-                for (int i = 0; i < columnIndexesInParentTable.length; i++) {
-                    Object value = valuesToMatch[i];
-                    // try to not create intemediate objects
-                    if (!accessor.fieldEqualsTo(i, value)) {
-                        return false;
-                    }
+        // We are creating a SQL query and then using DBManager
+        // using an SQL query will let us leverage the SQL Planner
+        // and use the best index to perform the execution
+        // the SQL Planner will cache the plan, and the plan will also be
+        // invalidated consistently during DML operations.
+        String query = childForeignKeyQueries.computeIfAbsent(fk.name, (l -> {
+            Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
+            // with '*' we are not gping to perform projections or copies
+            StringBuilder q = new StringBuilder("SELECT * FROM ");
+            q.append(parentTable.tablespace);
+            q.append(".");
+            q.append(parentTable.name);
+            q.append(" WHERE ");
+            for (int i = 0; i < fk.parentTableColumns.length; i++) {
+                if (i > 0) {
+                    q.append(" AND ");
                 }
-                return true;
+                q.append(fk.parentTableColumns[i]);
+                q.append("=?");
             }
-        });
+            return q.toString();
+        }));
 
-        //TODO: precompute this index Operation
-        IndexOperation indexOperation = null;
-
-        //TODO: check for a PK index
-
-        // check for a seccondary index
-        Map<String, AbstractIndexManager> indexesOnParentTable = tableSpaceManager.getIndexesOnTable(parentTable.name);
-        if (indexesOnParentTable != null) {
-            for (AbstractIndexManager indexManager : indexesOnParentTable.values()) {
-                Index index = indexManager.getIndex();
-                if (Arrays.equals(index.getPrimaryKey(), fk.parentTableColumns)) {
-                    List<CompiledSQLExpression> constantExpressions = Stream.of(valuesToMatch)
-                            .map(v -> new ConstantExpression(v, ColumnTypes.ANYTYPE))
-                            .collect(Collectors.toList());
-                    indexOperation = new SecondaryIndexSeek(index.name, index.getPrimaryKey(),
-                            new SQLRecordKeyFunction(Arrays.asList(fk.parentTableColumns), constantExpressions, parentTable));
-                }
-            }
+        final List<Object> valuesToMatch = new ArrayList<>(fk.columns.length);
+        for (int i = 0; i < fk.columns.length; i++) {
+            valuesToMatch.add(values.get(fk.columns[i]));
         }
-        // TODO: check for a prefix scan
 
-        scanStatement.getPredicate().setIndexOperation(indexOperation);
-
-        // look for max one record
-        scanStatement.setLimits(new ScanLimitsImpl(1, 0));
-
+        TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
         boolean fkOk;
-        try (DataScanner scan = parentTableManager.scan(scanStatement, context, transaction, true, false);) {
+        try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
+                query,
+                valuesToMatch,
+                1, // only one record
+                true, // keep read locks in TransactionContext
+                tx);
+        ) {
             List<DataAccessor> resultSet = scan.consume();
             fkOk = !resultSet.isEmpty();
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }
         if (!fkOk) {
-            throw new ForeignKeyViolationException(fk.name, "foreignKey " + fk.name + " violated, no record in " + parentTable.name);
+            throw new ForeignKeyViolationException(fk.name, "foreignKey " + fk.name + " violated");
         }
     }
 
@@ -1388,25 +1370,32 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     byte[] newValue;
                     try {
                         newValue = function.computeNewValue(actual, context, tableContext);
-                        if (indexes != null) {
+                        if (indexes != null || table.foreignKeys != null) {
                             DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
-                            for (AbstractIndexManager index : indexes.values()) {
-                                if (index.isUnique()) {
-                                    Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
-                                    if (uniqueIndexes == null) {
-                                        uniqueIndexes = new ArrayList<>(1);
+                            if (table.foreignKeys != null) {
+                                for (ForeignKeyDef fk : table.foreignKeys) {
+                                    checkForeignKeyConstraintsAsChildTable(fk, values, context, transaction);
+                                }
+                            }
+                            if (indexes != null) {
+                                for (AbstractIndexManager index : indexes.values()) {
+                                    if (index.isUnique()) {
+                                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                                        if (uniqueIndexes == null) {
+                                            uniqueIndexes = new ArrayList<>(1);
+                                        }
+                                        UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                        uniqueIndexes.add(uniqueIndexLock);
+                                        LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                        if (transaction == null) {
+                                            uniqueIndexLock.lockHandle = lockForIndex;
+                                        }
+                                        if (index.valueAlreadyMapped(indexKey, actual.key)) {
+                                            throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
+                                        }
+                                    } else {
+                                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                                     }
-                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
-                                    uniqueIndexes.add(uniqueIndexLock);
-                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
-                                    if (transaction == null) {
-                                        uniqueIndexLock.lockHandle = lockForIndex;
-                                    }
-                                    if (index.valueAlreadyMapped(indexKey, actual.key)) {
-                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
-                                    }
-                                } else {
-                                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                                 }
                             }
                         }
