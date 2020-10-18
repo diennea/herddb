@@ -22,6 +22,7 @@ package herddb.model;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Definition of a ForeignKey constaint.
@@ -30,7 +31,7 @@ import java.util.List;
 public final class ForeignKeyDef {
 
     public static final int ACTION_NO_ACTION = 0; // NO_ACTION means to reject the operation
-
+    public final String name;
     public final String parentTableId; // uuid, not name
     public final String[] columns;
     public final String[] parentTableColumns;
@@ -40,7 +41,8 @@ public final class ForeignKeyDef {
         return new Builder();
     }
 
-    private ForeignKeyDef(String parentTableId, String[] columns, String[] parentTableColumns, int cascadeAction) {
+    private ForeignKeyDef(String name, String parentTableId, String[] columns, String[] parentTableColumns, int cascadeAction) {
+        this.name = name;
         this.parentTableId = parentTableId;
         this.columns = columns;
         this.parentTableColumns = parentTableColumns;
@@ -49,10 +51,16 @@ public final class ForeignKeyDef {
 
     public static class Builder {
 
+        private String name = UUID.randomUUID().toString();
         private String parentTableId; // uuid, not name
         private final List<String> columns = new ArrayList<>();
         private final List<String> parentTableColumns = new ArrayList<>();
         private int cascadeAction;
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
 
         public Builder parentTableId(String parentTableId) {
             this.parentTableId = parentTableId;
@@ -79,7 +87,7 @@ public final class ForeignKeyDef {
                 throw new IllegalArgumentException("parentTableId must be set");
             }
             if (cascadeAction != ACTION_NO_ACTION) {
-                throw new IllegalArgumentException("invalid cascadeAction "+cascadeAction);
+                throw new IllegalArgumentException("invalid cascadeAction " + cascadeAction);
             }
             if (parentTableColumns.size() != columns.size()) {
                 throw new IllegalArgumentException("the number of columns in child and parent table must be the same");
@@ -87,7 +95,7 @@ public final class ForeignKeyDef {
             if (columns.isEmpty()) {
                 throw new IllegalArgumentException("a foreign key constaint must refer to at least one column");
             }
-            return new ForeignKeyDef(parentTableId,
+            return new ForeignKeyDef(name, parentTableId,
                     columns.toArray(new String[0]),
                     parentTableColumns.toArray(new String[0]),
                     cascadeAction);

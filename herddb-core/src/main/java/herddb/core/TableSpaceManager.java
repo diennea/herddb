@@ -62,10 +62,13 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.ForeignKeyDef;
 import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
@@ -834,6 +837,16 @@ public class TableSpaceManager {
         dataStorageManager.tableSpaceMetadataUpdated(tableSpace.uuid, tableSpace.expectedReplicaCount);
     }
 
+    AbstractTableManager getTableManagerByUUID(String parentTableId) {
+        //TODO: make this method more efficient
+        for (AbstractTableManager manager : tables.values()) {
+            if (manager.getTable().uuid.equals(parentTableId)) {
+                return manager;
+            }
+        }
+        throw new HerdDBInternalException("Cannot find tablemanager for " + parentTableId);
+    }
+
     private static class CheckpointFuture extends CompletableFuture {
 
         private final String tableName;
@@ -1542,7 +1555,38 @@ public class TableSpaceManager {
                     throw new IndexAlreadyExistsException(additionalIndex.name);
                 }
             }
-
+            Table table = statement.getTableDefinition();
+            // validate foreign keys
+            if (table.foreignKeys != null) {
+                for (ForeignKeyDef def: table.foreignKeys) {
+                    AbstractTableManager parentTableManager = null;
+                    for (AbstractTableManager ab : tables.values()) {
+                        if (ab.getTable().uuid.equals(def.parentTableId)) {
+                            parentTableManager = ab;
+                            break;
+                        }
+                    }
+                    if (parentTableManager == null) {
+                        throw new StatementExecutionException("Table " + def.parentTableId + " does not exist in tablespace " + tableSpaceName);
+                    }
+                    Table parentTable = parentTableManager.getTable();
+                    int i = 0;
+                    for (String col : def.columns) {
+                        Column column = table.getColumn(col);
+                        Column parentColumn = parentTable.getColumn(def.parentTableColumns[i]);
+                        if (column == null) {
+                            throw new StatementExecutionException("Cannot find column " + col);
+                        }
+                        if (parentColumn == null) {
+                            throw new StatementExecutionException("Cannot find column " + def.parentTableColumns[i]);
+                        }
+                        if (!ColumnTypes.sameRawDataType(column.type, parentColumn.type)) {
+                            throw new StatementExecutionException("Column " + table.name + "." + column.name + " is not the same tyepe of column " + parentTable.name + "." + parentColumn.name);
+                        }
+                        i++;
+                    }
+                }
+            }
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);

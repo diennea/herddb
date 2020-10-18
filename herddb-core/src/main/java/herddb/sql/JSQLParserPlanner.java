@@ -36,6 +36,7 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
+import herddb.model.ForeignKeyDef;
 import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
@@ -130,6 +131,7 @@ import net.sf.jsqlparser.statement.create.index.CreateIndex;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.table.ForeignKeyIndex;
 import net.sf.jsqlparser.statement.create.table.Index;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.drop.Drop;
@@ -533,6 +535,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
 
             Table table = tablebuilder.build();
             List<herddb.model.Index> otherIndexes = new ArrayList<>();
+            List<herddb.model.ForeignKeyDef> foreignKeys = new ArrayList<>();
             if (s.getIndexes() != null) {
                 for (Index index : s.getIndexes()) {
                     if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
@@ -564,6 +567,48 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                         }
 
                         otherIndexes.add(builder.build());
+                    } else if (index.getType().equals("FOREIGN KEY")) {
+                        ForeignKeyIndex fk = (ForeignKeyIndex) index;
+                        String indexName = fixMySqlBackTicks(fk.getName().toLowerCase());
+                        int cascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+                        if (fk.getOnDeleteReferenceOption() != null) {
+                            throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
+                        }
+                        if (fk.getOnUpdateReferenceOption() != null) {
+                            throw new StatementExecutionException("Unsupported option " + fk.getOnUpdateReferenceOption());
+                        }
+
+                        Table parentTableSchema = getTable(table.tablespace, fk.getTable());
+                        herddb.model.ForeignKeyDef.Builder builder = herddb.model.ForeignKeyDef
+                                .bulder()
+                                .name(indexName)
+                                .parentTableId(parentTableSchema.uuid)
+                                .cascadeAction(cascadeAction);
+
+                        for (String columnName : fk.getColumnsNames()) {
+                            columnName = fixMySqlBackTicks(columnName.toLowerCase());
+                            Column column = table.getColumn(columnName);
+                            if (column == null) {
+                                throw new StatementExecutionException(
+                                        "no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                            }
+                            builder.column(column.name);
+                        }
+
+                        for (String columnName : fk.getReferencedColumnNames()) {
+                            columnName = fixMySqlBackTicks(columnName.toLowerCase());
+                            Column column = parentTableSchema.getColumn(columnName);
+                            if (column == null) {
+                                throw new StatementExecutionException(
+                                        "no such column " + columnName + " on table " + parentTableSchema.name + " in tablespace " + parentTableSchema.tablespace);
+                            }
+                            builder.parentTableColumn(column.name);
+                        }
+
+                        foreignKeys.add(builder.build());
+
+                    } else {
+                        throw new StatementExecutionException("Unsupported index type " + index.getType());
                     }
                 }
             }
@@ -577,6 +622,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                         .uuid(UUID.randomUUID().toString())
                         .column(col, table.getColumn(col).type);
                 otherIndexes.add(builder.build());
+            }
+            if (!foreignKeys.isEmpty()) {
+                table = table.withForeignKeys(foreignKeys.toArray(new ForeignKeyDef[0]));
             }
 
             CreateTableStatement statement = new CreateTableStatement(table, otherIndexes, isNotExsists);
@@ -1659,6 +1707,24 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             refs[i] = new ColumnRef(aliasTable, tableImpl.columns[i]);
         }
         return new OpSchema(tableSpace, tableName, aliasTable, tableImpl.columnNames, refs);
+    }
+
+    private Table getTable(String defaultTableSpace, net.sf.jsqlparser.schema.Table table) {
+        String tableSpace = table.getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        TableSpaceManager tableSpaceManager = getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            clearCache();
+            throw new StatementExecutionException("tablespace " + defaultTableSpace + " is not available");
+        }
+        String tableName = fixMySqlBackTicks(table.getName().toLowerCase());
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + tableName + " here for " + tableSpace);
+        }
+        return tableManager.getTable();
     }
 
     private PlannerOp planAggregate(List<SelectExpressionItem> fieldList, OpSchema inputSchema, PlannerOp input, OpSchema originalTableSchema,

@@ -27,6 +27,7 @@ import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
@@ -41,6 +42,8 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
+import herddb.model.ForeignKeyDef;
+import herddb.model.ForeignKeyViolationException;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.Predicate;
@@ -67,6 +70,9 @@ import herddb.model.commands.TableConsistencyCheckStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.server.ServerConfiguration;
+import herddb.sql.SQLRecordKeyFunction;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.storage.DataPageDoesNotExistException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -86,6 +92,7 @@ import herddb.utils.NullLockManager;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1123,18 +1130,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         List<UniqueIndexLockReference> uniqueIndexes = null;
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-        if (indexes != null) {
+        if (indexes != null || table.foreignKeys != null) {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
-                for (AbstractIndexManager index : indexes.values()) {
-                    if (index.isUnique()) {
-                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
-                        if (uniqueIndexes == null) {
-                            uniqueIndexes = new ArrayList<>(1);
+                if (table.foreignKeys != null) {
+                    for (ForeignKeyDef fk : table.foreignKeys) {
+                        checkForeignKeyConstraintsAsChildTable(fk, values, context, transaction);
+                    }
+                }
+                if (indexes != null) {
+                    for (AbstractIndexManager index : indexes.values()) {
+                        if (index.isUnique()) {
+                            Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                            if (uniqueIndexes == null) {
+                                uniqueIndexes = new ArrayList<>(1);
+                            }
+                            uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                        } else {
+                            RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                         }
-                        uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
-                    } else {
-                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                     }
                 }
             } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
@@ -1223,6 +1237,70 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = releaseWriteLock(res, lock);
         }
         return res;
+    }
+
+    private void checkForeignKeyConstraintsAsChildTable(ForeignKeyDef fk, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        AbstractTableManager parentTableManager = tableSpaceManager.getTableManagerByUUID(fk.parentTableId);
+        final Table parentTable = parentTableManager.getTable();
+        final int[] columnIndexesInParentTable = new int[fk.parentTableColumns.length];
+        final Object[] valuesToMatch = new Object[fk.columns.length];
+        int i = 0;
+        for (String parentColumnName : fk.parentTableColumns) {
+            valuesToMatch[i] = values.get(table.getColumnIndex(fk.columns[i]));
+            columnIndexesInParentTable[i++] = parentTable.getColumnIndex(parentColumnName);
+        }
+        // TODO: precompile this ScanOperation
+        ScanStatement scanStatement = new ScanStatement(tableSpaceManager.getTableSpaceName(), parentTable, new Predicate() {
+            @Override
+            public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                DataAccessor accessor = record.getDataAccessor(parentTable);
+                for (int i = 0; i < columnIndexesInParentTable.length; i++) {
+                    Object value = valuesToMatch[i];
+                    // try to not create intemediate objects
+                    if (!accessor.fieldEqualsTo(i, value)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
+
+        //TODO: precompute this index Operation
+        IndexOperation indexOperation = null;
+
+        //TODO: check for a PK index
+
+        // check for a seccondary index
+        Map<String, AbstractIndexManager> indexesOnParentTable = tableSpaceManager.getIndexesOnTable(parentTable.name);
+        if (indexesOnParentTable != null) {
+            for (AbstractIndexManager indexManager : indexesOnParentTable.values()) {
+                Index index = indexManager.getIndex();
+                if (Arrays.equals(index.getPrimaryKey(), fk.parentTableColumns)) {
+                    List<CompiledSQLExpression> constantExpressions = Stream.of(valuesToMatch)
+                            .map(v -> new ConstantExpression(v, ColumnTypes.ANYTYPE))
+                            .collect(Collectors.toList());
+                    indexOperation = new SecondaryIndexSeek(index.name, index.getPrimaryKey(),
+                            new SQLRecordKeyFunction(Arrays.asList(fk.parentTableColumns), constantExpressions, parentTable));
+                }
+            }
+        }
+        // TODO: check for a prefix scan
+
+        scanStatement.getPredicate().setIndexOperation(indexOperation);
+
+        // look for max one record
+        scanStatement.setLimits(new ScanLimitsImpl(1, 0));
+
+        boolean fkOk;
+        try (DataScanner scan = parentTableManager.scan(scanStatement, context, transaction, true, false);) {
+            List<DataAccessor> resultSet = scan.consume();
+            fkOk = !resultSet.isEmpty();
+        } catch (DataScannerException err) {
+            throw new StatementExecutionException(err);
+        }
+        if (!fkOk) {
+            throw new ForeignKeyViolationException(fk.name, "foreignKey " + fk.name + " violated, no record in " + parentTable.name);
+        }
     }
 
     private CompletableFuture<StatementExecutionResult> releaseWriteLock(

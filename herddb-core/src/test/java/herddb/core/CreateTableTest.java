@@ -20,10 +20,15 @@
 
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
+import static herddb.utils.TestUtils.expectThrows;
+import static org.junit.Assert.assertEquals;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
+import herddb.model.ForeignKeyDef;
+import herddb.model.ForeignKeyViolationException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -69,6 +74,56 @@ public class CreateTableTest {
             CreateTableStatement st2IfNotExists = new CreateTableStatement(table, Collections.emptyList(), true);
             manager.executeStatement(st2IfNotExists, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
+        }
+
+    }
+
+    @Test
+    public void createTableWithForeignKeys() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table parentTable = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            Table childTable = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t2")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .column("parenttableid", ColumnTypes.NOTNULL_STRING)
+                    .primaryKey("id")
+                    .foreingKey(ForeignKeyDef
+                            .bulder()
+                            .name("myfk")
+                            .cascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
+                            .column("parenttableid")
+                            .parentTableId(parentTable.uuid)
+                            .parentTableColumn("id")
+                            .build())
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(parentTable);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            CreateTableStatement st3 = new CreateTableStatement(childTable);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            ForeignKeyViolationException err = expectThrows(ForeignKeyViolationException.class, () -> {
+                execute(manager, "INSERT INTO tblspace1.t2(id,name,parentTableId) values('a','name','pvalue')", Collections.emptyList());
+            });
+            assertEquals("myfk", err.getForeignKeyName());
         }
 
     }

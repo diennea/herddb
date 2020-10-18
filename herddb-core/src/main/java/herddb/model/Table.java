@@ -210,8 +210,10 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                     foreignKeys = new ForeignKeyDef[numForeignKeys];
                     for (int i = 0; i < numForeignKeys; i++) {
                         ForeignKeyDef.Builder builder = ForeignKeyDef.bulder();
+                        String fkName = dii.readUTF();
                         String parentTableId = dii.readUTF();
-                        builder.parentTableColumn(parentTableId);
+                        builder.parentTableId(parentTableId);
+                        builder.name(fkName);
                         int numColumns = dii.readVInt();
                         for (int k = 0; k < numColumns; k++) {
                             String col = dii.readUTF();
@@ -266,6 +268,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             if (foreignKeys != null && foreignKeys.length > 0) {
                 doo.writeVInt(foreignKeys.length);
                 for (ForeignKeyDef k : foreignKeys) {
+                    doo.writeUTF(k.name);
                     doo.writeUTF(k.parentTableId);
                     doo.writeVInt(k.columns.length);
                     for (String col : k.columns) {
@@ -426,6 +429,24 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return sb.toString();
     }
 
+    public Table withForeignKeys(ForeignKeyDef[] foreignKeys) {
+        if (this.foreignKeys != null) {
+            throw new IllegalStateException();
+        }
+        return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition, foreignKeys);
+    }
+
+    public int getColumnIndex(String column) {
+        int i = 0;
+        for (String c : columnNames) {
+            if (c.equals(column)) {
+                return i;
+            }
+            i++;
+        }
+        throw new IllegalArgumentException("Cannot find column " + column);
+    }
+
     public static class Builder {
 
         private final List<Column> columns = new ArrayList<>();
@@ -532,7 +553,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
             return new Table(uuid, name,
                     columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
-                    tablespace, auto_increment, maxSerialPosition, foreignKeys.toArray(new ForeignKeyDef[foreignKeys.size()]));
+                    tablespace, auto_increment, maxSerialPosition, foreignKeys.isEmpty() ? null : foreignKeys.toArray(new ForeignKeyDef[foreignKeys.size()]));
         }
 
         /**
