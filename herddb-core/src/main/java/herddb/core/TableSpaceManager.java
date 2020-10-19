@@ -838,27 +838,27 @@ public class TableSpaceManager {
         dataStorageManager.tableSpaceMetadataUpdated(tableSpace.uuid, tableSpace.expectedReplicaCount);
     }
 
-    AbstractTableManager getTableManagerByUUID(String parentTableId) {
+    AbstractTableManager getTableManagerByUUID(String uuid) {
         //TODO: make this method more efficient
         for (AbstractTableManager manager : tables.values()) {
-            if (manager.getTable().uuid.equals(parentTableId)) {
+            if (manager.getTable().uuid.equals(uuid)) {
                 return manager;
             }
         }
-        throw new HerdDBInternalException("Cannot find tablemanager for " + parentTableId);
+        throw new HerdDBInternalException("Cannot find tablemanager for " + uuid);
     }
 
-    public Table[] collectChildrenTables(Table childTable) {
+    public Table[] collectChildrenTables(Table parentTable) {
         List<Table> list = new ArrayList<>();
         for (AbstractTableManager manager : tables.values()) {
             Table table = manager.getTable();
-            if (table.isChildTable(childTable.uuid)) {
+            if (table.isChildOfTable(parentTable.uuid)) {
                 list.add(table);
             }
         }
         // selft reference
-        if (childTable.isChildTable(childTable.uuid)) {
-            list.add(childTable);
+        if (parentTable.isChildOfTable(parentTable.uuid)) {
+            list.add(parentTable);
         }
         return list.isEmpty() ? null : list.toArray(new Table[0]);
     }

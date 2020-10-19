@@ -1254,7 +1254,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         // invalidated consistently during DML operations.
         for (ForeignKeyDef fk : childTable.foreignKeys) {
             String query = parentForeignKeyQueries.computeIfAbsent(childTable.name + "." + fk.name, (l -> {
-                // with '*' we are not gping to perform projections or copies
+                // with '*' we are not going to perform projections or copies
                 StringBuilder q = new StringBuilder("SELECT * FROM ");
                 q.append(childTable.tablespace);
                 q.append(".");
@@ -1306,7 +1306,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         // invalidated consistently during DML operations.
         String query = childForeignKeyQueries.computeIfAbsent(fk.name, (l -> {
             Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
-            // with '*' we are not gping to perform projections or copies
+            // with '*' we are not going to perform projections or copies
             StringBuilder q = new StringBuilder("SELECT * FROM ");
             q.append(parentTable.tablespace);
             q.append(".");
