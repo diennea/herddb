@@ -1324,9 +1324,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 tableSpace = defaultTableSpace;
             }
             String tableName = fixMySqlBackTicks(drop.getName().getName());
-            net.sf.jsqlparser.schema.Table fakeTable = new net.sf.jsqlparser.schema.Table(tableSpace, tableName);
-            Table table = getTable(defaultTableSpace, fakeTable);
-            return new DropTableStatement(tableSpace, table.name, drop.isIfExists());
+            return new DropTableStatement(tableSpace, tableName, drop.isIfExists());
         }
         if (drop.getType().equalsIgnoreCase("index")) {
             if (drop.getName() == null) {
