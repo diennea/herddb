@@ -1602,8 +1602,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     try {
                         if (indexes != null || childrenTables != null) {
                             DataAccessor dataAccessor = current.getDataAccessor(table);
-                            for (Table childTable : childrenTables) {
-                                checkForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction);
+                            if (childrenTables != null) {
+                                for (Table childTable : childrenTables) {
+                                    checkForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction);
+                                }
                             }
                             if (indexes != null) {
                                 for (AbstractIndexManager index : indexes.values()) {
