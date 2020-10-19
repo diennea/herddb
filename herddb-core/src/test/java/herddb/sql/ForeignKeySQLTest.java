@@ -139,4 +139,32 @@ public class ForeignKeySQLTest {
 
     }
 
+    @Test
+    public void cannotAlterColumnsWithChildTableRefs() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
+                    + "s2 string, "
+                    + "CONSTRAINT fk1 FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1) ON DELETE NO ACTION ON UPDATE NO ACTION)", Collections.emptyList());
+            Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
+            assertEquals(1, childTable.foreignKeys.length);
+
+            StatementExecutionException errCannotDrop = expectThrows(StatementExecutionException.class, () -> {
+                execute(manager, "DROP TABLE tblspace1.parent", Collections.emptyList());
+            });
+            assertEquals("Cannot drop table tblspace1.parent because it has children tables: child", errCannotDrop.getMessage());
+
+            StatementExecutionException errCannotDropColumn = expectThrows(StatementExecutionException.class, () -> {
+                execute(manager, "ALTER TABLE tblspace1.parent DROP COLUMN n1", Collections.emptyList());
+            });
+            assertEquals("Cannot drop column parent.n1 because of foreign key constraint fk1 on table child", errCannotDropColumn.getMessage());
+        }
+    }
+
 }

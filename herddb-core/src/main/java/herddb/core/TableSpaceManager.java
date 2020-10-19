@@ -139,6 +139,7 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -847,7 +848,7 @@ public class TableSpaceManager {
         throw new HerdDBInternalException("Cannot find tablemanager for " + parentTableId);
     }
 
-    Table[] collectChildrenTables(Table childTable) {
+    public Table[] collectChildrenTables(Table childTable) {
         List<Table> list = new ArrayList<>();
         for (AbstractTableManager manager : tables.values()) {
             Table table = manager.getTable();
@@ -1529,6 +1530,26 @@ public class TableSpaceManager {
                         + " only " + tables.keySet());
             }
 
+            Table oldTable = tableManager.getTable();
+            Table[] childrenTables = collectChildrenTables(oldTable);
+            if (childrenTables != null) {
+                for (Table child : childrenTables) {
+                    for (String col : statement.getDropColumns()) {
+                        for (ForeignKeyDef fk : child.foreignKeys) {
+                            if (fk.parentTableId.equals(oldTable.uuid)) {
+                                if (Stream
+                                        .of(fk.parentTableColumns)
+                                        .anyMatch(c -> c.equalsIgnoreCase(col))) {
+                                    throw new StatementExecutionException(
+                                            "Cannot drop column " + oldTable.name + "." + col + " because of foreign key constraint " + fk.name + " on table " + child.name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
             Table newTable;
             try {
                 newTable = tableManager.getTable().applyAlterTable(statement);
@@ -1678,7 +1699,8 @@ public class TableSpaceManager {
                     .filter(t -> t.toUpperCase().equals(tableNameUpperCase))
                     .findFirst()
                     .orElse(statement.getTable());
-            if (!tables.containsKey(tableNameNormalized)) {
+            AbstractTableManager tableManager = tables.get(tableNameNormalized);
+            if (tableManager == null) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
                 }
@@ -1690,7 +1712,14 @@ public class TableSpaceManager {
                 }
                 throw new TableDoesNotExistException("table does not exist " + tableNameNormalized + " on tableSpace " + statement.getTableSpace());
             }
-
+            Table table = tableManager.getTable();
+            Table[] childrenTables = collectChildrenTables(table);
+            if (childrenTables != null) {
+                String errorMsg = "Cannot drop table " + table.tablespace + "." + table.name
+                        + " because it has children tables: "
+                        + Stream.of(childrenTables).map(t -> t.name).collect(Collectors.joining(","));
+                throw new StatementExecutionException(errorMsg);
+            }
             Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(tableNameNormalized);
             if (indexesOnTable != null) {
                 for (String index : new ArrayList<>(indexesOnTable.keySet())) {

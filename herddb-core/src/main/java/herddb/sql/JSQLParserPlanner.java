@@ -1090,6 +1090,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                     if (tableSpace == null) {
                         throw new TableSpaceDoesNotExistException(tableSpaceName);
                     }
+                    // renaming a table does not impact foreignKeys, because references are by table uuid and not logical name
                     return new AlterTableStatement(Collections.emptyList(),
                             Collections.emptyList(), Collections.emptyList(),
                             null, oldTableName.toLowerCase(), tableSpaceName, newTableName.toLowerCase());
@@ -1164,6 +1165,11 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         AlterExpression alterExpression = alter.getAlterExpressions().get(0);
         AlterOperation operation = alterExpression.getOperation();
         Boolean changeAutoIncrement = null;
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
+        }
+        Table table = getTable(defaultTableSpace, alter.getTable());
         switch (operation) {
             case ADD: {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
@@ -1183,16 +1189,6 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 dropColumns.add(fixMySqlBackTicks(alterExpression.getColumnName()));
                 break;
             case MODIFY: {
-                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-                if (tableSpaceManager == null) {
-                    throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
-                }
-                AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-                if (tableManager == null) {
-                    throw new StatementExecutionException(
-                            "bad table " + tableName + " in tablespace '" + tableSpace + "'");
-                }
-                Table table = tableManager.getTable();
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
                     String columnName = fixMySqlBackTicks(cl.getColumnName().toLowerCase());
@@ -1253,16 +1249,6 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             }
             break;
             case CHANGE: {
-                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-                if (tableSpaceManager == null) {
-                    throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
-                }
-                AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
-                if (tableManager == null) {
-                    throw new StatementExecutionException(
-                            "bad table " + tableName + " in tablespace '" + tableSpace + "'");
-                }
-                Table table = tableManager.getTable();
                 String columnName = alterExpression.getColOldName();
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 if (cols.size() != 1) {
@@ -1338,7 +1324,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 tableSpace = defaultTableSpace;
             }
             String tableName = fixMySqlBackTicks(drop.getName().getName());
-            return new DropTableStatement(tableSpace, tableName, drop.isIfExists());
+            net.sf.jsqlparser.schema.Table fakeTable = new net.sf.jsqlparser.schema.Table(tableSpace, tableName);
+            Table table = getTable(defaultTableSpace, fakeTable);
+            return new DropTableStatement(tableSpace, table.name, drop.isIfExists());
         }
         if (drop.getType().equalsIgnoreCase("index")) {
             if (drop.getName() == null) {
