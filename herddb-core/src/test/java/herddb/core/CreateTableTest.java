@@ -105,9 +105,10 @@ public class CreateTableTest {
                     .column("parenttableid", ColumnTypes.NOTNULL_STRING)
                     .primaryKey("id")
                     .foreingKey(ForeignKeyDef
-                            .bulder()
+                            .builder()
                             .name("myfk")
-                            .cascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
+                            .onDeleteCascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
+                            .onUpdateCascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
                             .column("parenttableid")
                             .parentTableId(parentTable.uuid)
                             .parentTableColumn("id")

@@ -570,20 +570,22 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                     } else if (index.getType().equals("FOREIGN KEY")) {
                         ForeignKeyIndex fk = (ForeignKeyIndex) index;
                         String indexName = fixMySqlBackTicks(fk.getName().toLowerCase());
-                        int cascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
-                        if (fk.getOnDeleteReferenceOption() != null) {
+                        int onUpdateCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+                        int onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+                        if (fk.getOnDeleteReferenceOption() != null && !fk.getOnDeleteReferenceOption().equalsIgnoreCase("NO ACTION")) {
                             throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
                         }
-                        if (fk.getOnUpdateReferenceOption() != null) {
+                        if (fk.getOnUpdateReferenceOption() != null && !fk.getOnUpdateReferenceOption().equalsIgnoreCase("NO ACTION")) {
                             throw new StatementExecutionException("Unsupported option " + fk.getOnUpdateReferenceOption());
                         }
 
                         Table parentTableSchema = getTable(table.tablespace, fk.getTable());
                         herddb.model.ForeignKeyDef.Builder builder = herddb.model.ForeignKeyDef
-                                .bulder()
+                                .builder()
                                 .name(indexName)
                                 .parentTableId(parentTableSchema.uuid)
-                                .cascadeAction(cascadeAction);
+                                .onUpdateCascadeAction(onUpdateCascadeAction)
+                                .onDeleteCascadeAction(onDeleteCascadeAction);
 
                         for (String columnName : fk.getColumnsNames()) {
                             columnName = fixMySqlBackTicks(columnName.toLowerCase());

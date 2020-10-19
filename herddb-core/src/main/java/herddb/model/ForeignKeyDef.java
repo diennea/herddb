@@ -35,18 +35,20 @@ public final class ForeignKeyDef {
     public final String parentTableId; // uuid, not name
     public final String[] columns;
     public final String[] parentTableColumns;
-    public final int cascadeAction;
+    public final int onUpdateCascadeAction;
+    public final int onDeleteCascadeAction;
 
-    public static Builder bulder() {
+    public static Builder builder() {
         return new Builder();
     }
 
-    private ForeignKeyDef(String name, String parentTableId, String[] columns, String[] parentTableColumns, int cascadeAction) {
+    private ForeignKeyDef(String name, String parentTableId, String[] columns, String[] parentTableColumns, int onUpdateCascadeAction, int onDeleteCascadeAction) {
         this.name = name;
         this.parentTableId = parentTableId;
         this.columns = columns;
         this.parentTableColumns = parentTableColumns;
-        this.cascadeAction = cascadeAction;
+        this.onUpdateCascadeAction = onUpdateCascadeAction;
+        this.onDeleteCascadeAction = onDeleteCascadeAction;
     }
 
     public static class Builder {
@@ -55,7 +57,9 @@ public final class ForeignKeyDef {
         private String parentTableId; // uuid, not name
         private final List<String> columns = new ArrayList<>();
         private final List<String> parentTableColumns = new ArrayList<>();
-        private int cascadeAction;
+        private int onUpdateCascadeAction;
+        private int onDeleteCascadeAction;
+
 
         public Builder name(String name) {
             this.name = name;
@@ -77,8 +81,13 @@ public final class ForeignKeyDef {
             return this;
         }
 
-        public Builder cascadeAction(int cascadeAction) {
-            this.cascadeAction = cascadeAction;
+        public Builder onUpdateCascadeAction(int onUpdateCascadeAction) {
+            this.onUpdateCascadeAction = onUpdateCascadeAction;
+            return this;
+        }
+
+        public Builder onDeleteCascadeAction(int onDeleteCascadeAction) {
+            this.onDeleteCascadeAction = onDeleteCascadeAction;
             return this;
         }
 
@@ -86,8 +95,11 @@ public final class ForeignKeyDef {
             if (parentTableId == null || parentTableId.isEmpty()) {
                 throw new IllegalArgumentException("parentTableId must be set");
             }
-            if (cascadeAction != ACTION_NO_ACTION) {
-                throw new IllegalArgumentException("invalid cascadeAction " + cascadeAction);
+            if (onUpdateCascadeAction != ACTION_NO_ACTION) {
+                throw new IllegalArgumentException("invalid onUpdateCascadeAction " + onUpdateCascadeAction);
+            }
+            if (onDeleteCascadeAction != ACTION_NO_ACTION) {
+                throw new IllegalArgumentException("invalid onDeleteCascadeAction " + onDeleteCascadeAction);
             }
             if (parentTableColumns.size() != columns.size()) {
                 throw new IllegalArgumentException("the number of columns in child and parent table must be the same");
@@ -98,7 +110,7 @@ public final class ForeignKeyDef {
             return new ForeignKeyDef(name, parentTableId,
                     columns.toArray(new String[0]),
                     parentTableColumns.toArray(new String[0]),
-                    cascadeAction);
+                    onUpdateCascadeAction, onDeleteCascadeAction);
         }
 
     }

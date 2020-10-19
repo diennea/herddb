@@ -1425,22 +1425,24 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                public void accept(Record current, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
 
                     List<UniqueIndexLockReference> uniqueIndexes = null;
                     byte[] newValue;
                     try {
-                        newValue = function.computeNewValue(actual, context, tableContext);
-                        if (indexes != null || table.foreignKeys != null || childrenTables != null) {
-                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                        if (childrenTables != null) {
+                            DataAccessor currentValues = current.getDataAccessor(table);
+                            for (Table childTable : childrenTables) {
+                                checkForeignKeyConstraintsAsParentTable(childTable, currentValues, context, transaction);
+                            }
+                        }
+
+                        newValue = function.computeNewValue(current, context, tableContext);
+                        if (indexes != null || table.foreignKeys != null) {
+                            DataAccessor values = new Record(current.key, Bytes.from_array(newValue)).getDataAccessor(table);
                             if (table.foreignKeys != null) {
                                 for (ForeignKeyDef fk : table.foreignKeys) {
                                     checkForeignKeyConstraintsAsChildTable(fk, values, context, transaction);
-                                }
-                            }
-                            if (childrenTables != null) {
-                                for (Table childTable : childrenTables) {
-                                    checkForeignKeyConstraintsAsParentTable(childTable, values, context, transaction);
                                 }
                             }
                             if (indexes != null) {
@@ -1456,7 +1458,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                         if (transaction == null) {
                                             uniqueIndexLock.lockHandle = lockForIndex;
                                         }
-                                        if (index.valueAlreadyMapped(indexKey, actual.key)) {
+                                        if (index.valueAlreadyMapped(indexKey, current.key)) {
                                             throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
                                         }
                                     } else {
@@ -1483,20 +1485,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         return;
                     }
 
-                    final long size = DataPage.estimateEntrySize(actual.key, newValue);
+                    final long size = DataPage.estimateEntrySize(current.key, newValue);
                     if (size > maxLogicalPageSize) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(Futures.exception(new RecordTooBigException("New version of record " + actual.key
-                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
+                        writes.add(Futures.exception(new RecordTooBigException("New version of record " + current.key
+                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(current)
                                 + ", max size " + maxLogicalPageSize)));
                         return;
                     }
 
-                    LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
+                    LogEntry entry = LogEntryFactory.update(table, current.key, Bytes.from_array(newValue), transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
                     writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
-                    lastKey.value = actual.key;
+                    lastKey.value = current.key;
                     lastValue.value = newValue;
                     updateCount.incrementAndGet();
                 }
@@ -1515,13 +1517,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null) {
-                                releasePendingLogEntryWorkLocks(pending);
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
@@ -1533,17 +1535,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 for (PendingLogEntryWork pending : pendings) {
                                     apply(pending.pos, pending.entry, false);
                                 }
                             }
                         } finally {
-                            if (pendings != null) {
-                                for (PendingLogEntryWork pending : pendings) {
-                                    releasePendingLogEntryWorkLocks(pending);
-                                }
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {
@@ -1552,6 +1552,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     });
         }
 
+    }
+
+    private void releaseMultiplePendingLogEntryWorks(List<CompletableFuture<PendingLogEntryWork>> writes) {
+        for (CompletableFuture<PendingLogEntryWork> pending : writes) {
+            if (!pending.isCompletedExceptionally()) {
+                PendingLogEntryWork now = pending.getNow(null);
+                if (now != null) {
+                    releasePendingLogEntryWorkLocks(now);
+                }
+            }
+        }
     }
 
     private static class PendingLogEntryWork {
@@ -1585,13 +1596,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-
+                public void accept(Record current, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                     // ensure we are holding the write locks on every unique index
                     List<UniqueIndexLockReference> uniqueIndexes = null;
                     try {
                         if (indexes != null || childrenTables != null) {
-                            DataAccessor dataAccessor = actual.getDataAccessor(table);
+                            DataAccessor dataAccessor = current.getDataAccessor(table);
                             for (Table childTable : childrenTables) {
                                 checkForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction);
                             }
@@ -1631,12 +1641,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
 
-                    LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
+                    LogEntry entry = LogEntryFactory.delete(table, current.key, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
                     writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
-                    lastKey.value = actual.key;
-                    lastValue.value = actual.value;
+                    lastKey.value = current.key;
+                    lastValue.value = current.value;
                     updateCount.incrementAndGet();
                 }
             }, transaction, true, true);
@@ -1653,13 +1663,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null) {
-                                 releasePendingLogEntryWorkLocks(pending);
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
@@ -1671,17 +1681,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 for (PendingLogEntryWork pending : pendings) {
                                     apply(pending.pos, pending.entry, false);
                                 }
                             }
                         } finally {
-                            if (pendings != null) {
-                                for (PendingLogEntryWork pending : pendings) {
-                                    releasePendingLogEntryWorkLocks(pending);
-                                }
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {
