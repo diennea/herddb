@@ -1556,11 +1556,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private void releaseMultiplePendingLogEntryWorks(List<CompletableFuture<PendingLogEntryWork>> writes) {
         for (CompletableFuture<PendingLogEntryWork> pending : writes) {
-            if (!pending.isCompletedExceptionally()) {
-                PendingLogEntryWork now = pending.getNow(null);
-                if (now != null) {
-                    releasePendingLogEntryWorkLocks(now);
-                }
+            PendingLogEntryWork now = Futures.getIfSuccess(pending);
+            if (now != null) {
+                releasePendingLogEntryWorkLocks(now);
             }
         }
     }

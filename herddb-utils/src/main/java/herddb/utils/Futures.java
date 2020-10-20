@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -60,9 +61,17 @@ public class Futures {
         return result(future, DEFAULT_EXCEPTION_HANDLER, timeout, timeUnit);
     }
 
-     public static <T, ExceptionT extends Throwable> T result(
+    public static <T, ExceptionT extends Throwable> T result(
             CompletableFuture<T> future) throws ExceptionT, TimeoutException, InterruptedException, Exception {
         return result(future, DEFAULT_EXCEPTION_HANDLER);
+    }
+
+    @SuppressFBWarnings("NP_NONNULL_PARAM_VIOLATION")
+    public static <T> T getIfSuccess(CompletableFuture<T> future)  {
+        if (future.isDone() && !future.isCompletedExceptionally()) {
+            return future.getNow(null);
+        }
+        return null;
     }
 
     public static <T, ExceptionT extends Throwable> T result(
