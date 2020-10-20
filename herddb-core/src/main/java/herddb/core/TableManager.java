@@ -41,6 +41,8 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
+import herddb.model.ForeignKeyDef;
+import herddb.model.ForeignKeyViolationException;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.Predicate;
@@ -57,6 +59,7 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
+import herddb.model.TransactionContext;
 import herddb.model.TupleComparator;
 import herddb.model.UniqueIndexContraintViolationException;
 import herddb.model.commands.DeleteStatement;
@@ -216,6 +219,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final CommitLog log;
     private final DataStorageManager dataStorageManager;
     private final TableSpaceManager tableSpaceManager;
+    private Table[] childrenTables;
 
     private final PageReplacementPolicy pageReplacementPolicy;
 
@@ -264,6 +268,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final boolean keyToPageSortedAscending;
 
     private volatile boolean closed;
+
+    private final ConcurrentHashMap<String, String> childForeignKeyQueries = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> parentForeignKeyQueries = new ConcurrentHashMap<>();
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
         LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
@@ -359,6 +366,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
+        this.childrenTables = tableSpaceManager.collectChildrenTables(this.table);
 
         this.dataStorageManager = dataStorageManager;
         this.createdInTransaction = createdInTransaction;
@@ -564,7 +572,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             LOGGER.log(Level.INFO, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
                     new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
         }
+        tableSpaceManager.rebuildForeignKeyReferences(table);
         started = true;
+    }
+
+    @Override
+    public void rebuildForeignKeyReferences(Table tableThatWasModified) {
+        this.childrenTables = tableSpaceManager.collectChildrenTables(this.table);
     }
 
     @Override
@@ -1123,18 +1137,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         List<UniqueIndexLockReference> uniqueIndexes = null;
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-        if (indexes != null) {
+        if (indexes != null || table.foreignKeys != null) {
             try {
                 DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
-                for (AbstractIndexManager index : indexes.values()) {
-                    if (index.isUnique()) {
-                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
-                        if (uniqueIndexes == null) {
-                            uniqueIndexes = new ArrayList<>(1);
+                if (table.foreignKeys != null) {
+                    for (ForeignKeyDef fk : table.foreignKeys) {
+                        checkForeignKeyConstraintsAsChildTable(fk, values, context, transaction);
+                    }
+                }
+                if (indexes != null) {
+                    for (AbstractIndexManager index : indexes.values()) {
+                        if (index.isUnique()) {
+                            Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                            if (uniqueIndexes == null) {
+                                uniqueIndexes = new ArrayList<>(1);
+                            }
+                            uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
+                        } else {
+                            RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                         }
-                        uniqueIndexes.add(new UniqueIndexLockReference(index, indexKey));
-                    } else {
-                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                     }
                 }
             } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
@@ -1225,6 +1246,106 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return res;
     }
 
+    private void checkForeignKeyConstraintsAsParentTable(Table childTable, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        // We are creating a SQL query and then using DBManager
+        // using an SQL query will let us leverage the SQL Planner
+        // and use the best index to perform the execution
+        // the SQL Planner will cache the plan, and the plan will also be
+        // invalidated consistently during DML operations.
+        for (ForeignKeyDef fk : childTable.foreignKeys) {
+            String query = parentForeignKeyQueries.computeIfAbsent(childTable.name + "." + fk.name, (l -> {
+                // with '*' we are not going to perform projections or copies
+                StringBuilder q = new StringBuilder("SELECT * FROM ");
+                q.append(childTable.tablespace);
+                q.append(".");
+                q.append(childTable.name);
+                q.append(" WHERE ");
+                for (int i = 0; i < fk.columns.length; i++) {
+                    if (i > 0) {
+                        q.append(" AND ");
+                    }
+                    q.append(fk.columns[i]);
+                    q.append("=?");
+                }
+                return q.toString();
+            }));
+
+            final List<Object> valuesToMatch = new ArrayList<>(fk.parentTableColumns.length);
+            for (int i = 0; i < fk.parentTableColumns.length; i++) {
+                valuesToMatch.add(values.get(fk.parentTableColumns[i]));
+            }
+
+            TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
+            boolean fkOk;
+            try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
+                    query,
+                    valuesToMatch,
+                    1, // only one record
+                    true, // keep read locks in TransactionContext
+                    tx);) {
+                List<DataAccessor> resultSet = scan.consume();
+                // we are on the parent side of the relation
+                // we are okay if there is no matching record
+                // TODO: return the list of PKs in order to implement CASCADE operations
+                fkOk = resultSet.isEmpty();
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+            if (!fkOk) {
+                throw new ForeignKeyViolationException(fk.name, "foreignKey " + childTable.name + "." + fk.name + " violated");
+            }
+        }
+    }
+
+
+    private void checkForeignKeyConstraintsAsChildTable(ForeignKeyDef fk, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        // We are creating a SQL query and then using DBManager
+        // using an SQL query will let us leverage the SQL Planner
+        // and use the best index to perform the execution
+        // the SQL Planner will cache the plan, and the plan will also be
+        // invalidated consistently during DML operations.
+        String query = childForeignKeyQueries.computeIfAbsent(fk.name, (l -> {
+            Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
+            // with '*' we are not going to perform projections or copies
+            StringBuilder q = new StringBuilder("SELECT * FROM ");
+            q.append(parentTable.tablespace);
+            q.append(".");
+            q.append(parentTable.name);
+            q.append(" WHERE ");
+            for (int i = 0; i < fk.parentTableColumns.length; i++) {
+                if (i > 0) {
+                    q.append(" AND ");
+                }
+                q.append(fk.parentTableColumns[i]);
+                q.append("=?");
+            }
+            return q.toString();
+        }));
+
+        final List<Object> valuesToMatch = new ArrayList<>(fk.columns.length);
+        for (int i = 0; i < fk.columns.length; i++) {
+            valuesToMatch.add(values.get(fk.columns[i]));
+        }
+
+        TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
+        boolean fkOk;
+        try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
+                query,
+                valuesToMatch,
+                1, // only one record
+                true, // keep read locks in TransactionContext
+                tx);
+        ) {
+            List<DataAccessor> resultSet = scan.consume();
+            fkOk = !resultSet.isEmpty();
+        } catch (DataScannerException err) {
+            throw new StatementExecutionException(err);
+        }
+        if (!fkOk) {
+            throw new ForeignKeyViolationException(fk.name, "foreignKey " + table.name + "." + fk.name + " violated");
+        }
+    }
+
     private CompletableFuture<StatementExecutionResult> releaseWriteLock(
             CompletableFuture<StatementExecutionResult> promise, LockHandle lock
     ) {
@@ -1304,31 +1425,45 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                public void accept(Record current, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
 
                     List<UniqueIndexLockReference> uniqueIndexes = null;
                     byte[] newValue;
                     try {
-                        newValue = function.computeNewValue(actual, context, tableContext);
-                        if (indexes != null) {
-                            DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
-                            for (AbstractIndexManager index : indexes.values()) {
-                                if (index.isUnique()) {
-                                    Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
-                                    if (uniqueIndexes == null) {
-                                        uniqueIndexes = new ArrayList<>(1);
+                        if (childrenTables != null) {
+                            DataAccessor currentValues = current.getDataAccessor(table);
+                            for (Table childTable : childrenTables) {
+                                checkForeignKeyConstraintsAsParentTable(childTable, currentValues, context, transaction);
+                            }
+                        }
+
+                        newValue = function.computeNewValue(current, context, tableContext);
+                        if (indexes != null || table.foreignKeys != null) {
+                            DataAccessor values = new Record(current.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                            if (table.foreignKeys != null) {
+                                for (ForeignKeyDef fk : table.foreignKeys) {
+                                    checkForeignKeyConstraintsAsChildTable(fk, values, context, transaction);
+                                }
+                            }
+                            if (indexes != null) {
+                                for (AbstractIndexManager index : indexes.values()) {
+                                    if (index.isUnique()) {
+                                        Bytes indexKey = RecordSerializer.serializeIndexKey(values, index.getIndex(), index.getColumnNames());
+                                        if (uniqueIndexes == null) {
+                                            uniqueIndexes = new ArrayList<>(1);
+                                        }
+                                        UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                        uniqueIndexes.add(uniqueIndexLock);
+                                        LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                        if (transaction == null) {
+                                            uniqueIndexLock.lockHandle = lockForIndex;
+                                        }
+                                        if (index.valueAlreadyMapped(indexKey, current.key)) {
+                                            throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
+                                        }
+                                    } else {
+                                        RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                                     }
-                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
-                                    uniqueIndexes.add(uniqueIndexLock);
-                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
-                                    if (transaction == null) {
-                                        uniqueIndexLock.lockHandle = lockForIndex;
-                                    }
-                                    if (index.valueAlreadyMapped(indexKey, actual.key)) {
-                                        throw new UniqueIndexContraintViolationException(index.getIndexName(), indexKey, "Value " + indexKey + " already present in index " + index.getIndexName());
-                                    }
-                                } else {
-                                    RecordSerializer.validateIndexableValue(values, index.getIndex(), index.getColumnNames());
                                 }
                             }
                         }
@@ -1350,20 +1485,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         return;
                     }
 
-                    final long size = DataPage.estimateEntrySize(actual.key, newValue);
+                    final long size = DataPage.estimateEntrySize(current.key, newValue);
                     if (size > maxLogicalPageSize) {
                         locksManager.releaseLock(lockHandle);
-                        writes.add(Futures.exception(new RecordTooBigException("New version of record " + actual.key
-                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
+                        writes.add(Futures.exception(new RecordTooBigException("New version of record " + current.key
+                                + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(current)
                                 + ", max size " + maxLogicalPageSize)));
                         return;
                     }
 
-                    LogEntry entry = LogEntryFactory.update(table, actual.key, Bytes.from_array(newValue), transaction);
+                    LogEntry entry = LogEntryFactory.update(table, current.key, Bytes.from_array(newValue), transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
                     writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
-                    lastKey.value = actual.key;
+                    lastKey.value = current.key;
                     lastValue.value = newValue;
                     updateCount.incrementAndGet();
                 }
@@ -1382,13 +1517,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null) {
-                                releasePendingLogEntryWorkLocks(pending);
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
@@ -1400,17 +1535,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 for (PendingLogEntryWork pending : pendings) {
                                     apply(pending.pos, pending.entry, false);
                                 }
                             }
                         } finally {
-                            if (pendings != null) {
-                                for (PendingLogEntryWork pending : pendings) {
-                                    releasePendingLogEntryWorkLocks(pending);
-                                }
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {
@@ -1419,6 +1552,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     });
         }
 
+    }
+
+    private void releaseMultiplePendingLogEntryWorks(List<CompletableFuture<PendingLogEntryWork>> writes) {
+        for (CompletableFuture<PendingLogEntryWork> pending : writes) {
+            PendingLogEntryWork now = Futures.getIfSuccess(pending);
+            if (now != null) {
+                releasePendingLogEntryWorkLocks(now);
+            }
+        }
     }
 
     private static class PendingLogEntryWork {
@@ -1447,28 +1589,35 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         List<CompletableFuture<PendingLogEntryWork>> writes = new ArrayList<>();
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         try {
             accessTableData(scan, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-
+                public void accept(Record current, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                     // ensure we are holding the write locks on every unique index
                     List<UniqueIndexLockReference> uniqueIndexes = null;
                     try {
-                        if (indexes != null) {
-                            DataAccessor dataAccessor = actual.getDataAccessor(table);
-                            for (AbstractIndexManager index : indexes.values()) {
-                                if (index.isUnique()) {
-                                    Bytes indexKey = RecordSerializer.serializeIndexKey(dataAccessor, index.getIndex(), index.getColumnNames());
-                                    if (uniqueIndexes == null) {
-                                        uniqueIndexes = new ArrayList<>(1);
-                                    }
-                                    UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
-                                    uniqueIndexes.add(uniqueIndexLock);
-                                    LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
-                                    if (transaction == null) {
-                                        uniqueIndexLock.lockHandle = lockForIndex;
+                        if (indexes != null || childrenTables != null) {
+                            DataAccessor dataAccessor = current.getDataAccessor(table);
+                            if (childrenTables != null) {
+                                for (Table childTable : childrenTables) {
+                                    checkForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction);
+                                }
+                            }
+                            if (indexes != null) {
+                                for (AbstractIndexManager index : indexes.values()) {
+                                    if (index.isUnique()) {
+                                        Bytes indexKey = RecordSerializer.serializeIndexKey(dataAccessor, index.getIndex(), index.getColumnNames());
+                                        if (uniqueIndexes == null) {
+                                            uniqueIndexes = new ArrayList<>(1);
+                                        }
+                                        UniqueIndexLockReference uniqueIndexLock = new UniqueIndexLockReference(index, indexKey);
+                                        uniqueIndexes.add(uniqueIndexLock);
+                                        LockHandle lockForIndex = lockForWrite(uniqueIndexLock.key, transaction, index.getIndexName(), index.getLockManager());
+                                        if (transaction == null) {
+                                            uniqueIndexLock.lockHandle = lockForIndex;
+                                        }
                                     }
                                 }
                             }
@@ -1492,12 +1641,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
 
-                    LogEntry entry = LogEntryFactory.delete(table, actual.key, transaction);
+                    LogEntry entry = LogEntryFactory.delete(table, current.key, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     final List<UniqueIndexLockReference> _uniqueIndexes = uniqueIndexes;
                     writes.add(pos.logSequenceNumber.thenApply(lsn -> new PendingLogEntryWork(entry, pos, lockHandle, _uniqueIndexes)));
-                    lastKey.value = actual.key;
-                    lastValue.value = actual.value;
+                    lastKey.value = current.key;
+                    lastValue.value = current.value;
                     updateCount.incrementAndGet();
                 }
             }, transaction, true, true);
@@ -1514,13 +1663,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return writes.get(0)
                     .whenCompleteAsync((pending, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 apply(pending.pos, pending.entry, false);
                             }
                         } finally {
-                            if (pending != null) {
-                                 releasePendingLogEntryWorkLocks(pending);
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pending) -> {
@@ -1532,17 +1681,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     .collect(writes)
                     .whenCompleteAsync((pendings, error) -> {
                         try {
+                            // in case of any error (write to log + validations) we do not
+                            // apply any of the DML operations
                             if (error == null) {
                                 for (PendingLogEntryWork pending : pendings) {
                                     apply(pending.pos, pending.entry, false);
                                 }
                             }
                         } finally {
-                            if (pendings != null) {
-                                for (PendingLogEntryWork pending : pendings) {
-                                    releasePendingLogEntryWorkLocks(pending);
-                                }
-                            }
+                            releaseMultiplePendingLogEntryWorks(writes);
                         }
                     }, tableSpaceManager.getCallbacksExecutor())
                     .thenApply((pendings) -> {

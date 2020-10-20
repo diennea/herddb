@@ -209,7 +209,7 @@ public class ColumnTypes {
         if (type == otherType) {
             return true;
         }
-        return getNonNullTypeForPrimitiveType(type) != getNonNullTypeForPrimitiveType(otherType);
+        return getNonNullTypeForPrimitiveType(type) == getNonNullTypeForPrimitiveType(otherType);
     }
 
     public static boolean isNotNullToNullConversion(int oldType, int newType) {

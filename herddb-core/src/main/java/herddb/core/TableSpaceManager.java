@@ -62,10 +62,13 @@ import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.ForeignKeyDef;
 import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
@@ -136,6 +139,7 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -834,6 +838,37 @@ public class TableSpaceManager {
         dataStorageManager.tableSpaceMetadataUpdated(tableSpace.uuid, tableSpace.expectedReplicaCount);
     }
 
+    AbstractTableManager getTableManagerByUUID(String uuid) {
+        //TODO: make this method more efficient
+        for (AbstractTableManager manager : tables.values()) {
+            if (manager.getTable().uuid.equals(uuid)) {
+                return manager;
+            }
+        }
+        throw new HerdDBInternalException("Cannot find tablemanager for " + uuid);
+    }
+
+    public Table[] collectChildrenTables(Table parentTable) {
+        List<Table> list = new ArrayList<>();
+        for (AbstractTableManager manager : tables.values()) {
+            Table table = manager.getTable();
+            if (table.isChildOfTable(parentTable.uuid)) {
+                list.add(table);
+            }
+        }
+        // selft reference
+        if (parentTable.isChildOfTable(parentTable.uuid)) {
+            list.add(parentTable);
+        }
+        return list.isEmpty() ? null : list.toArray(new Table[0]);
+    }
+
+    void rebuildForeignKeyReferences(Table table) {
+        for (AbstractTableManager manager : tables.values()) {
+            manager.rebuildForeignKeyReferences(table);
+        }
+    }
+
     private static class CheckpointFuture extends CompletableFuture {
 
         private final String tableName;
@@ -1495,6 +1530,26 @@ public class TableSpaceManager {
                         + " only " + tables.keySet());
             }
 
+            Table oldTable = tableManager.getTable();
+            Table[] childrenTables = collectChildrenTables(oldTable);
+            if (childrenTables != null) {
+                for (Table child : childrenTables) {
+                    for (String col : statement.getDropColumns()) {
+                        for (ForeignKeyDef fk : child.foreignKeys) {
+                            if (fk.parentTableId.equals(oldTable.uuid)) {
+                                if (Stream
+                                        .of(fk.parentTableColumns)
+                                        .anyMatch(c -> c.equalsIgnoreCase(col))) {
+                                    throw new StatementExecutionException(
+                                            "Cannot drop column " + oldTable.name + "." + col + " because of foreign key constraint " + fk.name + " on table " + child.name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
             Table newTable;
             try {
                 newTable = tableManager.getTable().applyAlterTable(statement);
@@ -1542,7 +1597,38 @@ public class TableSpaceManager {
                     throw new IndexAlreadyExistsException(additionalIndex.name);
                 }
             }
-
+            Table table = statement.getTableDefinition();
+            // validate foreign keys
+            if (table.foreignKeys != null) {
+                for (ForeignKeyDef def: table.foreignKeys) {
+                    AbstractTableManager parentTableManager = null;
+                    for (AbstractTableManager ab : tables.values()) {
+                        if (ab.getTable().uuid.equals(def.parentTableId)) {
+                            parentTableManager = ab;
+                            break;
+                        }
+                    }
+                    if (parentTableManager == null) {
+                        throw new StatementExecutionException("Table " + def.parentTableId + " does not exist in tablespace " + tableSpaceName);
+                    }
+                    Table parentTable = parentTableManager.getTable();
+                    int i = 0;
+                    for (String col : def.columns) {
+                        Column column = table.getColumn(col);
+                        Column parentColumn = parentTable.getColumn(def.parentTableColumns[i]);
+                        if (column == null) {
+                            throw new StatementExecutionException("Cannot find column " + col);
+                        }
+                        if (parentColumn == null) {
+                            throw new StatementExecutionException("Cannot find column " + def.parentTableColumns[i]);
+                        }
+                        if (!ColumnTypes.sameRawDataType(column.type, parentColumn.type)) {
+                            throw new StatementExecutionException("Column " + table.name + "." + column.name + " is not the same tyepe of column " + parentTable.name + "." + parentColumn.name);
+                        }
+                        i++;
+                    }
+                }
+            }
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
@@ -1613,7 +1699,8 @@ public class TableSpaceManager {
                     .filter(t -> t.toUpperCase().equals(tableNameUpperCase))
                     .findFirst()
                     .orElse(statement.getTable());
-            if (!tables.containsKey(tableNameNormalized)) {
+            AbstractTableManager tableManager = tables.get(tableNameNormalized);
+            if (tableManager == null) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
                 }
@@ -1625,7 +1712,14 @@ public class TableSpaceManager {
                 }
                 throw new TableDoesNotExistException("table does not exist " + tableNameNormalized + " on tableSpace " + statement.getTableSpace());
             }
-
+            Table table = tableManager.getTable();
+            Table[] childrenTables = collectChildrenTables(table);
+            if (childrenTables != null) {
+                String errorMsg = "Cannot drop table " + table.tablespace + "." + table.name
+                        + " because it has children tables: "
+                        + Stream.of(childrenTables).map(t -> t.name).collect(Collectors.joining(","));
+                throw new StatementExecutionException(errorMsg);
+            }
             Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(tableNameNormalized);
             if (indexesOnTable != null) {
                 for (String index : new ArrayList<>(indexesOnTable.keySet())) {
@@ -1830,6 +1924,7 @@ public class TableSpaceManager {
                 indexesByTable.put(table.name, removed);
             }
         }
+        rebuildForeignKeyReferences(table);
         return tableManager;
     }
 
