@@ -410,6 +410,19 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             builder.primaryKey(pk, new_auto_increment);
         }
         builder.maxSerialPosition(new_maxSerialPosition);
+
+        List<ForeignKeyDef> newForeignKeyDefs = new ArrayList<>();
+        if (foreignKeys != null) {
+            newForeignKeyDefs.addAll(Arrays.asList(foreignKeys));
+        }
+        // duplicate names will be checked in the Builder
+        newForeignKeyDefs.addAll(alterTableStatement.getAddForeignKeys());
+
+        // remove FKs
+        for (String fk : alterTableStatement.getDropForeignKeys()) {
+            newForeignKeyDefs.removeIf(f->f.name.equalsIgnoreCase(fk));
+        }
+        newForeignKeyDefs.forEach(builder::foreingKey);
         return builder.build();
 
     }
@@ -553,6 +566,12 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
             columns.sort((Column o1, Column o2) -> o1.serialPosition - o2.serialPosition);
 
+            // look for duplicate FK names
+            Set<String> distinctNames = foreignKeys.stream().map(f->f.name.toLowerCase()).collect(Collectors.toSet());
+            if (distinctNames.size() != foreignKeys.size()) {
+                throw new IllegalArgumentException("Duplicate foreign key names discovered");
+            }
+
             return new Table(uuid, name,
                     columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
                     tablespace, auto_increment, maxSerialPosition, foreignKeys.isEmpty() ? null : foreignKeys.toArray(new ForeignKeyDef[foreignKeys.size()]));
@@ -590,6 +609,9 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             this.tablespace = tableSchema.tablespace;
             this.auto_increment = tableSchema.auto_increment;
             this.maxSerialPosition = tableSchema.maxSerialPosition;
+            if (tableSchema.foreignKeys != null) {
+                this.foreignKeys.addAll(Arrays.asList(tableSchema.foreignKeys));
+            }
             return this;
         }
     }

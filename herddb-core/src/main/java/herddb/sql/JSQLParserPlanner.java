@@ -569,45 +569,8 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                         otherIndexes.add(builder.build());
                     } else if (index.getType().equals("FOREIGN KEY")) {
                         ForeignKeyIndex fk = (ForeignKeyIndex) index;
-                        String indexName = fixMySqlBackTicks(fk.getName().toLowerCase());
-                        int onUpdateCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
-                        int onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
-                        if (fk.getOnDeleteReferenceOption() != null && !fk.getOnDeleteReferenceOption().equalsIgnoreCase("NO ACTION")) {
-                            throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
-                        }
-                        if (fk.getOnUpdateReferenceOption() != null && !fk.getOnUpdateReferenceOption().equalsIgnoreCase("NO ACTION")) {
-                            throw new StatementExecutionException("Unsupported option " + fk.getOnUpdateReferenceOption());
-                        }
-
-                        Table parentTableSchema = getTable(table.tablespace, fk.getTable());
-                        herddb.model.ForeignKeyDef.Builder builder = herddb.model.ForeignKeyDef
-                                .builder()
-                                .name(indexName)
-                                .parentTableId(parentTableSchema.uuid)
-                                .onUpdateCascadeAction(onUpdateCascadeAction)
-                                .onDeleteCascadeAction(onDeleteCascadeAction);
-
-                        for (String columnName : fk.getColumnsNames()) {
-                            columnName = fixMySqlBackTicks(columnName.toLowerCase());
-                            Column column = table.getColumn(columnName);
-                            if (column == null) {
-                                throw new StatementExecutionException(
-                                        "no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
-                            }
-                            builder.column(column.name);
-                        }
-
-                        for (String columnName : fk.getReferencedColumnNames()) {
-                            columnName = fixMySqlBackTicks(columnName.toLowerCase());
-                            Column column = parentTableSchema.getColumn(columnName);
-                            if (column == null) {
-                                throw new StatementExecutionException(
-                                        "no such column " + columnName + " on table " + parentTableSchema.name + " in tablespace " + parentTableSchema.tablespace);
-                            }
-                            builder.parentTableColumn(column.name);
-                        }
-
-                        foreignKeys.add(builder.build());
+                        ForeignKeyDef fkDef = parseForeignKeyIndex(fk, table, tableName, tableSpace);
+                        foreignKeys.add(fkDef);
 
                     } else {
                         throw new StatementExecutionException("Unsupported index type " + index.getType());
@@ -634,6 +597,48 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
         }
+    }
+
+    private ForeignKeyDef parseForeignKeyIndex(ForeignKeyIndex fk, Table table, String tableName, String tableSpace) throws StatementExecutionException {
+        String indexName = fixMySqlBackTicks(fk.getName().toLowerCase());
+        int onUpdateCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+        int onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+        if (fk.getOnDeleteReferenceOption() != null && !(fk.getOnDeleteReferenceOption().equalsIgnoreCase("RESTRICT")
+                || fk.getOnDeleteReferenceOption().equalsIgnoreCase("NO ACTION"))) {
+            throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
+        }
+        if (fk.getOnUpdateReferenceOption() != null && !(
+                fk.getOnUpdateReferenceOption().equalsIgnoreCase("RESTRICT")
+                || fk.getOnUpdateReferenceOption().equalsIgnoreCase("NO ACTION"))) {
+            throw new StatementExecutionException("Unsupported option " + fk.getOnUpdateReferenceOption());
+        }
+        Table parentTableSchema = getTable(table.tablespace, fk.getTable());
+        herddb.model.ForeignKeyDef.Builder builder = herddb.model.ForeignKeyDef
+                .builder()
+                .name(indexName)
+                .parentTableId(parentTableSchema.uuid)
+                .onUpdateCascadeAction(onUpdateCascadeAction)
+                .onDeleteCascadeAction(onDeleteCascadeAction);
+        for (String columnName : fk.getColumnsNames()) {
+            columnName = fixMySqlBackTicks(columnName.toLowerCase());
+            Column column = table.getColumn(columnName);
+            if (column == null) {
+                throw new StatementExecutionException(
+                        "no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+            }
+            builder.column(column.name);
+        }
+        for (String columnName : fk.getReferencedColumnNames()) {
+            columnName = fixMySqlBackTicks(columnName.toLowerCase());
+            Column column = parentTableSchema.getColumn(columnName);
+            if (column == null) {
+                throw new StatementExecutionException(
+                        "no such column " + columnName + " on table " + parentTableSchema.name + " in tablespace " + parentTableSchema.tablespace);
+            }
+            builder.parentTableColumn(column.name);
+        }
+        ForeignKeyDef fkDef = builder.build();
+        return fkDef;
     }
 
     private boolean decodeAutoIncrement(List<String> columnSpecs) {
@@ -1093,7 +1098,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                     // renaming a table does not impact foreignKeys, because references are by table uuid and not logical name
                     return new AlterTableStatement(Collections.emptyList(),
                             Collections.emptyList(), Collections.emptyList(),
-                            null, oldTableName.toLowerCase(), tableSpaceName, newTableName.toLowerCase());
+                            null, oldTableName.toLowerCase(), tableSpaceName, newTableName.toLowerCase(), Collections.emptyList(), Collections.emptyList());
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }
@@ -1158,6 +1163,8 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         List<Column> addColumns = new ArrayList<>();
         List<Column> modifyColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
+        List<String> dropForeignKeys = new ArrayList<>();
+        List<ForeignKeyDef> addForeignKeys = new ArrayList<>();
         String tableName = fixMySqlBackTicks(alter.getTable().getName().toLowerCase());
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
             throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
@@ -1172,21 +1179,34 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         Table table = getTable(defaultTableSpace, alter.getTable());
         switch (operation) {
             case ADD: {
-                List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
-                for (AlterExpression.ColumnDataType cl : cols) {
-                    List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
-                    int type = sqlDataTypeToColumnType(
-                            cl.getColDataType().getDataType(),
-                            cl.getColDataType().getArgumentsStringList(),
-                            columnSpecs
-                    );
-                    Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), type, decodeDefaultValue(cl, type));
-                    addColumns.add(newColumn);
+                if (alterExpression.getColDataTypeList() != null) {
+                    List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
+                    for (AlterExpression.ColumnDataType cl : cols) {
+                        List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
+                        int type = sqlDataTypeToColumnType(
+                                cl.getColDataType().getDataType(),
+                                cl.getColDataType().getArgumentsStringList(),
+                                columnSpecs
+                        );
+                        Column newColumn = Column.column(fixMySqlBackTicks(cl.getColumnName()), type, decodeDefaultValue(cl, type));
+                        addColumns.add(newColumn);
+                    }
+                } else if (alterExpression.getIndex() != null && alterExpression.getIndex() instanceof ForeignKeyIndex) {
+                    ForeignKeyDef fkIndex = parseForeignKeyIndex((ForeignKeyIndex) alterExpression.getIndex(), table, tableName, tableSpace);
+                    addForeignKeys.add(fkIndex);
+                } else {
+                    throw new StatementExecutionException("Unrecognized ALTER TABLE ADD ... statement");
                 }
             }
             break;
             case DROP:
-                dropColumns.add(fixMySqlBackTicks(alterExpression.getColumnName()));
+                if (alterExpression.getColumnName() != null) {
+                    dropColumns.add(fixMySqlBackTicks(alterExpression.getColumnName()));
+                } else if (alterExpression.getConstraintName()!= null) {
+                    dropForeignKeys.add(fixMySqlBackTicks(alterExpression.getConstraintName()));
+                } else {
+                    throw new StatementExecutionException("Unrecognized ALTER TABLE DROP ... statement");
+                }
                 break;
             case MODIFY: {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
@@ -1310,7 +1330,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
-                changeAutoIncrement, tableName.toLowerCase(), tableSpace, null);
+                changeAutoIncrement, tableName.toLowerCase(), tableSpace, null, dropForeignKeys, addForeignKeys);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {

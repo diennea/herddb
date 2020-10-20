@@ -585,6 +585,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context) {
         CompletableFuture<StatementExecutionResult> res;
         long lockStamp = checkpointLock.readLock();
+        LOGGER.log(Level.SEVERE, "LOCK "+table.name+" START " + statement + ": " +lockStamp);
         if (statement instanceof UpdateStatement) {
             UpdateStatement update = (UpdateStatement) statement;
             res = executeUpdateAsync(update, transaction, context);
@@ -612,7 +613,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = Futures.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
         res = res.whenComplete((r, error) -> {
-//            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
+            LOGGER.log(Level.SEVERE, "LOCK "+table.name+" END " + statement + ": " + r+" "+lockStamp, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
@@ -1158,8 +1159,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     }
                 }
-            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
-                return Futures.exception(new StatementExecutionException(err.getMessage(), err));
+            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
+                if (err instanceof StatementExecutionException) {
+                    return Futures.exception(err);
+                } else {
+                    return Futures.exception(new StatementExecutionException(err.getMessage(), err));
+                }
             }
         }
 
@@ -1467,7 +1472,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         }
-                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                    } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
                         if (!(err instanceof StatementExecutionException)) {
@@ -1622,7 +1627,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         }
-                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                    } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
                         if (!(err instanceof StatementExecutionException)) {

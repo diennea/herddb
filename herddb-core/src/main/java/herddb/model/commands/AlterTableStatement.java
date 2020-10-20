@@ -22,6 +22,8 @@ package herddb.model.commands;
 
 import herddb.model.Column;
 import herddb.model.DDLStatement;
+import herddb.model.ForeignKeyDef;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,6 +39,9 @@ public class AlterTableStatement extends DDLStatement {
     private final String table;
     private final Boolean changeAutoIncrement;
     private final String newTableName;
+    private final List<String> dropForeignKeys;
+    private final List<ForeignKeyDef> addForeignKeys;
+
 
     public AlterTableStatement(
             List<Column> addColumns,
@@ -45,7 +50,10 @@ public class AlterTableStatement extends DDLStatement {
             Boolean changeAutoIncrement,
             String table,
             String tableSpace,
-            String newTableName
+            String newTableName,
+            List<String> dropForeignKeys,
+            List<ForeignKeyDef> addForeignKeys
+
     ) {
         super(tableSpace);
         this.table = table;
@@ -54,6 +62,8 @@ public class AlterTableStatement extends DDLStatement {
         this.dropColumns = dropColumns;
         this.changeAutoIncrement = changeAutoIncrement;
         this.newTableName = newTableName;
+        this.dropForeignKeys = dropForeignKeys;
+        this.addForeignKeys = addForeignKeys;
     }
 
     public String getNewTableName() {
@@ -78,6 +88,14 @@ public class AlterTableStatement extends DDLStatement {
 
     public List<Column> getModifyColumns() {
         return modifyColumns;
+    }
+
+    public List<String> getDropForeignKeys() {
+        return dropForeignKeys;
+    }
+
+    public List<ForeignKeyDef> getAddForeignKeys() {
+        return addForeignKeys;
     }
 
 }
