@@ -1202,7 +1202,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             case DROP:
                 if (alterExpression.getColumnName() != null) {
                     dropColumns.add(fixMySqlBackTicks(alterExpression.getColumnName()));
-                } else if (alterExpression.getConstraintName()!= null) {
+                } else if (alterExpression.getConstraintName() != null) {
                     dropForeignKeys.add(fixMySqlBackTicks(alterExpression.getConstraintName()));
                 } else {
                     throw new StatementExecutionException("Unrecognized ALTER TABLE DROP ... statement");

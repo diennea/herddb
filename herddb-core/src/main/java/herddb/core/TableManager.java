@@ -585,7 +585,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context) {
         CompletableFuture<StatementExecutionResult> res;
         long lockStamp = checkpointLock.readLock();
-        LOGGER.log(Level.SEVERE, "LOCK "+table.name+" START " + statement + ": " +lockStamp);
         if (statement instanceof UpdateStatement) {
             UpdateStatement update = (UpdateStatement) statement;
             res = executeUpdateAsync(update, transaction, context);
@@ -613,7 +612,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = Futures.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
         res = res.whenComplete((r, error) -> {
-            LOGGER.log(Level.SEVERE, "LOCK "+table.name+" END " + statement + ": " + r+" "+lockStamp, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {

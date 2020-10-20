@@ -25,7 +25,6 @@ import static herddb.core.TestUtils.execute;
 import static herddb.utils.TestUtils.expectThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import herddb.core.DBManager;
 import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
@@ -124,12 +123,12 @@ public class ForeignKeySQLTest {
         ForeignKeyViolationException errOnUpdate = expectThrows(ForeignKeyViolationException.class, () -> {
             execute(manager, "UPDATE tblspace1.parent set n1=983", Collections.emptyList(), new TransactionContext(tx));
         });
-        assertEquals("fk1", errOnUpdate.getForeignKeyName());
+        assertEquals(fkName, errOnUpdate.getForeignKeyName());
 
         ForeignKeyViolationException errOnDelete = expectThrows(ForeignKeyViolationException.class, () -> {
             execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList(), new TransactionContext(tx));
         });
-        assertEquals("fk1", errOnDelete.getForeignKeyName());
+        assertEquals(fkName, errOnDelete.getForeignKeyName());
 
         execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList(), new TransactionContext(tx));
         execute(manager, "UPDATE tblspace1.parent set n1=983", Collections.emptyList(), new TransactionContext(tx));
@@ -245,8 +244,8 @@ public class ForeignKeySQLTest {
             assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onUpdateCascadeAction);
             assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onDeleteCascadeAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[1].parentTableId);
-            assertArrayEquals(new String[]{"s2","n2"}, childTable.foreignKeys[1].columns);
-            assertArrayEquals(new String[]{"k1","n1"}, childTable.foreignKeys[1].parentTableColumns);
+            assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[1].columns);
+            assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[1].parentTableColumns);
 
             testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk2");
 
