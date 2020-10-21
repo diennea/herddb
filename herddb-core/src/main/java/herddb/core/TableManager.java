@@ -612,7 +612,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = Futures.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
         res = res.whenComplete((r, error) -> {
-//            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
@@ -1158,8 +1157,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     }
                 }
-            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException err) {
-                return Futures.exception(new StatementExecutionException(err.getMessage(), err));
+            } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
+                if (err instanceof StatementExecutionException) {
+                    return Futures.exception(err);
+                } else {
+                    return Futures.exception(new StatementExecutionException(err.getMessage(), err));
+                }
             }
         }
 
@@ -1467,7 +1470,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         }
-                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                    } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
                         if (!(err instanceof StatementExecutionException)) {
@@ -1622,7 +1625,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 }
                             }
                         }
-                    } catch (IllegalArgumentException | StatementExecutionException err) {
+                    } catch (IllegalArgumentException | herddb.utils.IllegalDataAccessException | StatementExecutionException err) {
                         locksManager.releaseLock(lockHandle);
                         StatementExecutionException finalError;
                         if (!(err instanceof StatementExecutionException)) {
