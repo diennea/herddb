@@ -20,6 +20,7 @@
 
 package herddb.jdbc;
 
+import com.google.common.base.Objects;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ScanResultSetMetadata;
 import herddb.client.impl.EmptyScanResultSet;
@@ -30,6 +31,7 @@ import herddb.utils.SQLUtils;
 import herddb.utils.Version;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -699,6 +701,23 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             "KEY_SEQ"
     };
 
+    private static final String[] FOREIGNKEYS_SCHEMA = new String[]{
+        "PKTABLE_CAT",
+        "PKTABLE_SCHEM",
+        "PKTABLE_NAME",
+        "PKCOLUMN_NAME",
+        "FKTABLE_CAT",
+        "FKTABLE_SCHEM",
+        "FKTABLE_NAME",
+        "FKCOLUMN_NAME",
+        "KEY_SEQ",
+        "UPDATE_RULE",
+        "DELETE_RULE",
+        "FK_NAME",
+        "PK_NAME",
+        "DEFERRABILITY"
+    };
+
     @Override
     /**
      * Retrieves a description of the tables available in the given catalog.
@@ -1099,20 +1118,329 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_PRIMARYKEYS_SCHEMA, results));
         }
     }
-
+    /**
+     * Retrieves a description of the primary key columns that are
+     * referenced by the given table's foreign key columns (the primary keys
+     * imported by a table).  They are ordered by PKTABLE_CAT,
+     * PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
+     *
+     * <P>Each primary key column description has the following columns:
+     *  <OL>
+     *  <LI><B>PKTABLE_CAT</B> String {@code =>} primary key table catalog
+     *      being imported (may be <code>null</code>)
+     *  <LI><B>PKTABLE_SCHEM</B> String {@code =>} primary key table schema
+     *      being imported (may be <code>null</code>)
+     *  <LI><B>PKTABLE_NAME</B> String {@code =>} primary key table name
+     *      being imported
+     *  <LI><B>PKCOLUMN_NAME</B> String {@code =>} primary key column name
+     *      being imported
+     *  <LI><B>FKTABLE_CAT</B> String {@code =>} foreign key table catalog (may be <code>null</code>)
+     *  <LI><B>FKTABLE_SCHEM</B> String {@code =>} foreign key table schema (may be <code>null</code>)
+     *  <LI><B>FKTABLE_NAME</B> String {@code =>} foreign key table name
+     *  <LI><B>FKCOLUMN_NAME</B> String {@code =>} foreign key column name
+     *  <LI><B>KEY_SEQ</B> short {@code =>} sequence number within a foreign key( a value
+     *  of 1 represents the first column of the foreign key, a value of 2 would
+     *  represent the second column within the foreign key).
+     *  <LI><B>UPDATE_RULE</B> short {@code =>} What happens to a
+     *       foreign key when the primary key is updated:
+     *      <UL>
+     *      <LI> importedNoAction - do not allow update of primary
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - change imported key to agree
+     *               with primary key update
+     *      <LI> importedKeySetNull - change imported key to <code>NULL</code>
+     *               if its primary key has been updated
+     *      <LI> importedKeySetDefault - change imported key to default values
+     *               if its primary key has been updated
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      </UL>
+     *  <LI><B>DELETE_RULE</B> short {@code =>} What happens to
+     *      the foreign key when primary is deleted.
+     *      <UL>
+     *      <LI> importedKeyNoAction - do not allow delete of primary
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - delete rows that import a deleted key
+     *      <LI> importedKeySetNull - change imported key to NULL if
+     *               its primary key has been deleted
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      <LI> importedKeySetDefault - change imported key to default if
+     *               its primary key has been deleted
+     *      </UL>
+     *  <LI><B>FK_NAME</B> String {@code =>} foreign key name (may be <code>null</code>)
+     *  <LI><B>PK_NAME</B> String {@code =>} primary key name (may be <code>null</code>)
+     *  <LI><B>DEFERRABILITY</B> short {@code =>} can the evaluation of foreign key
+     *      constraints be deferred until commit
+     *      <UL>
+     *      <LI> importedKeyInitiallyDeferred - see SQL92 for definition
+     *      <LI> importedKeyInitiallyImmediate - see SQL92 for definition
+     *      <LI> importedKeyNotDeferrable - see SQL92 for definition
+     *      </UL>
+     *  </OL>
+     *
+     * @param catalog a catalog name; must match the catalog name as it
+     *        is stored in the database; "" retrieves those without a catalog;
+     *        <code>null</code> means that the catalog name should not be used to narrow
+     *        the search
+     * @param schema a schema name; must match the schema name
+     *        as it is stored in the database; "" retrieves those without a schema;
+     *        <code>null</code> means that the schema name should not be used to narrow
+     *        the search
+     * @param table a table name; must match the table name as it is stored
+     *        in the database
+     * @return <code>ResultSet</code> - each row is a primary key column description
+     * @exception SQLException if a database access error occurs
+     * @see #getExportedKeys
+     */
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+        if (table == null || table.isEmpty()) {
+            throw new SQLException("invalid table name");
+        }
+        if (schema == null) {
+            schema = con.getSchema();
+        }
+        String query = "SELECT * FROM " + schema + ".SYSFOREIGNKEYS where lower(child_table_name) = ? order by ordinal_position";
+        return getForeignKeysQueryResults(query, schema, table.toLowerCase(), null);
     }
 
+    private ResultSet getForeignKeysQueryResults(String query, String schema, String param1, String param2) throws SQLException {
+        try (PreparedStatement statement = con.prepareStatement(query);) {
+            statement.setString(1, param1);
+            if (param2 != null) {
+                statement.setString(2, param2);
+            }
+            try (ResultSet rs = statement.executeQuery()) {
+                List<Map<String, Object>> results = new ArrayList<>();
+                while (rs.next()) {
+
+                    String child_table_name = rs.getString("child_table_name");
+                    String child_table_column_name = rs.getString("child_table_column_name");
+                    String child_table_cons_name = rs.getString("child_table_cons_name");
+                    String parent_table_name = rs.getString("parent_table_name");
+                    String parent_table_column_name = rs.getString("parent_table_column_name");
+                    String on_delete_action = rs.getString("on_delete_action");
+                    String on_update_action = rs.getString("on_update_action");
+                    int ordinal_position = rs.getInt("ordinal_position");
+                    String deferred = rs.getString("deferred");
+
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("PKTABLE_CAT", null);
+                    data.put("PKTABLE_SCHEM", schema);
+                    data.put("PKTABLE_NAME", child_table_name);
+                    data.put("PKCOLUMN_NAME", child_table_column_name);
+
+                    data.put("FKTABLE_CAT", null);
+                    data.put("FKTABLE_SCHEM", schema);
+                    data.put("FKTABLE_NAME", parent_table_name);
+                    data.put("FKCOLUMN_NAME", parent_table_column_name);
+
+                    data.put("KEY_SEQ", ordinal_position);
+                    data.put("UPDATE_RULE", on_update_action);
+                    data.put("DELETE_RULE", on_delete_action);
+
+                    data.put("FK_NAME", child_table_cons_name);
+                    data.put("PK_NAME", null);
+                    data.put("DEFERRABILITY", deferred);
+                    results.add(data);
+
+                }
+                ScanResultSetMetadata metadata = new ScanResultSetMetadata(FOREIGNKEYS_SCHEMA);
+                return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, FOREIGNKEYS_SCHEMA, results));
+            }
+        }
+    }
+
+       /**
+     * Retrieves a description of the primary key columns that are
+     * referenced by the given table's foreign key columns (the primary keys
+     * imported by a table).  They are ordered by PKTABLE_CAT,
+     * PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
+     *
+     * <P>Each primary key column description has the following columns:
+     *  <OL>
+     *  <LI><B>PKTABLE_CAT</B> String {@code =>} primary key table catalog
+     *      being imported (may be <code>null</code>)
+     *  <LI><B>PKTABLE_SCHEM</B> String {@code =>} primary key table schema
+     *      being imported (may be <code>null</code>)
+     *  <LI><B>PKTABLE_NAME</B> String {@code =>} primary key table name
+     *      being imported
+     *  <LI><B>PKCOLUMN_NAME</B> String {@code =>} primary key column name
+     *      being imported
+     *  <LI><B>FKTABLE_CAT</B> String {@code =>} foreign key table catalog (may be <code>null</code>)
+     *  <LI><B>FKTABLE_SCHEM</B> String {@code =>} foreign key table schema (may be <code>null</code>)
+     *  <LI><B>FKTABLE_NAME</B> String {@code =>} foreign key table name
+     *  <LI><B>FKCOLUMN_NAME</B> String {@code =>} foreign key column name
+     *  <LI><B>KEY_SEQ</B> short {@code =>} sequence number within a foreign key( a value
+     *  of 1 represents the first column of the foreign key, a value of 2 would
+     *  represent the second column within the foreign key).
+     *  <LI><B>UPDATE_RULE</B> short {@code =>} What happens to a
+     *       foreign key when the primary key is updated:
+     *      <UL>
+     *      <LI> importedNoAction - do not allow update of primary
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - change imported key to agree
+     *               with primary key update
+     *      <LI> importedKeySetNull - change imported key to <code>NULL</code>
+     *               if its primary key has been updated
+     *      <LI> importedKeySetDefault - change imported key to default values
+     *               if its primary key has been updated
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      </UL>
+     *  <LI><B>DELETE_RULE</B> short {@code =>} What happens to
+     *      the foreign key when primary is deleted.
+     *      <UL>
+     *      <LI> importedKeyNoAction - do not allow delete of primary
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - delete rows that import a deleted key
+     *      <LI> importedKeySetNull - change imported key to NULL if
+     *               its primary key has been deleted
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      <LI> importedKeySetDefault - change imported key to default if
+     *               its primary key has been deleted
+     *      </UL>
+     *  <LI><B>FK_NAME</B> String {@code =>} foreign key name (may be <code>null</code>)
+     *  <LI><B>PK_NAME</B> String {@code =>} primary key name (may be <code>null</code>)
+     *  <LI><B>DEFERRABILITY</B> short {@code =>} can the evaluation of foreign key
+     *      constraints be deferred until commit
+     *      <UL>
+     *      <LI> importedKeyInitiallyDeferred - see SQL92 for definition
+     *      <LI> importedKeyInitiallyImmediate - see SQL92 for definition
+     *      <LI> importedKeyNotDeferrable - see SQL92 for definition
+     *      </UL>
+     *  </OL>
+     *
+     * @param catalog a catalog name; must match the catalog name as it
+     *        is stored in the database; "" retrieves those without a catalog;
+     *        <code>null</code> means that the catalog name should not be used to narrow
+     *        the search
+     * @param schema a schema name; must match the schema name
+     *        as it is stored in the database; "" retrieves those without a schema;
+     *        <code>null</code> means that the schema name should not be used to narrow
+     *        the search
+     * @param table a table name; must match the table name as it is stored
+     *        in the database
+     * @return <code>ResultSet</code> - each row is a primary key column description
+     * @exception SQLException if a database access error occurs
+     * @see #getExportedKeys
+     */
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+        if (table == null || table.isEmpty()) {
+            throw new SQLException("invalid table name");
+        }
+        if (schema == null) {
+            schema = con.getSchema();
+        }
+        String query = "SELECT * FROM " + schema + ".SYSFOREIGNKEYS where lower(parent_table_name) = ? order by ordinal_position";
+        return getForeignKeysQueryResults(query, schema, table.toLowerCase(), null);
     }
 
+    /**
+     * Retrieves a description of the foreign key columns in the given foreign key
+     * table that reference the primary key or the columns representing a unique constraint of the  parent table (could be the same or a different table).
+     * The number of columns returned from the parent table must match the number of
+     * columns that make up the foreign key.  They
+     * are ordered by FKTABLE_CAT, FKTABLE_SCHEM, FKTABLE_NAME, and
+     * KEY_SEQ.
+     *
+     * <P>Each foreign key column description has the following columns:
+     *  <OL>
+     *  <LI><B>PKTABLE_CAT</B> String {@code =>} parent key table catalog (may be <code>null</code>)
+     *  <LI><B>PKTABLE_SCHEM</B> String {@code =>} parent key table schema (may be <code>null</code>)
+     *  <LI><B>PKTABLE_NAME</B> String {@code =>} parent key table name
+     *  <LI><B>PKCOLUMN_NAME</B> String {@code =>} parent key column name
+     *  <LI><B>FKTABLE_CAT</B> String {@code =>} foreign key table catalog (may be <code>null</code>)
+     *      being exported (may be <code>null</code>)
+     *  <LI><B>FKTABLE_SCHEM</B> String {@code =>} foreign key table schema (may be <code>null</code>)
+     *      being exported (may be <code>null</code>)
+     *  <LI><B>FKTABLE_NAME</B> String {@code =>} foreign key table name
+     *      being exported
+     *  <LI><B>FKCOLUMN_NAME</B> String {@code =>} foreign key column name
+     *      being exported
+     *  <LI><B>KEY_SEQ</B> short {@code =>} sequence number within foreign key( a value
+     *  of 1 represents the first column of the foreign key, a value of 2 would
+     *  represent the second column within the foreign key).
+     *  <LI><B>UPDATE_RULE</B> short {@code =>} What happens to
+     *       foreign key when parent key is updated:
+     *      <UL>
+     *      <LI> importedNoAction - do not allow update of parent
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - change imported key to agree
+     *               with parent key update
+     *      <LI> importedKeySetNull - change imported key to <code>NULL</code> if
+     *               its parent key has been updated
+     *      <LI> importedKeySetDefault - change imported key to default values
+     *               if its parent key has been updated
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      </UL>
+     *  <LI><B>DELETE_RULE</B> short {@code =>} What happens to
+     *      the foreign key when parent key is deleted.
+     *      <UL>
+     *      <LI> importedKeyNoAction - do not allow delete of parent
+     *               key if it has been imported
+     *      <LI> importedKeyCascade - delete rows that import a deleted key
+     *      <LI> importedKeySetNull - change imported key to <code>NULL</code> if
+     *               its primary key has been deleted
+     *      <LI> importedKeyRestrict - same as importedKeyNoAction
+     *                                 (for ODBC 2.x compatibility)
+     *      <LI> importedKeySetDefault - change imported key to default if
+     *               its parent key has been deleted
+     *      </UL>
+     *  <LI><B>FK_NAME</B> String {@code =>} foreign key name (may be <code>null</code>)
+     *  <LI><B>PK_NAME</B> String {@code =>} parent key name (may be <code>null</code>)
+     *  <LI><B>DEFERRABILITY</B> short {@code =>} can the evaluation of foreign key
+     *      constraints be deferred until commit
+     *      <UL>
+     *      <LI> importedKeyInitiallyDeferred - see SQL92 for definition
+     *      <LI> importedKeyInitiallyImmediate - see SQL92 for definition
+     *      <LI> importedKeyNotDeferrable - see SQL92 for definition
+     *      </UL>
+     *  </OL>
+     *
+     * @param parentCatalog a catalog name; must match the catalog name
+     * as it is stored in the database; "" retrieves those without a
+     * catalog; <code>null</code> means drop catalog name from the selection criteria
+     * @param parentSchema a schema name; must match the schema name as
+     * it is stored in the database; "" retrieves those without a schema;
+     * <code>null</code> means drop schema name from the selection criteria
+     * @param parentTable the name of the table that exports the key; must match
+     * the table name as it is stored in the database
+     * @param foreignCatalog a catalog name; must match the catalog name as
+     * it is stored in the database; "" retrieves those without a
+     * catalog; <code>null</code> means drop catalog name from the selection criteria
+     * @param foreignSchema a schema name; must match the schema name as it
+     * is stored in the database; "" retrieves those without a schema;
+     * <code>null</code> means drop schema name from the selection criteria
+     * @param foreignTable the name of the table that imports the key; must match
+     * the table name as it is stored in the database
+     * @return <code>ResultSet</code> - each row is a foreign key column description
+     * @exception SQLException if a database access error occurs
+     * @see #getImportedKeys
+     */
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+        if (parentTable == null || parentTable.isEmpty()) {
+            throw new SQLException("invalid table name");
+        }
+        if (foreignTable == null || foreignTable.isEmpty()) {
+            throw new SQLException("invalid table name");
+        }
+        if (parentSchema == null) {
+            parentSchema = con.getSchema();
+        }
+        if (foreignSchema == null) {
+            foreignSchema = con.getSchema();
+        }
+        if (!Objects.equal(foreignSchema, parentSchema)) {
+            throw new SQLException("foreignSchema and parentSchema must be the same");
+        }
+        String query = "SELECT * FROM " + foreignSchema + ".SYSFOREIGNKEYS where lower(parent_table_name) = ? and lower(child_table_name) = ? order by ordinal_position";
+        return getForeignKeysQueryResults(query, foreignSchema, parentTable.toLowerCase(), foreignTable.toLowerCase());
     }
 
     @Override
