@@ -180,7 +180,8 @@ public class SystemTablesTest {
                         })
                         .findAny()
                         .isPresent());
-                assertEquals(25, records.size());
+                // to be changed every time we add a new system table
+                assertEquals(28, records.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns where table_name like '%tsql' order by index_name, column_name",

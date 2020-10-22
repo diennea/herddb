@@ -236,7 +236,7 @@ public class SystemTablesTest {
                             records.add(record);
                         }
                         // this is to be incremented at every new systable
-                        assertEquals(25, records.size());
+                        assertEquals(28, records.size());
                     }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();
