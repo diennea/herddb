@@ -89,6 +89,7 @@ import herddb.utils.NullLockManager;
 import herddb.utils.SystemProperties;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1285,7 +1286,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     valuesToMatch,
                     1, // only one record
                     true, // keep read locks in TransactionContext
-                    tx);) {
+                    tx,
+                    null);) {
                 List<DataAccessor> resultSet = scan.consume();
                 // we are on the parent side of the relation
                 // we are okay if there is no matching record
@@ -1300,6 +1302,42 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
     }
 
+    private void validateForeignKeyConsistency(ForeignKeyDef fk, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
+        StringBuilder query = new StringBuilder("SELECT * "
+                + "      FROM " + this.tableSpaceManager.getTableSpaceName() + "." + this.table.name + " childtable "
+                + "      WHERE NOT EXISTS (SELECT * "
+                + "                        FROM " + this.tableSpaceManager.getTableSpaceName() + "." + parentTable.name + " parenttable "
+                + "                        WHERE ");
+        for (int i = 0; i < fk.columns.length; i++) {
+            if (i > 0) {
+                query.append(" AND ");
+            }
+            query.append("childtable.")
+                    .append(fk.columns[i])
+                    .append(" = parenttable.")
+                    .append(fk.parentTableColumns[i]);
+        }
+        query.append(")");
+        TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
+        boolean fkOk;
+        try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
+                query.toString(),
+                Collections.emptyList(),
+                1, // only one record
+                true, // keep read locks in TransactionContext
+                tx,
+                context);
+        ) {
+            List<DataAccessor> resultSet = scan.consume();
+            fkOk = resultSet.isEmpty();
+        } catch (DataScannerException err) {
+            throw new StatementExecutionException(err);
+        }
+        if (!fkOk) {
+            throw new ForeignKeyViolationException(fk.name, "foreignKey " + table.name + "." + fk.name + " violated");
+        }
+    }
 
     private void checkForeignKeyConstraintsAsChildTable(ForeignKeyDef fk, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
         // We are creating a SQL query and then using DBManager
@@ -1337,7 +1375,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 valuesToMatch,
                 1, // only one record
                 true, // keep read locks in TransactionContext
-                tx);
+                tx,
+                null);
         ) {
             List<DataAccessor> resultSet = scan.consume();
             fkOk = !resultSet.isEmpty();
@@ -3957,6 +3996,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 throw new StatementExecutionException("Found a record in table " + table.name + " that contains a NULL value for column " + column + " ALTER command is not possible");
             }
         }
+        // if we are adding new FK we have to check that the FK is not violated
+        if (table.foreignKeys != null) {
+            List<ForeignKeyDef> newForeignKeys;
+            if (this.table.foreignKeys == null) {
+                newForeignKeys = Arrays.asList(table.foreignKeys);
+            } else {
+                Set<String> currentKfs = Stream.of(this.table.foreignKeys).map(f->f.name.toLowerCase()).collect(Collectors.toSet());
+                newForeignKeys = Stream
+                        .of(table.foreignKeys)
+                        .filter(fk -> !currentKfs.contains(fk.name))
+                        .collect(Collectors.toList());
+            }
+            for (ForeignKeyDef newFk : newForeignKeys) {
+                validateForeignKeyConsistency(newFk, context, null);
+            }
+        }
     }
 
     @Override
@@ -3968,7 +4023,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 droppedColumns.add(c.name);
             }
         }
-
         this.table = table;
         if (!droppedColumns.isEmpty()) {
             // no lock is necessary
