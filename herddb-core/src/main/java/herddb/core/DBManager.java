@@ -779,11 +779,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * Internal method used to execute simple data accesses, like foreign key checks.
      */
     public DataScanner executeSimpleQuery(String tableSpace, String query, List<Object> parameters,
-            int maxRows, boolean keepReadLocks, TransactionContext transactionContext) {
+            int maxRows, boolean keepReadLocks, TransactionContext transactionContext, StatementEvaluationContext context) {
         TranslatedQuery translatedQuery = planner.translate(tableSpace,
                 query, parameters, true, true, false, maxRows);
         translatedQuery.context.setForceRetainReadLock(keepReadLocks);
-        ScanResult scanResult = (ScanResult) executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+        ScanResult scanResult = (ScanResult) executePlan(translatedQuery.plan, context != null ? context : translatedQuery.context, transactionContext);
         return scanResult.dataScanner;
     }
 
