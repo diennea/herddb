@@ -31,24 +31,26 @@ import java.util.UUID;
 public final class ForeignKeyDef {
 
     public static final int ACTION_NO_ACTION = 0; // NO_ACTION means to reject the operation
+    public static final int ACTION_CASCADE = 1;
+    public static final int ACTION_SETNULL = 2;
     public final String name;
     public final String parentTableId; // uuid, not name
     public final String[] columns;
     public final String[] parentTableColumns;
-    public final int onUpdateCascadeAction;
-    public final int onDeleteCascadeAction;
+    public final int onUpdateAction;
+    public final int onDeleteAction;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private ForeignKeyDef(String name, String parentTableId, String[] columns, String[] parentTableColumns, int onUpdateCascadeAction, int onDeleteCascadeAction) {
+    private ForeignKeyDef(String name, String parentTableId, String[] columns, String[] parentTableColumns, int onUpdateAction, int onDeleteAction) {
         this.name = name;
         this.parentTableId = parentTableId;
         this.columns = columns;
         this.parentTableColumns = parentTableColumns;
-        this.onUpdateCascadeAction = onUpdateCascadeAction;
-        this.onDeleteCascadeAction = onDeleteCascadeAction;
+        this.onUpdateAction = onUpdateAction;
+        this.onDeleteAction = onDeleteAction;
     }
 
     public static class Builder {
@@ -57,8 +59,8 @@ public final class ForeignKeyDef {
         private String parentTableId; // uuid, not name
         private final List<String> columns = new ArrayList<>();
         private final List<String> parentTableColumns = new ArrayList<>();
-        private int onUpdateCascadeAction;
-        private int onDeleteCascadeAction;
+        private int onUpdateAction;
+        private int onDeleteAction;
 
 
         public Builder name(String name) {
@@ -81,13 +83,13 @@ public final class ForeignKeyDef {
             return this;
         }
 
-        public Builder onUpdateCascadeAction(int onUpdateCascadeAction) {
-            this.onUpdateCascadeAction = onUpdateCascadeAction;
+        public Builder onUpdateAction(int onUpdateAction) {
+            this.onUpdateAction = onUpdateAction;
             return this;
         }
 
-        public Builder onDeleteCascadeAction(int onDeleteCascadeAction) {
-            this.onDeleteCascadeAction = onDeleteCascadeAction;
+        public Builder onDeleteAction(int onDeleteCascadeAction) {
+            this.onDeleteAction = onDeleteCascadeAction;
             return this;
         }
 
@@ -95,11 +97,13 @@ public final class ForeignKeyDef {
             if (parentTableId == null || parentTableId.isEmpty()) {
                 throw new IllegalArgumentException("parentTableId must be set");
             }
-            if (onUpdateCascadeAction != ACTION_NO_ACTION) {
-                throw new IllegalArgumentException("invalid onUpdateCascadeAction " + onUpdateCascadeAction);
+            if (onUpdateAction != ACTION_NO_ACTION) {
+                throw new IllegalArgumentException("invalid onUpdateCascadeAction " + onUpdateAction);
             }
-            if (onDeleteCascadeAction != ACTION_NO_ACTION) {
-                throw new IllegalArgumentException("invalid onDeleteCascadeAction " + onDeleteCascadeAction);
+            if (onDeleteAction != ACTION_NO_ACTION
+                    && onDeleteAction != ACTION_CASCADE
+                    && onDeleteAction != ACTION_SETNULL) {
+                throw new IllegalArgumentException("invalid onDeleteCascadeAction " + onDeleteAction);
             }
             if (parentTableColumns.size() != columns.size()) {
                 throw new IllegalArgumentException("the number of columns in child and parent table must be the same");
@@ -110,7 +114,7 @@ public final class ForeignKeyDef {
             return new ForeignKeyDef(name, parentTableId,
                     columns.toArray(new String[0]),
                     parentTableColumns.toArray(new String[0]),
-                    onUpdateCascadeAction, onDeleteCascadeAction);
+                    onUpdateAction, onDeleteAction);
         }
 
     }

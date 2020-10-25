@@ -235,8 +235,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                             String col = dii.readUTF();
                             builder.parentTableColumn(col);
                         }
-                        builder.onUpdateCascadeAction(dii.readVInt());
-                        builder.onDeleteCascadeAction(dii.readVInt());
+                        builder.onUpdateAction(dii.readVInt());
+                        builder.onDeleteAction(dii.readVInt());
                         foreignKeys[i] = builder.build();
                     }
                 }
@@ -289,8 +289,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
                     for (String col : k.parentTableColumns) {
                         doo.writeUTF(col);
                     }
-                    doo.writeVInt(k.onUpdateCascadeAction);
-                    doo.writeVInt(k.onDeleteCascadeAction);
+                    doo.writeVInt(k.onUpdateAction);
+                    doo.writeVInt(k.onDeleteAction);
                 }
             }
         } catch (IOException ee) {

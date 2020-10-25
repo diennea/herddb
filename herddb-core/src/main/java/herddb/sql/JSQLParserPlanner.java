@@ -605,7 +605,20 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         int onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
         if (fk.getOnDeleteReferenceOption() != null && !(fk.getOnDeleteReferenceOption().equalsIgnoreCase("RESTRICT")
                 || fk.getOnDeleteReferenceOption().equalsIgnoreCase("NO ACTION"))) {
-            throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
+            switch (fk.getOnDeleteReferenceOption().toUpperCase().trim()) {
+                case "NO ACTION":
+                case "RESTRICT":
+                    onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
+                    break;
+                case "CASCADE":
+                    onDeleteCascadeAction = ForeignKeyDef.ACTION_CASCADE;
+                    break;
+                case "SET NULL":
+                    onDeleteCascadeAction = ForeignKeyDef.ACTION_SETNULL;
+                    break;
+                default:
+                    throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
+            }
         }
         if (fk.getOnUpdateReferenceOption() != null && !(
                 fk.getOnUpdateReferenceOption().equalsIgnoreCase("RESTRICT")
@@ -617,8 +630,8 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 .builder()
                 .name(indexName)
                 .parentTableId(parentTableSchema.uuid)
-                .onUpdateCascadeAction(onUpdateCascadeAction)
-                .onDeleteCascadeAction(onDeleteCascadeAction);
+                .onUpdateAction(onUpdateCascadeAction)
+                .onDeleteAction(onDeleteCascadeAction);
         for (String columnName : fk.getColumnsNames()) {
             columnName = fixMySqlBackTicks(columnName.toLowerCase());
             Column column = table.getColumn(columnName);

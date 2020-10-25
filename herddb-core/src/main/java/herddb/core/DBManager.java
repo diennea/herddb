@@ -780,11 +780,19 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      */
     public DataScanner executeSimpleQuery(String tableSpace, String query, List<Object> parameters,
             int maxRows, boolean keepReadLocks, TransactionContext transactionContext, StatementEvaluationContext context) {
+        ScanResult scanResult = (ScanResult) executeSimpleStatement(tableSpace, query, parameters, maxRows, keepReadLocks, transactionContext, context);
+        return scanResult.dataScanner;
+    }
+    
+    /**
+     * Internal method used to execute simple data accesses, like foreign key cascade actions.
+     */
+    public StatementExecutionResult executeSimpleStatement(String tableSpace, String query, List<Object> parameters,
+            int maxRows, boolean keepReadLocks, TransactionContext transactionContext, StatementEvaluationContext context) {
         TranslatedQuery translatedQuery = planner.translate(tableSpace,
                 query, parameters, true, true, false, maxRows);
         translatedQuery.context.setForceRetainReadLock(keepReadLocks);
-        ScanResult scanResult = (ScanResult) executePlan(translatedQuery.plan, context != null ? context : translatedQuery.context, transactionContext);
-        return scanResult.dataScanner;
+        return executePlan(translatedQuery.plan, context != null ? context : translatedQuery.context, transactionContext);
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {

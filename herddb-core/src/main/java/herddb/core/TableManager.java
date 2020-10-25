@@ -1250,28 +1250,44 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         return res;
     }
 
-    private void checkForeignKeyConstraintsAsParentTable(Table childTable, DataAccessor values, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+    private void executeForeignKeyConstraintsAsParentTable(Table childTable, DataAccessor values, StatementEvaluationContext context, Transaction transaction, boolean delete) throws StatementExecutionException {
         // We are creating a SQL query and then using DBManager
         // using an SQL query will let us leverage the SQL Planner
         // and use the best index to perform the execution
         // the SQL Planner will cache the plan, and the plan will also be
         // invalidated consistently during DML operations.
         for (ForeignKeyDef fk : childTable.foreignKeys) {
-            String query = parentForeignKeyQueries.computeIfAbsent(childTable.name + "." + fk.name, (l -> {
-                // with '*' we are not going to perform projections or copies
-                StringBuilder q = new StringBuilder("SELECT * FROM ");
-                q.append(childTable.tablespace);
-                q.append(".");
-                q.append(childTable.name);
-                q.append(" WHERE ");
-                for (int i = 0; i < fk.columns.length; i++) {
-                    if (i > 0) {
-                        q.append(" AND ");
+            String query = parentForeignKeyQueries.computeIfAbsent(childTable.name + "." + fk.name + ".#" + delete, (l -> {
+                if (fk.onDeleteAction == ForeignKeyDef.ACTION_CASCADE && delete) {
+                    StringBuilder q = new StringBuilder("DELETE FROM ");
+                    q.append(childTable.tablespace);
+                    q.append(".");
+                    q.append(childTable.name);
+                    q.append(" WHERE ");
+                    for (int i = 0; i < fk.columns.length; i++) {
+                        if (i > 0) {
+                            q.append(" AND ");
+                        }
+                        q.append(fk.columns[i]);
+                        q.append("=?");
                     }
-                    q.append(fk.columns[i]);
-                    q.append("=?");
+                    return q.toString();
+                } else {
+                    // with '*' we are not going to perform projections or copies
+                    StringBuilder q = new StringBuilder("SELECT * FROM ");
+                    q.append(childTable.tablespace);
+                    q.append(".");
+                    q.append(childTable.name);
+                    q.append(" WHERE ");
+                    for (int i = 0; i < fk.columns.length; i++) {
+                        if (i > 0) {
+                            q.append(" AND ");
+                        }
+                        q.append(fk.columns[i]);
+                        q.append("=?");
+                    }
+                    return q.toString();
                 }
-                return q.toString();
             }));
 
             final List<Object> valuesToMatch = new ArrayList<>(fk.parentTableColumns.length);
@@ -1280,24 +1296,34 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
-            boolean fkOk;
-            try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
-                    query,
-                    valuesToMatch,
-                    1, // only one record
-                    true, // keep read locks in TransactionContext
-                    tx,
-                    null);) {
-                List<DataAccessor> resultSet = scan.consume();
-                // we are on the parent side of the relation
-                // we are okay if there is no matching record
-                // TODO: return the list of PKs in order to implement CASCADE operations
-                fkOk = resultSet.isEmpty();
-            } catch (DataScannerException err) {
-                throw new StatementExecutionException(err);
-            }
-            if (!fkOk) {
-                throw new ForeignKeyViolationException(fk.name, "foreignKey " + childTable.name + "." + fk.name + " violated");
+            if (fk.onDeleteAction == ForeignKeyDef.ACTION_CASCADE && delete) {
+                tableSpaceManager.getDbmanager().executeSimpleStatement(tableSpaceManager.getTableSpaceName(),
+                        query,
+                        valuesToMatch,
+                        -1, // every record
+                        true, // keep read locks in TransactionContext
+                        tx,
+                        null);
+            } else {
+                boolean fkOk;
+                try (DataScanner scan = tableSpaceManager.getDbmanager().executeSimpleQuery(tableSpaceManager.getTableSpaceName(),
+                        query,
+                        valuesToMatch,
+                        1, // only one record
+                        true, // keep read locks in TransactionContext
+                        tx,
+                        null);) {
+                    List<DataAccessor> resultSet = scan.consume();
+                    // we are on the parent side of the relation
+                    // we are okay if there is no matching record
+                    // TODO: return the list of PKs in order to implement CASCADE operations
+                    fkOk = resultSet.isEmpty();
+                } catch (DataScannerException err) {
+                    throw new StatementExecutionException(err);
+                }
+                if (!fkOk) {
+                    throw new ForeignKeyViolationException(fk.name, "foreignKey " + childTable.name + "." + fk.name + " violated");
+                }
             }
         }
     }
@@ -1475,7 +1501,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (childrenTables != null) {
                             DataAccessor currentValues = current.getDataAccessor(table);
                             for (Table childTable : childrenTables) {
-                                checkForeignKeyConstraintsAsParentTable(childTable, currentValues, context, transaction);
+                                executeForeignKeyConstraintsAsParentTable(childTable, currentValues, context, transaction, false);
                             }
                         }
 
@@ -1644,7 +1670,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             DataAccessor dataAccessor = current.getDataAccessor(table);
                             if (childrenTables != null) {
                                 for (Table childTable : childrenTables) {
-                                    checkForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction);
+                                    executeForeignKeyConstraintsAsParentTable(childTable, dataAccessor, context, transaction, true);
                                 }
                             }
                             if (indexes != null) {
@@ -4034,6 +4060,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (this.table.auto_increment) {
             rebuildNextPrimaryKeyValue();
         }
+        
+        // clear FK caches, foreignkeys may change
+        parentForeignKeyQueries.clear();
+        childForeignKeyQueries.clear();
     }
 
     @Override

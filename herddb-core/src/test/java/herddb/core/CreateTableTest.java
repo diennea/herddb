@@ -107,8 +107,8 @@ public class CreateTableTest {
                     .foreingKey(ForeignKeyDef
                             .builder()
                             .name("myfk")
-                            .onDeleteCascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
-                            .onUpdateCascadeAction(ForeignKeyDef.ACTION_NO_ACTION)
+                            .onDeleteAction(ForeignKeyDef.ACTION_NO_ACTION)
+                            .onUpdateAction(ForeignKeyDef.ACTION_NO_ACTION)
                             .column("parenttableid")
                             .parentTableId(parentTable.uuid)
                             .parentTableColumn("id")
