@@ -97,13 +97,14 @@ public final class ForeignKeyDef {
             if (parentTableId == null || parentTableId.isEmpty()) {
                 throw new IllegalArgumentException("parentTableId must be set");
             }
-            if (onUpdateAction != ACTION_NO_ACTION) {
-                throw new IllegalArgumentException("invalid onUpdateCascadeAction " + onUpdateAction);
+            if (onUpdateAction != ACTION_NO_ACTION
+                    && onUpdateAction != ACTION_SETNULL) {
+                throw new IllegalArgumentException("invalid onUpdateAction " + onDeleteAction);
             }
             if (onDeleteAction != ACTION_NO_ACTION
                     && onDeleteAction != ACTION_CASCADE
                     && onDeleteAction != ACTION_SETNULL) {
-                throw new IllegalArgumentException("invalid onDeleteCascadeAction " + onDeleteAction);
+                throw new IllegalArgumentException("invalid onDeleteAction " + onDeleteAction);
             }
             if (parentTableColumns.size() != columns.size()) {
                 throw new IllegalArgumentException("the number of columns in child and parent table must be the same");

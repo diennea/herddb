@@ -783,7 +783,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         ScanResult scanResult = (ScanResult) executeSimpleStatement(tableSpace, query, parameters, maxRows, keepReadLocks, transactionContext, context);
         return scanResult.dataScanner;
     }
-    
+
     /**
      * Internal method used to execute simple data accesses, like foreign key cascade actions.
      */
