@@ -24,12 +24,12 @@ import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
+import herddb.client.ClientSideConnectionPeer;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.GetResult;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.client.RoutedClientSideConnection;
 import herddb.client.ScanResultSet;
 import herddb.core.ActivatorRunRequest;
 import herddb.core.DBManager;
@@ -554,7 +554,7 @@ public class RetryOnLeaderChangedTest {
         }
 
         @Override
-        public RoutedClientSideConnection getRouteToTableSpace(String tableSpace)
+        public ClientSideConnectionPeer getRouteToTableSpace(String tableSpace)
                 throws ClientSideMetadataProviderException, HDBException {
             return super.getRouteToTableSpace(tableSpace);
         }

@@ -26,6 +26,8 @@ import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_COMMIT_TRANSACTION;
 import static herddb.proto.PduCodec.TxCommand.TX_COMMAND_ROLLBACK_TRANSACTION;
 import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
+import herddb.client.DMLResult;
+import herddb.client.HDBException;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
@@ -68,9 +70,11 @@ import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import java.io.EOFException;
+import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -707,6 +711,64 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
+    public DMLResult executeUpdate(String tablespace, String query, long txId, boolean returnValues, List<Object> parameters) throws HDBException {
+        TransactionContext transactionContext = new TransactionContext(txId);
+        TranslatedQuery translatedQuery;
+        try {
+            translatedQuery = server.getManager().getPlanner().translate(tablespace,
+                    query, parameters, false, true, returnValues, -1);
+            Statement statement = translatedQuery.plan.mainStatement;
+            CompletableFuture<StatementExecutionResult> res = server
+                    .getManager()
+                    .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+            CompletableFuture<DMLResult> finalResult = res.handle((result, err) -> {
+                if (err != null) {
+                    while (err instanceof CompletionException) {
+                        err = err.getCause();
+                    }
+                    if (err instanceof DuplicatePrimaryKeyException) {
+                        throw new CompletionException(new SQLIntegrityConstraintViolationException(err));
+                    } else {
+                        throw new CompletionException(new SQLException(err));
+                    }
+                }
+                if (result instanceof DMLStatementExecutionResult) {
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+
+                    if (returnValues && dml.getKey() != null) {
+                        TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
+                        Table table = server
+                                .getManager()
+                                .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                        final Map<RawString, Object> newRecord = new HashMap<>();
+                        Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey(), table);
+                        newRecord.put(RawString.of("_key"), newKey);
+                        if (dml.getNewvalue() != null) {
+                            Map<String, Object> toBean = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                            toBean.forEach((k, v) -> {
+                                newRecord.put(RawString.of(k), v);
+                            });
+                        }
+                        return new DMLResult(dml.getUpdateCount(), newKey, newRecord, dml.transactionId);
+                    } else {
+                        return new DMLResult(dml.getUpdateCount(), null, null, dml.transactionId);
+                    }
+                } else if (result instanceof DDLStatementExecutionResult) {
+                    return new DMLResult(1, null, null, result.transactionId);
+                } else {
+                    throw new CompletionException(new SQLException("Unknown result type " + result.getClass() + ": " + result));
+                }
+            });
+            return finalResult.get();
+        } catch (Throwable err) {
+            while (err instanceof CompletionException) {
+                err = err.getCause();
+            }
+            throw new HDBException(err);
+        }
+    }
+
     private void handleExecuteStatement(Pdu message, Channel channel) {
         long txId = PduCodec.ExecuteStatement.readTx(message);
         String tablespace = PduCodec.ExecuteStatement.readTablespace(message);
@@ -850,6 +912,26 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             message.messageId, newId));
         } finally {
             message.close();
+        }
+    }
+
+    public void rollbackTransaction(String tableSpace, long txId) throws HDBException {
+        try {
+            RollbackTransactionStatement statement = new RollbackTransactionStatement(tableSpace, txId);
+            TransactionContext transactionContext = new TransactionContext(txId);
+            server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
+        } catch (HerdDBInternalException t) {
+            throw new HDBException(t);
+        }
+    }
+
+    public void commitTransaction(String tableSpace, long txId) throws HDBException {
+        try {
+            CommitTransactionStatement statement = new CommitTransactionStatement(tableSpace, txId);
+            TransactionContext transactionContext = new TransactionContext(txId);
+            server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
+        } catch (HerdDBInternalException t) {
+            throw new HDBException(t);
         }
     }
 

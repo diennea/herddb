@@ -524,7 +524,7 @@ public class SimpleClientServerTest {
     public void testClientCloseOnConnectionAndResumeTransaction() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         AtomicInteger connectionToUse = new AtomicInteger();
-        AtomicReference<RoutedClientSideConnection[]> connections = new AtomicReference<>();
+        AtomicReference<ClientSideConnectionPeer[]> connections = new AtomicReference<>();
         try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
@@ -536,7 +536,7 @@ public class SimpleClientServerTest {
                 public HDBConnection openConnection() {
                     HDBConnection con = new HDBConnection(this) {
                         @Override
-                        protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+                        protected ClientSideConnectionPeer chooseConnection(ClientSideConnectionPeer[] all) {
                             connections.set(all);
                             LOG.log(Level.INFO,
                                     "chooseConnection among " + all.length + " connections, getting " + connectionToUse);
@@ -759,7 +759,7 @@ public class SimpleClientServerTest {
     @Test
     public void testEnsureOpen() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        AtomicReference<RoutedClientSideConnection[]> connections = new AtomicReference<>();
+        AtomicReference<ClientSideConnectionPeer[]> connections = new AtomicReference<>();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
         try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.getNetworkServer().setEnableJVMNetwork(false);
@@ -774,7 +774,7 @@ public class SimpleClientServerTest {
                 public HDBConnection openConnection() {
                     HDBConnection con = new HDBConnection(this) {
                         @Override
-                        protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+                        protected ClientSideConnectionPeer chooseConnection(ClientSideConnectionPeer[] all) {
                             connections.set(all);
                             return all[0];
                         }
