@@ -1843,7 +1843,7 @@ public abstract class PduCodec {
 
     }
 
-    private static void writeObject(ByteBuf byteBuf, Object v) {
+    static void writeObject(ByteBuf byteBuf, Object v) {
         if (v == null) {
             byteBuf.writeByte(TYPE_NULL);
         } else if (v instanceof RawString) {
@@ -1872,7 +1872,7 @@ public abstract class PduCodec {
             byteBuf.writeDouble((Float) v);
         } else if (v instanceof Short) {
             byteBuf.writeByte(TYPE_SHORT);
-            byteBuf.writeLong((Short) v);
+            byteBuf.writeShort((Short) v);
         } else if (v instanceof byte[]) {
             byteBuf.writeByte(TYPE_BYTEARRAY);
             ByteBufUtils.writeArray(byteBuf, (byte[]) v);
@@ -1913,6 +1913,53 @@ public abstract class PduCodec {
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
+    }
+/**
+     * Ensure that every parameter matches the same type as when we are marshalling/unmarshalling
+     * it. This is useful for "local" mode: we do not want a different behaviour in local mode vs network mode
+     * and also we do not want unexpected JDBC parameter types on server-side processing.
+     * @param parameters the JDBC parameters
+     * @return a new list with converted JDBC parameters
+     * @see #writeObject(io.netty.buffer.ByteBuf, java.lang.Object)
+     * @see #readObject(io.netty.buffer.ByteBuf)
+     */
+    public static List<Object> normalizeParametersList(List<Object> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return parameters;
+        }
+        List<Object> result = new ArrayList<>(parameters.size());
+        for (Object v : parameters) {
+            if (v == null) {
+                result.add(null);
+            } else if (v instanceof String) {
+                result.add(RawString.of((String) v));
+            } else if (v instanceof RawString) {
+                result.add(v);
+            } else if (v instanceof Long) {
+                result.add(v);
+            } else if (v instanceof Integer) {
+                result.add(v);
+            } else if (v instanceof Boolean) {
+                result.add(v);
+            } else if (v instanceof java.sql.Timestamp) {
+                result.add(v);
+            } else if (v instanceof java.util.Date) {
+                result.add(new java.sql.Timestamp(((java.util.Date) v).getTime()));
+            } else if (v instanceof Double) {
+                result.add(v);
+            } else if (v instanceof Float) {
+                result.add(((Float) v).doubleValue());
+            } else if (v instanceof Short) {
+                result.add(v);
+            } else if (v instanceof byte[]) {
+                result.add(v);
+            } else if (v instanceof Byte) {
+                result.add(v);
+            } else {
+                throw new IllegalArgumentException("bad data type " + v.getClass());
+            }
+        }
+        return result;
     }
 
 }

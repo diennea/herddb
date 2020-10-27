@@ -55,7 +55,7 @@ public class HDBConnection implements AutoCloseable {
     private Counter leaderChangedErrors;
     private final int maxConnectionsPerServer;
     private final Random random = new Random();
-    private Map<String, RoutedClientSideConnection[]> routes;
+    private Map<String, ClientSideConnectionPeer[]> routes;
 
     public HDBConnection(HDBClient client) {
         if (client == null) {
@@ -94,7 +94,7 @@ public class HDBConnection implements AutoCloseable {
         LOGGER.log(Level.FINER, "{0} close ", this);
         closed = true;
         routes.forEach((n, b) -> {
-            for (RoutedClientSideConnection cc : b) {
+            for (ClientSideConnectionPeer cc : b) {
                 cc.close();
             }
         });
@@ -108,7 +108,7 @@ public class HDBConnection implements AutoCloseable {
         long start = System.currentTimeMillis();
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 try (ScanResultSet result = route.executeScan(tableSpace,
                         "select * "
                                 + "from systablespaces "
@@ -147,7 +147,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.beginTransaction(tableSpace);
             } catch (RetryRequestException retry) {
                 handleRetryError(retry, trialCount++);
@@ -160,7 +160,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 route.rollbackTransaction(tableSpace, tx);
                 return;
             } catch (RetryRequestException retry) {
@@ -174,7 +174,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 route.commitTransaction(tableSpace, tx);
                 return;
             } catch (RetryRequestException retry) {
@@ -192,7 +192,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeUpdate(tableSpace, query, tx, returnValues, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
@@ -217,7 +217,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private void executeStatementAsyncInternal(String tableSpace, CompletableFuture<DMLResult> res, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params, AtomicInteger count) {
-        RoutedClientSideConnection route;
+        ClientSideConnectionPeer route;
         try {
             route = getRouteToTableSpace(tableSpace);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -247,7 +247,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private void executeStatementsAsyncInternal(String tableSpace, CompletableFuture<List<DMLResult>> res, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<List<Object>> params, AtomicInteger count) {
-        RoutedClientSideConnection route;
+        ClientSideConnectionPeer route;
         try {
             route = getRouteToTableSpace(tableSpace);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -289,7 +289,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
@@ -326,7 +326,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeGet(tableSpace, query, tx, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
@@ -343,7 +343,7 @@ public class HDBConnection implements AutoCloseable {
         int trialCount = 0;
         while (!closed) {
             try {
-                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize, keepReadLocks);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.INFO, "temporary error", retry);
@@ -388,23 +388,28 @@ public class HDBConnection implements AutoCloseable {
             String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize,
             boolean includeTransactionLog
     ) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
         route.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }
 
-    protected RoutedClientSideConnection chooseConnection(RoutedClientSideConnection[] all) {
+    protected ClientSideConnectionPeer chooseConnection(ClientSideConnectionPeer[] all) {
         return all[random.nextInt(maxConnectionsPerServer)];
     }
 
-    private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
+    private ClientSideConnectionPeer getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
         try {
-            RoutedClientSideConnection[] all = routes.computeIfAbsent(nodeId, n -> {
+            ClientSideConnectionPeer[] all = routes.computeIfAbsent(nodeId, n -> {
                 try {
                     ServerHostData serverHostData = client.getClientSideMetadataProvider().getServerHostData(nodeId);
 
-                    RoutedClientSideConnection[] res = new RoutedClientSideConnection[maxConnectionsPerServer];
+                    ClientSideConnectionPeer[] res = new ClientSideConnectionPeer[maxConnectionsPerServer];
                     for (int i = 0; i < maxConnectionsPerServer; i++) {
-                        res[i] = new RoutedClientSideConnection(this, nodeId, serverHostData);
+                        RoutedClientSideConnection fullConnection = new RoutedClientSideConnection(this, nodeId, serverHostData);
+                        if (client.isLocalMode()) {
+                            res[i] = new NonMarshallingClientSideConnectionPeer(fullConnection);
+                        } else {
+                            res[i] = fullConnection;
+                        }
                     }
                     return res;
                 } catch (ClientSideMetadataProviderException err) {
@@ -421,7 +426,7 @@ public class HDBConnection implements AutoCloseable {
         }
     }
 
-    protected RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
+    protected ClientSideConnectionPeer getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
         if (closed) {
             throw new HDBException("connection is closed");
         }
@@ -444,9 +449,9 @@ public class HDBConnection implements AutoCloseable {
         if (err instanceof UnreachableServerException) {
             UnreachableServerException u = (UnreachableServerException) err;
             String nodeId = u.getNodeId();
-            RoutedClientSideConnection[] all = routes.remove(nodeId);
+            ClientSideConnectionPeer[] all = routes.remove(nodeId);
             if (all != null) {
-                for (RoutedClientSideConnection con : all) {
+                for (ClientSideConnectionPeer con : all) {
                     con.close();
                 }
             }
@@ -454,7 +459,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
         route.restoreTableSpace(tableSpace, source);
     }
 

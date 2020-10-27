@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
-public class RoutedClientSideConnection implements ChannelEventListener {
+public class RoutedClientSideConnection implements ChannelEventListener, ClientSideConnectionPeer {
 
     private static final Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
     private static final RawString RAWSTRING_KEY = RawString.of("_key");
@@ -94,10 +94,12 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
 
+    @Override
     public String getNodeId() {
         return nodeId;
     }
 
+    @Override
     public String getClientId() {
         return clientId;
     }
@@ -274,10 +276,12 @@ public class RoutedClientSideConnection implements ChannelEventListener {
 
     }
 
-    Channel getChannel() {
+    @Override
+    public Channel getChannel() {
         return channel;
     }
 
+    @Override
     public void close() {
         LOGGER.log(Level.FINER, "{0} - close", this);
 
@@ -294,7 +298,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    private Channel ensureOpen() throws HDBException {
+    @Override
+    public Channel ensureOpen() throws HDBException {
         connectionLock.readLock().lock();
         try {
             Channel channel = this.channel;
@@ -378,7 +383,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             long requestId = channel.generateRequestId();
@@ -411,7 +417,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    CompletableFuture<DMLResult> executeUpdateAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) {
+    @Override
+    public CompletableFuture<DMLResult> executeUpdateAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) {
         CompletableFuture<DMLResult> res = new CompletableFuture<>();
         try {
             Channel channel = ensureOpen();
@@ -454,7 +461,7 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         return res;
     }
 
-    List<DMLResult> executeUpdates(
+    public List<DMLResult> executeUpdates(
             String tableSpace, String query, long tx, boolean returnValues,
             boolean usePreparedStatement, List<List<Object>> batch
     ) throws HDBException, ClientSideMetadataProviderException {
@@ -504,7 +511,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    CompletableFuture<List<DMLResult>> executeUpdatesAsync(
+    @Override
+    public CompletableFuture<List<DMLResult>> executeUpdatesAsync(
             String tableSpace, String query, long tx, boolean returnValues,
             boolean usePreparedStatement, List<List<Object>> batch
     ) {
@@ -563,7 +571,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         return res;
     }
 
-    GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             long requestId = channel.generateRequestId();
@@ -611,7 +620,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         return data;
     }
 
-    long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             long requestId = channel.generateRequestId();
@@ -638,7 +648,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             long requestId = channel.generateRequestId();
@@ -659,7 +670,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             long requestId = channel.generateRequestId();
@@ -706,7 +718,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize,
+    @Override
+    public ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize,
                               boolean keepReadLocks) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         Pdu reply = null;
@@ -749,7 +762,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
         Channel channel = ensureOpen();
         try {
             String dumpId = this.clientId + ":" + scannerIdGenerator.incrementAndGet();
@@ -773,7 +787,8 @@ public class RoutedClientSideConnection implements ChannelEventListener {
         }
     }
 
-    void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
+    @Override
+    public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
         List<DumpedTableMetadata> tables = new ArrayList<>();
         try {
             while (true) {

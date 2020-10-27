@@ -61,6 +61,7 @@ public class HDBClient implements AutoCloseable {
     private final StatsLogger statsLogger;
     private final int maxOperationRetryCount;
     private final int operationRetryDelay;
+    private final boolean localMode;
 
     public HDBClient(ClientConfiguration configuration) {
         this(configuration, NullStatsLogger.INSTANCE);
@@ -74,6 +75,9 @@ public class HDBClient implements AutoCloseable {
         int corePoolSizeDefault = ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT;
         if (ClientConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
             corePoolSizeDefault = 0;
+            localMode = true;
+        } else {
+            localMode = false;
         }
         int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, corePoolSizeDefault);
         boolean connectRemoteServers = configuration.getBoolean(ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER, ClientConfiguration.PROPERTY_CLIENT_CONNECT_REMOTE_SERVER_DEFAULT);
@@ -195,5 +199,9 @@ public class HDBClient implements AutoCloseable {
 
     StatsLogger getStatsLogger() {
         return statsLogger;
+    }
+
+    boolean isLocalMode() {
+        return localMode;
     }
 }
