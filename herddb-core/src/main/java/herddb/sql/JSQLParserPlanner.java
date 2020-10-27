@@ -601,24 +601,15 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
 
     private ForeignKeyDef parseForeignKeyIndex(ForeignKeyIndex fk, Table table, String tableName, String tableSpace) throws StatementExecutionException {
         String indexName = fixMySqlBackTicks(fk.getName().toLowerCase());
-        int onUpdateCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
-        int onDeleteCascadeAction = ForeignKeyDef.ACTION_NO_ACTION;
-        if (fk.getOnDeleteReferenceOption() != null && !(fk.getOnDeleteReferenceOption().equalsIgnoreCase("RESTRICT")
-                || fk.getOnDeleteReferenceOption().equalsIgnoreCase("NO ACTION"))) {
-            throw new StatementExecutionException("Unsupported option " + fk.getOnDeleteReferenceOption());
-        }
-        if (fk.getOnUpdateReferenceOption() != null && !(
-                fk.getOnUpdateReferenceOption().equalsIgnoreCase("RESTRICT")
-                || fk.getOnUpdateReferenceOption().equalsIgnoreCase("NO ACTION"))) {
-            throw new StatementExecutionException("Unsupported option " + fk.getOnUpdateReferenceOption());
-        }
+        int onUpdateCascadeAction = parseForeignKeyAction(fk.getOnUpdateReferenceOption());
+        int onDeleteCascadeAction = parseForeignKeyAction(fk.getOnDeleteReferenceOption());
         Table parentTableSchema = getTable(table.tablespace, fk.getTable());
         herddb.model.ForeignKeyDef.Builder builder = herddb.model.ForeignKeyDef
                 .builder()
                 .name(indexName)
                 .parentTableId(parentTableSchema.uuid)
-                .onUpdateCascadeAction(onUpdateCascadeAction)
-                .onDeleteCascadeAction(onDeleteCascadeAction);
+                .onUpdateAction(onUpdateCascadeAction)
+                .onDeleteAction(onDeleteCascadeAction);
         for (String columnName : fk.getColumnsNames()) {
             columnName = fixMySqlBackTicks(columnName.toLowerCase());
             Column column = table.getColumn(columnName);
@@ -639,6 +630,28 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         }
         ForeignKeyDef fkDef = builder.build();
         return fkDef;
+    }
+
+    private static int parseForeignKeyAction(String  def) throws StatementExecutionException {
+        int outcome;
+        if (def == null) {
+            def = "NO ACTION";
+        }
+        switch (def.toUpperCase().trim()) {
+            case "NO ACTION":
+            case "RESTRICT":
+                outcome = ForeignKeyDef.ACTION_NO_ACTION;
+                break;
+            case "CASCADE":
+                outcome = ForeignKeyDef.ACTION_CASCADE;
+                break;
+            case "SET NULL":
+                outcome = ForeignKeyDef.ACTION_SETNULL;
+                break;
+            default:
+                throw new StatementExecutionException("Unsupported option " + def);
+        }
+        return outcome;
     }
 
     private boolean decodeAutoIncrement(List<String> columnSpecs) {

@@ -22,11 +22,14 @@ package herddb.sql;
 import static herddb.core.TestUtils.beginTransaction;
 import static herddb.core.TestUtils.dump;
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.scan;
 import static herddb.utils.TestUtils.expectThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 import herddb.core.DBManager;
 import herddb.core.TestUtils;
 import herddb.mem.MemoryCommitLogManager;
@@ -68,8 +71,8 @@ public class ForeignKeySQLTest {
             Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
             assertEquals(1, childTable.foreignKeys.length);
             assertEquals("fk1", childTable.foreignKeys[0].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
             assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
@@ -86,13 +89,13 @@ public class ForeignKeySQLTest {
             execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
             execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
 
-            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1"); // test without transaction
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1", "NO ACTION", "NO ACTION"); // test without transaction
 
             execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
             execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
 
             tx = beginTransaction(manager, "tblspace1");
-            testServerSideOfForeignKey(manager, tx, "fk1");  // test with transaction
+            testServerSideOfForeignKey(manager, tx, "fk1", "NO ACTION", "NO ACTION");  // test with transaction
             TestUtils.commitTransaction(manager, "tblspace1", tx);
 
         }
@@ -117,24 +120,50 @@ public class ForeignKeySQLTest {
         execute(manager, "UPDATE tblspace1.child set s2='newvalue'", Collections.emptyList(), new TransactionContext(tx));
     }
 
-    private void testServerSideOfForeignKey(final DBManager manager, long tx, String fkName) throws DataScannerException, StatementExecutionException {
+    private void testServerSideOfForeignKey(final DBManager manager, long tx, String fkName, String updateAction, String deleteAction) throws DataScannerException, StatementExecutionException {
         execute(manager, "INSERT INTO tblspace1.parent(k1,n1,s1) values('a',2,'pvalue')", Collections.emptyList(), new TransactionContext(tx));
         execute(manager, "INSERT INTO tblspace1.parent(k1,n1,s1) values('newvalue',2,'foo')", Collections.emptyList(), new TransactionContext(tx));
         execute(manager, "INSERT INTO tblspace1.child(k2,n2,s2) values('c1',2,'a')", Collections.emptyList(), new TransactionContext(tx));
+        execute(manager, "INSERT INTO tblspace1.child(k2,n2,s2) values('c2',2,'newvalue')", Collections.emptyList(), new TransactionContext(tx));
 
-        ForeignKeyViolationException errOnUpdate = expectThrows(ForeignKeyViolationException.class, () -> {
+        if ("SET NULL".equals(updateAction)) {
+            // assert that we are setting null only on the expected record
+            execute(manager, "UPDATE tblspace1.parent set n1=983 where k1='a'", Collections.emptyList(), new TransactionContext(tx));
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.child WHERE s2 is NULL and n2 is NULL", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.child WHERE s2='newvalue'", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+        } else if ("CASCADE".equals(updateAction)) {
+            // not implemented
+        } else if ("NO ACTION".equals(updateAction)) {
+            ForeignKeyViolationException errOnUpdate = expectThrows(ForeignKeyViolationException.class, () -> {
+                execute(manager, "UPDATE tblspace1.parent set n1=983", Collections.emptyList(), new TransactionContext(tx));
+            });
+            assertEquals(fkName, errOnUpdate.getForeignKeyName());
+        } else {
+            fail();
+        }
+
+        if ("CASCADE".equals(deleteAction)) {
+            execute(manager, "DELETE FROM tblspace1.parent where k1='a'", Collections.emptyList(), new TransactionContext(tx));
+            // assert that we are deleting only the expected record
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.child WHERE s2='a'", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.child WHERE s2='newvalue'", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+        } else if ("SET NULL".equals(deleteAction)) {
+            execute(manager, "DELETE FROM tblspace1.parent where k1='a'", Collections.emptyList(), new TransactionContext(tx));
+            // assert that we are setting null only on the expected record
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.child WHERE s2 is NULL and n2 is NULL", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.child WHERE s2='newvalue'", Collections.emptyList(), new TransactionContext(tx)).consumeAndClose().size());
+        } else if ("NO ACTION".equals(deleteAction)) {
+            ForeignKeyViolationException errOnDelete = expectThrows(ForeignKeyViolationException.class, () -> {
+                execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList(), new TransactionContext(tx));
+            });
+            assertEquals(fkName, errOnDelete.getForeignKeyName());
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList(), new TransactionContext(tx));
             execute(manager, "UPDATE tblspace1.parent set n1=983", Collections.emptyList(), new TransactionContext(tx));
-        });
-        assertEquals(fkName, errOnUpdate.getForeignKeyName());
-
-        ForeignKeyViolationException errOnDelete = expectThrows(ForeignKeyViolationException.class, () -> {
             execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList(), new TransactionContext(tx));
-        });
-        assertEquals(fkName, errOnDelete.getForeignKeyName());
-
-        execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList(), new TransactionContext(tx));
-        execute(manager, "UPDATE tblspace1.parent set n1=983", Collections.emptyList(), new TransactionContext(tx));
-        execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList(), new TransactionContext(tx));
+        } else {
+            fail();
+        }
 
     }
 
@@ -184,15 +213,15 @@ public class ForeignKeySQLTest {
             Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
             assertEquals(2, childTable.foreignKeys.length);
             assertEquals("fk1", childTable.foreignKeys[0].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
             assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
 
             assertEquals("fk2", childTable.foreignKeys[1].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[1].parentTableId);
             assertArrayEquals(new String[]{"s2"}, childTable.foreignKeys[1].columns);
             assertArrayEquals(new String[]{"k1"}, childTable.foreignKeys[1].parentTableColumns);
@@ -202,15 +231,15 @@ public class ForeignKeySQLTest {
             execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
             execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
 
-            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1");
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1", "NO ACTION", "NO ACTION");
 
             execute(manager, "ALTER TABLE tblspace1.child DROP CONSTRAINT fk1", Collections.emptyList());
             childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
             assertEquals(1, childTable.foreignKeys.length);
 
             assertEquals("fk2", childTable.foreignKeys[0].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
             assertArrayEquals(new String[]{"s2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1"}, childTable.foreignKeys[0].parentTableColumns);
@@ -236,20 +265,20 @@ public class ForeignKeySQLTest {
             childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
             assertEquals(2, childTable.foreignKeys.length);
             assertEquals("fk2", childTable.foreignKeys[0].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
             assertArrayEquals(new String[]{"s2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1"}, childTable.foreignKeys[0].parentTableColumns);
 
             assertEquals("fk3", childTable.foreignKeys[1].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[1].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[1].parentTableId);
             assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[1].columns);
             assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[1].parentTableColumns);
 
-            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk2");
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk2", "NO ACTION", "NO ACTION");
 
         }
     }
@@ -297,11 +326,156 @@ public class ForeignKeySQLTest {
             assertEquals(1, childTable.foreignKeys.length);
 
             assertEquals("fk1", childTable.foreignKeys[0].name);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateCascadeAction);
-            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteCascadeAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
             assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
             assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
+
+        }
+    }
+
+    @Test
+    public void createTableWithOnDeleteCascade() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
+                    + "s2 string, "
+                    + "CONSTRAINT fk1 FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1) ON DELETE CASCADE ON UPDATE NO ACTION)", Collections.emptyList());
+            Table parentTable = manager.getTableSpaceManager("tblspace1").getTableManager("parent").getTable();
+
+            Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
+            assertEquals(1, childTable.foreignKeys.length);
+            assertEquals("fk1", childTable.foreignKeys[0].name);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_CASCADE, childTable.foreignKeys[0].onDeleteAction);
+            assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
+            assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
+            assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
+
+            testChildSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            long tx = beginTransaction(manager, "tblspace1");
+            testChildSideOfForeignKey(manager, tx, "fk1");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1", "NO ACTION", "CASCADE"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            tx = beginTransaction(manager, "tblspace1");
+            testServerSideOfForeignKey(manager, tx, "fk1", "NO ACTION", "CASCADE");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+        }
+    }
+
+    @Test
+    public void createTableWithOnDeleteSetNull() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
+                    + "s2 string, "
+                    + "CONSTRAINT fk1 FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1) ON DELETE SET NULL ON UPDATE NO ACTION)", Collections.emptyList());
+            Table parentTable = manager.getTableSpaceManager("tblspace1").getTableManager("parent").getTable();
+
+            Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
+            assertEquals(1, childTable.foreignKeys.length);
+            assertEquals("fk1", childTable.foreignKeys[0].name);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_SETNULL, childTable.foreignKeys[0].onDeleteAction);
+            assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
+            assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
+            assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
+
+            testChildSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            long tx = beginTransaction(manager, "tblspace1");
+            testChildSideOfForeignKey(manager, tx, "fk1");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1", "NO ACTION", "SET NULL"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            tx = beginTransaction(manager, "tblspace1");
+            testServerSideOfForeignKey(manager, tx, "fk1", "NO ACTION", "SET NULL");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+        }
+    }
+
+    @Test
+    public void createTableWithOnUpdateSetNull() throws Exception {
+        assumeTrue("only jsqlparser 4.x support ON UPDATE set NULL", false);
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
+                    + "s2 string, "
+                    + "CONSTRAINT fk1 FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1) ON DELETE NO ACTION ON UPDATE SET NULL)", Collections.emptyList());
+            Table parentTable = manager.getTableSpaceManager("tblspace1").getTableManager("parent").getTable();
+
+            Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
+            assertEquals(1, childTable.foreignKeys.length);
+            assertEquals("fk1", childTable.foreignKeys[0].name);
+            assertEquals(ForeignKeyDef.ACTION_SETNULL, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
+            assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
+            assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
+            assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
+
+            testChildSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            long tx = beginTransaction(manager, "tblspace1");
+            testChildSideOfForeignKey(manager, tx, "fk1");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            testServerSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, "fk1", "SET NULL", "NO ACTION"); // test without transaction
+
+            execute(manager, "DELETE FROM tblspace1.child", Collections.emptyList());
+            execute(manager, "DELETE FROM tblspace1.parent", Collections.emptyList());
+
+            tx = beginTransaction(manager, "tblspace1");
+            testServerSideOfForeignKey(manager, tx, "fk1", "SET NULL", "NO ACTION");  // test with transaction
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
 
         }
     }
