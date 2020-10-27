@@ -28,6 +28,7 @@ import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
 import herddb.client.DMLResult;
 import herddb.client.HDBException;
+import herddb.client.ScanResultSet;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
@@ -86,6 +87,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -1141,7 +1143,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         return "ServerSideConnectionPeer{" + "id=" + id + ", channel=" + channel + ", address=" + address + ", username=" + username + '}';
     }
 
-    public LocalClientScanResultSetImpl executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> parameters, long txId, int maxRows, int fetchSize, boolean keepReadLocks) throws HDBException {
+    public ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> parameters, long txId, int maxRows, int fetchSize, boolean keepReadLocks) throws HDBException {
 
         if (query == null) {
             throw new HDBException("bad query null");
@@ -1177,6 +1179,117 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 LOGGER.log(Level.SEVERE, "error on scanner: " + err, err);
             }
             throw new HDBException(err);
+        }
+    }
+
+    public List<DMLResult> executeUpdates(String tableSpace, String query, long transactionId, boolean returnValues, List<List<Object>> originalBatch) throws HDBException {
+        if (query == null) {
+            throw new HDBException("bad query null");
+        }
+
+        List<List<Object>> batch = new ArrayList<>(originalBatch.size());
+        for (int i = 0; i < originalBatch.size(); i++) {
+            batch.add(PduCodec.normalizeParametersList(originalBatch.get(i)));
+        }
+        try {
+
+            List<TranslatedQuery> queries = new ArrayList<>();
+            for (int i = 0; i < batch.size(); i++) {
+                List<Object> parameters = batch.get(i);
+                TranslatedQuery translatedQuery = server
+                        .getManager()
+                        .getPlanner().translate(tableSpace, query,
+                                parameters, false, true, returnValues, -1);
+                queries.add(translatedQuery);
+            }
+
+            List<Long> updateCounts = new CopyOnWriteArrayList<>();
+            List<Map<RawString, Object>> otherDatas = new CopyOnWriteArrayList<>();
+            CompletableFuture<Long> finalResult = new CompletableFuture<>();
+            class ComputeNext implements BiConsumer<StatementExecutionResult, Throwable> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
+                }
+
+                @Override
+                public void accept(StatementExecutionResult result, Throwable error) {
+                    if (error != null) {
+                        finalResult.completeExceptionally(error);
+                        return;
+                    }
+                    if (result instanceof DMLStatementExecutionResult) {
+                        DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                        final Map<RawString, Object> otherData;
+                        if (returnValues && dml.getKey() != null) {
+                            TranslatedQuery translatedQuery = queries.get(current - 1);
+                            Statement statement = translatedQuery.plan.mainStatement;
+                            TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                            Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey(), table);
+                            otherData = new HashMap<>();
+                            otherData.put(RAWSTRING_KEY, key);
+                            if (dml.getNewvalue() != null) {
+                                Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                                newvalue.forEach((k, v) -> {
+                                    otherData.put(RawString.of(k), v);
+                                });
+
+                            }
+                        } else {
+                           otherData = Collections.emptyMap();
+                        }
+                        updateCounts.add((long) dml.getUpdateCount());
+                        otherDatas.add(otherData);
+                    } else if (result instanceof DDLStatementExecutionResult) {
+                        Map<RawString, Object> otherData = Collections.emptyMap();
+                        updateCounts.add(1L);
+                        otherDatas.add(otherData);
+                    } else {
+                        finalResult.completeExceptionally(new Exception("bad result type " + result.getClass() + " (" + result + ")"));
+                        return;
+                    }
+
+                    long newTransactionId = result.transactionId;
+                    if (current == queries.size()) {
+                        try {
+                            finalResult.complete(newTransactionId);
+                        } catch (Throwable t) {
+                            finalResult.completeExceptionally(t);
+                        }
+                        return;
+                    }
+
+                    TranslatedQuery nextPlannedQuery = queries.get(current);
+                    TransactionContext transactionContext = new TransactionContext(newTransactionId);
+                    CompletableFuture<StatementExecutionResult> nextPromise =
+                            server.getManager().executePlanAsync(nextPlannedQuery.plan, nextPlannedQuery.context, transactionContext);
+                    nextPromise.whenComplete(new ComputeNext(current + 1));
+                }
+            }
+
+            TransactionContext transactionContext = new TransactionContext(transactionId);
+            TranslatedQuery firstTranslatedQuery = queries.get(0);
+            server.getManager().executePlanAsync(firstTranslatedQuery.plan, firstTranslatedQuery.context, transactionContext)
+                    .whenComplete(new ComputeNext(1));
+
+            long finalTransactionId = finalResult.get();
+            List<DMLResult> returnedValues = new ArrayList<>();
+            for (int i = 0; i < updateCounts.size(); i++) {
+                returnedValues.add(new DMLResult(updateCounts.get(i), otherDatas.get(i).get(RAWSTRING_KEY), otherDatas.get(i), finalTransactionId));
+            }
+
+            return returnedValues;
+
+        } catch (HerdDBInternalException err) {
+            throw new HDBException(err);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new HDBException(err);
+        } catch (ExecutionException err) {
+            throw new HDBException(err.getCause());
         }
     }
 

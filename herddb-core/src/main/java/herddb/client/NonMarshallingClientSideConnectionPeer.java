@@ -83,7 +83,9 @@ public class NonMarshallingClientSideConnectionPeer implements ClientSideConnect
 
     @Override
     public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
-        return realConnection.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
+        ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
+        return serverSidePeer.executeUpdates(tableSpace, query, tx, returnValues, batch);
     }
 
     @Override
