@@ -100,6 +100,7 @@ import org.apache.calcite.tools.ValidationException;
 public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEventListener {
 
     private static final Logger LOGGER = Logger.getLogger(ServerSideConnectionPeer.class.getName());
+    private static final RawString RAWSTRING_KEY = RawString.of("_key");
     private static final AtomicLong IDGENERATOR = new AtomicLong();
     private final long id = IDGENERATOR.incrementAndGet();
     private final Channel channel;
@@ -711,7 +712,65 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
+    /**
+     * This method is like {@link #handleExecuteStatement(herddb.proto.Pdu, herddb.network.Channel) } but in "local" mode,
+     * we do not want here to marshal/unmarshal values, in order to save resources
+     */
+    public herddb.client.GetResult executeGet(String tablespace, String query, long txId, List<Object> parameters) throws HDBException {
+        // ensure we are dealing with the same data types that we see when the request id coming from the wire
+        parameters = PduCodec.normalizeParametersList(parameters);
+        TransactionContext transactionContext = new TransactionContext(txId);
+        TranslatedQuery translatedQuery;
+        try {
+            translatedQuery = server.getManager().getPlanner().translate(tablespace,
+                    query, parameters, false, true, true, -1);
+            Statement statement = translatedQuery.plan.mainStatement;
+            CompletableFuture<StatementExecutionResult> res = server
+                    .getManager()
+                    .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
+            CompletableFuture<herddb.client.GetResult> finalResult = res.handle((result, err) -> {
+                if (err != null) {
+                    while (err instanceof CompletionException) {
+                        err = err.getCause();
+                    }
+                    if (err instanceof DuplicatePrimaryKeyException) {
+                        throw new CompletionException(new SQLIntegrityConstraintViolationException(err));
+                    } else {
+                        throw new CompletionException(new SQLException(err));
+                    }
+                }
+                if (result instanceof GetResult) {
+                    GetResult get = (GetResult) result;
+                    if (!get.found()) {
+                        return new herddb.client.GetResult(null, get.transactionId);
+                    } else {
+                        Map<String, Object> record = get.getRecord().toBean(get.getTable());
+                        Map<RawString, Object> recordForClient = new HashMap<>(record.size());
+                        record.forEach((k, v) -> {
+                            recordForClient.put(RawString.of(k), v);
+                        });
+                        return new herddb.client.GetResult(recordForClient, get.transactionId);
+                    }
+                } else {
+                    throw new CompletionException(new SQLException("Unknown result type " + result.getClass() + ": " + result));
+                }
+            });
+            return finalResult.get();
+        } catch (Throwable err) {
+            while (err instanceof CompletionException) {
+                err = err.getCause();
+            }
+            throw new HDBException(err);
+        }
+    }
+
+    /**
+     * This method is like {@link #handleExecuteStatement(herddb.proto.Pdu, herddb.network.Channel) } but in "local" mode,
+     * we do not want here to marshal/unmarshal values, in order to save resources
+     */
     public DMLResult executeUpdate(String tablespace, String query, long txId, boolean returnValues, List<Object> parameters) throws HDBException {
+        // ensure we are dealing with the same data types that we see when the request id coming from the wire
+        parameters = PduCodec.normalizeParametersList(parameters);
         TransactionContext transactionContext = new TransactionContext(txId);
         TranslatedQuery translatedQuery;
         try {
@@ -721,7 +780,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             CompletableFuture<StatementExecutionResult> res = server
                     .getManager()
                     .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             CompletableFuture<DMLResult> finalResult = res.handle((result, err) -> {
                 if (err != null) {
                     while (err instanceof CompletionException) {
@@ -743,7 +801,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                                 .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
                         final Map<RawString, Object> newRecord = new HashMap<>();
                         Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey(), table);
-                        newRecord.put(RawString.of("_key"), newKey);
+                        newRecord.put(RAWSTRING_KEY, newKey);
                         if (dml.getNewvalue() != null) {
                             Map<String, Object> toBean = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
                             toBean.forEach((k, v) -> {
@@ -935,6 +993,16 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
+    public long beginTransaction(String tableSpace) throws HDBException {
+        try {
+            BeginTransactionStatement statement = new BeginTransactionStatement(tableSpace);
+            TransactionContext transactionContext = TransactionContext.NO_TRANSACTION;
+            return server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext).transactionId;
+        } catch (HerdDBInternalException t) {
+            throw new HDBException(t);
+        }
+    }
+
     private void handleTxCommand(Pdu message, Channel channel) {
         long txId = PduCodec.TxCommand.readTx(message);
         int type = PduCodec.TxCommand.readCommand(message);
@@ -1071,6 +1139,45 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     @Override
     public String toString() {
         return "ServerSideConnectionPeer{" + "id=" + id + ", channel=" + channel + ", address=" + address + ", username=" + username + '}';
+    }
+
+    public LocalClientScanResultSetImpl executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> parameters, long txId, int maxRows, int fetchSize, boolean keepReadLocks) throws HDBException {
+
+        if (query == null) {
+            throw new HDBException("bad query null");
+        }
+
+        parameters = PduCodec.normalizeParametersList(parameters);
+
+        try {
+            TranslatedQuery translatedQuery = server
+                    .getManager()
+                    .getPlanner().translate(tableSpace,
+                            query, parameters, true, true, false, maxRows);
+            translatedQuery.context.setForceRetainReadLock(keepReadLocks);
+
+            if (LOGGER.isLoggable(Level.FINEST)) {
+                LOGGER.log(Level.FINEST, "{0} -> {1}", new Object[]{query, translatedQuery.plan.mainStatement});
+            }
+
+            TransactionContext transactionContext = new TransactionContext(txId);
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
+                ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                DataScanner dataScanner = scanResult.dataScanner;
+                return new LocalClientScanResultSetImpl(dataScanner);
+            } else {
+                throw new HDBException("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan);
+            }
+        } catch (HerdDBInternalException err) {
+            if (err.getCause() != null && err.getCause() instanceof ValidationException) {
+                // no stacktraces for bad queries
+                LOGGER.log(Level.FINE, "SQL error on scanner: " + err);
+            } else {
+                LOGGER.log(Level.SEVERE, "error on scanner: " + err, err);
+            }
+            throw new HDBException(err);
+        }
     }
 
 }

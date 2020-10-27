@@ -19,8 +19,12 @@
  */
 package herddb.client;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
@@ -28,8 +32,8 @@ import herddb.utils.RawString;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -62,17 +66,45 @@ public class SimpleLocalModeTest {
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true,
                         Collections.emptyList()).updateCount;
-                Assert.assertEquals(1, resultCreateTable);
+                assertEquals(1, resultCreateTable);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
                         "INSERT INTO mytable (id,n1,n2) values(?,?,?),(?,?,?)", tx, false, true, Arrays.asList("test", 1, 2, "test2", 2, 3)).updateCount;
-                Assert.assertEquals(2, countInsert);
+                assertEquals(2, countInsert);
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
                         "SELECT * FROM mytable WHERE id='test'", tx, true, Collections.emptyList());
                 Map<RawString, Object> record = res.data;
-                Assert.assertNotNull(record);
+                assertNotNull(record);
+                assertEquals(tx, res.transactionId);
+
+                GetResult res2 = connection.executeGet(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test_not_exists'", tx, true, Collections.emptyList());
+                assertNull(res2.data);
+                assertEquals(tx, res2.transactionId);
+
+                connection.rollbackTransaction(TableSpace.DEFAULT, tx);
+
+                res = connection.executeGet(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'", TransactionContext.AUTOTRANSACTION_ID, true, Collections.emptyList());
+                assertNull(res.data);
+                assertTrue(res.transactionId > 0);
+                connection.rollbackTransaction(TableSpace.DEFAULT, res.transactionId);
+
+                tx = connection.beginTransaction(TableSpace.DEFAULT);
+                int countStatements = connection.executeUpdates(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList(Arrays.asList("test", 1, 2), Arrays.asList("test2", 2, 3))).size();
+                assertEquals(2, countStatements);
+
+                // fetch size = 1, we are going to issue two requests to the server in order to download the full resultset
+                try (ScanResultSet scan = connection
+                        .executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable where id in ('test','test2') order by id", true, Arrays.asList(), tx, -1, 1, true);) {
+                    List<Map<String, Object>> results = scan.consume();
+                    assertEquals(2, results.size());
+                    assertEquals(RawString.of("test"), results.get(0).get("id"));
+                    assertEquals(RawString.of("test2"), results.get(1).get("id"));
+                }
 
             }
         }

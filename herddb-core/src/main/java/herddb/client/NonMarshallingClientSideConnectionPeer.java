@@ -32,96 +32,116 @@ import java.util.concurrent.CompletableFuture;
  */
 public class NonMarshallingClientSideConnectionPeer implements ClientSideConnectionPeer {
 
-    private final RoutedClientSideConnection fallback;
+    private final RoutedClientSideConnection realConnection;
 
     public NonMarshallingClientSideConnectionPeer(RoutedClientSideConnection fallback) {
-        this.fallback = fallback;
+        this.realConnection = fallback;
     }
 
     @Override
     public String getNodeId() {
-        return fallback.getNodeId();
+        return realConnection.getNodeId();
     }
 
     @Override
     public String getClientId() {
-        return fallback.getClientId();
+        return realConnection.getClientId();
     }
 
     @Override
     public void close() {
-        fallback.close();
+        realConnection.close();
     }
 
     @Override
     public Channel getChannel() {
-        return fallback.getChannel();
+        return realConnection.getChannel();
     }
 
     @Override
     public Channel ensureOpen() throws HDBException {
-        return fallback.ensureOpen();
+        return realConnection.ensureOpen();
     }
 
     @Override
     public DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
-        LocalVMChannel channel = (LocalVMChannel) fallback.ensureOpen();
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
         ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
         return serverSidePeer.executeUpdate(tableSpace, query, tx, returnValues, params);
     }
 
     @Override
     public CompletableFuture<DMLResult> executeUpdateAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<Object> params) {
-        return fallback.executeUpdateAsync(tableSpace, query, tx, returnValues, usePreparedStatement, params);
+        CompletableFuture<DMLResult> res = new CompletableFuture<>();
+        try {
+            res.complete(executeUpdate(tableSpace, query, tx, returnValues, usePreparedStatement, params));
+        } catch (ClientSideMetadataProviderException | HDBException t) {
+            res.completeExceptionally(t);
+        }
+        return res;
     }
 
     @Override
     public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
-        return fallback.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
+        return realConnection.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
     }
 
     @Override
     public CompletableFuture<List<DMLResult>> executeUpdatesAsync(String tableSpace, String query, long tx, boolean returnValues, boolean usePreparedStatement, List<List<Object>> batch) {
-        return fallback.executeUpdatesAsync(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
+         CompletableFuture<List<DMLResult>> res = new CompletableFuture<>();
+        try {
+            res.complete(executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch));
+        } catch (ClientSideMetadataProviderException | HDBException t) {
+            res.completeExceptionally(t);
+        }
+        return res;
     }
 
     @Override
     public GetResult executeGet(String tableSpace, String query, long tx, boolean usePreparedStatement, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
-        return fallback.executeGet(tableSpace, query, tx, usePreparedStatement, params);
+         LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
+        ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
+        return serverSidePeer.executeGet(tableSpace, query, tx, params);
     }
 
     @Override
     public long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
-        return fallback.beginTransaction(tableSpace);
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
+        ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
+        return serverSidePeer.beginTransaction(tableSpace);
     }
 
     @Override
     public void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
-        LocalVMChannel channel = (LocalVMChannel) fallback.ensureOpen();
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
         ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
         serverSidePeer.commitTransaction(tableSpace, tx);
     }
 
     @Override
     public void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
-        LocalVMChannel channel = (LocalVMChannel) fallback.ensureOpen();
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
         ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
         serverSidePeer.rollbackTransaction(tableSpace, tx);
     }
 
     @Override
     public ScanResultSet executeScan(String tableSpace, String query, boolean usePreparedStatement, List<Object> params, long tx, int maxRows, int fetchSize, boolean keepReadLocks) throws HDBException, ClientSideMetadataProviderException {
-        return fallback.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize, keepReadLocks);
+        LocalVMChannel channel = (LocalVMChannel) realConnection.ensureOpen();
+        ServerSideConnectionPeer serverSidePeer = (ServerSideConnectionPeer) channel.getServerSideChannel().getMessagesReceiver();
+        return serverSidePeer.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize, keepReadLocks);
     }
 
     @Override
     public void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
-        fallback.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
+        // no need to implement this stuff in LocalMode, there is no gain and it would be very complex
+        realConnection.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }
 
     @Override
     public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
-        fallback.restoreTableSpace(tableSpace, source);
+        // no need to implement this stuff in LocalMode, there is no gain and it would be very complex
+        realConnection.restoreTableSpace(tableSpace, source);
     }
 
 }

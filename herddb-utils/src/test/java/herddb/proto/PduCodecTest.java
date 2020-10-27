@@ -20,11 +20,13 @@
 package herddb.proto;
 
 import static herddb.proto.PduCodec.ObjectListReader.isDontKeepReadLocks;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.Test;
@@ -86,6 +88,42 @@ public class PduCodecTest {
             byte trailer = paramsReader.readTrailer();
             assertEquals(0, trailer);
             assertFalse(isDontKeepReadLocks(trailer));
+        }
+
+    }
+
+    @Test
+    public void testNormalizeParametersListWriteReadObject() {
+        long now = System.currentTimeMillis();
+        List<Object> parameters = Arrays.asList(null, "a", RawString.of("b"), 1, 1L, 1f, 1d, (short) 1, (byte) 1, true, new java.sql.Timestamp(now), new java.util.Date(now), new java.sql.Date(now),
+                new byte[20]);
+        List<Object> expResult = Arrays.asList(null,
+                RawString.of("a"), // String - RawString
+                RawString.of("b"),
+                1, 1L, 1d,
+                1d, // float -> double
+                (short) 1,
+                (byte) 1, true,
+                new java.sql.Timestamp(now),
+                new java.sql.Timestamp(now), // java.util.Date -> java.sql.Timestamp
+                new java.sql.Timestamp(now), // java.sql.Date -> java.sql.Timestamp
+                new byte[20]);
+        List<Object> actualResult = PduCodec.normalizeParametersList(parameters);
+        for (int i = 0; i < parameters.size(); i++) {
+            Object value = parameters.get(i);
+            Object expected = expResult.get(i);
+            Object result = actualResult.get(i);
+            ByteBuf mashalled = Unpooled.buffer();
+            PduCodec.writeObject(mashalled, value);
+            Object unmashalled = PduCodec.readObject(mashalled);
+
+            if (expected != null && expected.getClass() == byte[].class) {
+                assertArrayEquals((byte[]) expected, (byte[]) result);
+                assertArrayEquals((byte[]) expected, (byte[]) unmashalled);
+            } else {
+                assertEquals(expected, result);
+                assertEquals(expected, unmashalled);
+            }
         }
 
     }
