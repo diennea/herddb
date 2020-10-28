@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -49,14 +51,24 @@ public class SimpleLocalModeTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void test() throws Exception {
+    public void testLocalMode() throws Exception {
+        test(true);
+    }
+
+    @Test
+    public void testNetworkMode() throws Exception {
+        // we want that the behaviour is the same as in LocalVM mode
+        test(false);
+    }
+
+    private void test(boolean localMode) throws Exception {
         Path baseDir = folder.newFolder().toPath();
         try (Server server = new Server(new ServerConfiguration(baseDir)
-                .set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL))) {
+                .set(ServerConfiguration.PROPERTY_MODE, localMode ? ServerConfiguration.PROPERTY_MODE_LOCAL : ServerConfiguration.PROPERTY_MODE_STANDALONE))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath())
-                    .set(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
+                    .set(ClientConfiguration.PROPERTY_MODE, localMode ? ClientConfiguration.PROPERTY_MODE_LOCAL : ClientConfiguration.PROPERTY_MODE_STANDALONE);
             try (HDBClient client = new HDBClient(clientConfiguration);
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -93,17 +105,41 @@ public class SimpleLocalModeTest {
                 connection.rollbackTransaction(TableSpace.DEFAULT, res.transactionId);
 
                 tx = connection.beginTransaction(TableSpace.DEFAULT);
-                int countStatements = connection.executeUpdates(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList(Arrays.asList("test", 1, 2), Arrays.asList("test2", 2, 3))).size();
+                List<DMLResult> transactionResults = connection.executeUpdates(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, true, Arrays.asList(Arrays.asList("test", 1, 2), Arrays.asList("test2", 2, 3)));
+                int countStatements = transactionResults.size();
+                 for (DMLResult r : transactionResults) {
+                    assertEquals(r.transactionId, tx); // all results must hold the same TX id
+                    assertEquals(1, r.updateCount);
+                }
                 assertEquals(2, countStatements);
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
 
-                // fetch size = 1, we are going to issue two requests to the server in order to download the full resultset
+                List<DMLResult> autoTransactionResults =
+                        connection.executeUpdates(TableSpace.DEFAULT,
+                                "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, false, true, Arrays.asList(Arrays.asList("test3", 1, 2), Arrays.asList("test4", 2, 3)));
+                assertEquals(autoTransactionResults.size(), 2);
+                long txAuto = autoTransactionResults.get(0).transactionId;
+                for (DMLResult r : autoTransactionResults) {
+                    assertEquals(r.transactionId, txAuto); // all results must hold the same TX id
+                    assertEquals(1, r.updateCount);
+                }
+                assertTrue(txAuto > 0);
+
+                // fetch size = 1, we are going to issue two requests to the server in order to download the full resultset while using real network
                 try (ScanResultSet scan = connection
-                        .executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable where id in ('test','test2') order by id", true, Arrays.asList(), tx, -1, 1, true);) {
+                        .executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable where id in ('test','test3') order by id", true, Arrays.asList(), txAuto, -1, 1, true);) {
                     List<Map<String, Object>> results = scan.consume();
                     assertEquals(2, results.size());
                     assertEquals(RawString.of("test"), results.get(0).get("id"));
-                    assertEquals(RawString.of("test2"), results.get(1).get("id"));
+                    assertEquals(RawString.of("test3"), results.get(1).get("id"));
+                }
+
+                connection.commitTransaction(TableSpace.DEFAULT, txAuto);
+                if (localMode) {
+                    assertThat(connection.getRouteToTableSpace(TableSpace.DEFAULT), instanceOf(NonMarshallingClientSideConnectionPeer.class));
+                } else {
+                    assertThat(connection.getRouteToTableSpace(TableSpace.DEFAULT), instanceOf(RoutedClientSideConnection.class));
                 }
 
             }
