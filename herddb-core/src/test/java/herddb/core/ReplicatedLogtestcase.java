@@ -32,6 +32,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests using multiple nodes
@@ -62,7 +64,7 @@ public abstract class ReplicatedLogtestcase {
         nodeDirectory.mkdirs();
         Path path = nodeDirectory.toPath();
         ZookeeperMetadataStorageManager metadataStorageManager = new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), testEnv.getPath());
-        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, new ServerConfiguration(), new NullStatsLogger());
+        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, newServerConfigurationWithAutoPort(), new NullStatsLogger());
         FileDataStorageManager dataStorageManager = new FileDataStorageManager(path);
         System.setErr(System.out);
         DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, folder.newFolder().toPath(), null);

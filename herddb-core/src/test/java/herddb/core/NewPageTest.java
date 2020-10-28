@@ -40,6 +40,8 @@ import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import java.util.Collections;
 import org.junit.Test;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests on <i>new</i> pages behaviours.
@@ -55,7 +57,7 @@ public class NewPageTest {
     public void unloadEmptyNewPage() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Smaller pages to avoid too many record creations */
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
@@ -147,7 +149,7 @@ public class NewPageTest {
     public void checkpointEmptyNewPage() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Smaller pages to avoid too many record creations */
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);

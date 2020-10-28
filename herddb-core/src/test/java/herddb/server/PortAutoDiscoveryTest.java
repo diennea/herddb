@@ -23,6 +23,8 @@ package herddb.server;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 
 /**

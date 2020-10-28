@@ -39,6 +39,8 @@ import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Basic server/client local mode boot test
@@ -63,7 +65,7 @@ public class SimpleLocalModeTest {
 
     private void test(boolean localMode) throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        try (Server server = new Server(new ServerConfiguration(baseDir)
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir)
                 .set(ServerConfiguration.PROPERTY_MODE, localMode ? ServerConfiguration.PROPERTY_MODE_LOCAL : ServerConfiguration.PROPERTY_MODE_STANDALONE))) {
             server.start();
             server.waitForStandaloneBoot();

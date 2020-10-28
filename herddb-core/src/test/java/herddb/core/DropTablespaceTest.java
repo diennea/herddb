@@ -41,6 +41,8 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Drop Tablespace and Tables Tests
@@ -99,7 +101,7 @@ public class DropTablespaceTest {
     @Test
     public void testCleanPolicyOnDropTable() throws Exception {
         String nodeId = "localhost";
-        ServerConfiguration serverConfig = new ServerConfiguration();
+        ServerConfiguration serverConfig = newServerConfigurationWithAutoPort();
         // very low memory
         serverConfig.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 2_000_000);
         serverConfig.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 2_000_000);

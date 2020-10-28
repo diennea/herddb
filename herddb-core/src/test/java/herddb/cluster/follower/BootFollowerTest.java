@@ -56,14 +56,15 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class BootFollowerTest extends MultiServerBase {
 
     @Test
     public void testLeaderOnlineLogAvailable() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -74,8 +75,7 @@ public class BootFollowerTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -159,9 +159,8 @@ public class BootFollowerTest extends MultiServerBase {
 
     @Test
     public void testLeaderOfflineLogAvailable() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -172,8 +171,7 @@ public class BootFollowerTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -252,9 +250,8 @@ public class BootFollowerTest extends MultiServerBase {
 
     @Test
     public void testLeaderOnlineLogNoMoreAvailable() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -267,8 +264,7 @@ public class BootFollowerTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
         Table table = Table.builder()
                 .name("t1")
                 .column("c", ColumnTypes.INTEGER)
@@ -405,9 +401,8 @@ public class BootFollowerTest extends MultiServerBase {
             }
         });
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -422,8 +417,7 @@ public class BootFollowerTest extends MultiServerBase {
                 // force downloading a snapshot from the leader
                 .set(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, true)
                 .set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, 5_000_000)
-                .set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 200_000)
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 200_000);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -481,9 +475,8 @@ public class BootFollowerTest extends MultiServerBase {
 
     @Test
     public void testFollowAfterLedgerRollback() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -495,8 +488,7 @@ public class BootFollowerTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -566,9 +558,8 @@ public class BootFollowerTest extends MultiServerBase {
 
     @Test
     public void testThreeServerStableCluster() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -579,14 +570,12 @@ public class BootFollowerTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         ServerConfiguration serverconfig_3 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server3")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7869);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();

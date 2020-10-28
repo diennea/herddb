@@ -30,6 +30,8 @@ import java.nio.file.Path;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.After;
 import org.junit.Before;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class BookKeeperDataStorageManagerRestartTest extends RestartTestBase {
 
@@ -52,7 +54,7 @@ public class BookKeeperDataStorageManagerRestartTest extends RestartTestBase {
     protected DBManager buildDBManager(String nodeId, Path metadataPath, Path dataPath, Path logsPath, Path tmoDir) {
         ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE);
         BookKeeperDataStorageManager dataManager = new BookKeeperDataStorageManager(nodeId, tmoDir, man, logManager);
         return new DBManager(nodeId, man, dataManager, logManager, tmoDir, null);

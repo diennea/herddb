@@ -58,6 +58,8 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * @author enrico.olivelli
@@ -77,7 +79,7 @@ public class SecondaryUniqueIndexAccessSuite {
     public void secondaryUniqueIndexPrefixScan() throws Exception {
         String nodeId = "localhost";
         Path tmp = tmpDir.newFolder().toPath();
-        ServerConfiguration serverConfiguration = new ServerConfiguration(tmp);
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(tmp);
         serverConfiguration.set(ServerConfiguration.PROPERTY_READLOCK_TIMEOUT, 3);
         serverConfiguration.set(ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT, 3);
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), tmp, null,

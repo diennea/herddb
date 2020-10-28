@@ -35,6 +35,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests on clear at boot
@@ -49,7 +51,7 @@ public class DeleteCheckpointFilesTest {
     @Test
     public void test() throws Exception {
 
-        ServerConfiguration serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));

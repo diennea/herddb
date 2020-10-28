@@ -39,6 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Test;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * @author enrico.olivelli
@@ -96,7 +98,7 @@ public class AlterTablespaceSQLTest {
     @Test
     public void defaultReplicaCount() throws Exception {
         String nodeId = "localhost";
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
         config.set(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, "4");
         try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),
                 null, null, config, NullStatsLogger.INSTANCE)) {

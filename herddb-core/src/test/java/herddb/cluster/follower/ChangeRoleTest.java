@@ -40,6 +40,8 @@ import herddb.server.ServerConfiguration;
 import java.util.Arrays;
 import java.util.HashSet;
 import org.junit.Test;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests about changing roles
@@ -50,9 +52,8 @@ public class ChangeRoleTest extends MultiServerBase {
 
     @Test
     public void testChangeRoleAndReleaseMemory() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -63,8 +64,7 @@ public class ChangeRoleTest extends MultiServerBase {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1);
                 Server server_2 = new Server(serverconfig_2)) {

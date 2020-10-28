@@ -32,6 +32,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement atomic-counters
@@ -45,7 +47,7 @@ public class JmxTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
