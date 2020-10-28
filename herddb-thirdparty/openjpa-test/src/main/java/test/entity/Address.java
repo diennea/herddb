@@ -32,17 +32,12 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@SuppressFBWarnings(value = {"UWF_UNWRITTEN_FIELD", "NP_BOOLEAN_RETURN_NULL"},
-        justification = " Unwritten field: test.entity.User.pcPCSuperclass [test.entity.User] "
-        + " test.entity.User.pcIsDetached() has Boolean return type and returns explicit null")
-public class User {
+@SuppressFBWarnings(value = {"UWF_UNWRITTEN_FIELD", "NP_BOOLEAN_RETURN_NULL"})
+public class Address {
 
     @Id
     @GeneratedValue
     private long id;
-    private String name;
-    // reserved word for Calcite
-    private int value;
-    @Lob
-    private String description;
+    private String city;
+    
 }

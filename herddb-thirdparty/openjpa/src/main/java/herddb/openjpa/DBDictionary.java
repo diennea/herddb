@@ -28,9 +28,8 @@ public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
     public DBDictionary() {
         platform = "HerdDB";
         databaseProductName = "HerdDB";
-        supportsForeignKeys = false;
-        supportsUniqueConstraints = false;
-        supportsCascadeDeleteAction = false;
+        supportsDeferredConstraints = false;
+        supportsCascadeUpdateAction = false;
         schemaCase = SCHEMA_CASE_LOWER;
         delimitedCase = SCHEMA_CASE_PRESERVE;
 

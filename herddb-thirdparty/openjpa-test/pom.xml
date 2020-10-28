@@ -41,7 +41,7 @@
         <dependency>
             <groupId>org.apache.openjpa</groupId>
             <artifactId>openjpa</artifactId>
-            <version>3.1.1</version>
+            <version>3.1.3-SNAPSHOT</version>
         </dependency>
         <dependency>
             <!-- use 'thin' driver, we want OpenJPA users to be able to run tests

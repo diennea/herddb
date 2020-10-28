@@ -20,10 +20,14 @@
 package test.entity;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.Lob;
+import javax.persistence.OneToOne;
+import javax.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -40,9 +44,13 @@ public class User {
     @Id
     @GeneratedValue
     private long id;
+    @Column(unique = true)
     private String name;
     // reserved word for Calcite
     private int value;
     @Lob
     private String description;
+    
+    @OneToOne(cascade = CascadeType.REMOVE)
+    private Address address;
 }

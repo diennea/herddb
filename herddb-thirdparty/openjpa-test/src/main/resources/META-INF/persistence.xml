@@ -22,17 +22,21 @@
              xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_1.xsd">
   <persistence-unit name="hdb_ds" transaction-type="RESOURCE_LOCAL">
     <class>test.entity.User</class>
+    <class>test.entity.Address</class>
     <exclude-unlisted-classes>true</exclude-unlisted-classes>
     <properties>
+      <property name="openjpa.Log" value="SQL=TRACE"/>
       <property name="javax.persistence.schema-generation.database.action" value="create" />
-       <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
+    <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
     </properties>
   </persistence-unit>
   
   <persistence-unit name="hdb_jdbc" transaction-type="RESOURCE_LOCAL">
     <class>test.entity.User</class>
+    <class>test.entity.Address</class>
     <exclude-unlisted-classes>true</exclude-unlisted-classes>
     <properties>
+      <property name="openjpa.Log" value="SQL=TRACE"/>
       <property name="javax.persistence.jdbc.driver" value="herddb.jdbc.Driver" />
       <property name="javax.persistence.jdbc.url" value="jdbc:herddb:local" />
       <property name="javax.persistence.jdbc.user" value="sa" />

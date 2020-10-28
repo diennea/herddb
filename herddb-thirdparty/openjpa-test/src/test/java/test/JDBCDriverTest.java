@@ -28,6 +28,7 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
 import org.junit.Test;
+import test.entity.Address;
 import test.entity.User;
 
 /**
@@ -46,7 +47,7 @@ public class JDBCDriverTest {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
             transaction.begin();
-            em.persist(new User(0, "First", 10, "Something"));
+            em.persist(new User(0, "First", 10, "Something", new Address(1, "Localhost")));
             transaction.commit();
             em.close();
         }
