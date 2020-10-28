@@ -53,7 +53,7 @@ public abstract class AbstractSQLPlanner {
 
     public abstract TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException;
 
-    protected final void ensureDefaultTableSpaceBootedLocally(String defaultTableSpace) {        
+    protected final void ensureDefaultTableSpaceBootedLocally(String defaultTableSpace) {
         TableSpaceManager tableSpaceManager = getTableSpaceManager(defaultTableSpace);
         if (tableSpaceManager == null) {
             throw new NotLeaderException("tablespace " + defaultTableSpace + " not available here (at server " + manager.getNodeId() + ")");
