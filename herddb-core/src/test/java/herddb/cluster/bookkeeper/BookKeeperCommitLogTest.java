@@ -51,6 +51,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class BookKeeperCommitLogTest {
 
@@ -77,7 +79,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -118,7 +120,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -173,7 +175,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -222,7 +224,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -278,7 +280,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -342,7 +344,7 @@ public class BookKeeperCommitLogTest {
         final int estimateSize = entry.serialize().length;
         final int numberOfLedgers = 10;
         final int numberOfEntries = 1 + numberOfLedgers * maxLedgerSize / estimateSize;
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -386,7 +388,7 @@ public class BookKeeperCommitLogTest {
         final int numberOfLedgers = 10;
         final int numberOfEntries = 1 + numberOfLedgers * maxLedgerSize / estimateSize;
         System.out.println("writing " + numberOfEntries + " entries");
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
@@ -434,7 +436,7 @@ public class BookKeeperCommitLogTest {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
                 BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {

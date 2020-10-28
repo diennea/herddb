@@ -61,6 +61,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests about retrying queries in case of leader changes
@@ -96,9 +98,8 @@ public class RetryOnLeaderChangedTest {
 
         TestStatsProvider statsProvider = new TestStatsProvider();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -107,8 +108,7 @@ public class RetryOnLeaderChangedTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -310,9 +310,8 @@ public class RetryOnLeaderChangedTest {
 
         TestStatsProvider statsProvider = new TestStatsProvider();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -321,8 +320,7 @@ public class RetryOnLeaderChangedTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -401,9 +399,8 @@ public class RetryOnLeaderChangedTest {
 
         TestStatsProvider statsProvider = new TestStatsProvider();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -412,8 +409,7 @@ public class RetryOnLeaderChangedTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         final AtomicBoolean suspendProcessing = new AtomicBoolean(false);
         try (Server server_1 = new Server(serverconfig_1)) {
@@ -566,9 +562,8 @@ public class RetryOnLeaderChangedTest {
 
         TestStatsProvider statsProvider = new TestStatsProvider();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -577,14 +572,12 @@ public class RetryOnLeaderChangedTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
          ServerConfiguration serverconfig_3 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server3")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7869);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1);
                 Server server_2 = new Server(serverconfig_2);

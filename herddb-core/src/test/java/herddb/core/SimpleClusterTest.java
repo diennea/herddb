@@ -49,6 +49,8 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * @author enrico.olivelli
@@ -79,7 +81,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
     @Override
     protected CommitLogManager makeCommitLogManager() throws Exception {
-        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager, new ServerConfiguration(), new NullStatsLogger());
+        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager, newServerConfigurationWithAutoPort(), new NullStatsLogger());
     }
 
     @Override

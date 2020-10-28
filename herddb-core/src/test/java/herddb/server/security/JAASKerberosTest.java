@@ -42,6 +42,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement
@@ -142,7 +144,7 @@ public class JAASKerberosTest {
 
     @Test
     public void test() throws Exception {
-        ServerConfiguration serverConfig = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverConfig = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverConfig.set(ServerConfiguration.PROPERTY_HOST, "localhost");
         try (Server server = new Server(serverConfig)) {
             server.start();

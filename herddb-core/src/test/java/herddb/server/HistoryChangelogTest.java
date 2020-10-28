@@ -52,6 +52,8 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * This tests emulates a system which tracks changes to a table using another table
@@ -83,7 +85,7 @@ public class HistoryChangelogTest {
     @Ignore
     public void test() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(baseDir);
 
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024);

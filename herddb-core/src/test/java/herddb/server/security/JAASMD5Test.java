@@ -37,6 +37,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement
@@ -52,7 +54,7 @@ public class JAASMD5Test {
     @Test
     public void test() throws Exception {
         System.setProperty("java.security.auth.login.config", new File("src/test/resources/test_jaas_md5.conf").getAbsolutePath());
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                  HDBConnection connection = client.openConnection()) {
