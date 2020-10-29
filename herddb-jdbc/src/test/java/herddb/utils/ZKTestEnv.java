@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import herddb.network.netty.NetworkUtils;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +45,7 @@ public class ZKTestEnv implements AutoCloseable {
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
-        zkServer = new TestingServer(1282, path.toFile(), true);
+        zkServer = new TestingServer(NetworkUtils.assignFirstFreePort(), path.toFile(), true);
         // waiting for ZK to be reachable
         CountDownLatch latch = new CountDownLatch(1);
         ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(),
