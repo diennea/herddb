@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import herddb.network.netty.NetworkUtils;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,10 +45,11 @@ public class ZKTestEnv implements AutoCloseable {
     TestingServer zkServer;
     List<BookieServer> bookies = new ArrayList<>();
     Path path;
-    private int nextBookiePort = 5621;
+    private int nextBookiePort;
 
     public ZKTestEnv(Path path) throws Exception {
-        zkServer = new TestingServer(1282, path.toFile(), true);
+        nextBookiePort = NetworkUtils.assignFirstFreePort();
+        zkServer = new TestingServer(NetworkUtils.assignFirstFreePort(), path.toFile(), true);
         this.path = path;
 
         try (ZooKeeperClient zkc = ZooKeeperClient
