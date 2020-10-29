@@ -49,7 +49,7 @@ public class AuthTest {
     @Test
     public void test() throws Exception {
 
-        ServerConfiguration serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverConfiguration = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverConfiguration.set(SimpleSingleUserManager.PROPERTY_ADMIN_USERNAME, "myuser");
         serverConfiguration.set(SimpleSingleUserManager.PROPERTY_ADMIN_PASSWORD, "mypassword");
 

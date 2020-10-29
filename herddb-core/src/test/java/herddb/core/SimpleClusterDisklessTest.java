@@ -20,6 +20,7 @@
 
 package herddb.core;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -37,7 +38,6 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
-import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
@@ -49,8 +49,6 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * @author enrico.olivelli

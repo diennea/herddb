@@ -49,7 +49,7 @@ public class PreparedStatemetParametersTest {
      */
     @Test(expected = SQLException.class)
     public void missingParameter() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
 

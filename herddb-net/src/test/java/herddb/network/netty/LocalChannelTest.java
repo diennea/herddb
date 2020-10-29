@@ -45,7 +45,7 @@ public class LocalChannelTest {
 
     @Test
     public void test() throws Exception {
-        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
+        InetSocketAddress addr = new InetSocketAddress("localhost", NetworkUtils.assignFirstFreePort());
         try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
             acceptor.setEnableRealNetwork(false);
             acceptor.setAcceptor((Channel channel) -> {
@@ -91,7 +91,7 @@ public class LocalChannelTest {
 
     @Test
     public void testCloseServer() throws Exception {
-        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
+        InetSocketAddress addr = new InetSocketAddress("localhost", NetworkUtils.assignFirstFreePort());
         try (NettyChannelAcceptor server = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
             server.setEnableRealNetwork(false);
             server.setAcceptor((Channel channel) -> {
@@ -127,7 +127,7 @@ public class LocalChannelTest {
 
     @Test
     public void testServerPushesData() throws Exception {
-        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
+        InetSocketAddress addr = new InetSocketAddress("localhost", NetworkUtils.assignFirstFreePort());
         try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
             acceptor.setEnableRealNetwork(false);
             acceptor.setAcceptor((Channel channel) -> {

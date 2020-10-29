@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -52,8 +53,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * This tests emulates a system which tracks changes to a table using another table

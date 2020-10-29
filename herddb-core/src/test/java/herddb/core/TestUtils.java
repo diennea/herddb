@@ -46,7 +46,7 @@ import java.util.logging.Logger;
  * @author enrico.olivelli
  */
 public class TestUtils {
-    
+
     public static ServerConfiguration newServerConfigurationWithAutoPort() {
         return new ServerConfiguration()
                 .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY); // automatica ephemeral port

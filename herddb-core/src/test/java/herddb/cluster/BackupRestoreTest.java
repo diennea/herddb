@@ -20,9 +20,8 @@
 
 package herddb.cluster;
 
-import static org.junit.Assert.assertEquals;
 import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-
+import static org.junit.Assert.assertEquals;
 import herddb.backup.BackupUtils;
 import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
@@ -87,7 +86,7 @@ public class BackupRestoreTest {
     @Test
     public void test_backup_restore() throws Exception {
         ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");        
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());

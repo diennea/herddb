@@ -49,7 +49,7 @@ public class PrettySQLExceptionTest {
     @Test
     public void test() throws Exception {
 
-        ServerConfiguration serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverConfiguration = herddb.jdbc.TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
 
         try (Server server = new Server(serverConfiguration)) {
             server.start();

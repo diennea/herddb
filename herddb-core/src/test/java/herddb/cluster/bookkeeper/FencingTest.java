@@ -19,6 +19,7 @@
  */
 package herddb.cluster.bookkeeper;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
@@ -47,8 +48,6 @@ import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.junit.Assert;
 import org.junit.Test;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class FencingTest extends BookkeeperFailuresBase {
 

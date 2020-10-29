@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -39,8 +40,6 @@ import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Basic server/client local mode boot test

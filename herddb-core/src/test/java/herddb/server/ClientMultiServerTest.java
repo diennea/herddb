@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -53,8 +54,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Booting two servers, one table space

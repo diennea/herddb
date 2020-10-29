@@ -20,6 +20,7 @@
 package herddb.server.hammer;
 
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import herddb.core.DBManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.DuplicatePrimaryKeyException;
@@ -41,8 +42,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Concurrent access to the same record, in particular DELETE vs UPDATE. We are using a set of N keys

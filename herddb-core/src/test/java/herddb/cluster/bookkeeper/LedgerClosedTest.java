@@ -19,6 +19,7 @@
  */
 package herddb.cluster.bookkeeper;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -45,8 +46,6 @@ import java.util.HashSet;
 import java.util.List;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.junit.Test;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class LedgerClosedTest extends BookkeeperFailuresBase {
 

@@ -49,7 +49,7 @@ public class MysqlCompatilityTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
 //            assumeTrue(server.getManager().getPlanner() instanceof SQLPlanner);
@@ -154,7 +154,7 @@ public class MysqlCompatilityTest {
 
     @Test
     public void test2() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
 

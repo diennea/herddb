@@ -19,6 +19,7 @@
  */
 package herddb.cluster.follower;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
@@ -55,8 +56,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import org.junit.Test;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class SimpleFollowerTest extends MultiServerBase {
 
