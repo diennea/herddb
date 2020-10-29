@@ -22,7 +22,6 @@ package herddb.jdbc;
 
 import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
