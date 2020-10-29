@@ -21,6 +21,7 @@
 package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -39,8 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.Test;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * @author enrico.olivelli

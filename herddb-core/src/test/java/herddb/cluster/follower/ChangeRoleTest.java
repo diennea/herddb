@@ -19,6 +19,7 @@
  */
 package herddb.cluster.follower;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
@@ -40,8 +41,6 @@ import herddb.server.ServerConfiguration;
 import java.util.Arrays;
 import java.util.HashSet;
 import org.junit.Test;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Tests about changing roles

@@ -37,7 +37,7 @@ public class GenericClientDataSourceTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             HerdDBDataSource dataSource = new HerdDBDataSource();
 

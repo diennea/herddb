@@ -19,6 +19,7 @@
  */
 package herddb.cluster;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import herddb.core.DBManager;
 import herddb.core.RestartPendingTransactionBase;
 import herddb.file.FileDataStorageManager;
@@ -28,8 +29,6 @@ import java.nio.file.Path;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.After;
 import org.junit.Before;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 public class RestartPendingTransactionBookKeeperTest extends RestartPendingTransactionBase {
 

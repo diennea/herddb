@@ -20,13 +20,13 @@
 
 package herddb.server.security;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 import java.io.File;
@@ -37,8 +37,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement

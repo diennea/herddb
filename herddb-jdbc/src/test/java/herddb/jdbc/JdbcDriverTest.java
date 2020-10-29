@@ -51,7 +51,7 @@ public class JdbcDriverTest {
 
     @Test
     public void urlQueryConfig() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?")) {
@@ -85,7 +85,7 @@ public class JdbcDriverTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
@@ -114,7 +114,7 @@ public class JdbcDriverTest {
 
     @Test
     public void testNotPoolSQLConnectionsInJDBCDriverByDefault() throws Exception {
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
         try (Server server = new Server(conf)) {
             server.start();
@@ -133,7 +133,7 @@ public class JdbcDriverTest {
 
     @Test
     public void testForcePoolSQLConnectionsInJDBCDriver() throws Exception {
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
         try (Server server = new Server(conf)) {
             server.start();
@@ -153,7 +153,7 @@ public class JdbcDriverTest {
     @Test
     public void testReuseSocketConnections() throws Exception {
 
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
         try (Server server = new Server(conf)) {
             server.start();
