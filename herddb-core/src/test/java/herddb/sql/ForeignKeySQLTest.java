@@ -479,7 +479,7 @@ public class ForeignKeySQLTest {
 
         }
     }
-    
+
      @Test
     public void alterAddUnnamedForeignKey() throws Exception {
         String nodeId = "localhost";
@@ -491,11 +491,11 @@ public class ForeignKeySQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
-                    + "s2 string)", Collections.emptyList());            
+                    + "s2 string)", Collections.emptyList());
             execute(manager, "ALTER TABLE tblspace1.child ADD FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1)", Collections.emptyList());
             Table parentTable = manager.getTableSpaceManager("tblspace1").getTableManager("parent").getTable();
             Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
-            assertEquals(1, childTable.foreignKeys.length);            
+            assertEquals(1, childTable.foreignKeys.length);
             assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
             assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
             assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);

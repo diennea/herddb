@@ -1758,7 +1758,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     }
 
     public static int convertFkActions(String action) {
-        switch (action+"") {
+        switch (action + "") {
             case "importedNoAction":
                 return importedKeyNoAction;
             case "importedKeyCascade":
@@ -1771,11 +1771,11 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 return importedKeyRestrict;
             default:
                 return importedKeyNoAction;
-        }        
+        }
     }
-    
+
     private static int convertDeferrability(String deferred) {
-        switch (deferred+"") {
+        switch (deferred + "") {
             case "importedKeyNotDeferrable":
                 return importedKeyNotDeferrable;
             case "importedKeyInitiallyDeferred":

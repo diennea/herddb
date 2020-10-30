@@ -49,7 +49,7 @@ public class User {  // this is a reserved word for Calcite
     private int value;
     @Lob
     private String description;
-    
+
     @OneToOne(cascade = CascadeType.ALL)
     private Address address;
 }

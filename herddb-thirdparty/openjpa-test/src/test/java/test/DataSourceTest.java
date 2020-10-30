@@ -53,7 +53,7 @@ public class DataSourceTest {
                 Map.of("openjpa.ConnectionFactory", ds2));
 
         performAssertions(factory);
-        
+
         factory.close();
 
         ds2.close();
@@ -64,9 +64,9 @@ public class DataSourceTest {
         {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
-            transaction.begin();            
+            transaction.begin();
             Address a = new Address(0, "Localhost");
-            em.persist(a); 
+            em.persist(a);
             em.persist(new User(0, "First", 10, "Something", a));
             transaction.commit();
             em.close();
@@ -77,7 +77,7 @@ public class DataSourceTest {
             assertEquals(1, em.createQuery("select e from Address e").getResultList().size());
             em.close();
         }
-        
+
         {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
@@ -86,7 +86,7 @@ public class DataSourceTest {
             transaction.commit();
             em.close();
         }
-        
+
         {
             final EntityManager em = factory.createEntityManager();
             assertEquals(0, em.createQuery("select e from User e").getResultList().size());

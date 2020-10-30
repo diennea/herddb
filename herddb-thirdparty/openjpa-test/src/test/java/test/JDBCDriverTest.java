@@ -19,17 +19,12 @@
  */
 package test;
 
-import static org.junit.Assert.assertEquals;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.util.Enumeration;
-import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
 import org.junit.Test;
-import test.entity.Address;
-import test.entity.User;
 
 /**
  *
