@@ -51,6 +51,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
+import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
 import herddb.model.MissingJDBCParameterException;
@@ -2737,6 +2738,25 @@ public class RawSQLTest {
             }
         }
     }
+
+    @Test
+    public void openJPATest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
+            execute(manager, "CREATE TABLE `herd`.`parentTable` (`k1` VARCHAR NOT NULL, `p1` INTEGER)", Collections.emptyList());
+            execute(manager, "CREATE TABLE `herd`.`childTable` (`k1` VARCHAR NOT NULL, `n1` INTEGER, PRIMARY KEY (`k1`), CONSTRAINT `un1` UNIQUE (`n1`))", Collections.emptyList());
+            execute(manager, "ALTER TABLE `herd`.`childTable` ADD CONSTRAINT `fk1` FOREIGN KEY (`n1`) REFERENCES `herd`.`parentTable` (`p1`) ON DELETE CASCADE", Collections.emptyList());
+            execute(manager, "ALTER TABLE `herd`.`childTable` DROP CONSTRAINT `fk1`", Collections.emptyList());
+
+            List<Index> availableIndexes = manager.getTableSpaceManager("herd").getTableManager("childtable").getAvailableIndexes();
+            assertEquals(1, availableIndexes.size());
+            assertEquals("un1", availableIndexes.get(0).name);
+            assertTrue(availableIndexes.get(0).unique);
+        }
+    }
+
 
     @Test
     public void jdbcAliasList() throws Exception {

@@ -1173,6 +1173,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
+        tableSpace = fixMySqlBackTicks(tableSpace);
         List<Column> addColumns = new ArrayList<>();
         List<Column> modifyColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
@@ -1707,6 +1708,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
+        tableSpace = fixMySqlBackTicks(tableSpace);
         TableSpaceManager tableSpaceManager = getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
             clearCache();
@@ -1735,6 +1737,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
+        tableSpace = fixMySqlBackTicks(tableSpace);
         TableSpaceManager tableSpaceManager = getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
             clearCache();
