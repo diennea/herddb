@@ -479,5 +479,32 @@ public class ForeignKeySQLTest {
 
         }
     }
+    
+     @Test
+    public void alterAddUnnamedForeignKey() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.parent (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.child (k2 string primary key,n2 int,"
+                    + "s2 string)", Collections.emptyList());            
+            execute(manager, "ALTER TABLE tblspace1.child ADD FOREIGN KEY (s2,n2) REFERENCES parent(k1,n1)", Collections.emptyList());
+            Table parentTable = manager.getTableSpaceManager("tblspace1").getTableManager("parent").getTable();
+            Table childTable = manager.getTableSpaceManager("tblspace1").getTableManager("child").getTable();
+            assertEquals(1, childTable.foreignKeys.length);            
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onUpdateAction);
+            assertEquals(ForeignKeyDef.ACTION_NO_ACTION, childTable.foreignKeys[0].onDeleteAction);
+            assertEquals(parentTable.uuid, childTable.foreignKeys[0].parentTableId);
+            assertArrayEquals(new String[]{"s2", "n2"}, childTable.foreignKeys[0].columns);
+            assertArrayEquals(new String[]{"k1", "n1"}, childTable.foreignKeys[0].parentTableColumns);
+
+            // test FK is working
+            testChildSideOfForeignKey(manager, TransactionContext.NOTRANSACTION_ID, childTable.foreignKeys[0].name);
+        }
+    }
 
 }

@@ -1237,12 +1237,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                     data.put("FKCOLUMN_NAME", parent_table_column_name);
 
                     data.put("KEY_SEQ", ordinal_position);
-                    data.put("UPDATE_RULE", on_update_action);
-                    data.put("DELETE_RULE", on_delete_action);
+                    data.put("UPDATE_RULE", convertFkActions(on_update_action));
+                    data.put("DELETE_RULE", convertFkActions(on_delete_action));
 
                     data.put("FK_NAME", child_table_cons_name);
                     data.put("PK_NAME", null);
-                    data.put("DEFERRABILITY", deferred);
+                    data.put("DEFERRABILITY", convertDeferrability(deferred));
                     results.add(data);
 
                 }
@@ -1755,6 +1755,36 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface.isInstance(this);
+    }
+
+    public static int convertFkActions(String action) {
+        switch (action+"") {
+            case "importedNoAction":
+                return importedKeyNoAction;
+            case "importedKeyCascade":
+                return importedKeyCascade;
+            case "importedKeySetNull":
+                return importedKeySetNull;
+            case "importedKeySetDefault":
+                return importedKeySetDefault;
+            case "importedKeyRestrict":
+                return importedKeyRestrict;
+            default:
+                return importedKeyNoAction;
+        }        
+    }
+    
+    private static int convertDeferrability(String deferred) {
+        switch (deferred+"") {
+            case "importedKeyNotDeferrable":
+                return importedKeyNotDeferrable;
+            case "importedKeyInitiallyDeferred":
+                return importedKeyInitiallyDeferred;
+            case "importedKeyInitiallyImmediate":
+                return importedKeyInitiallyImmediate;
+            default:
+                return importedKeyNotDeferrable;
+        }
     }
 
 }

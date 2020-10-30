@@ -166,6 +166,13 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
 
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
+
+    public static String delimit(String name) {
+        if (name == null) {
+            return null;
+        }
+        return "`" + name + "`";
+    }
     private final PlansCache cache;
     /**
      * Used in case of unsupported Statement
@@ -312,6 +319,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         }
 
         query = rewriteExecuteSyntax(query);
+        if (query.startsWith("ALTER TABLE") && query.contains("ADD FOREIGN KEY")) {
+            query = query.replace("ADD FOREIGN KEY","ADD CONSTRAINT unnamed_fk_"+System.nanoTime()+" FOREIGN KEY");
+        }
         if (query.startsWith("EXPLAIN ")) {
             query = query.substring("EXPLAIN ".length());
             net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);

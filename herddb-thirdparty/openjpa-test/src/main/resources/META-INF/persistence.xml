@@ -27,7 +27,11 @@
     <properties>
       <property name="openjpa.Log" value="SQL=TRACE"/>
       <property name="javax.persistence.schema-generation.database.action" value="create" />
-    <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
+      <property name="openjpa.jdbc.SchemaFactory" 
+          value="native(foreignKeys=true)" />
+      <property name="openjpa.jdbc.MappingDefaults" 
+          value="ForeignKeyDeleteAction=cascade, JoinForeignKeyDeleteAction=cascade"/>
+      <property name="openjpa.jdbc.DBDictionary" value="herddb.openjpa.DBDictionary"/>
     </properties>
   </persistence-unit>
   
@@ -36,7 +40,11 @@
     <class>test.entity.Address</class>
     <exclude-unlisted-classes>true</exclude-unlisted-classes>
     <properties>
-      <property name="openjpa.Log" value="SQL=TRACE"/>
+      <property name="openjpa.Log" value="SQL=TRACE"/>      
+      <property name="openjpa.jdbc.SchemaFactory" 
+          value="native(foreignKeys=true)" />
+      <property name="openjpa.jdbc.MappingDefaults" 
+          value="ForeignKeyDeleteAction=cascade, JoinForeignKeyDeleteAction=cascade"/>
       <property name="javax.persistence.jdbc.driver" value="herddb.jdbc.Driver" />
       <property name="javax.persistence.jdbc.url" value="jdbc:herddb:local" />
       <property name="javax.persistence.jdbc.user" value="sa" />

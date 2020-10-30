@@ -52,22 +52,46 @@ public class DataSourceTest {
         final EntityManagerFactory factory = Persistence.createEntityManagerFactory("hdb_ds",
                 Map.of("openjpa.ConnectionFactory", ds2));
 
+        performAssertions(factory);
+        
+        factory.close();
+
+        ds2.close();
+
+    }
+
+    static void performAssertions(final EntityManagerFactory factory) {
         {
             final EntityManager em = factory.createEntityManager();
             final EntityTransaction transaction = em.getTransaction();
             transaction.begin();            
-            em.persist(new User(0, "First", 10, "Something", new Address(1, "Localhost")));
+            Address a = new Address(0, "Localhost");
+            em.persist(a); 
+            em.persist(new User(0, "First", 10, "Something", a));
             transaction.commit();
             em.close();
         }
         {
             final EntityManager em = factory.createEntityManager();
             assertEquals(1, em.createQuery("select e from User e").getResultList().size());
+            assertEquals(1, em.createQuery("select e from Address e").getResultList().size());
             em.close();
         }
-        factory.close();
-
-        ds2.close();
-
+        
+        {
+            final EntityManager em = factory.createEntityManager();
+            final EntityTransaction transaction = em.getTransaction();
+            transaction.begin();
+            em.createQuery("DELETE from User e").executeUpdate();
+            transaction.commit();
+            em.close();
+        }
+        
+        {
+            final EntityManager em = factory.createEntityManager();
+            assertEquals(0, em.createQuery("select e from User e").getResultList().size());
+            assertEquals(0, em.createQuery("select e from Address e").getResultList().size());
+            em.close();
+        }
     }
 }

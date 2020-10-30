@@ -43,19 +43,8 @@ public class JDBCDriverTest {
 
         final EntityManagerFactory factory = Persistence.createEntityManagerFactory("hdb_jdbc");
 
-        {
-            final EntityManager em = factory.createEntityManager();
-            final EntityTransaction transaction = em.getTransaction();
-            transaction.begin();
-            em.persist(new User(0, "First", 10, "Something", new Address(1, "Localhost")));
-            transaction.commit();
-            em.close();
-        }
-        {
-            final EntityManager em = factory.createEntityManager();
-            assertEquals(1, em.createQuery("select e from User e").getResultList().size());
-            em.close();
-        }
+        DataSourceTest.performAssertions(factory);
+
         factory.close();
 
         // clean up, unregistring the driver will shutdown every datasource
