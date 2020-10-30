@@ -53,7 +53,7 @@ public class JdbcForeignKeyMetadataTest {
                         Statement statement = con.createStatement()) {
                     statement.execute("CREATE TABLE ptable (pkey string primary key, p1 string, p2 string)");
                     statement.execute("CREATE TABLE ctable (ckey string primary key, c1 string, c2 string,"
-                            + "        CONSTRAINT `fk1` FOREIGN KEY (`c1`,`c2`) REFERENCES ptable(`p1`,`p2`))");
+                            + "        CONSTRAINT `fk1` FOREIGN KEY (`c1`,`c2`) REFERENCES ptable(`p1`,`p2`) ON DELETE CASCADE)");
                     DatabaseMetaData metaData = con.getMetaData();
                     try (ResultSet rs = metaData.getImportedKeys(null, null, "CTABLE");) {
                         verifyForeignKeyResultSet(rs);
@@ -101,7 +101,7 @@ public class JdbcForeignKeyMetadataTest {
 
             assertEquals("fk1", importedKeys.getString("FK_NAME"));
             assertEquals(null, importedKeys.getString("PK_NAME"));
-            assertEquals("importedKeyNotDeferrable", importedKeys.getString("DEFERRABILITY"));
+            assertEquals(DatabaseMetaData.importedKeyNotDeferrable, importedKeys.getInt("DEFERRABILITY"));
             if (count == 0) {
                 assertEquals("c1", importedKeys.getString("PKCOLUMN_NAME"));
                 assertEquals("p1", importedKeys.getString("FKCOLUMN_NAME"));
@@ -109,8 +109,8 @@ public class JdbcForeignKeyMetadataTest {
                 assertEquals("c2", importedKeys.getString("PKCOLUMN_NAME"));
                 assertEquals("p2", importedKeys.getString("FKCOLUMN_NAME"));
             }
-            assertEquals("importedNoAction", importedKeys.getString("UPDATE_RULE"));
-            assertEquals("importedNoAction", importedKeys.getString("DELETE_RULE"));
+            assertEquals(DatabaseMetaData.importedKeyNoAction, importedKeys.getInt("UPDATE_RULE"));
+            assertEquals(DatabaseMetaData.importedKeyCascade, importedKeys.getInt("DELETE_RULE"));
             count++;
         }
         assertEquals(2, count);
