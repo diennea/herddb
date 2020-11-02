@@ -79,8 +79,7 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setUseHostNameAsBookieID(true);
 
         Path targetDir = path.resolve("bookie_data");
-        conf.setZkServers("localhost:1282");
-        conf.setZkLedgersRootPath("/ledgers");
+        conf.setMetadataServiceUri("zk+null://" + zkServer.getConnectString() + herddb.server.ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT);
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
@@ -96,7 +95,7 @@ public class ZKTestEnv implements AutoCloseable {
 
         try (ZooKeeperClient zkc = ZooKeeperClient
                 .newBuilder()
-                .connectString("localhost:1282")
+                .connectString(zkServer.getConnectString())
                 .sessionTimeoutMs(10000)
                 .build()) {
 
@@ -118,7 +117,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public String getAddress() {
-        return "localhost:1282";
+        return zkServer.getConnectString();
     }
 
     public int getTimeout() {
