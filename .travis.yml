@@ -24,11 +24,9 @@ cache:
 
 jobs:
   include:
-  - stage: build
-    jdk: openjdk11
-    script: mvn checkstyle:check install spotbugs:check apache-rat:check -Pjenkins -DskipTests
   - stage: test
     jdk: openjdk11
+    script: mvn checkstyle:check install spotbugs:check apache-rat:check -Pjenkins -DskipTests
     script: mvn verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -DforkCount=2 -Dherddb.file.requirefsync=false jacoco:report coveralls:report
 branches:
   only:
