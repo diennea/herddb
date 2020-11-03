@@ -24,15 +24,12 @@ cache:
 
 jobs:
   include:
+  - stage: build
+    jdk: openjdk11
+    script: mvn checkstyle:check install spotbugs:check apache-rat:check -Pjenkins -DskipTests
   - stage: test
     jdk: openjdk11
-    script: mvn checkstyle:check verify spotbugs:check apache-rat:check -Pjenkins -Dmaven.test.redirectTestOutputToFile=true  -DforkCount=2 -Dherddb.file.requirefsync=false jacoco:report coveralls:report
-#  - stage: test-jsqlparser
-#    jdk: openjdk11
-#    script: mvn checkstyle:check verify -Pjenkins -Dherdddb.defaultplannertype=jsqlparser -Dherddb.planner.allowfallbacktocalcite=false  -DforkCount=2 -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false -Dmaven.test.failure.ignore=true
-#  - stage: test-mixedparser
-#    jdk: openjdk11
-#    script: mvn checkstyle:check verify -Pjenkins -Dherdddb.defaultplannertype=auto -Dherddb.planner.allowfallbacktocalcite=false  -DforkCount=2 -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false -Dmaven.test.failure.ignore=true
+    script: mvn verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -DforkCount=2 -Dherddb.file.requirefsync=false jacoco:report coveralls:report
 branches:
   only:
   - master
