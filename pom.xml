@@ -572,6 +572,9 @@
 
 				<!-- datatables MIT license -->
 				<exclude>src/main/webapp/js/jquery.dataTables.min.js</exclude>
+                                
+				<!-- Travis stuff -->
+				<exclude>.travis/*</exclude>
                         </excludes>
                     </configuration>
                 </plugin>

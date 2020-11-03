@@ -49,6 +49,7 @@ public class SimpleEmbeddedTest {
         try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
+            dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY + "");
             try (Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement()) {
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
@@ -74,6 +75,7 @@ public class SimpleEmbeddedTest {
         File file = new File(baseDir, "additionalConfiguration.txt");
         try (FileWriter w = new FileWriter(file);) {
             w.write("server.base.dir=" + baseDir.getAbsolutePath() + "\n");
+            w.write("server.port=0\n");
             w.write("client.base.dir=" + baseDir.getAbsolutePath() + "\n");
             w.write("server.start=true");
         }
