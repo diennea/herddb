@@ -26,8 +26,7 @@ jobs:
   include:
   - stage: test
     jdk: openjdk11
-    script: mvn checkstyle:check install spotbugs:check apache-rat:check -Pjenkins -DskipTests
-    script: mvn verify -Pjenkins -Dmaven.test.redirectTestOutputToFile=true -DforkCount=2 -Dherddb.file.requirefsync=false jacoco:report coveralls:report
+    script: .travis/test.sh
 branches:
   only:
   - master
