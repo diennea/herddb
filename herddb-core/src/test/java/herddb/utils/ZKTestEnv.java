@@ -45,10 +45,8 @@ public class ZKTestEnv implements AutoCloseable {
     TestingServer zkServer;
     List<BookieServer> bookies = new ArrayList<>();
     Path path;
-    private int nextBookiePort;
 
     public ZKTestEnv(Path path) throws Exception {
-        nextBookiePort = NetworkUtils.assignFirstFreePort();
         zkServer = new TestingServer(NetworkUtils.assignFirstFreePort(), path.toFile(), true);
         this.path = path;
 
@@ -78,7 +76,7 @@ public class ZKTestEnv implements AutoCloseable {
         if (format && !bookies.isEmpty()) {
             throw new Exception("cannot format, you aleady have bookies");
         }
-        ServerConfiguration conf = createBookieConf(nextBookiePort++);
+        ServerConfiguration conf = createBookieConf(NetworkUtils.assignFirstFreePort());
 
         if (format) {
             BookKeeperAdmin.initNewCluster(conf);
@@ -93,7 +91,7 @@ public class ZKTestEnv implements AutoCloseable {
 
     private ServerConfiguration createBookieConf(int port) {
         ServerConfiguration conf = new ServerConfiguration();
-        conf.setBookiePort(port++);
+        conf.setBookiePort(port);
         LOG.log(Level.INFO, "STARTING BOOKIE at port {0}", String.valueOf(port));
         conf.setUseHostNameAsBookieID(true);
         // no need to preallocate journal and entrylog in tests
