@@ -86,7 +86,7 @@ public class WaitForBookiesTest {
             server_1.start();
             server_1.getManager().setActivatorPauseStatus(true);
             Exception err = TestUtils.expectThrows(Exception.class, () -> {
-                server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 5000, true);
+                server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 20000, true);
             });
             assertEquals("TableSpace " + TableSpace.DEFAULT + " not started within 5000 ms", err.getMessage());
         }
@@ -96,7 +96,7 @@ public class WaitForBookiesTest {
             server_1.start();
             // add a second bookie after starting the server
             testEnv.startNewBookie();
-            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 5000, true);
+            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 20000, true);
 
             // verify server is working at it is able to write to the WAL
             Table table = Table.builder()
