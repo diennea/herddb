@@ -23,9 +23,15 @@ cache:
 
 jobs:
   include:
-  - stage: test
+  - stage: build
     jdk: openjdk11
-    script: .travis/test.sh
+    script: .travis/build.sh
+  - stage: test-core
+    jdk: openjdk11
+    script: .travis/test-core.sh
+  - stage: test-other
+    jdk: openjdk11
+    script: .travis/test-other.sh
 branches:
   only:
   - master
