@@ -63,7 +63,6 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private long maxLedgerSizeBytes = 100 * 1024 * 1024 * 1024;
     private long maxIdleTime = 0;
     private long bookkeeperClusterReadyWaitTime = 60_000;
-    private volatile boolean closed;
 
     private ConcurrentHashMap<String, BookkeeperCommitLog> activeLogs = new ConcurrentHashMap<>();
 
@@ -142,8 +141,6 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
 
     @Override
     public void close() {
-        closed = true;
-
         if (forceLastAddConfirmedTimer != null) {
             try {
                 forceLastAddConfirmedTimer.shutdown();
@@ -271,10 +268,6 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             }
         }
 
-    }
-
-    boolean isClosed() {
-        return closed;
     }
 
     public static final class LogEntryWithSequenceNumber {
