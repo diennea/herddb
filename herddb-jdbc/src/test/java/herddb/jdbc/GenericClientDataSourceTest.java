@@ -38,20 +38,19 @@ public class GenericClientDataSourceTest {
     public void test() throws Exception {
         try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
-            HerdDBDataSource dataSource = new HerdDBDataSource();
-
-            try (Connection connection = dataSource.getConnection();
-                 Statement statement = connection.createStatement();
-                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
-                int count = 0;
-                while (rs.next()) {
-                    System.out.println("table: " + rs.getString(1));
-                    count++;
+            try (HerdDBDataSource dataSource = new HerdDBDataSource()) {
+                dataSource.setUrl(server.getJdbcUrl());
+                try (Connection connection = dataSource.getConnection();
+                        Statement statement = connection.createStatement();
+                        ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                    int count = 0;
+                    while (rs.next()) {
+                        System.out.println("table: " + rs.getString(1));
+                        count++;
+                    }
+                    assertTrue(count > 0);
                 }
-                assertTrue(count > 0);
             }
-            dataSource.close();
-
         }
     }
 }
