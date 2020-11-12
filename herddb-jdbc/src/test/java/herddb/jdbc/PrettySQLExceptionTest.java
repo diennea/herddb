@@ -54,7 +54,7 @@ public class PrettySQLExceptionTest {
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             server.waitForStandaloneBoot();
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());
                     Statement statement = connection.createStatement();) {
                 try (ResultSet rs = statement.executeQuery("SELECT * FROM bad_table")) {
                     fail();

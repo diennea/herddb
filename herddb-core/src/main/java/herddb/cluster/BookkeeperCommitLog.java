@@ -164,6 +164,9 @@ public class BookkeeperCommitLog extends CommitLog {
             BKNotEnoughBookiesException lastError = null;
             long maxTime = System.currentTimeMillis() + parent.getBookkeeperClusterReadyWaitTime();
             while (System.currentTimeMillis() <= maxTime) {
+                if (parent.isClosed()) {
+                     throw new LogNotAvailableException("tablespace " + tableSpaceName + " is closed or closing");
+                };
                 try {
                     return FutureUtils.result(bookKeeper.
                             newCreateLedgerOp()
