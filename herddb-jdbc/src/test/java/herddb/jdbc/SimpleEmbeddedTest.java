@@ -81,7 +81,7 @@ public class SimpleEmbeddedTest {
         }
 
         try (HerdDBEmbeddedDataSource dataSource = new HerdDBEmbeddedDataSource()) {
-            dataSource.setUrl("jdbc:herddb:server:localhost:7000?configFile=" + file.getAbsolutePath());
+            dataSource.setUrl("jdbc:herddb:server:localhost:0?configFile=" + file.getAbsolutePath());
             try (Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement()) {
                 assertEquals(baseDir.getAbsolutePath(), dataSource.getServer().getManager().getServerConfiguration().getString(ServerConfiguration.PROPERTY_BASEDIR, ""));
