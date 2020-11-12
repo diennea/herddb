@@ -143,7 +143,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     @Override
     public void close() {
         closed = true;
-        
+
         if (forceLastAddConfirmedTimer != null) {
             try {
                 forceLastAddConfirmedTimer.shutdown();
