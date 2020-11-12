@@ -49,7 +49,7 @@ public class User {  // this is a reserved word for Calcite
     private int value;
     @Lob
     private String description;
-
-    @OneToOne(cascade = CascadeType.ALL)
-    private Address address;
+//    Uncomment when we can upgrade to OpenJAP 3.1.3
+//    @OneToOne(cascade = CascadeType.ALL)
+//    private Address address;
 }
