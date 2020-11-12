@@ -13,7 +13,7 @@
 # CONDITIONS OF ANY KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations under the License.
 #
-name: Java CI - Code validation (checkstyle,rat,spobugs)
+name: Java CI - HerdDB Core
 on: [pull_request]
 env:
   MAVEN_OPTS: -Dmaven.artifact.threads=4 -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn  -Dmaven.wagon.httpconnectionManager.ttlSeconds=25 -Dmaven.wagon.http.retryHandler.count=3
@@ -37,6 +37,8 @@ jobs:
           key: 'cache'
           restore-keys: 'cache'
       - name: 'Build with Maven'
-        run: mvn -B checkstyle:check apache-rat:check install -DskipTests spotbugs:check -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false --file pom.xml -Pjenkins
+        run: mvn -B install -DskipTests --file pom.xml -Pjenkins
+      - name: 'Build with Maven'
+        run: mvn -B verify -DforkCount=2 -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false --file pom.xml -pl herddb-core -Pjenkins
       - name: 'Remove Snapshots Before Caching'
         run: find ~/.m2 -name '*SNAPSHOT' | xargs rm -Rf

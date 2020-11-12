@@ -803,6 +803,7 @@
                 <module>herddb-ui</module>
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
+                <module>herddb-thirdparty</module>
                 <module>herddb-backward-compatibility</module>
             </modules>
             <build>
