@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -63,7 +64,7 @@ public class SimpleLocalModeTest {
 
     private void test(boolean localMode) throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        try (Server server = new Server(new ServerConfiguration(baseDir)
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir)
                 .set(ServerConfiguration.PROPERTY_MODE, localMode ? ServerConfiguration.PROPERTY_MODE_LOCAL : ServerConfiguration.PROPERTY_MODE_STANDALONE))) {
             server.start();
             server.waitForStandaloneBoot();

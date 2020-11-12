@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
@@ -47,7 +48,7 @@ public class ClearAtBootTest {
     @Test
     public void test() throws Exception {
 
-        ServerConfiguration serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));

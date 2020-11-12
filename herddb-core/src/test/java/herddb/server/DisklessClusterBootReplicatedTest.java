@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import herddb.core.TestUtils;
 import herddb.model.TableSpace;
@@ -55,8 +56,7 @@ public class DisklessClusterBootReplicatedTest {
 
     @Test
     public void testReplicaCountForDefaultTableSpace() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, 2);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());

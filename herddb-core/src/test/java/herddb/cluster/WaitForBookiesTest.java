@@ -20,6 +20,7 @@
 
 package herddb.cluster;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import herddb.model.ColumnTypes;
@@ -70,9 +71,8 @@ public class WaitForBookiesTest {
 
     @Test
     public void testBootstrapClusterWaitForBookies() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -96,7 +96,7 @@ public class WaitForBookiesTest {
             server_1.start();
             // add a second bookie after starting the server
             testEnv.startNewBookie();
-            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 5000, true);
+            server_1.waitForTableSpaceBoot(TableSpace.DEFAULT, 20000, true);
 
             // verify server is working at it is able to write to the WAL
             Table table = Table.builder()

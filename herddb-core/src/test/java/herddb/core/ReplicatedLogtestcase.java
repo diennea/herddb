@@ -20,10 +20,10 @@
 
 package herddb.core;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
-import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
 import java.io.File;
 import java.nio.file.Path;
@@ -62,7 +62,7 @@ public abstract class ReplicatedLogtestcase {
         nodeDirectory.mkdirs();
         Path path = nodeDirectory.toPath();
         ZookeeperMetadataStorageManager metadataStorageManager = new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), testEnv.getPath());
-        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, new ServerConfiguration(), new NullStatsLogger());
+        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, newServerConfigurationWithAutoPort(), new NullStatsLogger());
         FileDataStorageManager dataStorageManager = new FileDataStorageManager(path);
         System.setErr(System.out);
         DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, folder.newFolder().toPath(), null);

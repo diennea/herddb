@@ -19,6 +19,7 @@
  */
 package herddb.cluster.bookkeeper;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import herddb.cluster.BookKeeperDataStorageManager;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
@@ -52,7 +53,7 @@ public class BookKeeperDataStorageManagerRestartTest extends RestartTestBase {
     protected DBManager buildDBManager(String nodeId, Path metadataPath, Path dataPath, Path logsPath, Path tmoDir) {
         ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
                 testEnv.getTimeout(), testEnv.getPath());
-        ServerConfiguration serverConfiguration = new ServerConfiguration();
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
         BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE);
         BookKeeperDataStorageManager dataManager = new BookKeeperDataStorageManager(nodeId, tmoDir, man, logManager);
         return new DBManager(nodeId, man, dataManager, logManager, tmoDir, null);

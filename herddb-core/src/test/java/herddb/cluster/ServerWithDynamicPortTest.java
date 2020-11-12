@@ -19,6 +19,7 @@
  */
 package herddb.cluster;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
@@ -69,7 +70,7 @@ public class ServerWithDynamicPortTest {
 
         TestStatsProvider statsProvider = new TestStatsProvider();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);

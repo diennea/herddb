@@ -22,7 +22,6 @@ package herddb.jdbc;
 
 import static org.junit.Assert.assertTrue;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -44,10 +43,10 @@ public class CommonsDBCPTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             BasicDataSource dataSource = new BasicDataSource();
-            dataSource.setUrl("jdbc:herddb:server:localhost:7000?");
+            dataSource.setUrl(server.getJdbcUrl());
             dataSource.setDriverClassName(Driver.class.getName());
             try (Connection connection = dataSource.getConnection();
                  Statement statement = connection.createStatement();

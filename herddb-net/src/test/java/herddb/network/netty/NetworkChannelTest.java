@@ -33,7 +33,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -46,7 +45,7 @@ public class NetworkChannelTest {
 
     @Test
     public void test() throws Exception {
-        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
+        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", NetworkUtils.assignFirstFreePort(), true)) {
             acceptor.setEnableJVMNetwork(false);
             acceptor.setAcceptor((Channel channel) -> {
                 channel.setMessagesReceiver(new ChannelEventListener() {
@@ -66,7 +65,7 @@ public class NetworkChannelTest {
             });
             acceptor.start();
             ExecutorService executor = Executors.newCachedThreadPool();
-            try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
+            try (Channel client = NettyConnector.connect(acceptor.getHost(), acceptor.getPort(), true, 0, 0, new ChannelEventListener() {
 
                 @Override
                 public void channelClosed(Channel channel) {
@@ -85,7 +84,7 @@ public class NetworkChannelTest {
             }
         }
         if (NetworkUtils.isEnableEpoolNative()) {
-            try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
+            try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", NetworkUtils.assignFirstFreePort(), true)) {
                 acceptor.setEnableJVMNetwork(false);
                 acceptor.setAcceptor((Channel channel) -> {
                     channel.setMessagesReceiver(new ChannelEventListener() {
@@ -105,7 +104,7 @@ public class NetworkChannelTest {
                 });
                 acceptor.start();
                 ExecutorService executor = Executors.newCachedThreadPool();
-                try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
+                try (Channel client = NettyConnector.connect(acceptor.getHost(), acceptor.getPort(), true, 0, 0, new ChannelEventListener() {
 
                     @Override
                     public void channelClosed(Channel channel) {
@@ -129,8 +128,7 @@ public class NetworkChannelTest {
 
     @Test
     public void testCloseServer() throws Exception {
-        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
-        try (NettyChannelAcceptor server = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
+        try (NettyChannelAcceptor server = new NettyChannelAcceptor("localhost", NetworkUtils.assignFirstFreePort(), true)) {
             server.setEnableJVMNetwork(false);
             server.setEnableRealNetwork(true);
             server.setAcceptor((Channel channel) -> {
@@ -142,7 +140,7 @@ public class NetworkChannelTest {
             ExecutorService executor = Executors.newCachedThreadPool();
 
             AtomicBoolean closeNotificationReceived = new AtomicBoolean();
-            try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
+            try (Channel client = NettyConnector.connect(server.getHost(), server.getPort(), true, 0, 0, new ChannelEventListener() {
 
                 @Override
                 public void channelClosed(Channel channel) {
@@ -164,8 +162,7 @@ public class NetworkChannelTest {
 
     @Test
     public void testServerPushesData() throws Exception {
-        InetSocketAddress addr = new InetSocketAddress("localhost", 1111);
-        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor(addr.getHostName(), addr.getPort(), true)) {
+        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", NetworkUtils.assignFirstFreePort(), true)) {
             acceptor.setEnableJVMNetwork(false);
             acceptor.setEnableRealNetwork(true);
             acceptor.setAcceptor((Channel channel) -> {
@@ -201,7 +198,7 @@ public class NetworkChannelTest {
             acceptor.start();
             ExecutorService executor = Executors.newCachedThreadPool();
             CopyOnWriteArrayList<Long> pushedMessagesFromServer = new CopyOnWriteArrayList<>();
-            try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
+            try (Channel client = NettyConnector.connect(acceptor.getHost(), acceptor.getPort(), true, 0, 0, new ChannelEventListener() {
                 @Override
                 public void requestReceived(Pdu pdu, Channel channel) {
                     pushedMessagesFromServer.add(pdu.messageId);

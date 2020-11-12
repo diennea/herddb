@@ -96,7 +96,7 @@
         <libs.jackson.mapper>2.10.3</libs.jackson.mapper>
         <libs.zookeeper>3.6.2</libs.zookeeper>
         <libs.jsqlparser>3.2</libs.jsqlparser>
-        <libs.curator>2.12.0</libs.curator>
+        <libs.curator>5.1.0</libs.curator>
         <libs.guava>29.0-jre</libs.guava>
         <libs.slf4j>1.7.29</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
@@ -572,6 +572,9 @@
 
 				<!-- datatables MIT license -->
 				<exclude>src/main/webapp/js/jquery.dataTables.min.js</exclude>
+                                
+				<!-- Travis stuff -->
+				<exclude>.travis/*</exclude>
                         </excludes>
                     </configuration>
                 </plugin>
@@ -628,12 +631,11 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.22.2</version>
+                        <version>3.0.0-M5</version>
                         <configuration>
-                            <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
-                            <argLine>-Dzookeeper.forceSync=no -Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
+                            <argLine>-Dzookeeper.forceSync=no -Dio.netty.tryReflectionSetAccessible=true -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory} --add-opens=java.base/java.nio=ALL-UNNAMED  --add-opens=java.base/java.io=ALL-UNNAMED  --add-opens=java.base/java.lang=ALL-UNNAMED</argLine>
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
                     </plugin>
@@ -706,9 +708,8 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.22.0</version>
+                        <version>3.0.0-M5</version>
                         <configuration>
-                            <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
@@ -802,6 +803,7 @@
                 <module>herddb-ui</module>
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
+                <module>herddb-thirdparty</module>
                 <module>herddb-backward-compatibility</module>
             </modules>
             <build>
@@ -837,7 +839,7 @@
                     <plugin>
                         <groupId>org.jacoco</groupId>
                         <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.8.4</version>
+                        <version>0.8.6</version>
                         <executions>
                             <execution>
                                 <goals>
@@ -865,11 +867,10 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
-                        <version>2.22.2</version>
+                        <version>3.0.0-M5</version>
                         <configuration>
-                            <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
-                            <argLine>-Xmx2G -XX:+UseG1GC  @{argLine}</argLine>
+                            <argLine> --add-opens=java.base/java.nio=ALL-UNNAMED  --add-opens=java.base/java.io=ALL-UNNAMED  --add-opens=java.base/java.lang=ALL-UNNAMED -Xmx2G -XX:+UseG1GC  @{argLine}</argLine>
                             <trimStackTrace>false</trimStackTrace>
                             <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
                         </configuration>

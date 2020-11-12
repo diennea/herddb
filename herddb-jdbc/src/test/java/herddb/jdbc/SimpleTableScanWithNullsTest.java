@@ -24,7 +24,6 @@ import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -47,7 +46,7 @@ public class SimpleTableScanWithNullsTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {

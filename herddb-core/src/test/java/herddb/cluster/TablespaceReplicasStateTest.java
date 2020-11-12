@@ -20,6 +20,7 @@
 
 package herddb.cluster;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -77,9 +78,8 @@ public class TablespaceReplicasStateTest {
 
     @Test
     public void testCluster() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -89,8 +89,7 @@ public class TablespaceReplicasStateTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -150,9 +149,8 @@ public class TablespaceReplicasStateTest {
 
     @Test
     public void testDisklessCluster() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -162,8 +160,7 @@ public class TablespaceReplicasStateTest {
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();

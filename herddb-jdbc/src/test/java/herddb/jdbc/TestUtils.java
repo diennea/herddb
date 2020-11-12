@@ -18,26 +18,25 @@
 
  */
 
-package herddb.server;
+package herddb.jdbc;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import herddb.server.ServerConfiguration;
+import java.nio.file.Path;
 
 /**
- * Basic server boot test
+ * Utility
  *
  * @author enrico.olivelli
  */
-public class ServerBootTest {
+public class TestUtils {
 
-    @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
-
-    @Test
-    public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.start();
-        }
+    public static ServerConfiguration newServerConfigurationWithAutoPort() {
+        return new ServerConfiguration()
+                .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY); // automatica ephemeral port
     }
+    public static ServerConfiguration newServerConfigurationWithAutoPort(Path baseDir) {
+        return new ServerConfiguration(baseDir)
+                .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY); // automatica ephemeral port
+    }
+
 }

@@ -19,6 +19,7 @@
  */
 package herddb.cluster.bookkeeper;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.cluster.BookkeeperCommitLog;
@@ -55,9 +56,8 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
         // two bookies
         this.testEnv.startNewBookie();
 
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -122,8 +122,7 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
                     .copy()
                     .set(ServerConfiguration.PROPERTY_NODEID, "server2")
                     .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                    .set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false)
-                    .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                    .set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
             try (Server server_2 = new Server(serverconfig_2)) {
 
                 server_2.getManager().setActivatorPauseStatus(true);
@@ -151,8 +150,7 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
                     .copy()
                     .set(ServerConfiguration.PROPERTY_NODEID, "server2")
                     .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-                    .set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false)
-                    .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                    .set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
             try (Server server_2 = new Server(serverconfig_2)) {
 
                 server_2.getManager().setActivatorPauseStatus(true);

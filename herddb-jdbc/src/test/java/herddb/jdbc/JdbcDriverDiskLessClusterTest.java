@@ -63,7 +63,7 @@ public class JdbcDriverDiskLessClusterTest {
 
     @Test
     public void testDisklessCluster() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        ServerConfiguration serverconfig_1 = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7869);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER);
