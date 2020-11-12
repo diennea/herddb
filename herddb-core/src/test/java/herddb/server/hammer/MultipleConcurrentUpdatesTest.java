@@ -20,6 +20,7 @@
 
 package herddb.server.hammer;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -111,7 +112,7 @@ public class MultipleConcurrentUpdatesTest {
 
     private void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes) throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(baseDir);
 
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024 / 4);

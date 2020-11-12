@@ -21,6 +21,7 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -55,7 +56,7 @@ public class NewPageTest {
     public void unloadEmptyNewPage() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Smaller pages to avoid too many record creations */
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
@@ -147,7 +148,7 @@ public class NewPageTest {
     public void checkpointEmptyNewPage() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Smaller pages to avoid too many record creations */
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);

@@ -21,6 +21,7 @@
 package herddb.sql;
 
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -96,7 +97,7 @@ public class AlterTablespaceSQLTest {
     @Test
     public void defaultReplicaCount() throws Exception {
         String nodeId = "localhost";
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
         config.set(ServerConfiguration.PROPERTY_DEFAULT_REPLICA_COUNT, "4");
         try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),
                 null, null, config, NullStatsLogger.INSTANCE)) {

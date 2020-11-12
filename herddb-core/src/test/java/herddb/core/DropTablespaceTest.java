@@ -21,6 +21,7 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.file.FileDataStorageManager;
@@ -99,7 +100,7 @@ public class DropTablespaceTest {
     @Test
     public void testCleanPolicyOnDropTable() throws Exception {
         String nodeId = "localhost";
-        ServerConfiguration serverConfig = new ServerConfiguration();
+        ServerConfiguration serverConfig = newServerConfigurationWithAutoPort();
         // very low memory
         serverConfig.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 2_000_000);
         serverConfig.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 2_000_000);

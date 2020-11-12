@@ -25,7 +25,6 @@ import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -48,7 +47,7 @@ public class ScanHugeTableTest {
 
     @Test
     public void testBatch() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.getManager().setMaxDataUsedMemory(750 * 1024 * 1024);
             server.start();
             server.waitForStandaloneBoot();

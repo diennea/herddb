@@ -25,6 +25,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
+import herddb.network.netty.NetworkUtils;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.io.File;
@@ -51,20 +52,20 @@ public class JdbcDriverTest {
 
     @Test
     public void urlQueryConfig() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?")) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl())) {
                 assertFalse(HerdDBConnection.class.cast(connection)
                         .getConnection().getClient().getConfiguration()
                         .getBoolean("autoClose", false));
             }
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?autoClose=true")) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl() + "?autoClose=true")) {
                 assertTrue(HerdDBConnection.class.cast(connection)
                         .getConnection().getClient().getConfiguration()
                         .getBoolean("autoClose", false));
             }
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?some&autoClose=false&bar=dummy&foo")) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl() + "?some&autoClose=false&bar=dummy&foo")) {
                 final ClientConfiguration config = HerdDBConnection.class.cast(connection)
                         .getConnection().getClient().getConfiguration();
                 assertFalse(config.getBoolean("autoClose", true));
@@ -77,7 +78,7 @@ public class JdbcDriverTest {
 
     @Test
     public void testVersion() throws Exception {
-        Driver driver = DriverManager.getDriver("jdbc:herddb:server:localhost:7000?");
+        Driver driver = DriverManager.getDriver("jdbc:herddb:server:localhost");
         System.out.println("MAJ " + driver.getMajorVersion() + " MIN " + driver.getMinorVersion());
         assertTrue(driver.getMajorVersion() >= 0); // 0.17.0-SNAPSHOT -> 0
         assertTrue(driver.getMinorVersion() >= 0); // 0.17.0-SNAPSHOT -> 17
@@ -85,10 +86,10 @@ public class JdbcDriverTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()).set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT))) {
             server.start();
             server.waitForStandaloneBoot();
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());
                     Statement statement = connection.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
@@ -99,6 +100,7 @@ public class JdbcDriverTest {
                 assertTrue(count > 0);
             }
 
+            // test default port in client
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost");
                     Statement statement = connection.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
@@ -114,17 +116,16 @@ public class JdbcDriverTest {
 
     @Test
     public void testNotPoolSQLConnectionsInJDBCDriverByDefault() throws Exception {
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
-        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         try (Server server = new Server(conf)) {
             server.start();
             server.waitForStandaloneBoot();
             Connection connection1;
             Connection connection2;
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());) {
                 connection1 = connection;
             }
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());) {
                 connection2 = connection;
             }
             assertNotSame(connection1, connection2);
@@ -133,17 +134,16 @@ public class JdbcDriverTest {
 
     @Test
     public void testForcePoolSQLConnectionsInJDBCDriver() throws Exception {
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
-        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         try (Server server = new Server(conf)) {
             server.start();
             server.waitForStandaloneBoot();
             Connection connection1;
             Connection connection2;
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?poolConnections=true");) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl() + "?poolConnections=true");) {
                 connection1 = connection;
             }
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?poolConnections=true");) {
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl() + "?poolConnections=true");) {
                 connection2 = connection;
             }
             assertSame(connection1, connection2);
@@ -153,13 +153,12 @@ public class JdbcDriverTest {
     @Test
     public void testReuseSocketConnections() throws Exception {
 
-        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
-        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        ServerConfiguration conf = TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath());
         try (Server server = new Server(conf)) {
             server.start();
             server.waitForStandaloneBoot();
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
-                    Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());
+                    Connection connection2 = DriverManager.getConnection(server.getJdbcUrl());
                     Statement statement = connection.createStatement();
                     Statement statement2 = connection2.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
@@ -175,7 +174,7 @@ public class JdbcDriverTest {
                         && server.getActualConnections().connections.size() >= 1);
             }
 
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+            try (Connection connection = DriverManager.getConnection(server.getJdbcUrl());
                     Statement statement = connection.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
@@ -193,10 +192,10 @@ public class JdbcDriverTest {
 
     @Test
     public void testStartServer() throws Exception {
-
         File dataDir = folder.newFolder();
+        int port = NetworkUtils.assignFirstFreePort();
         try (Connection connection = DriverManager.getConnection(
-                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
+                "jdbc:herddb:server:localhost:" + port + "?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
@@ -208,7 +207,7 @@ public class JdbcDriverTest {
         }
 
         try (Connection connection = DriverManager.getConnection(
-                "jdbc:herddb:server:localhost:7000?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
+                "jdbc:herddb:server:localhost:" + port + "?server.start=true&server.base.dir=" + dataDir.getAbsolutePath());
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;

@@ -38,7 +38,7 @@ public class ChannelBenchTest {
 
     @Test
     public void test() throws Exception {
-        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
+        try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", NetworkUtils.assignFirstFreePort(), false)) {
             acceptor.setAcceptor((Channel channel) -> {
                 channel.setMessagesReceiver(new ChannelEventListener() {
                     @Override
@@ -57,7 +57,7 @@ public class ChannelBenchTest {
             });
             acceptor.start();
             ExecutorService executor = Executors.newCachedThreadPool();
-            try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
+            try (Channel client = NettyConnector.connect(acceptor.getHost(), acceptor.getPort(), acceptor.isSsl(), 0, 0, new ChannelEventListener() {
 
                 @Override
                 public void channelClosed(Channel channel) {

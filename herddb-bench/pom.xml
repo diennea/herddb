@@ -27,6 +27,17 @@
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Benchmarks</name>
     <artifactId>herddb-bench</artifactId>   
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- no more than one test at once -->
+                    <forkCount>1</forkCount>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <dependencies>       
         <dependency>
             <groupId>${project.groupId}</groupId>

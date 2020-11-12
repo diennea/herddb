@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -78,9 +79,8 @@ public class EmbeddedBookieTest {
 
     @Test
     public void test_boot_with_bookie() throws Exception {
-        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder("server1").toPath());
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder("server1").toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
@@ -92,7 +92,6 @@ public class EmbeddedBookieTest {
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
                 .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder("server2").toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_PORT, 7868)
                 .set(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, 3182);
 
         try (Server server_1 = new Server(serverconfig_1)) {

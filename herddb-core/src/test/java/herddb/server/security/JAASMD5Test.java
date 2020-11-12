@@ -20,13 +20,13 @@
 
 package herddb.server.security;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 import java.io.File;
@@ -52,7 +52,7 @@ public class JAASMD5Test {
     @Test
     public void test() throws Exception {
         System.setProperty("java.security.auth.login.config", new File("src/test/resources/test_jaas_md5.conf").getAbsolutePath());
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                  HDBConnection connection = client.openConnection()) {

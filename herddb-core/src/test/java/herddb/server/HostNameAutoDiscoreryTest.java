@@ -20,10 +20,10 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
 
 /**
  * @author enrico.olivelli
@@ -36,7 +36,7 @@ public class HostNameAutoDiscoreryTest {
     @Test
     public void test() throws Exception {
         try (Server server = new Server(
-                new ServerConfiguration(folder.newFolder().toPath())
+                newServerConfigurationWithAutoPort(folder.newFolder().toPath())
                         .set(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_AUTODISCOVERY))) {
             server.start();
         }

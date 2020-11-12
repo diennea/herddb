@@ -22,6 +22,7 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static herddb.core.TestUtils.scanKeepReadLocks;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import static org.junit.Assert.assertEquals;
@@ -57,6 +58,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+
 /**
  * Tests on checkpoints
  *
@@ -74,7 +76,7 @@ public class CheckpointTest {
     public void keepDirtyTest() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Disable page compaction (avoid compaction of dirty page) */
         config1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
@@ -133,7 +135,7 @@ public class CheckpointTest {
 
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
 
         /* Disable page compaction (avoid compaction of dirty page) */
         config1.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
@@ -206,7 +208,7 @@ public class CheckpointTest {
         Path tmpDir = folder.newFolder("tmpDir").toPath();
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 1024L);
 
         int records = 1000;
@@ -244,7 +246,7 @@ public class CheckpointTest {
 
         }
 
-        ServerConfiguration config2 = new ServerConfiguration();
+        ServerConfiguration config2 = newServerConfigurationWithAutoPort();
 
         config2.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 2048L);
         config2.set(ServerConfiguration.PROPERTY_COMPACTION_DURATION, -1L);
@@ -277,7 +279,7 @@ public class CheckpointTest {
     public void doNotKeepDirtyRebuiltInMemory() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
 
         /* Disable page compaction (avoid compaction of dirty page) */
         config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
@@ -366,7 +368,7 @@ public class CheckpointTest {
     public void keepDirtyRebuiltInMemory() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
 
         /* Disable page compaction (avoid compaction of dirty page) */
         config.set(ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD, 0.0D);
@@ -452,7 +454,7 @@ public class CheckpointTest {
     public void doNotKeepSmallRebuiltInMemory() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
 
         /* Force page compaction */
         final double minFillThreashod = 100.0D;
@@ -544,7 +546,7 @@ public class CheckpointTest {
     public void keepSmallRebuiltInMemory() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config = new ServerConfiguration();
+        ServerConfiguration config = newServerConfigurationWithAutoPort();
 
         /* Force page compaction */
         final double minFillThreashod = 100.0D;
@@ -627,7 +629,7 @@ public class CheckpointTest {
         Path tmpDir = folder.newFolder("tmpDir").toPath();
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
         config1.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 1024 * 1024L);
         config1.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 2 * 1024 * 1024L);
         config1.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 2 * 1024 * 1024L);
@@ -762,7 +764,7 @@ public class CheckpointTest {
     public void checkpointAfterLockTimeout() throws Exception {
         String nodeId = "localhost";
 
-        ServerConfiguration config1 = new ServerConfiguration();
+        ServerConfiguration config1 = newServerConfigurationWithAutoPort();
         // 1 second
         config1.set(ServerConfiguration.PROPERTY_WRITELOCK_TIMEOUT, 1);
         config1.set(ServerConfiguration.PROPERTY_READLOCK_TIMEOUT, 1);

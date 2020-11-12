@@ -20,6 +20,7 @@
 
 package herddb.server;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import java.nio.file.Path;
@@ -44,7 +45,7 @@ public class RebootPersistNodeIdTest {
 
         Path dataPath = folder.newFolder().toPath();
         {
-            ServerConfiguration serverConfiguration = new ServerConfiguration(dataPath);
+            ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(dataPath);
             assertTrue(serverConfiguration.getString(ServerConfiguration.PROPERTY_NODEID, "").isEmpty());
             try (Server server = new Server(serverConfiguration)) {
                 server.start();
@@ -52,7 +53,7 @@ public class RebootPersistNodeIdTest {
             }
         }
         {
-            ServerConfiguration serverConfiguration = new ServerConfiguration(dataPath);
+            ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(dataPath);
             assertTrue(serverConfiguration.getString(ServerConfiguration.PROPERTY_NODEID, "").isEmpty());
             try (Server server = new Server(serverConfiguration)) {
                 server.start();

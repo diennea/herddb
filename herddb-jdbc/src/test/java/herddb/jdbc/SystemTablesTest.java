@@ -27,7 +27,6 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.model.TableSpace;
 import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -56,7 +55,7 @@ public class SystemTablesTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
@@ -315,7 +314,7 @@ public class SystemTablesTest {
 
     @Test
     public void ensureWeThrowAppropriateExceptionWhenNotNullConstraintViolated_AddBatch_ExecuteBatch() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        try (Server server = new Server(TestUtils.newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {

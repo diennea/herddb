@@ -20,6 +20,7 @@
 
 package herddb.client;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -99,7 +100,7 @@ public class SimpleClientServerTest {
     public void test() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         String _baseDir = baseDir.toString();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -165,9 +166,15 @@ public class SimpleClientServerTest {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         RawString name = (RawString) aa.get("name");
-                        assertEquals(RawString.of("server.base.dir"), name);
-                        RawString value = (RawString) aa.get("value");
-                        assertEquals(RawString.of(_baseDir), value);
+                        if (RawString.of("server.base.dir").equals(name)) {
+                            assertEquals(RawString.of("server.base.dir"), name);
+                            RawString value = (RawString) aa.get("value");
+                            assertEquals(RawString.of(_baseDir), value);
+                        } else {
+                            assertEquals(RawString.of("server.port"), name);
+                            RawString value = (RawString) aa.get("value");
+                            assertEquals(RawString.of("0"), value);
+                        }
                     }
                 }
 
@@ -225,7 +232,7 @@ public class SimpleClientServerTest {
         try (HDBClient client = new HDBClient(clientConfiguration)) {
             try (HDBConnection connection1 = client.openConnection()) {
 
-                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
                     server.start();
                     server.waitForStandaloneBoot();
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -248,7 +255,7 @@ public class SimpleClientServerTest {
                             Collections.emptyList(), 0, 0, 10, true).close();
                 }
 
-                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
                     server.start();
                     server.waitForStandaloneBoot();
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -285,7 +292,7 @@ public class SimpleClientServerTest {
     @Test
     public void testCachePreparedStatementsPrepareSqlAgain() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -421,7 +428,7 @@ public class SimpleClientServerTest {
     @Test
     public void testExecuteUpdatesWithDDL() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -469,7 +476,7 @@ public class SimpleClientServerTest {
     @Test
     public void testSQLIntegrityViolation() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -525,7 +532,7 @@ public class SimpleClientServerTest {
         Path baseDir = folder.newFolder().toPath();
         AtomicInteger connectionToUse = new AtomicInteger();
         AtomicReference<ClientSideConnectionPeer[]> connections = new AtomicReference<>();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -586,7 +593,7 @@ public class SimpleClientServerTest {
     @Test
     public void testClientAbandonedTransaction() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        ServerConfiguration config = new ServerConfiguration(baseDir);
+        ServerConfiguration config = newServerConfigurationWithAutoPort(baseDir);
         config.set(ServerConfiguration.PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT, 5000);
         try (Server server = new Server(config)) {
             server.start();
@@ -636,7 +643,7 @@ public class SimpleClientServerTest {
     @Test
     public void testTimeoutDuringAuth() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        ServerConfiguration config = new ServerConfiguration(baseDir);
+        ServerConfiguration config = newServerConfigurationWithAutoPort(baseDir);
         final AtomicBoolean suspendProcessing = new AtomicBoolean(false);
         try (Server server = new Server(config) {
             @Override
@@ -698,7 +705,7 @@ public class SimpleClientServerTest {
     @Test
     public void testSimpleJoinFromNetwork() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        ServerConfiguration config = new ServerConfiguration(baseDir);
+        ServerConfiguration config = newServerConfigurationWithAutoPort(baseDir);
         config.set(ServerConfiguration.PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT, 5000);
         try (Server server = new Server(config)) {
             server.start();
@@ -760,8 +767,8 @@ public class SimpleClientServerTest {
     public void testEnsureOpen() throws Exception {
         Path baseDir = folder.newFolder().toPath();
         AtomicReference<ClientSideConnectionPeer[]> connections = new AtomicReference<>();
-        ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort(baseDir);
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.getNetworkServer().setEnableJVMNetwork(false);
             server.getNetworkServer().setEnableRealNetwork(true);
             server.start();
@@ -844,7 +851,7 @@ public class SimpleClientServerTest {
         }) {
             try (HDBConnection connection1 = client.openConnection()) {
 
-                try (Server server = new Server(new ServerConfiguration(baseDir))) {
+                try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
                     server.start();
                     server.waitForStandaloneBoot();
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -875,8 +882,7 @@ public class SimpleClientServerTest {
     @Test
     public void testKeepReadLocks() throws Exception {
         Path baseDir = folder.newFolder().toPath();
-        String _baseDir = baseDir.toString();
-        try (Server server = new Server(new ServerConfiguration(baseDir))) {
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
@@ -954,4 +960,49 @@ public class SimpleClientServerTest {
         }
     }
 
+    @Test
+    public void testAutoTransaction() throws Exception {
+        Path baseDir = folder.newFolder().toPath();
+        String _baseDir = baseDir.toString();
+        try (Server server = new Server(newServerConfigurationWithAutoPort(baseDir))) {
+            server.start();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList()).updateCount;
+                Assert.assertEquals(1, resultCreateTable);
+
+                DMLResult executeUpdateResult = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, false, true, Arrays.asList("test", 1, 2));
+
+                long tx = executeUpdateResult.transactionId;
+                long countInsert = executeUpdateResult.updateCount;
+                Assert.assertEquals(1, countInsert);
+
+                GetResult res = connection.executeGet(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'", tx, true, Collections.emptyList());
+                Map<RawString, Object> record = res.data;
+                Assert.assertNotNull(record);
+                assertEquals(RawString.of("test"), record.get(RawString.of("id")));
+                assertEquals(Long.valueOf(1), record.get(RawString.of("n1")));
+                assertEquals(Integer.valueOf(2), record.get(RawString.of("n2")));
+
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
+
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", true, Collections.emptyList(), 0, 0, 10, true)) {
+                    List<Map<String, Object>> all = scan.consume();
+                    for (Map<String, Object> aa : all) {
+                        assertEquals(RawString.of("jvm-local"), aa.get("address"));
+                        assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get("username"));
+                        assertNotNull(aa.get("connectionts"));
+                    }
+                    assertTrue(all.size() >= 1);
+                }
+
+            }
+        }
+    }
 }

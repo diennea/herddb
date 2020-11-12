@@ -29,8 +29,10 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
+import herddb.server.ServerConfiguration;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +46,15 @@ import java.util.logging.Logger;
  * @author enrico.olivelli
  */
 public class TestUtils {
+
+    public static ServerConfiguration newServerConfigurationWithAutoPort() {
+        return new ServerConfiguration()
+                .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY); // automatica ephemeral port
+    }
+    public static ServerConfiguration newServerConfigurationWithAutoPort(Path baseDir) {
+        return new ServerConfiguration(baseDir)
+                .set(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_AUTODISCOVERY); // automatica ephemeral port
+    }
 
     public static DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
