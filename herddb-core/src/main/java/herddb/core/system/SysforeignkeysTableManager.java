@@ -80,7 +80,36 @@ public class SysforeignkeysTableManager extends AbstractSystemTableManager {
                 String child_column_name = fk.columns[i];
                 String parent_column_name = fk.parentTableColumns[i];
                 String parent_table_name = parent.name;
-
+                String on_delete_action;
+                switch (fk.onDeleteAction) {
+                    case ForeignKeyDef.ACTION_CASCADE:
+                        on_delete_action = "importedKeyCascade";
+                        break;
+                    case ForeignKeyDef.ACTION_NO_ACTION:
+                        on_delete_action = "importedNoAction";
+                        break;
+                    case ForeignKeyDef.ACTION_SETNULL:
+                        on_delete_action = "importedKeySetNull";
+                        break;
+                    default:
+                        on_delete_action = "importedKeyCascade";
+                        break;
+                }
+                String on_update_action;
+                switch (fk.onUpdateAction) {
+                    case ForeignKeyDef.ACTION_CASCADE:
+                        on_update_action = "importedKeyCascade";
+                        break;
+                    case ForeignKeyDef.ACTION_NO_ACTION:
+                        on_update_action = "importedNoAction";
+                        break;
+                    case ForeignKeyDef.ACTION_SETNULL:
+                        on_update_action = "importedKeySetNull";
+                        break;
+                    default:
+                        on_update_action = "importedKeyCascade";
+                        break;
+                }
                 result.add(RecordSerializer.makeRecord(
                         table,
                         "child_table_name", child_table_name,
@@ -88,8 +117,8 @@ public class SysforeignkeysTableManager extends AbstractSystemTableManager {
                         "child_table_cons_name", fk.name,
                         "parent_table_name", parent_table_name,
                         "parent_table_column_name", parent_column_name,
-                        "on_delete_action", "importedNoAction",
-                        "on_update_action", "importedNoAction",
+                        "on_delete_action", on_delete_action,
+                        "on_update_action", on_update_action,
                         "ordinal_position", (i + 1),
                         "deferred", "importedKeyNotDeferrable"
                 ));

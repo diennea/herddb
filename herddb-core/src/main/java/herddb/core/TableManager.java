@@ -20,6 +20,7 @@
 
 package herddb.core;
 
+import static herddb.sql.JSQLParserPlanner.delimit;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
@@ -1262,15 +1263,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             String query = parentForeignKeyQueries.computeIfAbsent(childTable.name + "." + fk.name + ".#" + delete, (l -> {
                 if (fk.onDeleteAction == ForeignKeyDef.ACTION_CASCADE && delete) {
                     StringBuilder q = new StringBuilder("DELETE FROM ");
-                    q.append(childTable.tablespace);
+                    q.append(delimit(childTable.tablespace));
                     q.append(".");
-                    q.append(childTable.name);
+                    q.append(delimit(childTable.name));
                     q.append(" WHERE ");
                     for (int i = 0; i < fk.columns.length; i++) {
                         if (i > 0) {
                             q.append(" AND ");
                         }
-                        q.append(fk.columns[i]);
+                        q.append(delimit(fk.columns[i]));
                         q.append("=?");
                     }
                     return q.toString();
@@ -1282,15 +1283,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 } else if ((fk.onDeleteAction == ForeignKeyDef.ACTION_SETNULL && delete)
                            || (fk.onUpdateAction == ForeignKeyDef.ACTION_SETNULL && !delete)) { // delete or update it is the same for SET NULL
                     StringBuilder q = new StringBuilder("UPDATE ");
-                    q.append(childTable.tablespace);
+                    q.append(delimit(childTable.tablespace));
                     q.append(".");
-                    q.append(childTable.name);
+                    q.append(delimit(childTable.name));
                     q.append(" SET ");
                     for (int i = 0; i < fk.columns.length; i++) {
                         if (i > 0) {
                             q.append(",");
                         }
-                        q.append(fk.columns[i]);
+                        q.append(delimit(fk.columns[i]));
                         q.append("= NULL ");
                     }
                     q.append(" WHERE ");
@@ -1298,7 +1299,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (i > 0) {
                             q.append(" AND ");
                         }
-                        q.append(fk.columns[i]);
+                        q.append(delimit(fk.columns[i]));
                         q.append("=?");
                     }
                     return q.toString();
@@ -1306,15 +1307,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     // NO ACTION case, check that there is no matching record in the child table that wouble be invalidated
                     // with '*' we are not going to perform projections or copies
                     StringBuilder q = new StringBuilder("SELECT * FROM ");
-                    q.append(childTable.tablespace);
+                    q.append(delimit(childTable.tablespace));
                     q.append(".");
-                    q.append(childTable.name);
+                    q.append(delimit(childTable.name));
                     q.append(" WHERE ");
                     for (int i = 0; i < fk.columns.length; i++) {
                         if (i > 0) {
                             q.append(" AND ");
                         }
-                        q.append(fk.columns[i]);
+                        q.append(delimit(fk.columns[i]));
                         q.append("=?");
                     }
                     return q.toString();
@@ -1363,20 +1364,24 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void validateForeignKeyConsistency(ForeignKeyDef fk, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        if (!tableSpaceManager.getDbmanager().isFullSQLSupportEnabled()) {
+            // we cannot perform this validation without Calcite
+            return;
+        }
         Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
         StringBuilder query = new StringBuilder("SELECT * "
-                + "      FROM " + this.tableSpaceManager.getTableSpaceName() + "." + this.table.name + " childtable "
+                + "      FROM " + delimit(this.tableSpaceManager.getTableSpaceName()) + "." + delimit(this.table.name) + " childtable "
                 + "      WHERE NOT EXISTS (SELECT * "
-                + "                        FROM " + this.tableSpaceManager.getTableSpaceName() + "." + parentTable.name + " parenttable "
+                + "                        FROM " + delimit(this.tableSpaceManager.getTableSpaceName()) + "." + delimit(parentTable.name) + " parenttable "
                 + "                        WHERE ");
         for (int i = 0; i < fk.columns.length; i++) {
             if (i > 0) {
                 query.append(" AND ");
             }
             query.append("childtable.")
-                    .append(fk.columns[i])
+                    .append(delimit(fk.columns[i]))
                     .append(" = parenttable.")
-                    .append(fk.parentTableColumns[i]);
+                    .append(delimit(fk.parentTableColumns[i]));
         }
         query.append(")");
         TransactionContext tx = transaction != null ? new TransactionContext(transaction.transactionId) : TransactionContext.NO_TRANSACTION;
@@ -1409,15 +1414,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             Table parentTable = tableSpaceManager.getTableManagerByUUID(fk.parentTableId).getTable();
             // with '*' we are not going to perform projections or copies
             StringBuilder q = new StringBuilder("SELECT * FROM ");
-            q.append(parentTable.tablespace);
+            q.append(delimit(parentTable.tablespace));
             q.append(".");
-            q.append(parentTable.name);
+            q.append(delimit(parentTable.name));
             q.append(" WHERE ");
             for (int i = 0; i < fk.parentTableColumns.length; i++) {
                 if (i > 0) {
                     q.append(" AND ");
                 }
-                q.append(fk.parentTableColumns[i]);
+                q.append(delimit(fk.parentTableColumns[i]));
                 q.append("=?");
             }
             return q.toString();
