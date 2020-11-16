@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.net.BookieSocketAddress;
 import org.junit.Test;
 
@@ -43,8 +44,8 @@ public class PreferLocalBookiePlacementPolicyTest {
     static {
         try {
             Class<?> localBookiesRegistry = Class.forName("org.apache.bookkeeper.proto.LocalBookiesRegistry");
-            registerLocalBookieAddress = localBookiesRegistry.getDeclaredMethod("registerLocalBookieAddress", BookieSocketAddress.class);
-            unregisterLocalBookieAddress = localBookiesRegistry.getDeclaredMethod("unregisterLocalBookieAddress", BookieSocketAddress.class);
+            registerLocalBookieAddress = localBookiesRegistry.getDeclaredMethod("registerLocalBookieAddress", BookieId.class);
+            unregisterLocalBookieAddress = localBookiesRegistry.getDeclaredMethod("unregisterLocalBookieAddress", BookieId.class);
             registerLocalBookieAddress.setAccessible(true);
             unregisterLocalBookieAddress.setAccessible(true);
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException ex) {
@@ -55,22 +56,22 @@ public class PreferLocalBookiePlacementPolicyTest {
     @Test
     public void testEnsamblePolicySingle() throws Exception {
 
-        BookieSocketAddress a = new BookieSocketAddress("a.localhost", 3181);
+        BookieId a = new BookieSocketAddress("a.localhost", 3181).toBookieId();
 
-        Set<BookieSocketAddress> writableBookies = new HashSet<>();
+        Set<BookieId> writableBookies = new HashSet<>();
         writableBookies.add(a);
 
         registerLocalBookieAddress.invoke(null, a);
 
         try {
-            Set<BookieSocketAddress> readOnlyBookies = Collections.emptySet();
+            Set<BookieId> readOnlyBookies = Collections.emptySet();
 
             PreferLocalBookiePlacementPolicy policy = new PreferLocalBookiePlacementPolicy();
-            Set<BookieSocketAddress> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
+            Set<BookieId> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
 
             assertTrue(deadBookies.isEmpty());
 
-            List<BookieSocketAddress> ensemble =
+            List<BookieId> ensemble =
                     policy.newEnsemble(1, 1, 1, Collections.emptyMap(), Collections.emptySet()).getResult();
             System.out.println(ensemble);
             assertEquals(1, ensemble.size());
@@ -83,13 +84,13 @@ public class PreferLocalBookiePlacementPolicyTest {
     @Test
     public void testEnsamblePolicyMultiple() throws Exception {
 
-        BookieSocketAddress a = new BookieSocketAddress("a.localhost", 3181);
-        BookieSocketAddress b = new BookieSocketAddress("b.localhost", 3181);
-        BookieSocketAddress c = new BookieSocketAddress("c.localhost", 3181);
-        BookieSocketAddress d = new BookieSocketAddress("d.localhost", 3181);
-        BookieSocketAddress e = new BookieSocketAddress("e.localhost", 3181);
+        BookieId a = new BookieSocketAddress("a.localhost", 3181).toBookieId();
+        BookieId b = new BookieSocketAddress("b.localhost", 3181).toBookieId();
+        BookieId c = new BookieSocketAddress("c.localhost", 3181).toBookieId();
+        BookieId d = new BookieSocketAddress("d.localhost", 3181).toBookieId();
+        BookieId e = new BookieSocketAddress("e.localhost", 3181).toBookieId();
 
-        Set<BookieSocketAddress> writableBookies = new HashSet<>();
+        Set<BookieId> writableBookies = new HashSet<>();
         writableBookies.add(a);
         writableBookies.add(b);
         writableBookies.add(c);
@@ -99,14 +100,14 @@ public class PreferLocalBookiePlacementPolicyTest {
         registerLocalBookieAddress.invoke(null, c);
 
         try {
-            Set<BookieSocketAddress> readOnlyBookies = Collections.emptySet();
+            Set<BookieId> readOnlyBookies = Collections.emptySet();
 
             PreferLocalBookiePlacementPolicy policy = new PreferLocalBookiePlacementPolicy();
-            Set<BookieSocketAddress> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
+            Set<BookieId> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
 
             assertTrue(deadBookies.isEmpty());
 
-            List<BookieSocketAddress> ensemble =
+            List<BookieId> ensemble =
                     policy.newEnsemble(3, 2, 2, Collections.emptyMap(), Collections.emptySet()).getResult();
             System.out.println(ensemble);
             assertEquals(3, ensemble.size());

@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.junit.After;
 import org.junit.Before;
@@ -431,7 +432,7 @@ public class BookKeeperCommitLogTest {
 
     @Test
     public void testFollowEmptyLedgerBookieDown() throws Exception {
-        String secondBookie = testEnv.startNewBookie();
+        BookieId secondBookie = testEnv.startNewBookie();
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
         final String nodeid = "nodeid";

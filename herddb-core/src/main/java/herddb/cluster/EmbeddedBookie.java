@@ -35,7 +35,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.discover.BookieServiceInfo;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.stats.NullStatsLogger;
@@ -88,6 +87,17 @@ public class EmbeddedBookie implements AutoCloseable {
                 persistLocalBookiePort(bookie_dir, _port);
             }
             port = _port;
+        }
+        boolean enableBookieId = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED_DEFAULT);
+        if (enableBookieId) {
+            String bookieId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
+            if (bookieId.isEmpty()) {
+                throw new RuntimeException("Cannot use BookieId as main " + ServerConfiguration.PROPERTY_NODEID + " is not set");
+            }
+            LOG.log(Level.SEVERE, "As configuration parameter "
+                    + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED
+                    + " is {0},I have choosen to use the main server node id (" + ServerConfiguration.PROPERTY_NODEID + ") {1}", new Object[] {enableBookieId, bookieId});
+            conf.setBookieId(bookieId);
         }
         conf.setBookiePort(port);
         Files.createDirectories(bookie_dir);
@@ -144,7 +154,7 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
 
-        bookieServer = new BookieServer(conf, statsLogger, BookieServiceInfo.NO_INFO);
+        bookieServer = new BookieServer(conf, statsLogger, null);
         bookieServer.start();
         for (int i = 0; i < 100; i++) {
             if (bookieServer.getBookie().isRunning()) {
@@ -231,5 +241,9 @@ public class EmbeddedBookie implements AutoCloseable {
         message.append("\n\n");
         message.append(port);
         Files.write(file, message.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
+    }
+
+    public String getBookieId() throws Exception {
+        return bookieServer.getBookieId().toString();
     }
 }

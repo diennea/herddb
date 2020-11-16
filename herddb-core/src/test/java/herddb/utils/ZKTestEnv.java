@@ -27,6 +27,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
+import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
@@ -68,11 +69,11 @@ public class ZKTestEnv implements AutoCloseable {
         startBookie(true);
     }
 
-    public String startNewBookie() throws Exception {
+    public BookieId startNewBookie() throws Exception {
         return startBookie(false);
     }
 
-    private String startBookie(boolean format) throws Exception {
+    private BookieId startBookie(boolean format) throws Exception {
         if (format && !bookies.isEmpty()) {
             throw new Exception("cannot format, you aleady have bookies");
         }
@@ -86,7 +87,7 @@ public class ZKTestEnv implements AutoCloseable {
         BookieServer bookie = new BookieServer(conf);
         bookies.add(bookie);
         bookie.start();
-        return bookie.getLocalAddress().getSocketAddress().toString();
+        return bookie.getBookieId();
     }
 
     private ServerConfiguration createBookieConf(int port) {
@@ -116,10 +117,10 @@ public class ZKTestEnv implements AutoCloseable {
         return conf;
     }
 
-    public void startStoppedBookie(String addr) throws Exception {
+    public void startStoppedBookie(BookieId addr) throws Exception {
         int index = 0;
         for (BookieServer bookie : bookies) {
-            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+            if (bookie.getBookieId().equals(addr)) {
                 if (bookie.isRunning()) {
                     throw new Exception("you did not stop bookie " + addr);
                 }
@@ -138,9 +139,9 @@ public class ZKTestEnv implements AutoCloseable {
         bookies.get(0).suspendProcessing();
     }
 
-    public void pauseBookie(String addr) throws Exception {
+    public void pauseBookie(BookieId addr) throws Exception {
         for (BookieServer bookie : bookies) {
-            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+            if (bookie.getBookieId().equals(addr)) {
                 bookie.suspendProcessing();
                 return;
             }
@@ -152,9 +153,9 @@ public class ZKTestEnv implements AutoCloseable {
         bookies.get(0).resumeProcessing();
     }
 
-    public void resumeBookie(String addr) throws Exception {
+    public void resumeBookie(BookieId addr) throws Exception {
         for (BookieServer bookie : bookies) {
-            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+            if (bookie.getBookieId().equals(addr)) {
                 bookie.resumeProcessing();
                 return;
             }
@@ -162,15 +163,15 @@ public class ZKTestEnv implements AutoCloseable {
         throw new Exception("Cannot find bookie " + addr);
     }
 
-    public String stopBookie() throws Exception {
-        String addr = bookies.get(0).getLocalAddress().getSocketAddress().toString();
+    public BookieId stopBookie() throws Exception {
+        BookieId addr = bookies.get(0).getBookieId();
         stopBookie(addr);
         return addr;
     }
 
-    public void stopBookie(String addr) throws Exception {
+    public void stopBookie(BookieId addr) throws Exception {
         for (BookieServer bookie : bookies) {
-            if (bookie.getLocalAddress().getSocketAddress().toString().equals(addr)) {
+            if (bookie.getBookieId().equals(addr)) {
                 bookie.shutdown();
                 bookie.join();
                 return;

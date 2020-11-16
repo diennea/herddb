@@ -207,6 +207,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                         LOGGER.info("Generated new node id " + nodeId);
                     }
                     localNodeIdManager.persistLocalNodeId(nodeId);
+                    // let downstream code see this new id (Embedded Bookie for instance)
+                    configuration.set(ServerConfiguration.PROPERTY_NODEID, nodeId);
                 }
             } catch (IOException | MetadataStorageManagerException error) {
                 LOGGER.log(Level.SEVERE, "Fatal error while generating the local node ID", error);
@@ -486,6 +488,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                     return c.toConnectionInfo();
                 })
                 .collect(Collectors.toList()));
+    }
+
+    public EmbeddedBookie getEmbeddedBookie() {
+        return embeddedBookie;
     }
 
 }
