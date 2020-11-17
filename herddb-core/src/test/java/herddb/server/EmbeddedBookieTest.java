@@ -22,6 +22,7 @@ package herddb.server;
 
 import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
@@ -78,25 +79,50 @@ public class EmbeddedBookieTest {
     }
 
     @Test
-    public void test_boot_with_bookie() throws Exception {
+    public void testBootWithBookieNoBookieId() throws Exception {
+        testBootWithBookie(false, false);
+    }
+
+    @Test
+    public void testBootWithBookieAndBookieId() throws Exception {
+        testBootWithBookie(true, false);
+    }
+
+    @Test
+    public void testBootWithBookieAndBookieIdAndAutomaticNodeId() throws Exception {
+        testBootWithBookie(true, true);
+    }
+
+    private void testBootWithBookie(boolean useBookiedId, boolean automaticNodeId) throws Exception {
         ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder("server1").toPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        if (!automaticNodeId) {
+            serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        }
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_START, true);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED, useBookiedId);
         serverconfig_1.set("bookie.allowLoopback", true);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder("server2").toPath().toAbsolutePath())
-                .set(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, 3182);
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder("server2").toPath().toAbsolutePath());
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
+            if (automaticNodeId) {
+                assertNotEquals("server1", server_1.getNodeId());
+            } else {
+                assertEquals("server1", server_1.getNodeId());
+            }
             server_1.waitForStandaloneBoot();
+            if (useBookiedId) {
+                assertEquals(server_1.getEmbeddedBookie().getBookieId(), server_1.getNodeId());
+            }
             Table table = Table.builder()
                     .name("t1")
                     .column("c", ColumnTypes.INTEGER)
@@ -110,7 +136,7 @@ public class EmbeddedBookieTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList(server_1.getNodeId(), server_2.getNodeId())), server_1.getNodeId(), 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -143,7 +169,7 @@ public class EmbeddedBookieTest {
                     }
                     // switch leader to server2
                     server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                            new HashSet<>(Arrays.asList("server1", "server2")), "server2", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                            new HashSet<>(Arrays.asList(server_1.getNodeId(), server_2.getNodeId())), server_2.getNodeId(), 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                     // wait that server_1 leaves leadership
                     for (int i = 0; i < 100; i++) {

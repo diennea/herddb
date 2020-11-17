@@ -170,10 +170,11 @@ public class SimpleClientServerTest {
                             assertEquals(RawString.of("server.base.dir"), name);
                             RawString value = (RawString) aa.get("value");
                             assertEquals(RawString.of(_baseDir), value);
-                        } else {
-                            assertEquals(RawString.of("server.port"), name);
+                        } else if (RawString.of("server.port").equals(name)) {
                             RawString value = (RawString) aa.get("value");
                             assertEquals(RawString.of("0"), value);
+                        } else {
+                            assertEquals(RawString.of("server.node.id"), name);
                         }
                     }
                 }
