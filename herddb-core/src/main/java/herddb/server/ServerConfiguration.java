@@ -136,6 +136,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookkeeper.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
 
+    public static final String PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED = "server.bookkeeper.bookieid.enabled";
+    public static final boolean PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED_DEFAULT = false;
+
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH = "server.bookkeeper.ledgers.path";
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_PATH_DEFAULT = "/ledgers";
 

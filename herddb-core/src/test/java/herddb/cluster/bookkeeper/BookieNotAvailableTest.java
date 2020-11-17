@@ -49,6 +49,7 @@ import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.LedgerMetadata;
+import org.apache.bookkeeper.net.BookieId;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -201,7 +202,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
 
-            String bookieAddr = testEnv.stopBookie();
+            BookieId bookieAddr = testEnv.stopBookie();
 
             // transaction will continue and see the failure only the time of the commit
             try {

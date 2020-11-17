@@ -35,8 +35,9 @@ import org.apache.bookkeeper.client.DistributionSchedule;
 import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.feature.FeatureProvider;
-import org.apache.bookkeeper.net.BookieSocketAddress;
+import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.net.DNSToSwitchMapping;
+import org.apache.bookkeeper.proto.BookieAddressResolver;
 import org.apache.bookkeeper.proto.LocalBookiesRegistry;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -47,14 +48,15 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy {
 
-    private Set<BookieSocketAddress> knownBookies = new HashSet<>();
+    private Set<BookieId> knownBookies = new HashSet<>();
 
     @Override
     public EnsemblePlacementPolicy initialize(
             ClientConfiguration conf,
             Optional<DNSToSwitchMapping> optionalDnsResolver,
             HashedWheelTimer hashedWheelTimer,
-            FeatureProvider featureProvider, StatsLogger statsLogger
+            FeatureProvider featureProvider, StatsLogger statsLogger,
+            BookieAddressResolver bookieAddressResolver
     ) {
         return this;
     }
@@ -65,11 +67,11 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public synchronized Set<BookieSocketAddress> onClusterChanged(
-            Set<BookieSocketAddress> writableBookies,
-            Set<BookieSocketAddress> readOnlyBookies
+    public synchronized Set<BookieId> onClusterChanged(
+            Set<BookieId> writableBookies,
+            Set<BookieId> readOnlyBookies
     ) {
-        HashSet<BookieSocketAddress> deadBookies;
+        HashSet<BookieId> deadBookies;
         deadBookies = new HashSet<>(knownBookies);
         deadBookies.removeAll(writableBookies);
         // readonly bookies should not be treated as dead bookies
@@ -79,55 +81,55 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public PlacementResult<BookieSocketAddress> replaceBookie(
+    public PlacementResult<BookieId> replaceBookie(
             int ensembleSize,
             int writeQuorumSize,
             int ackQuorumSize,
             Map<String, byte[]> customMetadata,
-            List<BookieSocketAddress> currentEnsemble,
-            BookieSocketAddress bookieToReplace,
-            Set<BookieSocketAddress> excludeBookies
+            List<BookieId> currentEnsemble,
+            BookieId bookieToReplace,
+            Set<BookieId> excludeBookies
     ) throws BKNotEnoughBookiesException {
         excludeBookies.addAll(currentEnsemble);
-        PlacementResult<List<BookieSocketAddress>> list = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
+        PlacementResult<List<BookieId>> list = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
         return PlacementResult.of(list.getResult().get(0), PlacementPolicyAdherence.MEETS_STRICT);
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadSequence(List<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadSequence(List<BookieId> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadLACSequence(List<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadLACSequence(List<BookieId> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
 
     @Override
-    public void registerSlowBookie(BookieSocketAddress bookieSocketAddress, long entryId) {
+    public void registerSlowBookie(BookieId bookieSocketAddress, long entryId) {
     }
 
     @Override
-    public PlacementResult<List<BookieSocketAddress>> newEnsemble(
+    public PlacementResult<List<BookieId>> newEnsemble(
             int ensembleSize,
             int writeQuorumSize,
             int ackQuorumSize,
             Map<String, byte[]> customMetadata,
-            Set<BookieSocketAddress> excludeBookies
+            Set<BookieId> excludeBookies
     )
             throws BKNotEnoughBookiesException {
 
-        ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);
+        ArrayList<BookieId> newBookies = new ArrayList<>(ensembleSize);
         if (ensembleSize <= 0) {
             return PlacementResult.of(newBookies, PlacementPolicyAdherence.MEETS_STRICT);
         }
-        List<BookieSocketAddress> allBookies;
+        List<BookieId> allBookies;
         synchronized (this) {
             allBookies = new ArrayList<>(knownBookies);
         }
 
-        BookieSocketAddress localBookie = null;
-        for (BookieSocketAddress bookie : allBookies) {
+        BookieId localBookie = null;
+        for (BookieId bookie : allBookies) {
             if (excludeBookies.contains(bookie)) {
                 continue;
             }
@@ -149,7 +151,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
         }
 
         Collections.shuffle(allBookies);
-        for (BookieSocketAddress bookie : allBookies) {
+        for (BookieId bookie : allBookies) {
             if (excludeBookies.contains(bookie)) {
                 continue;
             }
@@ -164,7 +166,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public PlacementPolicyAdherence isEnsembleAdheringToPlacementPolicy(List<BookieSocketAddress> ensembleList,
+    public PlacementPolicyAdherence isEnsembleAdheringToPlacementPolicy(List<BookieId> ensembleList,
             int writeQuorumSize, int ackQuorumSize) {
         return PlacementPolicyAdherence.MEETS_STRICT;
     }

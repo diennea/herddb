@@ -46,7 +46,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import org.apache.bookkeeper.net.BookieSocketAddress;
+import org.apache.bookkeeper.net.BookieId;
 import org.junit.Test;
 
 public class MultiBookieTest extends BookkeeperFailuresBase {
@@ -66,7 +66,7 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, 2);
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, 2);
 
-        List<BookieSocketAddress> bookies;
+        List<BookieId> bookies;
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
@@ -113,10 +113,8 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
         // pause one bookie and boot a new follower server
         // leader is offline, it must read the log
         // we must be able to recover even if one bookie is down
-        for (BookieSocketAddress bAddress : bookies) {
-            String bookieAddress = bAddress.getSocketAddress().toString();
-            System.out.println("PAUSING " + bookieAddress);
-            this.testEnv.pauseBookie(bookieAddress);
+        for (BookieId bAddress : bookies) {
+            this.testEnv.pauseBookie(bAddress);
 
             ServerConfiguration serverconfig_2 = serverconfig_1
                     .copy()
@@ -134,17 +132,15 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
                         TransactionContext.NO_TRANSACTION).found());
             }
 
-            this.testEnv.resumeBookie(bookieAddress);
+            this.testEnv.resumeBookie(bAddress);
         }
 //
 
         // stop one bookie and boot a new follower server
         // leader is offline, it must read the log
         // we must be able to recover even if one bookie is down
-        for (BookieSocketAddress bAddress : bookies) {
-            String bookieAddress = bAddress.getSocketAddress().toString();
-            System.out.println("STOPPING " + bookieAddress);
-            this.testEnv.stopBookie(bookieAddress);
+        for (BookieId bAddress : bookies) {
+            this.testEnv.stopBookie(bAddress);
 
             ServerConfiguration serverconfig_2 = serverconfig_1
                     .copy()
@@ -162,7 +158,7 @@ public class MultiBookieTest extends BookkeeperFailuresBase {
                         TransactionContext.NO_TRANSACTION).found());
             }
 
-            this.testEnv.startStoppedBookie(bookieAddress);
+            this.testEnv.startStoppedBookie(bAddress);
         }
     }
 }
