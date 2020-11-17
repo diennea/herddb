@@ -20,6 +20,7 @@
 package test.entity;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
@@ -35,14 +36,18 @@ import lombok.NoArgsConstructor;
 @SuppressFBWarnings(value = {"UWF_UNWRITTEN_FIELD", "NP_BOOLEAN_RETURN_NULL"},
         justification = " Unwritten field: test.entity.User.pcPCSuperclass [test.entity.User] "
         + " test.entity.User.pcIsDetached() has Boolean return type and returns explicit null")
-public class User {
+public class User {  // this is a reserved word for Calcite
 
     @Id
     @GeneratedValue
     private long id;
+    @Column(unique = true)
     private String name;
-    // reserved word for Calcite
+    // this is a reserved word for Calcite
     private int value;
     @Lob
     private String description;
+//    Uncomment when we can upgrade to OpenJAP 3.1.3
+//    @OneToOne(cascade = CascadeType.ALL)
+//    private Address address;
 }

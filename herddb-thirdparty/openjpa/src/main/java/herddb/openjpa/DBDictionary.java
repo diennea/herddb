@@ -28,11 +28,11 @@ public class DBDictionary extends org.apache.openjpa.jdbc.sql.DBDictionary {
     public DBDictionary() {
         platform = "HerdDB";
         databaseProductName = "HerdDB";
-        supportsForeignKeys = false;
-        supportsUniqueConstraints = false;
-        supportsCascadeDeleteAction = false;
+        supportsDeferredConstraints = false;
+        supportsCascadeUpdateAction = false;
         schemaCase = SCHEMA_CASE_LOWER;
         delimitedCase = SCHEMA_CASE_PRESERVE;
+//        useSchemaName = false;
 
         // make OpenJPA escape everything, because Apache Calcite has a lot of reserved words, like 'User', 'Value'...
         setDelimitIdentifiers(true);

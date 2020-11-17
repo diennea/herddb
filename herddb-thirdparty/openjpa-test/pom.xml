@@ -40,8 +40,8 @@
         </dependency>
         <dependency>
             <groupId>org.apache.openjpa</groupId>
-            <artifactId>openjpa</artifactId>
-            <version>3.1.1</version>
+            <artifactId>openjpa-persistence-jdbc</artifactId>
+            <version>3.1.2</version>
         </dependency>
         <dependency>
             <!-- use 'thin' driver, we want OpenJPA users to be able to run tests

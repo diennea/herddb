@@ -17,36 +17,26 @@
  * under the License.
  *
  */
-package test;
+package test.entity;
 
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.util.Enumeration;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.Persistence;
-import org.junit.Test;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-/**
- *
- * @author enrico.olivelli
- */
-public class JDBCDriverTest {
+@Data
+@Entity
+@NoArgsConstructor
+@AllArgsConstructor
+@SuppressFBWarnings(value = {"UWF_UNWRITTEN_FIELD", "NP_BOOLEAN_RETURN_NULL"})
+public class Address {
 
-    @Test
-    public void hello() throws Exception {
+    @Id
+    @GeneratedValue
+    private long id;
+    private String city;
 
-
-        final EntityManagerFactory factory = Persistence.createEntityManagerFactory("hdb_jdbc");
-
-        DataSourceTest.performAssertions(factory);
-
-        factory.close();
-
-        // clean up, unregistring the driver will shutdown every datasource
-        for (Enumeration<Driver> e = DriverManager.getDrivers(); e.hasMoreElements();) {
-            Driver d = e.nextElement();
-            DriverManager.deregisterDriver(d);
-        }
-
-    }
 }
