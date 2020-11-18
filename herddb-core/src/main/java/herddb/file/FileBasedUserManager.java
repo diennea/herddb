@@ -27,8 +27,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple User Manager which stores user data on disk
@@ -38,7 +38,7 @@ import java.util.logging.Logger;
 public class FileBasedUserManager extends UserManager {
 
     private Map<String, String> users = new HashMap<>();
-    private static final Logger LOG = Logger.getLogger(FileBasedUserManager.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(FileBasedUserManager.class.getName());
 
     public FileBasedUserManager(Path file) throws IOException {
         Files.readAllLines(file, StandardCharsets.UTF_8).forEach(l -> {
@@ -52,9 +52,9 @@ public class FileBasedUserManager extends UserManager {
                         String role = split[2];
                         if (role.equalsIgnoreCase("admin")) {
                             users.put(split[0], split[1]);
-                            LOG.log(Level.SEVERE, "Configure user " + split[0] + " with role " + split[2]);
+                            LOG.error("Configure user " + split[0] + " with role " + split[2]);
                         } else {
-                            LOG.log(Level.SEVERE, "Skipped user " + split[0] + " with role " + split[2] + ". bad role. Only 'admin' is available");
+                            LOG.error("Skipped user " + split[0] + " with role " + split[2] + ". bad role. Only 'admin' is available");
                         }
                     }
                 }

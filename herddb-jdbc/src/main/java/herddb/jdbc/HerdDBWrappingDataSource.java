@@ -23,8 +23,8 @@ package herddb.jdbc;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import java.sql.SQLException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A simple DataSource wrapping around {@link HDBClient} and an optional {@link Server}.
@@ -37,7 +37,7 @@ import java.util.logging.Logger;
  */
 public class HerdDBWrappingDataSource extends BasicHerdDBDataSource {
 
-    private static final Logger LOGGER = Logger.getLogger(HerdDBWrappingDataSource.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(HerdDBWrappingDataSource.class.getName());
 
     private Server server;
 
@@ -66,7 +66,7 @@ public class HerdDBWrappingDataSource extends BasicHerdDBDataSource {
             try {
                 server.close();
             } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error during server shutdown:" + err, err);
+                LOGGER.error("error during server shutdown:" + err, err);
             }
             server = null;
         }

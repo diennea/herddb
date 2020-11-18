@@ -32,9 +32,6 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider;
 import org.apache.bookkeeper.stats.prometheus.PrometheusServlet;
@@ -43,6 +40,8 @@ import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Created by enrico.olivelli on 23/03/2015.
@@ -78,7 +77,7 @@ public class ServerMain implements AutoCloseable {
             try {
                 server.close();
             } catch (Exception ex) {
-                Logger.getLogger(ServerMain.class.getName()).log(Level.SEVERE, null, ex);
+                LoggerFactory.getLogger(ServerMain.class.getName()).error(null, ex);
             } finally {
                 server = null;
             }
@@ -87,7 +86,7 @@ public class ServerMain implements AutoCloseable {
             try {
                 httpserver.stop();
             } catch (Exception ex) {
-                Logger.getLogger(ServerMain.class.getName()).log(Level.SEVERE, null, ex);
+                LoggerFactory.getLogger(ServerMain.class.getName()).error(null, ex);
             } finally {
                 httpserver = null;
             }
@@ -102,7 +101,7 @@ public class ServerMain implements AutoCloseable {
             useEnv();
         }
         try {
-            LOG.log(Level.INFO, "Starting HerdDB version {0}", herddb.utils.Version.getVERSION());
+            LOG.info("Starting HerdDB version {}", herddb.utils.Version.getVERSION());
             Properties configuration = new Properties();
 
             boolean configFileFromParameter = false;
@@ -110,7 +109,7 @@ public class ServerMain implements AutoCloseable {
                 String arg = args[i];
                 if (!arg.startsWith("-")) {
                     File configFile = new File(args[i]).getAbsoluteFile();
-                    LOG.log(Level.INFO, "Reading configuration from {0}", configFile);
+                    LOG.info("Reading configuration from {}", configFile);
                     try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
@@ -128,7 +127,7 @@ public class ServerMain implements AutoCloseable {
             }
             if (!configFileFromParameter) {
                 File configFile = new File("conf/server.properties").getAbsoluteFile();
-                LOG.log(Level.INFO, "Reading configuration from {0}", configFile);
+                LOG.info("Reading configuration from {}", configFile);
                 if (configFile.isFile()) {
                     try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
@@ -142,12 +141,6 @@ public class ServerMain implements AutoCloseable {
                     configuration.put(k, v);
                 }
             });
-
-            final LogManager logManager = LogManager.getLogManager(); // don't re-read the configuration, it is done by this call
-            if (!julConfigFile.equals(System.getProperty("java.util.logging.config.file", ""))) {
-                logManager.readConfiguration();
-            }
-
             Runtime.getRuntime().addShutdownHook(new Thread("ctrlc-hook") {
 
                 @Override
@@ -178,7 +171,7 @@ public class ServerMain implements AutoCloseable {
                 .collect(toMap(e -> e.getKey().substring("HERDDB_ENV_".length()).replace('_', '.'), Map.Entry::getValue)));
     }
 
-    private static final Logger LOG = Logger.getLogger(ServerMain.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerMain.class.getName());
 
     public boolean isStarted() {
         return started;

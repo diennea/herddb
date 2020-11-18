@@ -28,7 +28,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Java 10 compatibile version. In Java 10 you can use O_DIRECT
@@ -37,12 +38,7 @@ import java.util.logging.Logger;
  */
 public class OpenFileUtils {
 
-    private static final Logger LOG = Logger.getLogger(OpenFileUtils.class.getName());
-
-    static {
-        LOG.fine("This JVM is able to use O_DIRECT");
-    }
-
+    private static final Logger LOG = LoggerFactory.getLogger(OpenFileUtils.class.getName());
     public static FileChannel openFileChannelWithO_DIRECT(Path path, OpenOption... options) throws IOException {
         OpenOption[] options2 = new OpenOption[options.length + 1];
         System.arraycopy(options, 0, options2, 0, options.length);

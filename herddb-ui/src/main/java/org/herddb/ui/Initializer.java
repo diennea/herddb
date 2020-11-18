@@ -20,31 +20,24 @@
 
 package org.herddb.ui;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @WebListener
 public class Initializer implements ServletContextListener {
 
-    private static final Logger LOG = Logger.getLogger(Initializer.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(Initializer.class.getName());
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
+        LOG.info("HerdDB UI starting");
     }
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
-        AutoCloseable datasource = (AutoCloseable) sce.getServletContext().getAttribute("datasource");
-        LOG.log(Level.INFO, "Closing datasource {0}", datasource);
-        if (datasource != null) {
-            try {
-                datasource.close();
-            } catch (Exception err) {
-                err.printStackTrace();
-            }
-        }
+        LOG.info("HerdDB UI stopped");
     }
 }

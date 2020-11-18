@@ -55,10 +55,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * In memory StorageManager, for tests
@@ -67,7 +67,7 @@ import java.util.regex.Pattern;
  */
 public class MemoryDataStorageManager extends DataStorageManager {
 
-    private static final Logger LOGGER = Logger.getLogger(MemoryDataStorageManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(MemoryDataStorageManager.class.getName());
 
     public static final class Page {
 
@@ -114,7 +114,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataPageDoesNotExistException {
         Page page = pages.get(tableSpace + "." + tableName + "_" + pageId);
-        //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
+        //LOGGER.error("loadPage " + tableName + " " + pageId + " -> " + page);
         if (page == null) {
             throw new DataPageDoesNotExistException("No such page: " + tableSpace + "." + tableName + " page " + pageId);
         }
@@ -125,7 +125,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
             throws DataStorageManagerException {
         Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
-        //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
+        //LOGGER.error("loadPage " + tableName + " " + pageId + " -> " + page);
         if (page == null) {
             throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
         }
@@ -279,7 +279,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         if (prev != null) {
             throw new DataStorageManagerException("pages are immutable");
         }
-        //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
+        //LOGGER.error("writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 
     @Override
@@ -331,7 +331,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
                 public void run() {
                     // remove only after checkpoint completed
                     pages.remove(prefix + pageId);
-                    LOGGER.log(Level.SEVERE, "removing " + (prefix + pageId));
+                    LOGGER.error("removing " + (prefix + pageId));
                 }
             });
         }

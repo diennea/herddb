@@ -26,14 +26,14 @@ import herddb.model.StatementExecutionException;
 import herddb.server.ServerConfiguration;
 import herddb.utils.SystemProperties;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class AbstractSQLPlanner {
 
     protected final long waitForSchemaTimeout;
-    protected static final Level DUMP_QUERY_LEVEL = Level.parse(SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", Level.FINE.toString()));
-    private static final Logger LOG = Logger.getLogger(AbstractSQLPlanner.class.getName());
+    protected static final String DUMP_QUERY_LEVEL = SystemProperties.getStringSystemProperty("herddb.planner.dumpqueryloglevel", "debug");
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractSQLPlanner.class.getName());
 
     protected final DBManager manager;
 
@@ -68,8 +68,7 @@ public abstract class AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
-                    new Object[]{tableSpace, delta, waitForSchemaTimeout});
+            LOG.debug("schema {} not available yet, after waiting {}/{} ms", tableSpace, delta, waitForSchemaTimeout);
             if (delta >= waitForSchemaTimeout) {
                 return null;
             }

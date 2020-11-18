@@ -23,12 +23,11 @@ package herddb.network.netty;
 import herddb.proto.Pdu;
 import herddb.proto.PduCodec;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Decodes bytes to messages
@@ -37,23 +36,16 @@ import java.util.logging.Logger;
  */
 public class ProtocolMessageDecoder extends ChannelInboundHandlerAdapter {
 
-    private static final Logger LOGGER = Logger.getLogger(ProtocolMessageDecoder.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProtocolMessageDecoder.class.getName());
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         ByteBuf in = (ByteBuf) msg;
-
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            StringBuilder dumper = new StringBuilder();
-            ByteBufUtil.appendPrettyHexDump(dumper, in);
-            LOGGER.log(Level.FINEST, "Received from {}: {}", new Object[]{ctx.channel(), dumper});
-        }
-
         try {
             Pdu pdu = PduCodec.decodePdu(in);
             ctx.fireChannelRead(pdu);
         } catch (Throwable err) {
-            LOGGER.log(Level.SEVERE, "Error decoding PDU", err);
+            LOGGER.error("Error decoding PDU", err);
             ReferenceCountUtil.safeRelease(msg);
         }
 

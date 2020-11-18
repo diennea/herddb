@@ -41,9 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.commons.collections.map.HashedMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -95,13 +95,13 @@ public class Transaction {
         // new Exception("END tx "+transactionId+" now "+refCount).printStackTrace();
         int res = refCount.decrementAndGet();
         if (res < 0) {
-            LOG.log(Level.SEVERE, "transaction {0} "
-                            + "on tablespace {1} "
-                            + "has {2} pending activities",
+            LOG.error("transaction {} "
+                            + "on tablespace {} "
+                            + "has {} pending activities",
                     new Object[]{transactionId, tableSpace, res});
-            throw new IllegalStateException(String.format("transaction {0} "
-                            + "on tablespace {1} "
-                            + "has {2} pending activities", transactionId, tableSpace, res));
+            throw new IllegalStateException(String.format("transaction {} "
+                            + "on tablespace {} "
+                            + "has {} pending activities", transactionId, tableSpace, res));
 
         }
 //         new Exception("END tsx "+transactionId+" now "+res).printStackTrace();
@@ -215,7 +215,7 @@ public class Transaction {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(Transaction.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(Transaction.class.getName());
 
     public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);

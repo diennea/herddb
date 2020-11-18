@@ -59,9 +59,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Block-range like index with pagination managed by a {@link PageReplacementPolicy}
@@ -74,7 +74,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     private static final boolean VALIDATE_CHECKPOINT_METADATA = SystemProperties.getBooleanSystemProperty(
             "herddb.index.brin.validatecheckpointmetadata", true);
 
-    private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(BRINIndexManager.class.getName());
 
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
@@ -250,7 +250,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.FINE, " start BRIN index {0} uuid {1}", new Object[]{index.name, index.uuid});
+        LOGGER.debug(" start BRIN index {} uuid {}", new Object[]{index.name, index.uuid});
 
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
 
@@ -259,7 +259,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             this.data.boot(BlockRangeIndexMetadata.empty());
-            LOGGER.log(Level.FINE, "loaded empty index {0}", new Object[]{index.name});
+            LOGGER.debug("loaded empty index {}", new Object[]{index.name});
 
             return true;
         } else {
@@ -268,7 +268,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             try {
                 status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             } catch (DataStorageManagerException e) {
-                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[]{index.name, e});
+                LOGGER.error("cannot load index {} due to {}, it will be rebuilt", new Object[]{index.name, e});
                 return false;
             }
 
@@ -278,12 +278,12 @@ public class BRINIndexManager extends AbstractIndexManager {
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
             } catch (UnsupportedMetadataVersionException e) {
-                LOGGER.log(Level.SEVERE, "cannot load index {0} due to an old metadata version ({1}) found, it will be rebuilt", new Object[]{index.name, e.version});
+                LOGGER.error("cannot load index {} due to an old metadata version ({}) found, it will be rebuilt", new Object[]{index.name, e.version});
                 return false;
             }
 
             newPageId.set(status.newPageId);
-            LOGGER.log(Level.INFO, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
+            LOGGER.info("loaded index {} {} blocks", new Object[]{index.name, this.data.getNumBlocks()});
             return true;
         }
 
@@ -292,7 +292,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.FINE, "building index {0}", index.name);
+        LOGGER.debug("building index {}", index.name);
         dataStorageManager.initIndex(tableSpaceUUID, index.uuid);
         data.reset();
         Table table = tableManager.getTable();
@@ -301,13 +301,13 @@ public class BRINIndexManager extends AbstractIndexManager {
             DataAccessor values = r.getDataAccessor(table);
             Bytes key = RecordSerializer.serializeIndexKey(values, table, table.primaryKey);
             Bytes indexKey = RecordSerializer.serializeIndexKey(values, index, index.columnNames);
-//            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
+//            LOGGER.error("adding " + key + " -> " + values);
             recordInserted(key, indexKey);
             count.incrementAndGet();
         });
         long _stop = System.currentTimeMillis();
         if (count.intValue() > 0) {
-            LOGGER.log(Level.INFO, "building index {0} took {1}, scanned {2} records", new Object[]{index.name, (_stop - _start) + " ms", count});
+            LOGGER.info("building index {} took {}, scanned {} records", new Object[]{index.name, (_stop - _start) + " ms", count});
         }
     }
 
@@ -328,17 +328,17 @@ public class BRINIndexManager extends AbstractIndexManager {
                     /* Medatada safety check (do not trust blindly ordering) */
                     if (blockData.nextBlockId != null) {
                         if (nextID == null) {
-                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected notingh but {0} found",
+                            LOGGER.warn("Wrong next block on index {}, expected notingh but {} found",
                                     new Object[]{index.name, blockData.nextBlockId});
                             invalid = true;
                         } else if (nextID != blockData.nextBlockId.longValue()) {
-                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but {2} found",
+                            LOGGER.warn("Wrong next block on index {}, expected {} but {} found",
                                     new Object[]{index.name, nextID, blockData.nextBlockId});
                             invalid = true;
                         }
                     } else {
                         if (nextID != null) {
-                            LOGGER.log(Level.WARNING, "Wrong next block on index {0}, expected {1} but nothing found",
+                            LOGGER.warn("Wrong next block on index {}, expected {} but nothing found",
                                     new Object[]{index.name, nextID});
                             invalid = true;
                         }
@@ -349,7 +349,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 }
 
                 if (invalid) {
-                    LOGGER.log(Level.WARNING, data.generateDetailedInternalStatus());
+                    LOGGER.warn(data.generateDetailedInternalStatus());
                 }
             }
 
@@ -366,9 +366,9 @@ public class BRINIndexManager extends AbstractIndexManager {
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
 
-            LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} blocks",
+            LOGGER.info("checkpoint index {} finished: logpos {}, {} blocks",
                     new Object[]{index.name, sequenceNumber, Integer.toString(page.metadata.size())});
-            LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
+            LOGGER.debug("checkpoint index {} finished: logpos {}, pages {}",
                     new Object[]{index.name, sequenceNumber, activePages});
 
             return result;
@@ -415,7 +415,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 byte[] refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
                 lastKey = Bytes.from_array(refmaxvalue);
             }
-            LOGGER.log(Level.FINE, "range scan on {0}.{1}, from {2} to {1}", new Object[]{index.table, index.name, firstKey, lastKey});
+            LOGGER.debug("range scan on {}.{}, from {} to {}", new Object[]{index.table, index.name, firstKey, lastKey});
             return data.query(firstKey, lastKey);
 
         } else {

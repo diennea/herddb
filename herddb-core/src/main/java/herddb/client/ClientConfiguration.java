@@ -29,8 +29,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Client configuration
@@ -39,7 +39,7 @@ import java.util.logging.Logger;
  */
 public class ClientConfiguration {
 
-    private static final Logger LOG = Logger.getLogger(ClientConfiguration.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ClientConfiguration.class.getName());
     private final Properties properties;
 
     /**
@@ -226,7 +226,7 @@ public class ClientConfiguration {
         String configFile = getString("configFile", "");
         if (!configFile.isEmpty()) {
             File file = new File(configFile);
-            LOG.log(Level.INFO, "Reading additional configuration file configFile={0}", file.getAbsolutePath());
+            LOG.info("Reading additional configuration file configFile={}", file.getAbsolutePath());
             Properties additionalProperties = new Properties();
             try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
                 additionalProperties.load(reader);

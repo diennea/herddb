@@ -36,8 +36,8 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HerdDB DataSource
@@ -53,7 +53,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     private boolean autoClose;
     private final AtomicInteger activeCount = new AtomicInteger();
     private Consumer<BasicHerdDBDataSource> onAutoClose = BasicHerdDBDataSource::close;
-    private static final Logger LOGGER = Logger.getLogger(BasicHerdDBDataSource.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(BasicHerdDBDataSource.class.getName());
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
     private String waitForTableSpace = "";
@@ -203,7 +203,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             Properties propsNoPassword = new Properties();
             propsNoPassword.putAll(properties);
             propsNoPassword.setProperty("password", "---");
-            LOGGER.log(Level.INFO, "Booting HerdDB Client, url:" + url + ", properties:" + propsNoPassword + " clientConfig " + clientConfiguration);
+            LOGGER.info("Booting HerdDB Client, url: {}" + url + ", properties: {}, clientConfig {}", url, propsNoPassword, clientConfiguration);
             try {
                 clientConfiguration.readJdbcUrl(url);
             } catch (RuntimeException err) {
@@ -292,8 +292,8 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     @Override
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return LOGGER;
+    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+        return java.util.logging.Logger.getLogger(BasicHerdDBDataSource.class.getName());
     }
 
     @Override

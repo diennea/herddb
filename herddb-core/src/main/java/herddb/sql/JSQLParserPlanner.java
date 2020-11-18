@@ -106,7 +106,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -156,6 +155,8 @@ import net.sf.jsqlparser.statement.select.UnionOp;
 import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Translates SQL to Internal API
@@ -398,9 +399,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
                 allowCache = false;
             }
             ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
-            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
-                        new Object[]{query, executionPlan.mainStatement});
+             if (DUMP_QUERY_LEVEL.equalsIgnoreCase("info") && LOG.isInfoEnabled()
+                        || DUMP_QUERY_LEVEL.equalsIgnoreCase("debug") && LOG.isDebugEnabled()) {
+                    LOG.info("Query: {} --HerdDB Plan\n{}", query, executionPlan.mainStatement);
             }
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
@@ -896,7 +897,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(JSQLParserPlanner.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(JSQLParserPlanner.class.getName());
 
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
         switch (execute.getName().toUpperCase()) {

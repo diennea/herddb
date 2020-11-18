@@ -22,8 +22,8 @@ package herddb.server;
 
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Scanner on the server-side
@@ -46,18 +46,18 @@ public class ServerSideScannerPeer implements AutoCloseable {
         try {
             scanner.close();
         } catch (DataScannerException ex) {
-            LOG.log(Level.SEVERE, "error con closing scanner " + ex, ex);
+            LOG.error("error con closing scanner " + ex, ex);
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(ServerSideScannerPeer.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerSideScannerPeer.class.getName());
 
     @Override
     public void close() {
         try {
             scanner.close();
         } catch (DataScannerException ex) {
-            LOG.log(Level.SEVERE, "error con closing scanner " + ex, ex);
+            LOG.error("error con closing scanner " + ex, ex);
         }
     }
 

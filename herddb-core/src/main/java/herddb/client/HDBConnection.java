@@ -36,9 +36,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.Counter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Connection on the client side
@@ -91,7 +91,7 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public void close() {
-        LOGGER.log(Level.FINER, "{0} close ", this);
+        LOGGER.trace("{} close ", this);
         closed = true;
         routes.forEach((n, b) -> {
             for (ClientSideConnectionPeer cc : b) {
@@ -102,7 +102,7 @@ public class HDBConnection implements AutoCloseable {
         client.releaseConnection(this);
     }
 
-    private static final Logger LOGGER = Logger.getLogger(HDBConnection.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(HDBConnection.class.getName());
 
     public boolean waitForTableSpace(String tableSpace, int timeout) throws HDBException, ClientSideMetadataProviderException {
         long start = System.currentTimeMillis();
@@ -119,7 +119,7 @@ public class HDBConnection implements AutoCloseable {
                         false)) {
                     boolean ok = result.hasNext();
                     if (ok) {
-                        LOGGER.log(Level.INFO, "table space {0} is up now: info {1}", new Object[]{tableSpace,
+                        LOGGER.info("table space {} is up now: info {}", new Object[]{tableSpace,
                                 result
                                         .consume()
                                         .get(0)});
@@ -131,7 +131,7 @@ public class HDBConnection implements AutoCloseable {
                 if (now - start > timeout) {
                     return false;
                 }
-                LOGGER.log(Level.FINE, "tableSpace is still not up " + tableSpace, retry);
+                LOGGER.debug("tableSpace is still not up " + tableSpace, retry);
                 handleRetryError(retry, 0 /* always zero */);
             }
 
@@ -178,7 +178,7 @@ public class HDBConnection implements AutoCloseable {
                 route.commitTransaction(tableSpace, tx);
                 return;
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                LOGGER.error("error " + retry, retry);
                 handleRetryError(retry, trialCount++);
             }
         }
@@ -195,7 +195,7 @@ public class HDBConnection implements AutoCloseable {
                 ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeUpdate(tableSpace, query, tx, returnValues, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                LOGGER.error("error " + retry, retry);
                 handleRetryError(retry, trialCount++);
             }
         }
@@ -235,7 +235,7 @@ public class HDBConnection implements AutoCloseable {
                                 res.completeExceptionally(err);
                                 return;
                             }
-                            LOGGER.log(Level.INFO, "retry #{0} {1}: {2}", new Object[]{count, query, error});
+                            LOGGER.info("retry #{} {}: {}", new Object[]{count, query, error});
                             executeStatementAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, params, count);
                         } else {
                             res.completeExceptionally(error);
@@ -265,7 +265,7 @@ public class HDBConnection implements AutoCloseable {
                                 res.completeExceptionally(err);
                                 return;
                             }
-                            LOGGER.log(Level.INFO, "retry #{0} {1}: {2}", new Object[]{count, query, error});
+                            LOGGER.info("retry #{} {}: {}", new Object[]{count, query, error});
                             executeStatementsAsyncInternal(tableSpace, res, query, tx, returnValues, usePreparedStatement, params, count);
                         } else {
                             res.completeExceptionally(error);
@@ -292,7 +292,7 @@ public class HDBConnection implements AutoCloseable {
                 ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeUpdates(tableSpace, query, tx, returnValues, usePreparedStatement, batch);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                LOGGER.error("error " + retry, retry);
                 handleRetryError(retry, trialCount++);
             }
         }
@@ -329,7 +329,7 @@ public class HDBConnection implements AutoCloseable {
                 ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeGet(tableSpace, query, tx, usePreparedStatement, params);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                LOGGER.error("error " + retry, retry);
                 handleRetryError(retry, trialCount++);
             }
         }
@@ -346,7 +346,7 @@ public class HDBConnection implements AutoCloseable {
                 ClientSideConnectionPeer route = getRouteToTableSpace(tableSpace);
                 return route.executeScan(tableSpace, query, usePreparedStatement, params, tx, maxRows, fetchSize, keepReadLocks);
             } catch (RetryRequestException retry) {
-                LOGGER.log(Level.INFO, "temporary error", retry);
+                LOGGER.info("temporary error", retry);
                 handleRetryError(retry, trialCount++);
             }
 
@@ -355,7 +355,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private void handleRetryError(Throwable retry, int trialCount) throws HDBException, ClientSideMetadataProviderException {
-        LOGGER.log(Level.INFO, "retry #{0}:" + retry, trialCount); // no stracktrace
+        LOGGER.info("retry #{}:" + retry, trialCount); // no stracktrace
         int sleepTimeout = client.getOperationRetryDelay();
         int maxTrials = client.getMaxOperationRetryCount();
         if (retry instanceof RetryRequestException) {

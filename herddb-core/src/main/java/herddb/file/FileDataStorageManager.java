@@ -78,11 +78,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Data Storage on local filesystem
@@ -91,7 +91,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class FileDataStorageManager extends DataStorageManager {
 
-    private static final Logger LOGGER = Logger.getLogger(FileDataStorageManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileDataStorageManager.class.getName());
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final int swapThreshold;
@@ -158,9 +158,9 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void start() throws DataStorageManagerException {
         try {
-            LOGGER.log(Level.FINE, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
+            LOGGER.debug("ensuring directory {}", baseDirectory.toAbsolutePath().toString());
             Files.createDirectories(baseDirectory);
-            LOGGER.log(Level.FINE, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+            LOGGER.debug("preparing tmp directory {}", tmpDirectory.toAbsolutePath().toString());
             FileUtils.cleanDirectory(tmpDirectory);
             Files.createDirectories(tmpDirectory);
         } catch (IOException err) {
@@ -170,11 +170,11 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void close() throws DataStorageManagerException {
-        LOGGER.log(Level.FINE, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+        LOGGER.debug("cleaning tmp directory {}", tmpDirectory.toAbsolutePath().toString());
         try {
             FileUtils.cleanDirectory(tmpDirectory);
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Cannot clean tmp directory", err);
+            LOGGER.error("Cannot clean tmp directory", err);
         }
     }
 
@@ -182,11 +182,11 @@ public class FileDataStorageManager extends DataStorageManager {
     public void eraseTablespaceData(String tableSpace) throws DataStorageManagerException {
         SystemInstrumentation.instrumentationPoint("eraseTablespaceData", tableSpace);
         Path tablespaceDirectory = getTablespaceDirectory(tableSpace);
-        LOGGER.log(Level.INFO, "erasing tablespace " + tableSpace + " directory {0}", tablespaceDirectory.toAbsolutePath().toString());
+        LOGGER.info("erasing tablespace " + tableSpace + " directory {}", tablespaceDirectory.toAbsolutePath().toString());
         try {
             FileUtils.cleanDirectory(tablespaceDirectory);
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Cannot clean directory for tablespace " + tableSpace, err);
+            LOGGER.error("Cannot clean directory for tablespace " + tableSpace, err);
             throw new DataStorageManagerException(err);
         }
     }
@@ -267,7 +267,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void initIndex(String tableSpace, String uuid) throws DataStorageManagerException {
         Path indexDir = getIndexDirectory(tableSpace, uuid);
-        LOGGER.log(Level.FINE, "initIndex {0} {1} at {2}", new Object[]{tableSpace, uuid, indexDir});
+        LOGGER.debug("initIndex {} {} at {}", new Object[]{tableSpace, uuid, indexDir});
         try {
             Files.createDirectories(indexDir);
         } catch (IOException err) {
@@ -278,7 +278,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void initTable(String tableSpace, String uuid) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, uuid);
-        LOGGER.log(Level.FINE, "initTable {0} {1} at {2}", new Object[]{tableSpace, uuid, tableDir});
+        LOGGER.debug("initTable {} {} at {}", new Object[]{tableSpace, uuid, tableDir});
         try {
             Files.createDirectories(tableDir);
         } catch (IOException err) {
@@ -289,7 +289,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void initTablespace(String tableSpace) throws DataStorageManagerException {
         Path tablespaceDir = getTablespaceDirectory(tableSpace);
-        LOGGER.log(Level.FINE, "initTablespace {0} at {1}", new Object[]{tableSpace, tablespaceDir});
+        LOGGER.debug("initTablespace {} at {}", new Object[]{tableSpace, tablespaceDir});
         try {
             Files.createDirectories(tablespaceDir);
         } catch (IOException err) {
@@ -322,7 +322,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
-        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
+        LOGGER.debug("readPage {}.{} {} ms", new Object[]{tableSpace, tableName, delta + ""});
         dataPageReads.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
         return result;
     }
@@ -445,7 +445,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
-        LOGGER.log(Level.FINE, "readIndexPage {0}.{1} {2} ms", new Object[]{tableSpace, indexName, delta + ""});
+        LOGGER.debug("readIndexPage {}.{} {} ms", new Object[]{tableSpace, indexName, delta + ""});
         indexPageReads.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
         return result;
     }
@@ -471,13 +471,13 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private void fullTableScan(String tableSpace, String tableUuid, TableStatus status, FullTableScanConsumer consumer) {
-        LOGGER.log(Level.INFO, "fullTableScan table {0}.{1}, status: {2}", new Object[]{tableSpace, tableUuid, status});
+        LOGGER.info("fullTableScan table {}.{}, status: {}", new Object[]{tableSpace, tableUuid, status});
         consumer.acceptTableStatus(status);
         List<Long> activePages = new ArrayList<>(status.activePages.keySet());
         activePages.sort(null);
         for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableUuid, idpage);
-            LOGGER.log(Level.FINE, "fullTableScan table {0}.{1}, page {2}, contains {3} records", new Object[]{tableSpace, tableUuid, idpage, records.size()});
+            LOGGER.debug("fullTableScan table {}.{}, page {}, contains {} records", new Object[]{tableSpace, tableUuid, idpage, records.size()});
             consumer.acceptPage(idpage, records);
         }
         consumer.endTable();
@@ -565,7 +565,7 @@ public class FileDataStorageManager extends DataStorageManager {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
                 if (isTableOrIndexCheckpointsFile(path)) {
-                    LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
+                    LOGGER.trace("getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
                     FileTime lastModifiedTime = Files.getLastModifiedTime(path);
                     long ts = lastModifiedTime.toMillis();
                     if (lastMod < 0 || lastMod < ts) {
@@ -573,11 +573,11 @@ public class FileDataStorageManager extends DataStorageManager {
                         lastMod = ts;
                     }
                 } else {
-                    LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> SKIP " + path);
+                    LOGGER.trace("getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> SKIP " + path);
                 }
             }
         }
-        LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> " + result);
+        LOGGER.trace("getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> " + result);
         return result;
     }
 
@@ -608,7 +608,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (Files.isRegularFile(checkpointFile)) {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
-                    LOGGER.log(Level.FINE,
+                    LOGGER.debug(
                             "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") already saved on file " + checkpointFile);
                     return Collections.emptyList();
                 }
@@ -619,7 +619,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
-        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") to file " + checkpointFile);
+        LOGGER.debug("tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") to file " + checkpointFile);
 
         try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
              SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
@@ -654,12 +654,12 @@ public class FileDataStorageManager extends DataStorageManager {
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
-            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
+            LOGGER.trace("checkpoint file {} pageId {}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
                     && !pins.containsKey(pageId)
                     && !tableStatus.activePages.containsKey(pageId)
                     && pageId < maxPageId) {
-                LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
+                LOGGER.trace("checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DeleteFileAction(tableSpace, tableName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
         }
@@ -669,13 +669,13 @@ public class FileDataStorageManager extends DataStorageManager {
                 if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
-                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                        LOGGER.trace("checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                         result.add(new DeleteFileAction(tableSpace, tableName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
                     }
                 }
             }
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Could not list table dir " + dir, err);
+            LOGGER.error("Could not list table dir " + dir, err);
         }
         return result;
     }
@@ -691,13 +691,13 @@ public class FileDataStorageManager extends DataStorageManager {
         if (Files.isRegularFile(checkpointFile)) {
             IndexStatus actualStatus = readIndexStatusFromFile(checkpointFile);
             if (actualStatus != null && actualStatus.equals(indexStatus)) {
-                LOGGER.log(Level.INFO,
+                LOGGER.info(
                         "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
                 return Collections.emptyList();
             }
         }
 
-        LOGGER.log(Level.FINE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
+        LOGGER.debug("indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
         try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
              SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
@@ -732,12 +732,12 @@ public class FileDataStorageManager extends DataStorageManager {
         List<Path> pageFiles = getIndexPageFiles(tableSpace, indexName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
-            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
+            LOGGER.trace("checkpoint file {} pageId {}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
                     && !pins.containsKey(pageId)
                     && !indexStatus.activePages.contains(pageId)
                     && pageId < maxPageId) {
-                LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
+                LOGGER.trace("checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DeleteFileAction(tableSpace, indexName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
         }
@@ -747,13 +747,13 @@ public class FileDataStorageManager extends DataStorageManager {
                 if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     IndexStatus status = readIndexStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
-                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                        LOGGER.trace("checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                         result.add(new DeleteFileAction(tableSpace, indexName, "delete checkpoint metadata file " + p.toAbsolutePath(), p));
                     }
                 }
             }
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Could not list indexName dir " + dir, err);
+            LOGGER.error("Could not list indexName dir " + dir, err);
         }
 
         return result;
@@ -849,9 +849,9 @@ public class FileDataStorageManager extends DataStorageManager {
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
-            LOGGER.log(Level.FINER, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
+            LOGGER.trace("cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
-                LOGGER.log(Level.FINE, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
+                LOGGER.debug("cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException err) {
@@ -927,8 +927,8 @@ public class FileDataStorageManager extends DataStorageManager {
         long now = System.currentTimeMillis();
         long delta = (now - _start);
 
-        if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms", new Object[]{(size / 1024) + "", newPage.size(), delta + ""});
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("writePage {} KBytes,{} records, time {} ms", new Object[]{(size / 1024) + "", newPage.size(), delta + ""});
         }
         dataPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
@@ -978,20 +978,20 @@ public class FileDataStorageManager extends DataStorageManager {
             }
 
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Failed to write on path: {0}", pageFile);
+            LOGGER.error("Failed to write on path: {}", pageFile);
             Path path = pageFile;
             boolean exists;
             do {
                 exists = Files.exists(path);
 
                 if (exists) {
-                    LOGGER.log(Level.INFO,
-                            "Path {0}: directory {1}, file {2}, link {3}, writable {4}, readable {5}, executable {6}",
+                    LOGGER.info(
+                            "Path {}: directory {}, file {}, link {}, writable {}, readable {}, executable {}",
                             new Object[] { path, Files.isDirectory(path), Files.isRegularFile(path),
                                     Files.isSymbolicLink(path), Files.isWritable(path), Files.isReadable(path),
                                     Files.isExecutable(path) });
                 } else {
-                    LOGGER.log(Level.INFO, "Path {0} doesn't exists", path);
+                    LOGGER.info("Path {} doesn't exists", path);
                 }
 
                 path = path.getParent();
@@ -1002,8 +1002,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
         long now = System.currentTimeMillis();
         long delta = (now - _start);
-        if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", delta + ""});
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("writePage {} KBytes, time {} ms", new Object[]{(size / 1024) + "", delta + ""});
         }
         indexPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
@@ -1054,10 +1054,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
-            LOGGER.log(Level.INFO, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
+            LOGGER.info("loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
             if (!Files.isRegularFile(file)) {
                 if (sequenceNumber.isStartOfTime()) {
-                    LOGGER.log(Level.INFO, "file " + file.toAbsolutePath().toString() + " not found");
+                    LOGGER.info("file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
                     throw new DataStorageManagerException("local table data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
@@ -1105,10 +1105,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
-            LOGGER.log(Level.INFO, "loadIndexes for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
+            LOGGER.info("loadIndexes for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
             if (!Files.isRegularFile(file)) {
                 if (sequenceNumber.isStartOfTime()) {
-                    LOGGER.log(Level.INFO, "file " + file.toAbsolutePath().toString() + " not found");
+                    LOGGER.info("file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
                     throw new DataStorageManagerException("local index data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
@@ -1160,7 +1160,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Path parent = getParent(fileTables);
             Files.createDirectories(parent);
 
-            LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + fileTables.toAbsolutePath().toString());
+            LOGGER.debug("writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + fileTables.toAbsolutePath().toString());
             try (ManagedFile file = ManagedFile.open(fileTables, requirefsync);
                  SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                  ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
@@ -1219,28 +1219,28 @@ public class FileDataStorageManager extends DataStorageManager {
                         try {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, p);
                             if (sequenceNumber.after(logPositionInFile)) {
-                                LOGGER.log(Level.FINEST, "indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                                LOGGER.trace("indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                                 result.add(new DeleteFileAction(tableSpace, "indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
                             }
                         } catch (DataStorageManagerException ignore) {
-                            LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
+                            LOGGER.error("Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
                             result.add(new DeleteFileAction(tableSpace, "indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
                         }
                     } else if (isTablespaceTablesMetadataFile(p)) {
                         try {
                             LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
                             if (sequenceNumber.after(logPositionInFile)) {
-                                LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                                LOGGER.trace("tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                                 result.add(new DeleteFileAction(tableSpace, "tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
                             }
                         } catch (DataStorageManagerException ignore) {
-                            LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
+                            LOGGER.error("Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
                             result.add(new DeleteFileAction(tableSpace, "transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
                         }
                     }
                 }
             } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
+                LOGGER.error("Could not list dir " + tableSpaceDirectory, err);
             }
         }
         return result;
@@ -1256,7 +1256,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(parent);
 
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
-            LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
+            LOGGER.info("checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
 
             try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                  SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
@@ -1287,17 +1287,17 @@ public class FileDataStorageManager extends DataStorageManager {
                     try {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromCheckpointInfoFile(tableSpace, p);
                         if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "checkpoint info file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                            LOGGER.trace("checkpoint info file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                             result.add(new DeleteFileAction(tableSpace, "checkpoint", "delete checkpoint info file " + p.toAbsolutePath(), p));
                         }
                     } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
+                        LOGGER.error("unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
                         // do not auto-delete checkpoint files
                     }
                 }
             }
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
+            LOGGER.error("Could not list dir " + tableSpaceDirectory, err);
         }
         return result;
 
@@ -1306,7 +1306,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void dropTable(String tablespace, String tableName) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tablespace, tableName);
-        LOGGER.log(Level.INFO, "dropTable {0}.{1} in {2}", new Object[]{tablespace, tableName, tableDir});
+        LOGGER.info("dropTable {}.{} in {}", new Object[]{tablespace, tableName, tableDir});
         try {
             deleteDirectory(tableDir);
         } catch (IOException ex) {
@@ -1317,7 +1317,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void truncateIndex(String tablespace, String name) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tablespace, name);
-        LOGGER.log(Level.INFO, "truncateIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
+        LOGGER.info("truncateIndex {}.{} in {}", new Object[]{tablespace, name, tableDir});
         try {
             cleanDirectory(tableDir);
         } catch (IOException ex) {
@@ -1328,7 +1328,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tablespace, name);
-        LOGGER.log(Level.INFO, "dropIndex {0}.{1} in {2}", new Object[]{tablespace, name, tableDir});
+        LOGGER.info("dropIndex {}.{} in {}", new Object[]{tablespace, name, tableDir});
         try {
             deleteDirectory(tableDir);
         } catch (IOException ex) {
@@ -1370,12 +1370,12 @@ public class FileDataStorageManager extends DataStorageManager {
                                 max = logPositionInFile;
                             }
                         } catch (DataStorageManagerException ignore) {
-                            LOGGER.log(Level.SEVERE, "unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
+                            LOGGER.error("unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
                         }
                     }
                 }
             } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
+                LOGGER.error("Could not list dir " + tableSpaceDirectory, err);
             }
             return max;
         } catch (IOException err) {
@@ -1446,7 +1446,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
             boolean exists = Files.isRegularFile(file);
-            LOGGER.log(Level.INFO, "loadTransactions " + sequenceNumber + " for tableSpace " + tableSpace + " from file " + file + " (exists: " + exists + ")");
+            LOGGER.info("loadTransactions " + sequenceNumber + " for tableSpace " + tableSpace + " from file " + file + " (exists: " + exists + ")");
             if (!exists) {
                 return;
             }
@@ -1490,7 +1490,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(parent);
 
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
-            LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, checkPointFile.toAbsolutePath().toString(), transactions.size()});
+            LOGGER.debug("writeTransactionsAtCheckpoint for tableSpace {} sequenceNumber {} to {}, active transactions {}", new Object[]{tableSpace, sequenceNumber, checkPointFile.toAbsolutePath().toString(), transactions.size()});
             try (ManagedFile file = ManagedFile.open(checkpointFileTemp, requirefsync);
                  SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
                  ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
@@ -1528,17 +1528,17 @@ public class FileDataStorageManager extends DataStorageManager {
                     try {
                         LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTransactionsFile(tableSpace, p);
                         if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "transactions metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                            LOGGER.trace("transactions metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                             result.add(new DeleteFileAction(tableSpace, "transactions", "delete transactions file " + p.toAbsolutePath(), p));
                         }
                     } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "Unparsable transactions file " + p.toAbsolutePath(), ignore);
+                        LOGGER.error("Unparsable transactions file " + p.toAbsolutePath(), ignore);
                         result.add(new DeleteFileAction(tableSpace, "transactions", "delete unparsable transactions file " + p.toAbsolutePath(), p));
                     }
                 }
             }
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
+            LOGGER.error("Could not list dir " + tableSpaceDirectory, err);
         }
         return result;
     }
@@ -1555,10 +1555,10 @@ public class FileDataStorageManager extends DataStorageManager {
         @Override
         public void run() {
             try {
-                LOGGER.log(Level.FINE, description);
+                LOGGER.debug(description);
                 Files.deleteIfExists(p);
             } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                LOGGER.error("Could not delete file " + p.toAbsolutePath() + ":" + err, err);
             }
         }
     }

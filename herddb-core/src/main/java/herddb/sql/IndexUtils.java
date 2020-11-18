@@ -35,19 +35,19 @@ import herddb.sql.expressions.CompiledSQLExpression;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.SqlExplainFormat;
 import org.apache.calcite.sql.SqlExplainLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utilities for searching for possible Index usages
  */
 public class IndexUtils {
 
-    private static final Logger LOG = Logger.getLogger(IndexUtils.class
+    private static final Logger LOG = LoggerFactory.getLogger(IndexUtils.class
             .getName());
 
     static void discoverIndexOperations(final String tableSpace,
@@ -190,10 +190,10 @@ public class IndexUtils {
             return filterPk.remapPositionalAccessToToPrimaryKeyAccessor(projectionToKey);
         } catch (IllegalStateException notImplemented) {
             if (debug instanceof RelNode) {
-                LOG.log(Level.INFO, "Not implemented best access for PK on "
+                LOG.info("Not implemented best access for PK on "
                         + RelOptUtil.dumpPlan("", (RelNode) debug, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES), notImplemented);
             } else {
-                LOG.log(Level.INFO, "Not implemented best access for PK on {0}", debug);
+                LOG.info("Not implemented best access for PK on {}", debug);
             }
             return null;
         }

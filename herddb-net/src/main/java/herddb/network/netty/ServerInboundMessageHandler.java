@@ -23,8 +23,8 @@ package herddb.network.netty;
 import herddb.proto.Pdu;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles messages
@@ -33,7 +33,7 @@ import java.util.logging.Logger;
  */
 public class ServerInboundMessageHandler extends ChannelInboundHandlerAdapter {
 
-    private static final Logger LOG = Logger.getLogger(ServerInboundMessageHandler.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerInboundMessageHandler.class.getName());
 
     private final NettyChannel session;
 
@@ -43,7 +43,7 @@ public class ServerInboundMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        LOG.log(Level.SEVERE, "error on channel " + ctx, cause);
+        LOG.error("error on channel " + ctx, cause);
         ctx.close();
         session.exceptionCaught(cause);
     }

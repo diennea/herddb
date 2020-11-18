@@ -21,14 +21,13 @@ package herddb.network.netty;
 
 import herddb.network.SendResultCallback;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Channel implemented on Netty
@@ -39,7 +38,7 @@ public class NettyChannel extends AbstractChannel {
 
     volatile io.netty.channel.Channel socket;
     protected final AtomicInteger unflushedWrites = new AtomicInteger();
-    private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(NettyChannel.class.getName());
 
     @Override
     public String toString() {
@@ -62,11 +61,6 @@ public class NettyChannel extends AbstractChannel {
             callback.messageSent(new Exception(this + " connection is closed"));
             return;
         }
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            StringBuilder dumper = new StringBuilder();
-            ByteBufUtil.appendPrettyHexDump(dumper, message);
-            LOGGER.log(Level.FINEST, "Sending to {}: {}", new Object[]{_socket, dumper});
-        }
         _socket.writeAndFlush(message).addListener(new GenericFutureListener() {
 
             @Override
@@ -74,7 +68,7 @@ public class NettyChannel extends AbstractChannel {
                 if (future.isSuccess()) {
                     callback.messageSent(null);
                 } else {
-                    LOGGER.log(Level.SEVERE, this + ": error " + future.cause(), future.cause());
+                    LOGGER.error(this + ": error " + future.cause(), future.cause());
                     callback.messageSent(future.cause());
                     close();
                 }

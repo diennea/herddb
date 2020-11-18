@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -43,6 +41,8 @@ import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslClient;
 import javax.security.sasl.SaslException;
 import org.apache.zookeeper.server.auth.KerberosName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Sasl Client
@@ -51,14 +51,13 @@ import org.apache.zookeeper.server.auth.KerberosName;
  */
 public class SaslNettyClient {
 
-    private static final Logger LOG = Logger
-            .getLogger(SaslNettyClient.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(SaslNettyClient.class.getName());
 
     /**
      * Used to respond to server's counterpart, SaslServer with SASL tokens represented as byte arrays.
      */
-    private SaslClient saslClient;
-    private Subject clientSubject;
+    private final SaslClient saslClient;
+    private final Subject clientSubject;
 
     /**
      * Create a SaslNettyClient for authentication with servers.
@@ -68,13 +67,13 @@ public class SaslNettyClient {
         clientSubject = loginClient();
 
         if (clientSubject == null) {
-            LOG.log(Level.FINEST, "Using plain SASL/DIGEST-MD5 auth to connect to " + serverHostname);
+            LOG.trace("Using plain SASL/DIGEST-MD5 auth to connect to " + serverHostname);
             saslClient = Sasl.createSaslClient(
                     new String[]{SaslUtils.AUTH_DIGEST_MD5}, null, null,
                     SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(),
                     new SaslClientCallbackHandler(username, password.toCharArray()));
         } else if (clientSubject.getPrincipals().isEmpty()) {
-            LOG.log(Level.FINEST, "Using JAAS/SASL/DIGEST-MD5 auth to connect to " + serverPrincipal);
+            LOG.trace("Using JAAS/SASL/DIGEST-MD5 auth to connect to " + serverPrincipal);
             String[] mechs = {"DIGEST-MD5"};
             username = (String) (clientSubject.getPublicCredentials().toArray()[0]);
             password = (String) (clientSubject.getPrivateCredentials().toArray()[0]);
@@ -88,7 +87,7 @@ public class SaslNettyClient {
             final String serviceName = serviceKerberosName.getServiceName();
             final String serviceHostname = serviceKerberosName.getHostName();
             final String clientPrincipalName = clientKerberosName.toString();
-            LOG.log(Level.FINEST, "Using JAAS/SASL/GSSAPI auth to connect to server Principal " + serverPrincipal);
+            LOG.trace("Using JAAS/SASL/GSSAPI auth to connect to server Principal " + serverPrincipal);
             saslClient = Subject.doAs(clientSubject, new PrivilegedExceptionAction<SaslClient>() {
                 @Override
                 public SaslClient run() throws SaslException {
@@ -130,16 +129,16 @@ public class SaslNettyClient {
         String clientSection = "HerdDBClient";
         AppConfigurationEntry[] entries = Configuration.getConfiguration().getAppConfigurationEntry(clientSection);
         if (entries == null) {
-            LOG.log(Level.FINEST, "No JAAS Configuration found with section HerdDBClient");
+            LOG.trace("No JAAS Configuration found with section HerdDBClient");
             return null;
         }
         try {
             LoginContext loginContext = new LoginContext(clientSection, new ClientCallbackHandler(null));
             loginContext.login();
-            LOG.log(Level.INFO, "Using JAAS Configuration subject: " + loginContext.getSubject());
+            LOG.info("Using JAAS Configuration subject: " + loginContext.getSubject());
             return loginContext.getSubject();
         } catch (LoginException error) {
-            LOG.log(Level.SEVERE, "Error JAAS Configuration subject: " + error, error);
+            LOG.error("Error JAAS Configuration subject: " + error, error);
             return null;
         }
     }
@@ -211,9 +210,7 @@ public class SaslNettyClient {
             byte[] retval = saslClient.evaluateChallenge(saslTokenMessage);
             return retval;
         } catch (SaslException e) {
-            LOG.log(Level.SEVERE,
-                    "saslResponse: Failed to respond to SASL server's token:",
-                    e);
+            LOG.error("saslResponse: Failed to respond to SASL server's token:" + e, e);
             return null;
         }
     }

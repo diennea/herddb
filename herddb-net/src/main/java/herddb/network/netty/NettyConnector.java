@@ -38,9 +38,9 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Client-side connector
@@ -49,7 +49,7 @@ import javax.net.ssl.SSLException;
  */
 public class NettyConnector {
 
-    private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(NettyConnector.class.getName());
 
     public static herddb.network.Channel connect(
             String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
@@ -116,15 +116,13 @@ public class NettyConnector {
                             ch.pipeline().addLast("messagedecoder", new ProtocolMessageDecoder());
                             ch.pipeline().addLast(new ClientInboundMessageHandler(channel));
                         } catch (Throwable t) {
-                            LOGGER.log(Level.SEVERE, "error connecting", t);
+                            LOGGER.error("error connecting", t);
                             ch.close();
                         }
                     }
                 }
                 );
-        LOGGER.log(Level.FINE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
-        }
-        );
+        LOGGER.debug("connecting to {}:{} ssl={} address={}", host, port, ssl, address);
         b.connect(address).sync();
         NettyChannel nettyChannel = result.get();
         if (!nettyChannel.isValid()) {

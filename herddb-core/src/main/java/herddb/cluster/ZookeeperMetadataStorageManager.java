@@ -36,8 +36,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -45,6 +43,8 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Metadata storage manager over Zookeeper
@@ -53,7 +53,7 @@ import org.apache.zookeeper.data.Stat;
  */
 public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
-    private static final Logger LOGGER = Logger.getLogger(ZookeeperMetadataStorageManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ZookeeperMetadataStorageManager.class.getName());
 
     private ZooKeeper zooKeeper;
     private final String zkAddress;
@@ -127,7 +127,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         try {
             restartZooKeeper();
         } catch (IOException | InterruptedException err) {
-            LOGGER.log(Level.SEVERE, "Error handling session expired", err);
+            LOGGER.error("Error handling session expired", err);
         }
     }
 
@@ -151,7 +151,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         if (started) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "start, zkAddress " + zkAddress + ", zkSessionTimeout:" + zkSessionTimeout + ", basePath:" + basePath);
+        LOGGER.error("start, zkAddress " + zkAddress + ", zkSessionTimeout:" + zkSessionTimeout + ", basePath:" + basePath);
         try {
             restartZooKeeper();
             if (formatIfNeeded) {
@@ -217,10 +217,10 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 byte[] actualLedgers = zooKeeper.getData(ledgersPath + "/" + tableSpaceUUID, false, stat);
                 return LedgersInfo.deserialize(actualLedgers, stat.getVersion());
             } catch (KeeperException.NoNodeException firstboot) {
-                LOGGER.log(Level.INFO, "node " + ledgersPath + "/" + tableSpaceUUID + " not found");
+                LOGGER.info("node " + ledgersPath + "/" + tableSpaceUUID + " not found");
                 return LedgersInfo.deserialize(null, -1); // -1 is a special ZK version
             } catch (KeeperException.ConnectionLossException error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath + "/" + tableSpaceUUID, error);
+                LOGGER.error("error while loading actual ledgers list at " + ledgersPath + "/" + tableSpaceUUID, error);
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException err) {
@@ -228,7 +228,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     throw new LogNotAvailableException(err);
                 }
             } catch (Exception error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath + "/" + tableSpaceUUID, error);
+                LOGGER.error("error while loading actual ledgers list at " + ledgersPath + "/" + tableSpaceUUID, error);
                 throw new LogNotAvailableException(error);
             }
         }
@@ -251,7 +251,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     try {
                         Stat newStat = ensureZooKeeper().setData(ledgersPath + "/" + tableSpaceUUID, actualLedgers, info.getZkVersion());
                         info.setZkVersion(newStat.getVersion());
-                        LOGGER.log(Level.SEVERE, "save new ledgers list " + info + " to " + ledgersPath + "/" + tableSpaceUUID);
+                        LOGGER.error("save new ledgers list " + info + " to " + ledgersPath + "/" + tableSpaceUUID);
                         return;
                     } catch (KeeperException.NoNodeException firstboot) {
                         ensureZooKeeper().create(ledgersPath + "/" + tableSpaceUUID, actualLedgers, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
@@ -259,7 +259,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                         throw new LogNotAvailableException(new Exception("ledgers actual list was fenced, expecting version " + info.getZkVersion() + " " + fenced, fenced).fillInStackTrace());
                     }
                 } catch (KeeperException.ConnectionLossException anyError) {
-                    LOGGER.log(Level.SEVERE, "temporary error", anyError);
+                    LOGGER.error("temporary error", anyError);
                     Thread.sleep(10000);
                 } catch (Exception anyError) {
                     handleSessionExpiredError(anyError);
@@ -267,7 +267,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 }
             }
         } catch (InterruptedException stop) {
-            LOGGER.log(Level.SEVERE, "fatal error", stop);
+            LOGGER.error("fatal error", stop);
             throw new LogNotAvailableException(stop);
 
         }
@@ -476,7 +476,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 ensureZooKeeper().delete(ledgersPath + "/" + child, -1);
             }
         } catch (InterruptedException | KeeperException | IOException error) {
-            LOGGER.log(Level.SEVERE, "Cannot clear metadata", error);
+            LOGGER.error("Cannot clear metadata", error);
             throw new MetadataStorageManagerException(error);
         }
 
@@ -493,12 +493,12 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
         try {
             String path = nodesPath + "/" + nodeMetadata.nodeId;
-            LOGGER.severe("registerNode at " + path + " -> " + nodeMetadata);
+            LOGGER.error("registerNode at " + path + " -> " + nodeMetadata);
             byte[] data = nodeMetadata.serialize();
             try {
                 ensureZooKeeper().create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
             } catch (KeeperException.NodeExistsException ok) {
-                LOGGER.severe("registerNode at " + path + " " + ok);
+                LOGGER.error("registerNode at " + path + " " + ok);
                 ensureZooKeeper().setData(path, data, -1);
             }
             notifyMetadataChanged("registerNode " + nodeMetadata);
@@ -526,7 +526,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     TableSpaceReplicaState nodeMetadata = TableSpaceReplicaState.deserialize(data);
                     result.add(nodeMetadata);
                 } catch (IOException deserializeError) {
-                    LOGGER.log(Level.SEVERE, "error reading " + path, deserializeError);
+                    LOGGER.error("error reading " + path, deserializeError);
                 }
             }
             return result;

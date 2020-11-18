@@ -33,13 +33,14 @@ import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import java.sql.Timestamp;
-import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Predicate expressed using SQL syntax
@@ -48,7 +49,7 @@ import net.sf.jsqlparser.expression.TimestampValue;
  */
 public class SQLRecordPredicate extends Predicate {
 
-    private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(SQLRecordPredicate.class.getName());
 
     static boolean isConstant(Expression exp) {
         return exp instanceof StringValue

@@ -26,7 +26,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Java 8 compatibile version. In Java 8 you cannot use O_DIRECT
@@ -35,7 +36,7 @@ import java.util.logging.Logger;
  */
 public class OpenFileUtils {
 
-    private static final Logger LOG = Logger.getLogger(OpenFileUtils.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(OpenFileUtils.class.getName());
 
     static {
         LOG.info("This JVM is not able to use O_DIRECT (only from Java 10+)");

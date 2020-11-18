@@ -22,8 +22,8 @@ package herddb.utils;
 
 import java.util.concurrent.Callable;
 import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author francesco.caliumi
@@ -119,14 +119,14 @@ public class TestUtils {
         } catch (InterruptedException ee) {
             throw new AssertionError("test interrupted!", ee);
         } catch (Exception ee) {
-            LOG.log(Level.SEVERE, "error during wait", ee);
+            LOG.error("error during wait", ee);
             throw new AssertionError("error while evaluating condition:" + ee);
         }
         String d = description == null ? "" : " " + description;
         throw new AssertionError("condition not met in time!" + d);
     }
 
-    private static final Logger LOG = Logger.getLogger(TestUtils.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(TestUtils.class.getName());
 
     public static final Callable<Void> NOOP = () -> null;
 

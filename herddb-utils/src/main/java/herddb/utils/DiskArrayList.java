@@ -29,10 +29,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ArrayList backed by disk
@@ -136,11 +136,11 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         closeWriter();
         closeReader();
         if (tmpFile != null) {
-            logger.log(Level.FINER, "destroy tmp swap file {0}", tmpFile);
+            logger.trace("destroy tmp swap file {}", tmpFile);
             try {
                 Files.deleteIfExists(tmpFile);
             } catch (IOException error) {
-                logger.log(Level.SEVERE, "cannot delete tmp swap file {0}: " + error, tmpDir);
+                logger.error("cannot delete tmp swap file {}: " + error, tmpDir);
             }
             tmpFile = null;
         }
@@ -280,7 +280,10 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         } else {
             this.tmpFile = Files.createTempFile(tmpDir, "listswap", ".tmp");
         }
-        logger.log(Level.FINE, "opening tmp swap file {0}", tmpFile.toAbsolutePath());
+        if (logger.isDebugEnabled()) {
+            // toAbsolutePath requires disk metadata
+            logger.debug("opening tmp swap file {}", tmpFile.toAbsolutePath());
+        }
         writing = true;
         try {
             out = Files.newOutputStream(tmpFile);
@@ -351,6 +354,6 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     private boolean written;
     private int size;
     private int countread;
-    private static final Logger logger = Logger.getLogger(DiskArrayList.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(DiskArrayList.class.getName());
     private final Path tmpDir;
 }

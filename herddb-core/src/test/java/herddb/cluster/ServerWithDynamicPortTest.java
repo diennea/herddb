@@ -29,7 +29,6 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
 import java.util.Collections;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.test.TestStatsProvider;
 import org.junit.After;
@@ -37,6 +36,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests about retrying queries in case of network address change.
@@ -45,7 +46,7 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ServerWithDynamicPortTest {
 
-    private static final Logger LOG = Logger.getLogger(ServerWithDynamicPortTest.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerWithDynamicPortTest.class.getName());
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();

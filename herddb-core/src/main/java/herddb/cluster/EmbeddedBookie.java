@@ -30,8 +30,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
@@ -39,6 +37,8 @@ import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -47,7 +47,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class EmbeddedBookie implements AutoCloseable {
 
-    private static final Logger LOG = Logger.getLogger(EmbeddedBookie.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedBookie.class.getName());
 
     private final Path baseDirectory;
     private final ServerConfiguration configuration;
@@ -81,8 +81,8 @@ public class EmbeddedBookie implements AutoCloseable {
             Integer _port = readLocalBookiePort(bookie_dir);
             if (_port == null) {
                 _port = NetworkUtils.assignFirstFreePort();
-                LOG.log(Level.SEVERE, "As configuration parameter "
-                        + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {0},I have choosen to listen on port {1}."
+                LOG.error("As configuration parameter "
+                        + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {},I have choosen to listen on port {}."
                         + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
                 persistLocalBookiePort(bookie_dir, _port);
             }
@@ -94,9 +94,9 @@ public class EmbeddedBookie implements AutoCloseable {
             if (bookieId.isEmpty()) {
                 throw new RuntimeException("Cannot use BookieId as main " + ServerConfiguration.PROPERTY_NODEID + " is not set");
             }
-            LOG.log(Level.SEVERE, "As configuration parameter "
+            LOG.error("As configuration parameter "
                     + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED
-                    + " is {0},I have choosen to use the main server node id (" + ServerConfiguration.PROPERTY_NODEID + ") {1}", new Object[] {enableBookieId, bookieId});
+                    + " is {},I have choosen to use the main server node id (" + ServerConfiguration.PROPERTY_NODEID + ") {}", new Object[] {enableBookieId, bookieId});
             conf.setBookieId(bookieId);
         }
         conf.setBookiePort(port);
@@ -124,17 +124,17 @@ public class EmbeddedBookie implements AutoCloseable {
                 String bookieConf = key.substring("bookie.".length());
                 String value = configuration.getString(key, null);
                 conf.addProperty(bookieConf, value);
-                LOG.log(Level.CONFIG, "config {0} remapped to {1}={2}", new Object[]{key, bookieConf, value});
+                LOG.info("config {} remapped to {}={}", key, bookieConf, value);
             }
         }
         long _start = System.currentTimeMillis();
-        LOG.severe("Booting Apache Bookkeeper on port " + port + ",  base directory: " + bookie_dir);
+        LOG.error("Booting Apache Bookkeeper on port " + port + ",  base directory: " + bookie_dir);
 
         Files.createDirectories(bookie_dir);
         dumpBookieConfiguration(bookie_dir, conf);
 
         boolean forcemetaformat = configuration.getBoolean("bookie.forcemetaformat", false);
-        LOG.log(Level.CONFIG, "bookie.forcemetaformat={0}", forcemetaformat);
+        LOG.info("bookie.forcemetaformat={}", forcemetaformat);
 
         boolean result = BookKeeperAdmin.format(conf, false, forcemetaformat);
         if (result) {
@@ -144,7 +144,7 @@ public class EmbeddedBookie implements AutoCloseable {
         }
 
         boolean forceformat = configuration.getBoolean("bookie.forceformat", false);
-        LOG.log(Level.CONFIG, "bookie.forceformat={0}", forceformat);
+        LOG.info("bookie.forceformat={}", forceformat);
         if (forceformat) {
             result = Bookie.format(conf, false, forceformat);
             if (result) {
@@ -164,7 +164,7 @@ public class EmbeddedBookie implements AutoCloseable {
             Thread.sleep(500);
         }
         long _stop = System.currentTimeMillis();
-        LOG.severe("Booting Apache Bookkeeper finished. Time " + (_stop - _start) + " ms");
+        LOG.error("Booting Apache Bookkeeper finished. Time " + (_stop - _start) + " ms");
 
     }
 
@@ -182,7 +182,7 @@ public class EmbeddedBookie implements AutoCloseable {
         }
         Files.write(actual_bookkeeper_configuration, builder.toString().getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-        LOG.severe(
+        LOG.error(
                 "Dumped actual Bookie configuration to " + actual_bookkeeper_configuration.toAbsolutePath());
     }
 
@@ -205,9 +205,9 @@ public class EmbeddedBookie implements AutoCloseable {
     public Integer readLocalBookiePort(Path dataPath) throws IOException {
         Path file = dataPath.resolve("bookie_port");
         try {
-            LOG.log(Level.SEVERE, "Looking for local port into file {0}", file);
+            LOG.error("Looking for local port into file {}", file);
             if (!Files.isRegularFile(file)) {
-                LOG.log(Level.SEVERE, "Cannot find file {0}", file);
+                LOG.error("Cannot find file {}", file);
                 return null;
             }
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
@@ -218,12 +218,12 @@ public class EmbeddedBookie implements AutoCloseable {
                     continue;
                 }
                 int res = Integer.parseInt(line);
-                LOG.log(Level.SEVERE, "Found local port {0} into file {1}", new Object[]{Integer.toString(res), file});
+                LOG.error("Found local port {} into file {}", new Object[]{Integer.toString(res), file});
                 return res;
             }
             throw new IOException("Cannot find any valid line inside file " + file.toAbsolutePath());
         } catch (IOException error) {
-            LOG.log(Level.SEVERE, "Error while reading file " + file.toAbsolutePath(), error);
+            LOG.error("Error while reading file " + file.toAbsolutePath(), error);
             throw error;
         }
     }

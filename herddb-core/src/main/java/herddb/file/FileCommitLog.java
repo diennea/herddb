@@ -53,12 +53,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.Gauge;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Commit log on file
@@ -67,7 +67,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class FileCommitLog extends CommitLog {
 
-    private static final Logger LOGGER = Logger.getLogger(FileCommitLog.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileCommitLog.class.getName());
 
     private Path logDirectory;
     private final String tableSpaceName;
@@ -123,7 +123,7 @@ public class FileCommitLog extends CommitLog {
                 deferredSyncs.inc();
                 needsSync = false;
             } catch (Throwable t) {
-                LOGGER.log(Level.SEVERE, "error background fsync on " + this.logDirectory, t);
+                LOGGER.error("error background fsync on " + this.logDirectory, t);
             }
         }
     }
@@ -146,7 +146,7 @@ public class FileCommitLog extends CommitLog {
             // in case of IOException the stream is not opened, not need to close it
             if (enableO_DIRECT) {
                 Files.createFile(filename);
-                LOGGER.log(Level.FINE, "opening (O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
+                LOGGER.debug("opening (O_DIRECT) new file {} for tablespace {}", new Object[]{filename, tableSpaceName});
                 // in O_DIRECT mode we have to call flush() and this will
                 // eventually write all data to disks, adding some padding of zeroes
                 // because in O_DIRECT mode you can only write fixed length blocks
@@ -158,7 +158,7 @@ public class FileCommitLog extends CommitLog {
                 this.channel = oo.getFc();
                 this.out = new ExtendedDataOutputStream(oo);
             } else {
-                LOGGER.log(Level.FINE, "opening (no O_DIRECT) new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
+                LOGGER.debug("opening (no O_DIRECT) new file {} for tablespace {}", new Object[]{filename, tableSpaceName});
                 this.channel = FileChannel.open(filename,
                         StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
@@ -311,7 +311,7 @@ public class FileCommitLog extends CommitLog {
             } catch (EOFException truncatedLog) {
                 // if we hit EOF the entry has not been written, and so not acked, we can ignore it and say that the file is finished
                 // it is important that this is the last file in the set
-                LOGGER.log(Level.SEVERE, "found unfinished entry in file " + this.ledgerId + ". entry was not acked. ignoring " + truncatedLog);
+                LOGGER.error("found unfinished entry in file " + this.ledgerId + ". entry was not acked. ignoring " + truncatedLog);
                 return null;
             }
         }
@@ -326,7 +326,7 @@ public class FileCommitLog extends CommitLog {
 
         try {
             if (writer != null) {
-                LOGGER.log(Level.FINEST, "closing actual file {0}", writer.filename);
+                LOGGER.trace("closing actual file {}", writer.filename);
                 writer.close();
             }
 
@@ -392,7 +392,7 @@ public class FileCommitLog extends CommitLog {
         });
 
         this.fsyncThreadPool = fsyncThreadPool;
-        LOGGER.log(Level.FINE, "tablespace {2}, logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize, tableSpaceName});
+        LOGGER.debug("tablespace {}, logdirectory: {}, maxLogFileSize {} bytes", new Object[]{logDirectory, maxLogFileSize, tableSpaceName});
     }
 
     private class SyncTask implements Runnable {
@@ -425,7 +425,7 @@ public class FileCommitLog extends CommitLog {
                 syncNeeded = null;
             } catch (Throwable t) {
                 failed = true;
-                LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory, t);
+                LOGGER.error("general commit log failure on " + FileCommitLog.this.logDirectory, t);
 
                 for (LogEntryHolderFuture e : syncNeeded) {
                     statsEntrySyncLatency.registerFailedEvent(now - e.timestamp, TimeUnit.MILLISECONDS);
@@ -488,13 +488,13 @@ public class FileCommitLog extends CommitLog {
 
                 /* Don't flush if there is nothing */
                 if (unsyncedCount > 0) {
-                    LOGGER.log(Level.INFO, "flushing last {0} entries", unsyncedCount);
+                    LOGGER.info("flushing last {} entries", unsyncedCount);
 
                     flush();
 
                     /* Don't synch if there is nothing */
                     if (!syncNeeded.isEmpty()) {
-                        LOGGER.log(Level.INFO, "synching last {0} entries", unsyncedCount);
+                        LOGGER.info("synching last {} entries", unsyncedCount);
                         SyncTask syncTask = new SyncTask(syncNeeded, unsyncedCount, unsyncedBytes);
                         syncTask.run();
                     }
@@ -503,7 +503,7 @@ public class FileCommitLog extends CommitLog {
 
             } catch (LogNotAvailableException | IOException | InterruptedException t) {
                 failed = true;
-                LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory, t);
+                LOGGER.error("general commit log failure on " + FileCommitLog.this.logDirectory, t);
             }
         }
     }
@@ -614,8 +614,8 @@ public class FileCommitLog extends CommitLog {
         if (hasListeners) {
             sync = true;
         }
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "log {0}", edit);
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("log {}", edit);
         }
         LogEntryHolderFuture future = new LogEntryHolderFuture(edit, sync);
         try {
@@ -641,7 +641,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
-        LOGGER.log(Level.INFO, "recovery {1}, snapshotSequenceNumber: {0}", new Object[]{snapshotSequenceNumber, tableSpaceName});
+        LOGGER.info("recovery {}, snapshotSequenceNumber: {}", new Object[]{snapshotSequenceNumber, tableSpaceName});
         // no lock is needed, we are at boot time
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
@@ -655,7 +655,7 @@ public class FileCommitLog extends CommitLog {
 
             long offset = -1;
             for (Path p : names) {
-                LOGGER.log(Level.INFO, "tablespace {1}, logfile is {0}", new Object[]{p.toAbsolutePath(), tableSpaceName});
+                LOGGER.info("tablespace {}, logfile is {}", new Object[]{p.toAbsolutePath(), tableSpaceName});
 
                 String name = (p.getFileName() + "").replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
@@ -668,10 +668,10 @@ public class FileCommitLog extends CommitLog {
                     while (n != null) {
                         offset = n.logSequenceNumber.offset;
                         if (n.logSequenceNumber.after(snapshotSequenceNumber)) {
-                            LOGGER.log(Level.FINE, "RECOVER ENTRY {0}, {1}", new Object[]{n.logSequenceNumber, n.entry});
+                            LOGGER.debug("RECOVER ENTRY {}, {}", new Object[]{n.logSequenceNumber, n.entry});
                             consumer.accept(n.logSequenceNumber, n.entry);
                         } else {
-                            LOGGER.log(Level.FINE, "SKIP ENTRY {0}, {1}", new Object[]{n.logSequenceNumber, n.entry});
+                            LOGGER.debug("SKIP ENTRY {}, {}", new Object[]{n.logSequenceNumber, n.entry});
                         }
                         n = reader.nextEntry();
                     }
@@ -680,7 +680,7 @@ public class FileCommitLog extends CommitLog {
 
             recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
 
-            LOGGER.log(Level.INFO, "Tablespace {1}, max ledgerId is {0}", new Object[]{currentLedgerId, tableSpaceName});
+            LOGGER.info("Tablespace {}, max ledgerId is {}", new Object[]{currentLedgerId, tableSpaceName});
         } catch (IOException | RuntimeException err) {
             failed = true;
             throw new LogNotAvailableException(err);
@@ -690,7 +690,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "dropOldLedgers {2} lastCheckPointSequenceNumber: {0}, currentLedgerId: {1}",
+        LOGGER.error("dropOldLedgers {} lastCheckPointSequenceNumber: {}, currentLedgerId: {}",
                 new Object[]{lastCheckPointSequenceNumber, currentLedgerId, tableSpaceName});
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
@@ -718,11 +718,11 @@ public class FileCommitLog extends CommitLog {
                     long ledgerId = Long.parseLong(name, 16);
 
                     if (!lastFile && ledgerId < ledgerLimit) {
-                        LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[]{path.toAbsolutePath(), ledgerId});
+                        LOGGER.error("deleting logfile {} for ledger {}", new Object[]{path.toAbsolutePath(), ledgerId});
                         try {
                             Files.delete(path);
                         } catch (IOException errorDelete) {
-                            LOGGER.log(Level.SEVERE, "fatal error while deleting file " + path, errorDelete);
+                            LOGGER.error("fatal error while deleting file " + path, errorDelete);
                             throw new LogNotAvailableException(errorDelete);
                         }
                         ++count;
@@ -731,7 +731,7 @@ public class FileCommitLog extends CommitLog {
                 }
             }
 
-            LOGGER.log(Level.SEVERE, "Deleted logfiles: {0}", count);
+            LOGGER.error("Deleted logfiles: {}", count);
         } catch (IOException err) {
             failed = true;
             throw new LogNotAvailableException(err);
@@ -747,7 +747,7 @@ public class FileCommitLog extends CommitLog {
     private void ensureDirectories() throws LogNotAvailableException {
         try {
             if (!Files.isDirectory(logDirectory)) {
-                LOGGER.log(Level.INFO, "directory {0} does not exist. creating", logDirectory);
+                LOGGER.info("directory {} does not exist. creating", logDirectory);
                 Files.createDirectories(logDirectory);
             }
         } catch (IOException err) {

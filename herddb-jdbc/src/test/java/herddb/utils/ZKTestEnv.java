@@ -23,8 +23,6 @@ import herddb.network.netty.NetworkUtils;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -35,10 +33,12 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ZKTestEnv implements AutoCloseable {
 
-    private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ZKTestEnv.class.getName());
 
     TestingServer zkServer;
     BookieServer bookie;
@@ -50,14 +50,14 @@ public class ZKTestEnv implements AutoCloseable {
         CountDownLatch latch = new CountDownLatch(1);
         ZooKeeper zk = new ZooKeeper(zkServer.getConnectString(),
                 herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, (WatchedEvent event) -> {
-                    LOG.log(Level.INFO, "ZK EVENT {0}", event);
+                    LOG.info("ZK EVENT {}", event);
                     if (event.getState() == KeeperState.SyncConnected) {
                         latch.countDown();
                     }
                 });
         try {
             if (!latch.await(herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT, TimeUnit.MILLISECONDS)) {
-                LOG.log(Level.INFO, "ZK client did not connect withing {0} seconds, maybe the server did not start up",
+                LOG.info("ZK client did not connect withing {} seconds, maybe the server did not start up",
                         herddb.server.ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT);
             }
         } finally {

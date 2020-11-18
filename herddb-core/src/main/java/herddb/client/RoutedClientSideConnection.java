@@ -59,9 +59,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A real connection to a server
@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  */
 public class RoutedClientSideConnection implements ChannelEventListener, ClientSideConnectionPeer {
 
-    private static final Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(RoutedClientSideConnection.class.getName());
     private static final RawString RAWSTRING_KEY = RawString.of("_key");
 
     private final HDBConnection connection;
@@ -137,7 +137,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                         saslResponse = channel.sendMessageWithPduReply(requestId,
                                 PduCodec.SaslTokenMessageToken.write(requestId, responseToSendToServer), timeout);
                         if (saslNettyClient.isComplete()) {
-                            LOGGER.finest("SASL auth completed with success");
+                            LOGGER.debug("SASL auth completed with success");
                             return;
                         }
                         break;
@@ -162,7 +162,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                 case Pdu.TYPE_TABLESPACE_DUMP_DATA: {
                     String dumpId = PduCodec.TablespaceDumpData.readDumpId(message);
                     TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
-                    LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
+                    LOGGER.debug("receiver for {}: {}", new Object[]{dumpId, receiver});
                     if (receiver == null) {
                         if (channel != null) {
                             ByteBuf resp = PduCodec.ErrorResponse.write(message.messageId, "no such dump receiver " + dumpId);
@@ -244,7 +244,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                             channel.sendReplyMessage(message.messageId, res);
                         }
                     } catch (RuntimeException error) {
-                        LOGGER.log(Level.SEVERE, "error while handling dump data", error);
+                        LOGGER.error("error while handling dump data", error);
                         receiver.onError(error);
 
                         if (channel != null) {
@@ -283,7 +283,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
 
     @Override
     public void close() {
-        LOGGER.log(Level.FINER, "{0} - close", this);
+        LOGGER.trace("{} - close", this);
 
         connectionLock.writeLock().lock();
         try {
@@ -321,20 +321,20 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                 }
                 // clean up local cache, if the server restarted we would use old ids
                 preparedStatements.clear();
-                LOGGER.log(Level.FINE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
+                LOGGER.debug("{} - connect to {}:{} ssh:{}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
                 channel = this.connection.getClient().createChannelTo(server, this);
                 try {
                     performAuthentication(channel, server.getHost());
                     this.channel = channel;
                     return channel;
                 } catch (TimeoutException err) {
-                    LOGGER.log(Level.SEVERE, "Error", err);
+                    LOGGER.error("Error", err);
                     if (channel != null) {
                         channel.close();
                     }
                     throw new HDBOperationTimeoutException(err);
                 } catch (Exception err) {
-                    LOGGER.log(Level.SEVERE, "Error", err);
+                    LOGGER.error("Error", err);
                     if (channel != null) {
                         channel.close();
                     }
@@ -707,11 +707,11 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
         if (notLeader) {
             throw new LeaderChangedException(msg);
         } else if (missingPreparedStatement) {
-            LOGGER.log(Level.INFO, "Statement was flushed from server side cache " + msg);
+            LOGGER.info("Statement was flushed from server side cache " + msg);
             preparedStatements.invalidate(statementId);
             throw new RetryRequestException(msg);
         } else if (sqlIntegrityViolation) {
-            LOGGER.log(Level.INFO, "SQLIntegrityViolationException: " + msg);
+            LOGGER.info("SQLIntegrityViolationException: " + msg);
             throw new HDBException(msg, new SQLIntegrityConstraintViolationException(msg));
         } else {
             throw new HDBException(msg);
@@ -730,7 +730,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
             query = statementId > 0 ? "" : query;
             ByteBuf message = PduCodec.OpenScanner.write(requestId, tableSpace, query, scannerId, tx, params, statementId,
                     fetchSize, maxRows, keepReadLocks);
-            LOGGER.log(Level.FINEST, "open scanner {0} for query {1}, params {2}", new Object[]{scannerId, query, params});
+            LOGGER.trace("open scanner {} for query {}, params {}", new Object[]{scannerId, query, params});
             reply = channel.sendMessageWithPduReply(requestId, message, timeout);
 
             if (reply.type == Pdu.TYPE_ERROR) {
@@ -745,7 +745,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
             boolean last = PduCodec.ResultSetChunk.readIsLast(reply);
             long transactionId = PduCodec.ResultSetChunk.readTx(reply);
             RecordsBatch data = PduCodec.ResultSetChunk.startReadingData(reply);
-            //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
+            //LOGGER.error("received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId, channel);
             return impl;
         } catch (InterruptedException err) {
@@ -769,10 +769,10 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
             String dumpId = this.clientId + ":" + scannerIdGenerator.incrementAndGet();
             long requestId = channel.generateRequestId();
             ByteBuf message = PduCodec.RequestTablespaceDump.write(requestId, tableSpace, dumpId, fetchSize, includeTransactionLog);
-            LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}", new Object[]{dumpId, tableSpace});
+            LOGGER.error("dumpTableSpace id {} for tablespace {}", new Object[]{dumpId, tableSpace});
             dumpReceivers.put(dumpId, receiver);
             try (Pdu reply = channel.sendMessageWithPduReply(requestId, message, timeout)) {
-                LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}: first reply {2}", new Object[]{dumpId, tableSpace, reply});
+                LOGGER.error("dumpTableSpace id {} for tablespace {}: first reply {}", new Object[]{dumpId, tableSpace, reply});
                 if (reply.type == Pdu.TYPE_ERROR) {
                     handleGenericError(reply, 0);
                 } else if (reply.type != Pdu.TYPE_ACK) {
@@ -793,7 +793,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
         try {
             while (true) {
                 String entryType = source.nextEntryType();
-                LOGGER.log(Level.FINEST, "restore, entryType:{0}", entryType);
+                LOGGER.trace("restore, entryType:{}", entryType);
                 switch (entryType) {
 
                     case BackupFileConstants.ENTRY_TYPE_START: {
@@ -931,7 +931,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                 ByteBuf message = PduCodec.CloseScanner.write(requestId, scannerId);
                 channel.sendOneWayMessage(message, (Throwable error) -> {
                     if (error != null) {
-                        LOGGER.log(Level.SEVERE, "Cannot release scanner " + scannerId + ", con " + RoutedClientSideConnection.this, error);
+                        LOGGER.error("Cannot release scanner " + scannerId + ", con " + RoutedClientSideConnection.this, error);
                     }
                 });
 
@@ -966,7 +966,7 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                 ByteBuf message = PduCodec.FetchScannerData.write(requestId, scannerId, fetchSize);
                 result = channel.sendMessageWithPduReply(requestId, message, timeout);
 
-                //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
+                //LOGGER.error("fillBuffer result " + result);
                 if (result.type == Pdu.TYPE_ERROR) {
                     try {
                         throw new HDBException(result);

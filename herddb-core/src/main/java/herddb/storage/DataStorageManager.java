@@ -39,8 +39,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Physical storage of data
@@ -49,7 +49,7 @@ import java.util.logging.Logger;
  */
 public abstract class DataStorageManager implements AutoCloseable {
 
-    private static final Logger LOG = Logger.getLogger(DataStorageManager.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(DataStorageManager.class.getName());
 
     /**
      * Load a data page in memory
@@ -321,7 +321,7 @@ public abstract class DataStorageManager implements AutoCloseable {
             String tableSpace, String name, Collection<Long> activePages,
             Map<String, Map<Long, Integer>> pagesPins, boolean pin
     ) {
-        LOG.log(Level.FINER, "pinAndGetPages {0}.{1} activePages: {2}, pagesPins:{3} (pin: {4})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
+        LOG.trace("pinAndGetPages {}.{} activePages: {}, pagesPins:{} (pin: {})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
         final Map<Long, Integer> pins;
         final String pinkey = tableSpace + "_" + name;
         if (pin) {

@@ -22,15 +22,15 @@ package herddb.utils;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author enrico.olivelli
  */
 public class SystemProperties {
 
-    private static final Logger LOGGER = Logger.getLogger(SystemProperties.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(SystemProperties.class.getName());
 
     public static String getStringSystemProperty(String name, String defaultvalue) {
         return getProperty(name, defaultvalue);
@@ -77,7 +77,7 @@ public class SystemProperties {
         String res = AccessController.doPrivileged((PrivilegedAction<String>) (() -> {
             return System.getProperty(name, defaultvalue);
         }));
-        LOGGER.log(Level.CONFIG, "read system property: {0}={1}", new Object[] {name, res});
+        LOGGER.info("read system property: {}={}", name, res);
         return res;
     }
 }

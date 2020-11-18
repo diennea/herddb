@@ -34,12 +34,12 @@ import herddb.utils.DataAccessor;
 import herddb.utils.SystemInstrumentation;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 
@@ -50,7 +50,7 @@ import net.jpountz.xxhash.XXHashFactory;
  */
 public abstract class TableDataChecksum {
 
-    private static final Logger LOGGER = Logger.getLogger(TableDataChecksum.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(TableDataChecksum.class.getName());
     private static final XXHashFactory FACTORY = XXHashFactory.fastestInstance();
     private static final int SEED = 0;
     public static final String HASH_TYPE = "StreamingXXHash64";
@@ -81,7 +81,7 @@ public abstract class TableDataChecksum {
         }
         ScanStatement statement = translated.plan.mainStatement.unwrap(ScanStatement.class);
         statement.setAllowExecutionFromFollower(true);
-        LOGGER.log(Level.INFO, "creating checksum for table {0}.{1} on node {2}", new Object[]{ tableSpace, tableName, nodeID});
+        LOGGER.info("creating checksum for table {}.{} on node {}", new Object[]{ tableSpace, tableName, nodeID});
         try (DataScanner scan = manager.scan(statement, translated.context, TransactionContext.NO_TRANSACTION);) {
             StreamingXXHash64 hash64 = FACTORY.newStreamingHash64(SEED);
             long _start = System.currentTimeMillis();
@@ -103,17 +103,17 @@ public abstract class TableDataChecksum {
                     }
                 });
             }
-            LOGGER.log(Level.INFO, "Number of processed records for table {0}.{1} on node {2} = {3} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
+            LOGGER.info("Number of processed records for table {}.{} on node {} = {} ", new Object[]{tableSpace, tableName, nodeID, nrecords});
             long _stop = System.currentTimeMillis();
             long nextAutoIncrementValue = tablemanager.getNextPrimaryKeyValue();
             long scanduration = (_stop - _start);
-            LOGGER.log(Level.INFO, "Creating checksum for table {0}.{1} on node {2} finished in {3} ms", new Object[]{tableSpace, tableName, nodeID, scanduration});
+            LOGGER.info("Creating checksum for table {}.{} on node {} finished in {} ms", new Object[]{tableSpace, tableName, nodeID, scanduration});
 
             SystemInstrumentation.instrumentationPoint("createChecksum", tableSpace, tableName);
 
             return new TableChecksum(tableSpace, tableName, hash64.getValue(), HASH_TYPE, nrecords, nextAutoIncrementValue, translated.context.query, scanduration);
         } catch (DataScannerException ex) {
-            LOGGER.log(Level.SEVERE, "Scan failled", ex);
+            LOGGER.error("Scan failled", ex);
             throw new DataScannerException(ex);
     }
     }

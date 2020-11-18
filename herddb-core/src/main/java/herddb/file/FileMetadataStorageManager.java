@@ -51,8 +51,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Metadata on local files. Useful for single instance deplyments
@@ -65,7 +65,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
     private final List<NodeMetadata> nodes = new ArrayList<>();
-    private static final Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileMetadataStorageManager.class.getName());
     private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
     private volatile boolean started;
 
@@ -182,7 +182,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
                     continue;
                 }
                 String _filename = filename.toString();
-                LOGGER.log(Level.SEVERE, "reading metadata file {0}", p.toAbsolutePath().toString());
+                LOGGER.error("reading metadata file {}", p.toAbsolutePath().toString());
                 if (_filename.endsWith(".metadata")) {
                     TableSpace ts = readTableSpaceMetadataFile(p);
                     if (_filename.equals(ts.name.toLowerCase() + ".metadata")) {
@@ -257,7 +257,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             nodes.clear();
             tableSpaces.clear();
         } catch (IOException err) {
-            LOGGER.log(Level.SEVERE, "cannot clear local data", err);
+            LOGGER.error("cannot clear local data", err);
             throw new MetadataStorageManagerException(err);
         } finally {
             lock.writeLock().unlock();

@@ -1586,7 +1586,7 @@ public class RawSQLTest {
                 assertEquals(3, result.size());
                // AVG between integers is an integer, Calcite actually does SUM/COUNT cast to Integer
 //             EnumerableProject(CC=[CAST(/(CASE(=($2, 0), null:INTEGER, $1), $2)):INTEGER], S1=[$0]): rowcount = 1.0, cumulative cost = {4.25 rows, 4.0 cpu, 0.0 io}, id = 241
-//                EnumerableAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($1)]): rowcount = 1.0, cumulative cost = {3.25 rows, 2.0 cpu, 0.0 io}, id = 240
+//                EnumerableAggregate(group=[{}], agg#0=[$SUM0($1)], agg#1=[COUNT($1)]): rowcount = 1.0, cumulative cost = {3.25 rows, 2.0 cpu, 0.0 io}, id = 240
                 assertEquals(Integer.valueOf(1), result.get(0).get(0));
                 assertEquals(Integer.valueOf(1), result.get(0).get("cc"));
                 assertEquals(RawString.of("a"), result.get(0).get(1));
@@ -1607,7 +1607,7 @@ public class RawSQLTest {
                 assertEquals(3, result.size());
                // you can require it as DOUBLE, then Calcite uses real AVG aggregator
 //             LogicalProject(CC=[CAST($1):DOUBLE], S1=[$0]): rowcount = 1.0, cumulative cost = {10.125 rows, 15.0 cpu, 0.0 io}, id = 254
-//                 LogicalAggregate(group=[{0}], agg#0=[AVG($1)]): rowcount = 1.0, cumulative cost = {9.125 rows, 13.0 cpu, 0.0 io}, id = 252
+//                 LogicalAggregate(group=[{}], agg#0=[AVG($1)]): rowcount = 1.0, cumulative cost = {9.125 rows, 13.0 cpu, 0.0 io}, id = 252
                 assertEquals(Double.valueOf(1.5), result.get(0).get(0));
                 assertEquals(Double.valueOf(1.5), result.get(0).get("cc"));
                 assertEquals(RawString.of("a"), result.get(0).get(1));

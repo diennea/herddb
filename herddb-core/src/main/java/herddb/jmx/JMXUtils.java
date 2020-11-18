@@ -22,8 +22,6 @@ package herddb.jmx;
 
 import herddb.core.HerdDBInternalException;
 import java.lang.management.ManagementFactory;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanRegistrationException;
@@ -31,13 +29,15 @@ import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility for MBeans registration
  */
 public class JMXUtils {
 
-    private static final Logger LOG = Logger.getLogger(JMXUtils.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(JMXUtils.class.getName());
     private static MBeanServer platformMBeanServer;
     private static Throwable mBeanServerLookupError;
 
@@ -68,7 +68,7 @@ public class JMXUtils {
 
         try {
             ObjectName name = new ObjectName("herddb.server:type=Table,Name=" + safeTableSpaceName + "." + safeTableName);
-            LOG.log(Level.FINE, "Publishing stats for table {0}.{1} at {2}", new Object[]{tableSpaceName, tableName, name});
+            LOG.debug("Publishing stats for table {}.{} at {}", new Object[]{tableSpaceName, tableName, name});
             if (platformMBeanServer.isRegistered(name)) {
                 try {
                     platformMBeanServer.unregisterMBean(name);
@@ -109,7 +109,7 @@ public class JMXUtils {
 
         try {
             ObjectName name = new ObjectName("herddb.server:type=TableSpace,Name=" + safeTableSpaceName);
-            LOG.log(Level.FINE, "Publishing stats for table {0} at {1}", new Object[]{tableSpaceName, name});
+            LOG.debug("Publishing stats for table {} at {}", new Object[]{tableSpaceName, name});
             if (platformMBeanServer.isRegistered(name)) {
                 try {
                     platformMBeanServer.unregisterMBean(name);
@@ -148,7 +148,7 @@ public class JMXUtils {
 
         try {
             ObjectName name = new ObjectName("herddb.server:type=Server");
-            LOG.log(Level.FINE, "Publishing stats for server at {2}", new Object[]{name});
+            LOG.debug("Publishing stats for server at {}", new Object[]{name});
             if (platformMBeanServer.isRegistered(name)) {
                 try {
                     platformMBeanServer.unregisterMBean(name);

@@ -49,11 +49,11 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.Gauge;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Accepts connections from clients.
@@ -62,7 +62,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class NettyChannelAcceptor implements AutoCloseable {
 
-    private static final Logger LOGGER = Logger.getLogger(NettyChannelAcceptor.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(NettyChannelAcceptor.class.getName());
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -199,9 +199,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
     public void start() throws Exception {
         if (ssl) {
             if (sslCertFile == null) {
-                LOGGER.log(Level.INFO, "start SSL with self-signed auto-generated certificate");
+                LOGGER.info("start SSL with self-signed auto-generated certificate");
                 if (sslCiphers != null) {
-                    LOGGER.log(Level.INFO, "required sslCiphers " + sslCiphers);
+                    LOGGER.info("required sslCiphers " + sslCiphers);
                 }
                 SelfSignedCertificate ssc = new SelfSignedCertificate();
                 try {
@@ -210,9 +210,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
                     ssc.delete();
                 }
             } else {
-                LOGGER.log(Level.INFO, "start SSL with certificate " + sslCertFile.getAbsolutePath() + " chain file " + sslCertChainFile.getAbsolutePath());
+                LOGGER.info("start SSL with certificate " + sslCertFile.getAbsolutePath() + " chain file " + sslCertChainFile.getAbsolutePath());
                 if (sslCiphers != null) {
-                    LOGGER.log(Level.INFO, "required sslCiphers " + sslCiphers);
+                    LOGGER.info("required sslCiphers " + sslCiphers);
                 }
                 sslCtx = SslContextBuilder.forServer(sslCertChainFile, sslCertFile, sslCertPassword).ciphers(sslCiphers).build();
             }
@@ -246,7 +246,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         });
         InetSocketAddress address = new InetSocketAddress(host, port);
         if (enableRealNetwork) {
-            LOGGER.log(Level.INFO, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
+            LOGGER.info("Starting HerdDB network server at {}:{}", host, port + "");
         }
         if (enableRealNetwork && address.isUnresolved()) {
             throw new IOException("Bind address " + host + ":" + port + " cannot be resolved");
@@ -276,11 +276,9 @@ public class NettyChannelAcceptor implements AutoCloseable {
             if (NetworkUtils.isEnableEpoolNative()) {
                 bossGroup = new EpollEventLoopGroup(workerThreads);
                 workerGroup = new EpollEventLoopGroup(workerThreads);
-                LOGGER.log(Level.FINE, "Using netty-native-epoll network type");
             } else {
                 bossGroup = new NioEventLoopGroup(workerThreads);
                 workerGroup = new NioEventLoopGroup(workerThreads);
-                LOGGER.log(Level.FINE, "Using nio network type");
             }
 
             ServerBootstrap b = new ServerBootstrap();

@@ -26,8 +26,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Network utility
@@ -36,7 +36,7 @@ import java.util.logging.Logger;
  */
 public class NetworkUtils {
 
-    private static final Logger LOG = Logger.getLogger(NetworkUtils.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(NetworkUtils.class.getName());
 
     // computed lazily, in order not to force loading of Netty EPoll if not needed
     private static Boolean nettyEpoolNativeAvailable;
@@ -48,8 +48,8 @@ public class NetworkUtils {
                     && !Boolean.getBoolean("herddb.network.disablenativeepoll")
                     && Epoll.isAvailable();
             if (!nettyEpoolNativeAvailable && !Epoll.isAvailable()) {
-                LOG.log(Level.INFO, "Netty Epoll is not enabled, os.name {0}, Epoll.isAvailable(): {1} cause: {2}",
-                        new Object[]{System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause()});
+                LOG.info("Netty Epoll is not enabled, os.name {}, Epoll.isAvailable(): {} cause: {}",
+                        System.getProperty("os.name"), Epoll.isAvailable(), Epoll.unavailabilityCause());
             }
         }
         return nettyEpoolNativeAvailable;

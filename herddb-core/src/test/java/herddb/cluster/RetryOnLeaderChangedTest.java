@@ -53,8 +53,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.test.TestStatsProvider;
 import org.junit.After;
@@ -62,6 +60,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests about retrying queries in case of leader changes
@@ -70,7 +70,7 @@ import org.junit.rules.TemporaryFolder;
  */
 public class RetryOnLeaderChangedTest {
 
-    private static final Logger LOG = Logger.getLogger(RetryOnLeaderChangedTest.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(RetryOnLeaderChangedTest.class.getName());
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -424,7 +424,7 @@ public class RetryOnLeaderChangedTest {
                         @Override
                         public void requestReceived(Pdu message, Channel channel) {
                             if (suspendProcessing.get()) {
-                                LOG.log(Level.INFO, "dropping message type " + message.type + " id " + message.messageId);
+                                LOG.info("dropping message type " + message.type + " id " + message.messageId);
                                 message.close();
                                 return;
                             }

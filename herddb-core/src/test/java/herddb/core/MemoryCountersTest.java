@@ -58,8 +58,8 @@ public class MemoryCountersTest {
 //        ch.setLevel(level);
 //        SimpleFormatter f = new SimpleFormatter();
 //        ch.setFormatter(f);
-//        java.util.logging.Logger.getLogger("").setLevel(level);
-//        java.util.logging.Logger.getLogger("").addHandler(ch);
+//        java.util.logging.LoggerFactory.getLogger("").setLevel(level);
+//        java.util.logging.LoggerFactory.getLogger("").addHandler(ch);
 //    }
 
     @Test

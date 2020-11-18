@@ -30,8 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Common implementation.
@@ -39,7 +39,7 @@ import java.util.logging.Logger;
  */
 public abstract class AbstractChannel extends Channel {
 
-    private static final Logger LOGGER = Logger.getLogger(AbstractChannel.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractChannel.class.getName());
     public static final String ADDRESS_JVM_LOCAL = "jvm-local";
     private static final AtomicLong idGenerator = new AtomicLong();
 
@@ -95,7 +95,7 @@ public abstract class AbstractChannel extends Channel {
         try {
             messagesReceiver.requestReceived(request, this);
         } catch (Throwable t) {
-            LOGGER.log(Level.SEVERE, this + ": error " + t, t);
+            LOGGER.error(this + ": error " + t, t);
             close();
         }
     }
@@ -109,7 +109,7 @@ public abstract class AbstractChannel extends Channel {
     private void processPduResponse(Pdu pdu) {
         long replyMessageId = pdu.messageId;
         if (replyMessageId < 0) {
-            LOGGER.log(Level.SEVERE, "{0}: received response without replyId: type {1}", new Object[]{this, pdu.messageId});
+            LOGGER.error("{}: received response without replyId: type {}", new Object[]{this, pdu.messageId});
             pdu.close();
             return;
         }
@@ -126,7 +126,7 @@ public abstract class AbstractChannel extends Channel {
     public final void sendReplyMessage(long inAnswerTo, ByteBuf message) {
 
         if (!isValid()) {
-            LOGGER.log(Level.SEVERE, this + " channel not active, discarding reply message " + message);
+            LOGGER.error(this + " channel not active, discarding reply message " + message);
             return;
         }
 
@@ -135,7 +135,7 @@ public abstract class AbstractChannel extends Channel {
             @Override
             public void messageSent(Throwable error) {
                 if (error != null) {
-                    LOGGER.log(Level.SEVERE, this + " error:" + error, error);
+                    LOGGER.error(this + " error:" + error, error);
                 }
             }
         });
@@ -152,7 +152,7 @@ public abstract class AbstractChannel extends Channel {
         if (messagesWithNoReply.isEmpty()) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "{0} found {1} without reply, channel will be closed", new Object[]{this, messagesWithNoReply});
+        LOGGER.error("{} found {} without reply, channel will be closed", new Object[]{this, messagesWithNoReply});
         ioErrors = true;
         for (Long messageId : messagesWithNoReply) {
             PduCallback callback = callbacks.remove(messageId);
@@ -179,7 +179,7 @@ public abstract class AbstractChannel extends Channel {
             @Override
             public void messageSent(Throwable error) {
                 if (error != null) {
-                    LOGGER.log(Level.SEVERE, this + ": error while sending reply message to " + message, error);
+                    LOGGER.error(this + ": error while sending reply message to " + message, error);
                     callback.responseReceived(null, new Exception(this + ": error while sending reply message to " + message, error));
                 }
             }
@@ -197,7 +197,7 @@ public abstract class AbstractChannel extends Channel {
             return;
         }
         closed = true;
-        LOGGER.log(Level.FINE, "{0}: closing", this);
+        LOGGER.debug("{}: closing", this);
         String socketDescription = describeSocket();
         doClose();
         failPendingMessages(socketDescription);
@@ -211,7 +211,7 @@ public abstract class AbstractChannel extends Channel {
 
         callbacks.forEach((key, callback) -> {
             pendingReplyMessagesDeadline.remove(key);
-            LOGGER.log(Level.SEVERE, "{0} message {1} was not replied callback:{2}", new Object[]{this, key, callback});
+            LOGGER.error("{} message {} was not replied callback:{}", new Object[]{this, key, callback});
             submitCallback(() -> {
                 callback.responseReceived(null, new IOException("comunication channel is closed. Cannot wait for pending messages, socket=" + socketDescription));
             });
@@ -221,7 +221,7 @@ public abstract class AbstractChannel extends Channel {
     }
 
     final void exceptionCaught(Throwable cause) {
-        LOGGER.log(Level.SEVERE, this + " io-error " + cause, cause);
+        LOGGER.error(this + " io-error " + cause, cause);
         ioErrors = true;
     }
 
@@ -238,11 +238,11 @@ public abstract class AbstractChannel extends Channel {
         try {
             callbackexecutor.submit(runnable);
         } catch (RejectedExecutionException stopped) {
-            LOGGER.log(Level.SEVERE, this + " rejected runnable " + runnable + ":" + stopped);
+            LOGGER.error(this + " rejected runnable " + runnable + ":" + stopped);
             try {
                 runnable.run();
             } catch (Throwable error) {
-                LOGGER.log(Level.SEVERE, this + " error on rejected runnable " + runnable + ":" + error);
+                LOGGER.error(this + " error on rejected runnable " + runnable + ":" + error);
             }
         }
     }
@@ -254,7 +254,7 @@ public abstract class AbstractChannel extends Channel {
 
     @Override
     public final void channelIdle() {
-        LOGGER.log(Level.FINEST, "{0} channelIdle", this);
+        LOGGER.debug("{} channelIdle", this);
         processPendingReplyMessagesDeadline();
     }
 

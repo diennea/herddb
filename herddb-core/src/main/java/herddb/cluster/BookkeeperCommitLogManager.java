@@ -34,8 +34,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.api.LedgerEntries;
@@ -43,6 +41,8 @@ import org.apache.bookkeeper.client.api.LedgerEntry;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -84,20 +84,20 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             if (key.startsWith("bookkeeper.")) {
                 String _key = key.substring("bookkeeper.".length());
                 String value = serverConfiguration.getString(key, null);
-                LOG.log(Level.CONFIG, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
+                LOG.info("Setting BookKeeper client configuration: {}={}", _key, value);
                 config.setProperty(_key, value);
             }
         }
 
-        LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
+        LOG.info("Processing server config {}", serverConfiguration);
         if (serverConfiguration.getBoolean("bookie.preferlocalbookie", false)) {
             config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
         }
 
-        LOG.config("BookKeeper client configuration:");
+        LOG.info("BookKeeper client configuration:");
         for (Iterator e = config.getKeys(); e.hasNext(); ) {
             Object key = e.next();
-            LOG.log(Level.CONFIG, "{0}={1}", new Object[]{key, config.getProperty(key + "")});
+            LOG.info("{}={}", key, config.getProperty(key + ""));
         }
         this.metadataStorageManager = metadataStorageManager;
         this.forceLastAddConfirmedTimer = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -152,12 +152,12 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             try {
                 bookKeeper.close();
             } catch (InterruptedException | BKException ex) {
-                LOG.log(Level.SEVERE, null, ex);
+                LOG.error(null, ex);
             }
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(BookkeeperCommitLogManager.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(BookkeeperCommitLogManager.class.getName());
 
     public int getEnsemble() {
         return ensemble;
@@ -254,7 +254,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
                 if (toId < 0) {
                     toId = lastAddConfirmed;
                 }
-                LOG.log(Level.INFO, "Scanning Ledger {0} from {1} to {2} LAC {3}", new Object[]{ledgerId, fromId, toId, lastAddConfirmed});
+                LOG.info("Scanning Ledger {} from {} to {} LAC {}", ledgerId, fromId, toId, lastAddConfirmed);
                 for (long id = fromId; id <= toId; id++) {
                     try (LedgerEntries entries = lh.readUnconfirmed(id, id);) {
                         LedgerEntry entry = entries.getEntry(id);

@@ -29,9 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Server configuration
@@ -457,7 +457,7 @@ public final class ServerConfiguration {
         String configFile = getString("configFile", "");
         if (!configFile.isEmpty()) {
             File file = new File(configFile);
-            LOG.log(Level.INFO, "Reading additional server configuration file configFile={0}", file.getAbsolutePath());
+            LOG.info("Reading additional server configuration file configFile={}", file.getAbsolutePath());
             Properties additionalProperties = new Properties();
             try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
                 additionalProperties.load(reader);
@@ -470,7 +470,7 @@ public final class ServerConfiguration {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(ServerConfiguration.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerConfiguration.class.getName());
 
     public List<String> keys() {
         return properties.keySet().stream().map(Object::toString).sorted().collect(Collectors.toList());

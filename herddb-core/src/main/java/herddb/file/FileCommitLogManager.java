@@ -34,10 +34,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Commit logs on local files
@@ -54,7 +54,7 @@ public class FileCommitLogManager extends CommitLogManager {
      */
     private final int deferredSyncPeriod;
 
-    private static final Logger LOG = Logger.getLogger(FileCommitLogManager.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(FileCommitLogManager.class.getName());
 
     private final Path baseDirectory;
     private final long maxLogFileSize;
@@ -98,7 +98,7 @@ public class FileCommitLogManager extends CommitLogManager {
         this.maxSyncTime = maxSyncTime;
         this.requireSync = requireSync;
         this.enableO_DIRECT = enableO_DIRECT && OpenFileUtils.isO_DIRECT_Supported();
-        LOG.log(Level.INFO, "Txlog settings: fsync: " + requireSync + ", O_DIRECT: " + enableO_DIRECT + ", deferredSyncPeriod:" + deferredSyncPeriod);
+        LOG.info("Txlog settings: fsync: " + requireSync + ", O_DIRECT: " + enableO_DIRECT + ", deferredSyncPeriod:" + deferredSyncPeriod);
     }
 
     @Override
@@ -134,7 +134,7 @@ public class FileCommitLogManager extends CommitLogManager {
                 _fsyncThreadPool.shutdown();
                 _fsyncThreadPool.awaitTermination(5, TimeUnit.SECONDS);
             } catch (InterruptedException ex) {
-                LOG.log(Level.INFO, "Interrupted while waiting for fsync threadpool to exit");
+                LOG.info("Interrupted while waiting for fsync threadpool to exit");
             }
         }
     }
@@ -143,7 +143,7 @@ public class FileCommitLogManager extends CommitLogManager {
     public void start() throws LogNotAvailableException {
         this.fsyncThreadPool = Executors.newScheduledThreadPool(MAXCONCURRENTFSYNCS);
         if (deferredSyncPeriod > 0) {
-            LOG.log(Level.INFO, "Starting background fsync thread, every {0} s", deferredSyncPeriod);
+            LOG.info("Starting background fsync thread, every {} s", deferredSyncPeriod);
             this.fsyncThreadPool.scheduleWithFixedDelay(new DummyFsync(), deferredSyncPeriod,
                     deferredSyncPeriod, TimeUnit.SECONDS);
         }

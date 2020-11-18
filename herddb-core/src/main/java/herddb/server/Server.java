@@ -57,11 +57,11 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HerdDB Server
@@ -70,7 +70,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class Server implements AutoCloseable, ServerSideConnectionAcceptor<ServerSideConnection>, ConnectionsInfoProvider {
 
-    private static final Logger LOGGER = Logger.getLogger(Server.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class.getName());
     private final DBManager manager;
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
@@ -123,7 +123,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             try {
                 Files.createDirectories(this.baseDirectory);
             } catch (IOException ignore) {
-                LOGGER.log(Level.SEVERE, "Cannot create baseDirectory " + this.baseDirectory, ignore);
+                LOGGER.error("Cannot create baseDirectory " + this.baseDirectory, ignore);
             }
         }
         this.dataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_DATADIR, ServerConfiguration.PROPERTY_DATADIR_DEFAULT));
@@ -134,7 +134,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         } else {
             try {
                 Path userDirectoryFile = baseDirectory.resolve(usersfile).toAbsolutePath();
-                LOGGER.log(Level.INFO, "Reading users from file " + userDirectoryFile);
+                LOGGER.info("Reading users from file " + userDirectoryFile);
                 this.userManager = new FileBasedUserManager(userDirectoryFile);
             } catch (IOException error) {
                 throw new RuntimeException(error);
@@ -144,25 +144,25 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         if (!mode.equals(ServerConfiguration.PROPERTY_MODE_LOCAL)) {
-            LOGGER.log(Level.INFO, "Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "={0}, "
-                + ServerConfiguration.PROPERTY_PORT + "={1}", new Object[]{host, port});
+            LOGGER.info("Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "={}, "
+                + ServerConfiguration.PROPERTY_PORT + "={}", new Object[]{host, port});
         }
         if (host.trim().isEmpty()) {
             String _host = "0.0.0.0";
-            LOGGER.log(Level.INFO, "As configuration parameter "
-                    + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
+            LOGGER.info("As configuration parameter "
+                    + ServerConfiguration.PROPERTY_HOST + " is {}, I have choosen to use {}."
                     + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
             host = _host;
         }
         if (port <= 0) {
             try {
                 int _port = NetworkUtils.assignFirstFreePort();
-                LOGGER.log(Level.INFO, "As configuration parameter "
-                        + ServerConfiguration.PROPERTY_PORT + " is {0},I have choosen to listen on port {1}."
+                LOGGER.info("As configuration parameter "
+                        + ServerConfiguration.PROPERTY_PORT + " is {},I have choosen to listen on port {}."
                         + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
                 port = _port;
             } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Cannot find a free port", err);
+                LOGGER.error("Cannot find a free port", err);
                 throw new RuntimeException(err);
             }
         }
@@ -170,12 +170,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         if (advertised_host.trim().isEmpty() || advertised_host.equals("0.0.0.0")) {
             try {
                 String _host = NetworkUtils.getLocalNetworkAddress();
-                LOGGER.log(Level.INFO, "As configuration parameter "
-                        + ServerConfiguration.PROPERTY_ADVERTISED_HOST + " is {0}, I have choosen to use {1}."
+                LOGGER.info("As configuration parameter "
+                        + ServerConfiguration.PROPERTY_ADVERTISED_HOST + " is {}, I have choosen to use {}."
                         + " Set to a non-empty value in order to use a fixed hostname", new Object[]{advertised_host, _host});
                 advertised_host = _host;
             } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Cannot get local host name", err);
+                LOGGER.error("Cannot get local host name", err);
                 throw new RuntimeException(err);
             }
         }
@@ -211,7 +211,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                     configuration.set(ServerConfiguration.PROPERTY_NODEID, nodeId);
                 }
             } catch (IOException | MetadataStorageManagerException error) {
-                LOGGER.log(Level.SEVERE, "Fatal error while generating the local node ID", error);
+                LOGGER.error("Fatal error while generating the local node ID", error);
                 throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
             }
         }
@@ -246,19 +246,19 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 break;
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 jdbcUrl = "jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort();
-                LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
+                LOGGER.info("Use this JDBC URL to connect to this server: {}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
             case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, (ZookeeperMetadataStorageManager) this.metadataStorageManager, statsLogger);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
-                LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
+                LOGGER.info("Use this JDBC URL to connect to this HerdDB cluster: {}", new Object[]{jdbcUrl});
                 break;
             default:
                 throw new IllegalStateException("invalid " + ServerConfiguration.PROPERTY_MODE + "=" + mode);
         }
-        LOGGER.log(Level.INFO, "HerdDB version {0}", new Object[]{Version.getVERSION()});
-        LOGGER.log(Level.INFO, "Local " + ServerConfiguration.PROPERTY_NODEID + " is {0}", new Object[]{nodeId});
+        LOGGER.info("HerdDB version {}", new Object[]{Version.getVERSION()});
+        LOGGER.info("Local " + ServerConfiguration.PROPERTY_NODEID + " is {}", new Object[]{nodeId});
     }
 
     public String getJdbcUrl() {
@@ -280,10 +280,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 !isLocal && ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
         if (!nextworkEnabled) {
             acceptor.setEnableRealNetwork(false);
-            LOGGER.log(Level.FINE, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
+            LOGGER.debug("Local in-JVM acceptor on {}:{} ssl:{}",
                     new Object[]{realHost, realPort, serverHostData.isSsl()});
         } else {
-            LOGGER.log(Level.INFO, "Binding network acceptor to {0}:{1} ssl:{2}",
+            LOGGER.info("Binding network acceptor to {}:{} ssl:{}",
                     new Object[]{realHost, realPort, serverHostData.isSsl()});
         }
 
@@ -431,19 +431,19 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         try {
             networkServer.close();
         } catch (Throwable error) {
-            LOGGER.log(Level.SEVERE, "error while stopping Network Manager" + error, error);
+            LOGGER.error("error while stopping Network Manager" + error, error);
         }
         try {
             manager.close();
         } catch (Throwable error) {
-            LOGGER.log(Level.SEVERE, "error while stopping embedded DBManager " + error, error);
+            LOGGER.error("error while stopping embedded DBManager " + error, error);
         }
 
         if (embeddedBookie != null) {
             try {
                 embeddedBookie.close();
             } catch (Throwable error) {
-                LOGGER.log(Level.SEVERE, "error while stopping embedded bookie " + error, error);
+                LOGGER.error("error while stopping embedded bookie " + error, error);
             }
         }
     }

@@ -30,8 +30,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Status of the set of pages of a Table
@@ -41,7 +41,7 @@ import java.util.logging.Logger;
  */
 public final class PageSet {
 
-    private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(PageSet.class.getName());
 
     /**
      * Active stored pages (active/size,average-record-size,dirt,hasDeletions)
@@ -109,7 +109,7 @@ public final class PageSet {
     void setPageDirty(Long pageId) {
         final DataPageMetaData metadata = activePages.get(pageId);
         if (metadata == null) {
-            LOGGER.log(Level.SEVERE,
+            LOGGER.error(
                     "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages);
             throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId);
         }
@@ -119,7 +119,7 @@ public final class PageSet {
     void setPageDirty(Long pageId, long size) {
         final DataPageMetaData metadata = activePages.get(pageId);
         if (metadata == null) {
-            LOGGER.log(Level.SEVERE,
+            LOGGER.error(
                     "Detected an attempt to set as dirty an unknown page " + pageId + ". Known pages: " + activePages);
             throw new IllegalStateException("attempted to set an unknown page as dirty " + pageId);
         }
@@ -150,7 +150,7 @@ public final class PageSet {
         /* Don't really add page if already exists */
         final DataPageMetaData old = activePages.putIfAbsent(pageId, new DataPageMetaData(page));
         if (old != null) {
-            LOGGER.log(Level.SEVERE,
+            LOGGER.error(
                     "Detected concurrent creation of page " + page.pageId + ", writable: " + page.writable);
 
             throw new IllegalStateException("Creating a new page already existing! Page " + pageId);

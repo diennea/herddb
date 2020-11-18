@@ -24,6 +24,7 @@ import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAU
 import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH;
 import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT;
 import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT;
+import ch.qos.logback.classic.Level;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -89,7 +90,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -213,7 +213,8 @@ public class HerdDBCLI {
             final boolean async = commandLine.hasOption("async");
             final String filter = commandLine.getOptionValue("filter", "all");
             if (!verbose) {
-                LogManager.getLogManager().reset();
+               ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+               root.setLevel(Level.OFF);
             }
             String file = commandLine.getOptionValue("file", "");
             String tablesmetadatafile = commandLine.getOptionValue("metadatafile", "");

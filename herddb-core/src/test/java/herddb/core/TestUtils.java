@@ -37,8 +37,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility
@@ -97,7 +97,7 @@ public class TestUtils {
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
     }
 
-    private static final Logger LOG = Logger.getLogger(TestUtils.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(TestUtils.class.getName());
     public static final Consumer<DataAccessor> DEBUG = (da) -> {
         StringBuilder msg = new StringBuilder("Record: " + Arrays.toString(da.getFieldNames()) + " ");
         for (int i = 0; i < da.getNumFields(); i++) {
@@ -120,7 +120,7 @@ public class TestUtils {
     public static void dump(DBManager manager, String query, List<Object> parameters,
                                                                   TransactionContext transactionContext,
                                                                   Consumer<DataAccessor> sink) throws StatementExecutionException, DataScannerException {
-        LOG.log(Level.INFO, "Dump {0} parameters: {1}", new Object[]{query, parameters});
+        LOG.info("Dump {} parameters: {}", new Object[]{query, parameters});
         if (parameters == null) {
             parameters = Collections.emptyList();
         }

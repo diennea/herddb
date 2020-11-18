@@ -26,8 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manages the identity of the local node
@@ -36,7 +36,7 @@ import java.util.logging.Logger;
  */
 public class LocalNodeIdManager {
 
-    private static final Logger LOG = Logger.getLogger(LocalNodeIdManager.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(LocalNodeIdManager.class.getName());
 
     private final Path dataPath;
 
@@ -47,11 +47,11 @@ public class LocalNodeIdManager {
     public String readLocalNodeId() throws IOException {
         Path file = dataPath.resolve("nodeid");
         try {
-            LOG.log(Level.INFO, "Looking for local node id into file {0}", file);
+            LOG.info("Looking for local node id into file {}", file);
             if (!Files.isRegularFile(file)) {
                 final String fallback = System.getProperty("herddb.local.nodeid");
                 if (fallback == null) {
-                    LOG.log(Level.SEVERE, "Cannot find file {0}", file);
+                    LOG.error("Cannot find file {}", file);
                 }
                 return fallback;
             }
@@ -66,7 +66,7 @@ public class LocalNodeIdManager {
             }
             throw new IOException("Cannot find any valid line inside file " + file.toAbsolutePath());
         } catch (IOException error) {
-            LOG.log(Level.SEVERE, "Error while reading file " + file.toAbsolutePath(), error);
+            LOG.error("Error while reading file " + file.toAbsolutePath(), error);
             throw error;
         }
     }

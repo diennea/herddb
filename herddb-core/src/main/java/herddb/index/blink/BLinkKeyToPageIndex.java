@@ -60,9 +60,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to {@link DataStorageManager}.
@@ -71,7 +71,7 @@ import java.util.stream.Stream;
  */
 public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
-    private static final Logger LOGGER = Logger.getLogger(BLinkKeyToPageIndex.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(BLinkKeyToPageIndex.class.getName());
 
     public static final byte METADATA_PAGE = 0;
     public static final byte INNER_NODE_PAGE = 1;
@@ -302,7 +302,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public void start(LogSequenceNumber sequenceNumber, boolean created) throws DataStorageManagerException {
 
         if (!created) {
-            LOGGER.log(Level.INFO, " start index {0}", new Object[]{indexName});
+            LOGGER.info(" start index {}", new Object[]{indexName});
         }
         /* Actually the same size */
         final long pageSize = memoryManager.getMaxLogicalPageSize();
@@ -312,7 +312,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
                     memoryManager.getPKPageReplacementPolicy(), indexDataStorage);
             if (!created) {
-                LOGGER.log(Level.INFO, "loaded empty index {0}", new Object[]{indexName});
+                LOGGER.info("loaded empty index {}", new Object[]{indexName});
             }
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpace, indexName, sequenceNumber);
@@ -327,7 +327,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             }
 
             newPageId.set(status.newPageId);
-            LOGGER.log(Level.INFO, "loaded index {0}: {1} keys", new Object[]{indexName, tree.size()});
+            LOGGER.info("loaded index {}: {} keys", new Object[]{indexName, tree.size()});
         }
     }
 
@@ -353,9 +353,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus, pin));
 
-            LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} pages",
+            LOGGER.info("checkpoint index {} finished: logpos {}, {} pages",
                     new Object[]{indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
-            LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
+            LOGGER.debug("checkpoint index {} finished: logpos {}, pages {}",
                     new Object[]{indexName, sequenceNumber, activePages.toString()});
 
             return result;

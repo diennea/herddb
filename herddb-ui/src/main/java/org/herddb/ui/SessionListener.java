@@ -20,12 +20,12 @@
 
 package org.herddb.ui;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.servlet.annotation.WebListener;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpSessionEvent;
 import javax.servlet.http.HttpSessionListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Web application lifecycle listener.
@@ -35,24 +35,25 @@ import javax.servlet.http.HttpSessionListener;
 @WebListener
 public class SessionListener implements HttpSessionListener {
 
-    private static final Logger LOG = Logger.getLogger(SessionListener.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(SessionListener.class.getName());
 
     @Override
     public void sessionDestroyed(HttpSessionEvent se) {
-        LOG.log(Level.INFO, "Destroyed session");
+
         HttpSession session = se.getSession();
+        LOG.info("Closing session {}", session);
         AutoCloseable ds = (AutoCloseable) session.getAttribute("datasource");
         if (ds != null) {
             try {
                 ds.close();
             } catch (Exception ex) {
-                ex.printStackTrace();
+                LOG.error("error on closing datasource for session {}", session, ex);
             }
         }
     }
 
     @Override
     public void sessionCreated(HttpSessionEvent se) {
-        LOG.log(Level.INFO, "Created session");
+        LOG.info("Created session {}", se.getSession());
     }
 }

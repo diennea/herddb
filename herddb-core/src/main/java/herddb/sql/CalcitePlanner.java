@@ -81,8 +81,6 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
@@ -168,6 +166,8 @@ import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelConversionException;
 import org.apache.calcite.tools.ValidationException;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * SQL Planner based upon Apache Calcite
@@ -319,9 +319,9 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues, upsert)
                             .optimize());
-            if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                LOG.log(DUMP_QUERY_LEVEL, "Query: {0} --HerdDB Plan\n{1}",
-                        new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
+             if (DUMP_QUERY_LEVEL.equalsIgnoreCase("info") && LOG.isInfoEnabled()
+                        || DUMP_QUERY_LEVEL.equalsIgnoreCase("debug") && LOG.isDebugEnabled()) {
+                    LOG.info("Query: {} --HerdDB Plan\n{}", query, sqlPlannedOperationStatement.getRootOp());
             }
             if (!scan) {
                 ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);
@@ -362,15 +362,15 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             }
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, forceAcquireWriteLock, false));
         } catch (CalciteContextException ex) {
-            LOG.log(Level.INFO, "Error while parsing '" + ex.getOriginalStatement() + "'", ex);
+            LOG.info("Error while parsing '" + ex.getOriginalStatement() + "'", ex);
             //TODO can this be done better ?
             throw new StatementExecutionException(ex.getMessage());
         } catch (RelConversionException | ValidationException | SqlParseException ex) {
-            LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
+            LOG.info("Error while parsing '" + query + "'", ex);
             //TODO can this be done better ?
             throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""), ex);
         } catch (MetadataStorageManagerException ex) {
-            LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
+            LOG.info("Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
         }
     }
@@ -392,8 +392,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.FINE, "schema {0} not available yet, after waiting {1}/{2} ms",
-                    new Object[]{defaultTableSpace, delta, waitForSchemaTimeout});
+            LOG.debug("schema {} not available yet, after waiting {}/{} ms", defaultTableSpace, delta, waitForSchemaTimeout);
             if (delta >= waitForSchemaTimeout) {
                 return null;
             }
@@ -414,7 +413,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                     .build();
 
 
-    private static final Logger LOG = Logger.getLogger(CalcitePlanner.class
+    private static final Logger LOG = LoggerFactory.getLogger(CalcitePlanner.class
             .getName());
 
     private static class PlannerResult {
@@ -470,15 +469,16 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                     .programs(Programs.ofRules(Programs.RULE_SET))
                     .build();
             Planner planner = new PlannerImpl(config);
-            if (LOG.isLoggable(Level.FINER)) {
-                LOG.log(Level.FINER, "Query: {0}", query);
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("Query: {}", query);
             }
             try {
                 SqlNode n = planner.parse(query);
                 n = planner.validate(n);
                 RelNode logicalPlan = planner.rel(n).project();
-                if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                    LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+                if (DUMP_QUERY_LEVEL.equalsIgnoreCase("info") && LOG.isInfoEnabled()
+                        || DUMP_QUERY_LEVEL.equalsIgnoreCase("debug") && LOG.isDebugEnabled()) {
+                    LOG.info("Query: {} {}", new Object[]{query,
                         RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
                         SqlExplainLevel.ALL_ATTRIBUTES)});
                 }
@@ -500,10 +500,11 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
                 optPlanner.setRoot(newRoot);
                 RelNode bestExp = optPlanner.findBestExp();
-                if (LOG.isLoggable(DUMP_QUERY_LEVEL)) {
-                    LOG.log(DUMP_QUERY_LEVEL, "Query: {0} {1}", new Object[]{query,
+                 if (DUMP_QUERY_LEVEL.equalsIgnoreCase("info") && LOG.isInfoEnabled()
+                        || DUMP_QUERY_LEVEL.equalsIgnoreCase("debug") && LOG.isDebugEnabled()) {
+                    LOG.info("Query: {} {}", query,
                         RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
-                        SqlExplainLevel.ALL_ATTRIBUTES)});
+                        SqlExplainLevel.ALL_ATTRIBUTES));
                 }
 
                 return new PlannerResult(bestExp, originalRowType, logicalPlan, n);
@@ -511,7 +512,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 throw new StatementExecutionException("Internal Calcite error " + err, err);
             }
         } catch (java.lang.LinkageError err) {
-            LOG.log(Level.SEVERE, "Error on Java Classpath", err);
+            LOG.error("Error on Java Classpath", err);
             throw new StatementExecutionException("Internal Calcite error " + err, err);
         }
     }

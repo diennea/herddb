@@ -41,10 +41,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Table definition
@@ -54,7 +54,7 @@ import java.util.stream.Stream;
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
-    private static final Logger LOG = Logger.getLogger(Table.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(Table.class.getName());
     private static final int COLUMNVERSION_1 = 1;
 
     private static final int COLUMNFLAGS_NO_FLAGS = 0;
@@ -135,8 +135,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
         this.physicalLayoutLikeLogicalLayout = primaryKeyIsInKeyAndOrdered && columnsOrderedAsInPhysicalOrder;
 
-        if (LOG.isLoggable(Level.FINEST)) {
-            LOG.log(Level.FINEST, "Table: ", tablespace + "." + name + "\n"
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("Table: ", tablespace + "." + name + "\n"
                     + "Columns: " + columnsNamesAsList + "\n"
                     + "PrimaryKey: " + Arrays.asList(primaryKey) + "\n"
                     + "Columns ordered physically: " + columnsNamesOrderedBySerialPosition + "\n"

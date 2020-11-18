@@ -33,14 +33,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Clients side lookup of metadata using ZooKeeper
@@ -49,7 +49,7 @@ import org.apache.zookeeper.data.Stat;
  */
 public final class ZookeeperClientSideMetadataProvider implements ClientSideMetadataProvider {
 
-    private static final Logger LOG = Logger.getLogger(ZookeeperClientSideMetadataProvider.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ZookeeperClientSideMetadataProvider.class.getName());
 
     private final String basePath;
     private final ZookKeeperHolder zookeeperSupplier;
@@ -68,14 +68,14 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
                 final ZooKeeper z =  new ZooKeeper(zkAddress, zkSessionTimeout, new WatcherImpl(waitForConnection), true);
                 boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.MILLISECONDS);
                 if (!waitResult) {
-                    LOG.log(Level.SEVERE, "ZK session to ZK " + zkAddress + " did not establish within "
+                    LOG.error("ZK session to ZK " + zkAddress + " did not establish within "
                             + (zkSessionTimeout * 2L) + " ms");
                 }
                 return z;
             } catch (IOException err) {
-                LOG.log(Level.SEVERE, "zk client error " + err, err);
+                LOG.error("zk client error " + err, err);
             } catch (InterruptedException err) {
-                LOG.log(Level.SEVERE, "zk client error " + err, err);
+                LOG.error("zk client error " + err, err);
                 Thread.currentThread().interrupt();
             }
              return null;
@@ -135,14 +135,14 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
                     case SyncConnected:
                     case SaslAuthenticated:
                     case ConnectedReadOnly:
-                        LOG.log(Level.FINE, "zk client event {0}", event);
+                        LOG.debug("zk client event {}", event);
                         waitForConnection.countDown();
                         break;
                     case Expired:
-                        LOG.log(Level.INFO, "zk client event {0}", event);
+                        LOG.info("zk client event {}", event);
                         break;
                     default:
-                        LOG.log(Level.INFO, "zk client event {0}", event);
+                        LOG.info("zk client event {}", event);
                         break;
                 }
             }
@@ -198,7 +198,7 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
                     }
                 }
             } catch (KeeperException.ConnectionLossException ex) {
-                LOG.log(Level.SEVERE, "tmp error getTableSpaceLeader for " + tableSpace + ": " + ex);
+                LOG.error("tmp error getTableSpaceLeader for " + tableSpace + ": " + ex);
                 try {
                     Thread.sleep(i * 500 + 1000);
                 } catch (InterruptedException exit) {
@@ -251,7 +251,7 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
             } catch (KeeperException.NoNodeException ex) {
                 return null;
             } catch (KeeperException.ConnectionLossException ex) {
-                LOG.log(Level.SEVERE, "tmp error getServerHostData for " + nodeId + ": " + ex);
+                LOG.error("tmp error getServerHostData for " + nodeId + ": " + ex);
                 try {
                     Thread.sleep(i * 500 + 1000);
                 } catch (InterruptedException exit) {

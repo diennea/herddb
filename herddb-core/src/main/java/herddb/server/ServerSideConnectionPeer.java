@@ -90,9 +90,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.calcite.tools.ValidationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles a client Connection
@@ -101,7 +101,7 @@ import org.apache.calcite.tools.ValidationException;
  */
 public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEventListener {
 
-    private static final Logger LOGGER = Logger.getLogger(ServerSideConnectionPeer.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerSideConnectionPeer.class.getName());
     private static final RawString RAWSTRING_KEY = RawString.of("_key");
     private static final AtomicLong IDGENERATOR = new AtomicLong();
     private final long id = IDGENERATOR.incrementAndGet();
@@ -143,7 +143,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         // message is handled by current thread
         boolean releaseMessageSync = true;
         try {
-            LOGGER.log(Level.FINEST, "messageReceived {0}", message);
+            LOGGER.trace("messageReceived {}", message);
 
             switch (message.type) {
                 case Pdu.TYPE_EXECUTE_STATEMENT: {
@@ -319,7 +319,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             for (byte[] index : rawIndexes) {
                 indexes.add(Index.deserialize(index));
             }
-            LOGGER.log(Level.INFO, "tableRestoreFinished, table {0}, with {1} indexes", new Object[]{table, indexes.size()});
+            LOGGER.info("tableRestoreFinished, table {}, with {} indexes", new Object[]{table, indexes.size()});
 
             server.getManager()
                     .getTableSpaceManager(tableSpace)
@@ -362,13 +362,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             Bytes.from_array(key),
                             Bytes.from_array(value))));
 
-            LOGGER.log(Level.INFO, "Received {0} records for restore of table {1} in tableSpace {2}", new Object[]{records.size(), table, tableSpace});
+            LOGGER.info("Received {} records for restore of table {} in tableSpace {}", new Object[]{records.size(), table, tableSpace});
             TableManager tableManager = (TableManager) server.getManager()
                     .getTableSpaceManager(tableSpace)
                     .getTableManager(table);
             tableManager.writeFromDump(records);
             long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.INFO, "Time restore {0} records: data {1} ms", new Object[]{records.size(), _stop - _start});
+            LOGGER.info("Time restore {} records: data {} ms", new Object[]{records.size(), _stop - _start});
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
         } catch (StatementExecutionException err) {
@@ -388,7 +388,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             LogSequenceNumber.deserialize(key),
                             value)));
 
-            LOGGER.log(Level.INFO, "Received {0} records for restore of txlog in tableSpace {1}", new Object[]{entries.size(), tableSpace});
+            LOGGER.info("Received {} records for restore of txlog in tableSpace {}", new Object[]{entries.size(), tableSpace});
 
             server.getManager().getTableSpaceManager(tableSpace)
                     .restoreRawDumpedEntryLogs(entries);
@@ -410,7 +410,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     message,
                     (value) -> entries.add(Transaction.deserialize(tableSpace, value)));
 
-            LOGGER.log(Level.INFO, "Received " + entries.size() + " records for restore of transactions in tableSpace " + tableSpace);
+            LOGGER.info("Received " + entries.size() + " records for restore of transactions in tableSpace " + tableSpace);
 
             server.getManager().getTableSpaceManager(tableSpace).restoreRawDumpedTransactions(entries);
 
@@ -453,8 +453,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         // with clients older than 0.20.0 keepReadLocks will be always true
         byte trailer = parametersReader.readTrailer();
         boolean keepReadLocks = !isDontKeepReadLocks(trailer);
-        if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + ", keepReadLocks " + keepReadLocks + ", " + query + " with " + parameters);
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + ", keepReadLocks " + keepReadLocks + ", " + query + " with " + parameters);
         }
         RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
         RunningStatementInfo statementInfo = new RunningStatementInfo(query,
@@ -466,8 +466,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             query, parameters, true, true, false, maxRows);
             translatedQuery.context.setForceRetainReadLock(keepReadLocks);
 
-            if (LOGGER.isLoggable(Level.FINEST)) {
-                LOGGER.log(Level.FINEST, "{0} -> {1}", new Object[]{query, translatedQuery.plan.mainStatement});
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("{} -> {}", new Object[]{query, translatedQuery.plan.mainStatement});
             }
 
             TransactionContext transactionContext = new TransactionContext(txId);
@@ -483,8 +483,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<DataAccessor> records = dataScanner.consume(fetchSize);
                 TuplesList tuplesList = new TuplesList(columns, records);
                 boolean last = dataScanner.isFinished();
-                if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{records.size(), scannerId, query});
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace("sending first {} records to scanner {} query {}", new Object[]{records.size(), scannerId, query});
                 }
                 if (!last) {
                     scanners.put(scannerId, scanner);
@@ -508,9 +508,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         } catch (DataScannerException | HerdDBInternalException err) {
             if (err.getCause() != null && err.getCause() instanceof ValidationException) {
                 // no stacktraces for bad queries
-                LOGGER.log(Level.FINE, "SQL error on scanner " + scannerId + ": " + err);
+                LOGGER.debug("SQL error on scanner " + scannerId + ": " + err);
             } else {
-                LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
+                LOGGER.error("error on scanner " + scannerId + ": " + err, err);
             }
             scanners.remove(scannerId);
             ByteBuf error = composeErrorResponse(message.messageId, err);
@@ -536,11 +536,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                 boolean last = false;
                 if (dataScanner.isFinished()) {
-                    LOGGER.log(Level.FINEST, "unregistering scanner {0}, resultset is finished", scannerId);
+                    LOGGER.trace("unregistering scanner {}, resultset is finished", scannerId);
                     scanners.remove(scannerId);
                     last = true;
                 }
-//                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
+//                        LOGGER.error("sending " + converted.size() + " records to scanner " + scannerId);
                 try {
                     ByteBuf result = PduCodec.ResultSetChunk.write(message.messageId, tuplesList, last, dataScanner.getTransactionId());
                     channel.sendReplyMessage(message.messageId, result);
@@ -567,8 +567,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         long scannerId = PduCodec.CloseScanner.readScannerId(message);
         ServerSideScannerPeer removed = scanners.remove(scannerId);
         if (removed != null) {
-            if (LOGGER.isLoggable(Level.FINER)) {
-                LOGGER.log(Level.FINER, "remove scanner {0} as requested by client", scannerId);
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("remove scanner {} as requested by client", scannerId);
             }
             removed.clientClose();
         }
@@ -688,7 +688,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             message.close();
                             runningStatements.unregisterRunningStatement(statementInfo);
                         } catch (Throwable t) {
-                            LOGGER.log(Level.SEVERE, "Internal error", t);
+                            LOGGER.error("Internal error", t);
                         }
                         return;
                     }
@@ -849,8 +849,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         for (int i = 0; i < parametersReader.getNumParams(); i++) {
             parameters.add(parametersReader.nextObject());
         }
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "query {0} with {1}", new Object[]{query, parameters});
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("query {} with {}", new Object[]{query, parameters});
         }
 
         RunningStatementInfo statementInfo = new RunningStatementInfo(query, System.currentTimeMillis(), tablespace, "", 1);
@@ -867,13 +867,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
 
         Statement statement = translatedQuery.plan.mainStatement;
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+//                    LOGGER.error("query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
         RunningStatementsStats runningStatements = server.getManager().getRunningStatements();
         runningStatements.registerRunningStatement(statementInfo);
         CompletableFuture<StatementExecutionResult> res = server
                 .getManager()
                 .executePlanAsync(translatedQuery.plan, translatedQuery.context, transactionContext);
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+//                    LOGGER.error("query " + query + ", " + parameters + ", result:" + result);
         res.whenComplete((result, err) -> {
             try {
                 runningStatements.unregisterRunningStatement(statementInfo);
@@ -891,7 +891,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         ByteBuf error = composeErrorResponse(message.messageId, err);
                         channel.sendReplyMessage(message.messageId, error);
                     } else {
-                        LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
+                        LOGGER.error("unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
                         ByteBuf error = composeErrorResponse(message.messageId, err);
                         channel.sendReplyMessage(message.messageId, error);
                     }
@@ -1030,11 +1030,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             channel.sendReplyMessage(message.messageId, error);
             message.close();
         } else {
-//            LOGGER.log(Level.SEVERE, "statement " + statement);
+//            LOGGER.error("statement " + statement);
             CompletableFuture<StatementExecutionResult> res = server
                     .getManager()
                     .executeStatementAsync(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+//                    LOGGER.error("query " + query + ", " + parameters + ", result:" + result);
             res.whenComplete((result, err) -> {
                 try {
                     if (err != null) {
@@ -1045,7 +1045,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             ByteBuf error = composeErrorResponse(message.messageId, err);
                             channel.sendReplyMessage(message.messageId, error);
                         } else {
-                            LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
+                            LOGGER.error("unexpected error on tx command: ", err);
                             ByteBuf error = composeErrorResponse(message.messageId, err);
                             channel.sendReplyMessage(message.messageId, error);
                         }
@@ -1080,17 +1080,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             if (saslNettyServer.isComplete()) {
                 username = saslNettyServer.getUserName();
                 authenticated = true;
-                LOGGER.log(Level.INFO, "client {0} connected as {1}", new Object[]{this.channel.getRemoteAddress(), username});
+                LOGGER.info("client {} connected as {}", new Object[]{this.channel.getRemoteAddress(), username});
                 saslNettyServer = null;
             }
             channel.sendReplyMessage(message.messageId, tokenChallenge);
         } catch (Exception err) {
             if (err instanceof javax.security.sasl.SaslException) {
-                LOGGER.log(Level.SEVERE, "SASL error " + err, err);
+                LOGGER.error("SASL error " + err, err);
                 ByteBuf error = PduCodec.ErrorResponse.write(message.messageId, "Authentication failed (SASL error)");
                 channel.sendReplyMessage(message.messageId, error);
             } else {
-                LOGGER.log(Level.SEVERE, "Bad auth error " + err, err);
+                LOGGER.error("Bad auth error " + err, err);
                 ByteBuf error = composeErrorResponse(message.messageId, err);
                 channel.sendReplyMessage(message.messageId, error);
             }
@@ -1119,7 +1119,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     @Override
     public void channelClosed(Channel channel) {
         if (!channel.isLocalChannel()) {
-            LOGGER.log(Level.INFO, "channelClosed {0}", this);
+            LOGGER.info("channelClosed {}", this);
         }
         freeResources();
         this.server.connectionClosed(this);
@@ -1158,8 +1158,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             query, parameters, true, true, false, maxRows);
             translatedQuery.context.setForceRetainReadLock(keepReadLocks);
 
-            if (LOGGER.isLoggable(Level.FINEST)) {
-                LOGGER.log(Level.FINEST, "{0} -> {1}", new Object[]{query, translatedQuery.plan.mainStatement});
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("{} -> {}", new Object[]{query, translatedQuery.plan.mainStatement});
             }
 
             TransactionContext transactionContext = new TransactionContext(txId);
@@ -1174,9 +1174,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         } catch (HerdDBInternalException err) {
             if (err.getCause() != null && err.getCause() instanceof ValidationException) {
                 // no stacktraces for bad queries
-                LOGGER.log(Level.FINE, "SQL error on scanner: " + err);
+                LOGGER.debug("SQL error on scanner: " + err);
             } else {
-                LOGGER.log(Level.SEVERE, "error on scanner: " + err, err);
+                LOGGER.error("error on scanner: " + err, err);
             }
             throw new HDBException(err);
         }

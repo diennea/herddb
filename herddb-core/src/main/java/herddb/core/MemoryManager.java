@@ -22,8 +22,8 @@ package herddb.core;
 
 import herddb.utils.SystemProperties;
 import java.util.Locale;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Responsible to handle global memory usage.
@@ -32,7 +32,7 @@ import java.util.logging.Logger;
  */
 public class MemoryManager {
 
-    private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
             MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
@@ -63,11 +63,11 @@ public class MemoryManager {
         final int dataPages = (int) (maxDataUsedMemory / maxLogicalPageSize);
         final int pkPages = (int) (maxPKUsedMemory / maxLogicalPageSize);
 
-        LOGGER.log(Level.INFO, "Maximum amount of memory for data and indexes {0}", (maxDataUsedMemory / (1024 * 1024)) + " MB");
-        LOGGER.log(Level.INFO, "Maximum amount of memory for primary key indexes {0}", (maxPKUsedMemory / (1024 * 1024)) + " MB");
+        LOGGER.info("Maximum amount of memory for data and indexes {}", (maxDataUsedMemory / (1024 * 1024)) + " MB");
+        LOGGER.info("Maximum amount of memory for primary key indexes {}", (maxPKUsedMemory / (1024 * 1024)) + " MB");
 
-        LOGGER.log(Level.INFO, "Maximum number of loaded pages for data {0}"
-                + ", maximum number of loadedd pages for primary key indexes {1}", new Object[]{dataPages, pkPages});
+        LOGGER.info("Maximum number of loaded pages for data {}"
+                + ", maximum number of loadedd pages for primary key indexes {}", new Object[]{dataPages, pkPages});
         switch (PAGE_REPLACEMENT_POLICY) {
             case "random":
                 dataPageReplacementPolicy = new RandomPageReplacementPolicy(dataPages);

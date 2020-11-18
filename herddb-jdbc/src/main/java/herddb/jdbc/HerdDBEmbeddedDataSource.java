@@ -25,9 +25,9 @@ import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.SQLException;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Bootstrap for Embedded server
@@ -36,7 +36,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
 
-    private static final Logger LOGGER = Logger.getLogger(HerdDBEmbeddedDataSource.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(HerdDBEmbeddedDataSource.class.getName());
 
     private Server server;
     private StatsLogger statsLogger;
@@ -88,7 +88,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
                     || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)
                     || (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode) && startServer)
                     || (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode) && startServer)) {
-                LOGGER.log(Level.INFO, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
+                LOGGER.info("Booting Local Embedded HerdDB mode, url: {}" + url + ", properties: {}", url, serverConfiguration);
                 server = new Server(serverConfiguration, statsLogger);
                 try {
                     server.start();
@@ -116,7 +116,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
             try {
                 server.close();
             } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error during server shutdown:" + err, err);
+                LOGGER.error("error during server shutdown:" + err, err);
             }
             server = null;
         }

@@ -37,9 +37,9 @@ import java.sql.Statement;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * SQL Statement
@@ -50,7 +50,7 @@ public class HerdDBStatement implements java.sql.Statement {
 
     protected static final Pattern EXPECTS_RESULTSET = Pattern.compile("[\\s]*(SELECT|EXPLAIN|SHOW).*",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Logger LOG = Logger.getLogger(HerdDBStatement.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(HerdDBStatement.class.getName());
     private static final AtomicLong IDGENERATOR = new AtomicLong(1);
 
     protected final HerdDBConnection parent;
@@ -90,11 +90,11 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public void close() throws SQLException {
         for (HerdDBResultSet rs : openResultSets.values()) {
-            LOG.log(Level.FINE, "closing abandoned result set {0}", rs);
+            LOG.debug("closing abandoned result set {}", rs);
             try {
                 rs.close();
             } catch (SQLException err) {
-                LOG.log(Level.SEVERE, "Error while closing open resultset", err);
+                LOG.error("Error while closing open resultset", err);
             }
         }
         openResultSets.clear();

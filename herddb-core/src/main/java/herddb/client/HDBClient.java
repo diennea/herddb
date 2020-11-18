@@ -40,9 +40,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HerdDB Client
@@ -51,7 +52,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class HDBClient implements AutoCloseable {
 
-    private static final Logger LOG = Logger.getLogger(HDBClient.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(HDBClient.class.getName());
 
     private final ClientConfiguration configuration;
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();

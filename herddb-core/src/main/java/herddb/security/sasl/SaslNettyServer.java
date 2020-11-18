@@ -27,8 +27,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -45,6 +43,8 @@ import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslException;
 import javax.security.sasl.SaslServer;
 import org.apache.zookeeper.server.auth.KerberosName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Server side Sasl implementation
@@ -53,8 +53,7 @@ import org.apache.zookeeper.server.auth.KerberosName;
  */
 public class SaslNettyServer {
 
-    private static final Logger LOG = Logger
-            .getLogger(SaslNettyServer.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(SaslNettyServer.class.getName());
 
     private static final String JASS_SERVER_SECTION = "HerdDBServer";
 
@@ -71,7 +70,7 @@ public class SaslNettyServer {
                 throw new IOException("Cannot create JVM SASL Server");
             }
         } catch (Exception e) {
-            LOG.severe("SaslNettyServer: Could not create SaslServer: " + e);
+            LOG.error("SaslNettyServer: Could not create SaslServer: " + e);
             throw new IOException(e);
         }
 
@@ -108,7 +107,7 @@ public class SaslNettyServer {
 
                     final String _mech = "GSSAPI";   // TODO: should depend on zoo.cfg specified mechs, but if subject is non-null, it can be assumed to be GSSAPI.
 
-                    LOG.log(Level.INFO, "serviceHostname is ''{0}'', servicePrincipalName is ''{1}'', SASL mechanism(mech) is ''" + _mech + "'', Subject is ''{2}''", new Object[]{serviceHostname, servicePrincipalName, subject});
+                    LOG.info("serviceHostname is ''{}'', servicePrincipalName is ''{}'', SASL mechanism(mech) is ''" + _mech + "'', Subject is ''{}''", new Object[]{serviceHostname, servicePrincipalName, subject});
 
                     try {
                         return Subject.doAs(subject, new PrivilegedExceptionAction<SaslServer>() {
@@ -140,7 +139,7 @@ public class SaslNettyServer {
             }
         }
 
-        LOG.severe("failed to create saslServer object.");
+        LOG.error("failed to create saslServer object.");
 
         return null;
     }
@@ -245,7 +244,7 @@ public class SaslNettyServer {
             String authenticatingUser = null;
             if (nc != null) {
                 authenticatingUser = nc.getDefaultName();
-                LOG.finest("SASL server auth user " + authenticatingUser);
+                LOG.debug("SASL server auth user {}", authenticatingUser);
                 nc.setName(nc.getDefaultName());
             }
             if (pc != null) {
@@ -281,7 +280,7 @@ public class SaslNettyServer {
             byte[] retval = saslServer.evaluateResponse(token);
             return retval;
         } catch (SaslException e) {
-            LOG.severe("response: Failed to evaluate client token of length: "
+            LOG.error("response: Failed to evaluate client token of length: "
                     + token.length + " : " + e);
             throw e;
         }
@@ -335,7 +334,7 @@ public class SaslNettyServer {
         private void handleNameCallback(NameCallback nc) {
             // check to see if this user is in the user password database.
             if (credentials.get(nc.getDefaultName()) == null) {
-                LOG.severe("User '" + nc.getDefaultName() + "' not found in list of JAAS DIGEST-MD5 users.");
+                LOG.error("User '" + nc.getDefaultName() + "' not found in list of JAAS DIGEST-MD5 users.");
                 return;
             }
             nc.setName(nc.getDefaultName());
@@ -346,7 +345,7 @@ public class SaslNettyServer {
             if (credentials.containsKey(userName)) {
                 pc.setPassword(credentials.get(userName).toCharArray());
             } else {
-                LOG.severe("No password found for user: " + userName);
+                LOG.error("No password found for user: " + userName);
             }
         }
 
@@ -371,7 +370,7 @@ public class SaslNettyServer {
                 LOG.info("Setting authorizedID: " + userNameBuilder);
                 ac.setAuthorizedID(userNameBuilder.toString());
             } catch (IOException e) {
-                LOG.severe("Failed to set name based on Kerberos authentication rules.");
+                LOG.error("Failed to set name based on Kerberos authentication rules.");
             }
         }
 

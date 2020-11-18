@@ -40,9 +40,9 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Very Simple BRIN (Block Range Index) implementation with pagination managed by a {@link PageReplacementPolicy}
@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  */
 public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extends SizeAwareObject> {
 
-    private static final Logger LOG = Logger.getLogger(BlockRangeIndex.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(BlockRangeIndex.class.getName());
 
     private static final long ENTRY_CONSTANT_BYTE_SIZE = 93;
     private static final long BLOCK_CONSTANT_BYTE_SIZE = 128;
@@ -542,8 +542,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 throw new IllegalStateException("Split on a non overflowing block");
             }
 
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Split: FK " + key, new Object[]{key});
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("Split: FK " + key, new Object[]{key});
             }
             NavigableMap<Key, List<Val>> keepValues = new TreeMap<>();
             NavigableMap<Key, List<Val>> otherValues = new TreeMap<>();
@@ -663,8 +663,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             });
 
             long newPageId = index.dataStorage.createDataPage(result);
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.fine("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
             }
             this.dirty = false;
             this.pageId = newPageId;
@@ -749,13 +749,13 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
     private BlockRangeIndexMetadata.BlockMetadata<K> merge(Block<K, V> first, List<Block<K, V>> merging) throws IOException {
 
-        final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+        final boolean traceEnabled = LOG.isTraceEnabled();
 
         /* No real merge */
         if (merging.isEmpty()) {
 
-            if (fineEnabled) {
-                LOG.fine("block " + first.pageId + " (" + first.key + ") has " + first + " byte size at checkpoint");
+            if (traceEnabled) {
+                LOG.trace("block " + first.pageId + " (" + first.key + ") has " + first + " byte size at checkpoint");
             }
             return first.checkpoint();
         }
@@ -819,18 +819,18 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                         first.size += other.size;
                     }
 
-                    if (fineEnabled) {
+                    if (traceEnabled) {
 
                         if (other.size != 0) {
-                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from merged block "
+                            LOG.trace("unlinking block " + first.pageId + " (" + first.key + ") from merged block "
                                     + other.pageId + " (" + other.key + ")");
                         } else {
-                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from deleted block "
+                            LOG.trace("unlinking block " + first.pageId + " (" + first.key + ") from deleted block "
                                     + other.pageId + " (" + other.key + ")");
                         }
 
                         if (other.next != null) {
-                            LOG.fine("linking block " + first.pageId + " (" + first.key + ") to real next block "
+                            LOG.trace("linking block " + first.pageId + " (" + first.key + ") to real next block "
                                     + other.next.pageId + " (" + other.next.key + ")");
                         }
                     }
@@ -854,8 +854,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             first.lock.unlock();
         }
 
-        if (fineEnabled) {
-            LOG.fine("merged block " + first.pageId + " (" + first.key + ") has " + first.size + " byte size at checkpoint");
+        if (traceEnabled) {
+            LOG.trace("merged block " + first.pageId + " (" + first.key + ") has " + first.size + " byte size at checkpoint");
         }
 
         BlockRangeIndexMetadata.BlockMetadata<K> metadata = first.checkpointNoLock();
@@ -870,7 +870,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     }
 
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
-        final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+        final boolean traceEnabled = LOG.isTraceEnabled();
 
         List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
 
@@ -957,8 +957,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
                     /* Now checkpointing current block (no merge) */
 
-                    if (fineEnabled) {
-                        LOG.fine("block " + block.pageId + " (" + block.key + ") has " + size + " byte size at checkpoint");
+                    if (traceEnabled) {
+                        LOG.trace("block " + block.pageId + " (" + block.key + ") has " + size + " byte size at checkpoint");
                     }
 
                     /* We already have the lock */

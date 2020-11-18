@@ -28,8 +28,8 @@ import herddb.core.HerdDBInternalException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple cache of prepared statements on the server side
@@ -73,7 +73,7 @@ public final class ServerSidePreparedStatementCache {
                 })
                 .removalListener((RemovalNotification<String, Long> notification) -> {
                     PreparedStatementInfo info = statementsInfo.remove(notification.getValue());
-                    LOG.log(Level.INFO, "unpreparing {0} {1}", new Object[]{notification.getValue(), notification.getKey()});
+                    LOG.info("unpreparing {} {}", new Object[]{notification.getValue(), notification.getKey()});
                 })
                 .build();
     }
@@ -91,7 +91,7 @@ public final class ServerSidePreparedStatementCache {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(ServerSidePreparedStatementCache.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ServerSidePreparedStatementCache.class.getName());
 
     public long getSize() {
         return preparedStatements.size();

@@ -25,8 +25,8 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Basic implementation of CAR algorithm.
@@ -51,7 +51,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     /**
      * Class logger
      */
-    private static final Logger LOGGER = Logger.getLogger(ClockAdaptiveReplacement.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ClockAdaptiveReplacement.class.getName());
 
     /**
      * This <i>constants</i> rules out unecessary and expensive logs at compile level if set to {@code true}.
@@ -191,7 +191,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     private Page.Metadata unsafeAdd(CARMetadata page) {
 
         if (COMPILE_EXPENSIVE_LOGS) {
-            LOGGER.log(Level.SEVERE, "Status[add started]: p = {0}, |T1| = {1}, |T2| = {2}, |B1| = {3}, |B2| = {4}, adding {5}",
+            LOGGER.error("Status[add started]: p = {}, |T1| = {}, |T2| = {}, |B1| = {}, |B2| = {}, adding {}",
                     new Object[]{p, t1.size(), t2.size(), b1.size(), b2.size(), page});
         }
 
@@ -221,7 +221,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         if (t1.size() + t2.size() == c) {
 
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "T1 + T2 = c: looking for a replacement for {0}", page);
+                LOGGER.error("T1 + T2 = c: looking for a replacement for {}", page);
             }
 
             /* cache full, replace a page from cache */
@@ -231,12 +231,12 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
             if (!b1Hit && !b2Hit) {
                 if (t1.size() + b1.size() == c) {
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T1 + B1 = c: discarding B1 {0}", b1.peek());
+                        LOGGER.error("T1 + B1 = c: discarding B1 {}", b1.peek());
                     }
                     b1.poll();
                 } else if (t1.size() + t2.size() + b1.size() + b2.size() == 2 * c) {
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T1 + T2 + B1 + B2 = 2c: discarding B2 {0}", b2.peek());
+                        LOGGER.error("T1 + T2 + B1 + B2 = 2c: discarding B2 {}", b2.peek());
                     }
                     b2.poll();
                 }
@@ -262,7 +262,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
             /* Insert x at the tail of T1. Set the page reference bit of x to 0. */
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "Not in B1 U B2: insert {0} into T1 tail", page);
+                LOGGER.error("Not in B1 U B2: insert {} into T1 tail", page);
             }
 
             page.reference = false;
@@ -274,12 +274,12 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
             p = Math.min(p + Math.max(1, b2.size() / b1.size()), c);
 
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "Adapt: p = min {p + max{1, |B2|/|B1|}, c} = {0}", p);
+                LOGGER.error("Adapt: p = min {p + max{1, |B2|/|B1|}, c} = {}", p);
             }
 
             /* Move x at the tail of T2. Set the page reference bit of x to 0. */
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "In B1: insert {0} into T2 tail", page);
+                LOGGER.error("In B1: insert {} into T2 tail", page);
             }
 
             page.reference = false;
@@ -293,12 +293,12 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
             p = Math.max(p - Math.max(1, b1.size() / b2.size()), 0);
 
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "Adapt: p = max {p − max{1, |B1|/|B2|}, 0} = {0}", p);
+                LOGGER.error("Adapt: p = max {p − max{1, |B1|/|B2|}, 0} = {}", p);
             }
 
             /* Move x at the tail of T2. Set the page reference bit of x to 0. */
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "In B2: insert {0} into T2 tail", page);
+                LOGGER.error("In B2: insert {} into T2 tail", page);
             }
 
             page.reference = false;
@@ -307,7 +307,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         }
 
         if (COMPILE_EXPENSIVE_LOGS) {
-            LOGGER.log(Level.SEVERE, "Status[add completed]: p = {0}, |T1| = {1}, |T2| = {2}, |B1| = {3}, |B2| = {4}, replaced {5}",
+            LOGGER.error("Status[add completed]: p = {}, |T1| = {}, |T2| = {}, |B1| = {}, |B2| = {}, replaced {}",
                     new Object[]{p, t1.size(), t2.size(), b1.size(), b2.size(), replaced});
         }
 
@@ -343,7 +343,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
                     /* Demote the head page in T1 and make it the MRU page in B1. */
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T1 head {0} not referenced: demote to B1 MRU", t1h);
+                        LOGGER.error("T1 head {} not referenced: demote to B1 MRU", t1h);
                     }
 
                     b1.append(t1h);
@@ -353,7 +353,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 } else {
                     /* Set the page reference bit of head page in T1 to 0, and make it the tail page in T2. */
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T1 head {0} not referenced: move into T2 tail", t1h);
+                        LOGGER.error("T1 head {} not referenced: move into T2 tail", t1h);
                     }
 
                     t1h.reference = false;
@@ -366,7 +366,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
                     /* Demote the head page in T2 and make it the MRU page in B2. */
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T2 head {0} not referenced: demote to B2 MRU", t2h);
+                        LOGGER.error("T2 head {} not referenced: demote to B2 MRU", t2h);
                     }
 
                     b2.append(t2h);
@@ -376,7 +376,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 } else {
                     /* Set the page reference bit of head page in T2 to 0, and make it the tail page in T2. */
                     if (COMPILE_EXPENSIVE_LOGS) {
-                        LOGGER.log(Level.SEVERE, "T2 head {0} not referenced: move into T2 tail", t2h);
+                        LOGGER.error("T2 head {} not referenced: move into T2 tail", t2h);
                     }
 
                     t2h.reference = false;
@@ -395,7 +395,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
             /* Demote the head page in T1 and make it the MRU page in B1. */
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "Removing T1 element: demote to B1 MRU", t1r);
+                LOGGER.error("Removing T1 element: demote to B1 MRU", t1r);
             }
 
             t1r.reference = false;
@@ -410,7 +410,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
             /* Demote the head page in T2 and make it the MRU page in B2. */
             if (COMPILE_EXPENSIVE_LOGS) {
-                LOGGER.log(Level.SEVERE, "Removing T2 element: demote to B2 MRU", t1r);
+                LOGGER.error("Removing T2 element: demote to B2 MRU", t1r);
             }
 
             t2r.reference = false;

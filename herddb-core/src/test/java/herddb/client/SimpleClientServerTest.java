@@ -59,12 +59,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Basic server/client boot test
@@ -72,26 +72,6 @@ import org.junit.rules.TemporaryFolder;
  * @author enrico.olivelli
  */
 public class SimpleClientServerTest {
-//
-//         @Before
-//    public void setupLogger() throws Exception {
-//        Level level = Level.FINEST;
-//        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-//
-//            @Override
-//            public void uncaughtException(Thread t, Throwable e) {
-//                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
-//                e.printStackTrace();
-//            }
-//        });
-//        java.util.logging.LogManager.getLogManager().reset();
-//        ConsoleHandler ch = new ConsoleHandler();
-//        ch.setLevel(level);
-//        SimpleFormatter f = new SimpleFormatter();
-//        ch.setFormatter(f);
-//        java.util.logging.Logger.getLogger("").setLevel(level);
-//        java.util.logging.Logger.getLogger("").addHandler(ch);
-//    }
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -526,7 +506,7 @@ public class SimpleClientServerTest {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(SimpleClientServerTest.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(SimpleClientServerTest.class.getName());
 
     @Test
     public void testClientCloseOnConnectionAndResumeTransaction() throws Exception {
@@ -546,8 +526,7 @@ public class SimpleClientServerTest {
                         @Override
                         protected ClientSideConnectionPeer chooseConnection(ClientSideConnectionPeer[] all) {
                             connections.set(all);
-                            LOG.log(Level.INFO,
-                                    "chooseConnection among " + all.length + " connections, getting " + connectionToUse);
+                            LOG.info("chooseConnection among " + all.length + " connections, getting " + connectionToUse);
                             return all[connectionToUse.get()];
                         }
 
@@ -653,7 +632,7 @@ public class SimpleClientServerTest {
                     @Override
                     public void requestReceived(Pdu message, Channel channel) {
                         if (suspendProcessing.get()) {
-                            LOG.log(Level.INFO, "dropping message type " + message.type + " id " + message.messageId);
+                            LOG.info("dropping message type " + message.type + " id " + message.messageId);
                             message.close();
                             return;
                         }

@@ -40,9 +40,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JDBC Driver
@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 @SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_INTERFACE")
 public class Driver implements java.sql.Driver, AutoCloseable {
 
-    private static final Logger LOG = Logger.getLogger(Driver.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(Driver.class.getName());
 
     private static final DataSourceManager DATASOURCE_MANAGER = new DataSourceManager();
 
@@ -65,7 +65,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
                 awaiter.run();
             });
         } catch (SQLException error) {
-            LOG.log(Level.SEVERE, "error while registring JDBC driver:" + error, error);
+            LOG.error("error while registring JDBC driver:" + error, error);
         }
     }
 
@@ -97,13 +97,13 @@ public class Driver implements java.sql.Driver, AutoCloseable {
             ds.setOnAutoClose(d -> {
                 synchronized (dr) {
                     if (d.isAutoClose()) {
-                        LOG.log(Level.INFO, "AutoClosing JDBC Driver created DS {0}", d);
+                        LOG.info("AutoClosing JDBC Driver created DS {}", d);
                         d.close();
                         datasources.remove(key);
                     }
                 }
             });
-            LOG.log(Level.INFO, "JDBC Driver created DS {0}", ds);
+            LOG.info("JDBC Driver created DS {}", ds);
 
 
             datasources.put(key, ds);
@@ -111,9 +111,9 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         }
 
         private synchronized void closeAll() {
-            LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0}", this);
+            LOG.info("Unregistering HerdDB JDBC Driver {}", this);
             datasources.forEach((key, ds) -> {
-                LOG.log(Level.INFO, "Unregistering HerdDB JDBC Driver {0} Datasource ID {1}", new Object[]{this, key});
+                LOG.info("Unregistering HerdDB JDBC Driver {} Datasource ID {}", new Object[]{this, key});
                 ds.close();
             });
             datasources.clear();
@@ -169,8 +169,8 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     }
 
     @Override
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return LOG;
+    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+        return java.util.logging.Logger.getLogger(Driver.class.getName());
     }
 
     private static String computeKey(String url, Properties info) {

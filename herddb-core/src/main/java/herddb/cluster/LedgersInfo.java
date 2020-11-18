@@ -26,8 +26,8 @@ import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Information on ledgers user by the broker
@@ -120,16 +120,16 @@ public class LedgersInfo {
             long id = activeLedgers.get(i);
             long ledgerTimestamp = ledgersTimestamps.get(i);
             if (ledgerTimestamp < timestamp) {
-                LOG.log(Level.INFO, "ledeger {0} is to be dropped, time is {1} < {2}", new Object[]{id, new java.sql.Timestamp(ledgerTimestamp), new java.sql.Timestamp(timestamp)});
+                LOG.info("ledeger {} is to be dropped, time is {} < {}", id, new java.sql.Timestamp(ledgerTimestamp), new java.sql.Timestamp(timestamp));
                 res.add(id);
             } else {
-                LOG.log(Level.INFO, "ledeger {0} is to keep, time is {1} >= {2}", new Object[]{id, new java.sql.Timestamp(ledgerTimestamp), new java.sql.Timestamp(timestamp)});
+                LOG.info("ledeger {} is to keep, time is {} >= {}", id, new java.sql.Timestamp(ledgerTimestamp), new java.sql.Timestamp(timestamp));
             }
         }
         return res;
     }
 
-    private static final Logger LOG = Logger.getLogger(LedgersInfo.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(LedgersInfo.class.getName());
 
     public synchronized List<Long> getActiveLedgers() {
         return new ArrayList<>(activeLedgers);

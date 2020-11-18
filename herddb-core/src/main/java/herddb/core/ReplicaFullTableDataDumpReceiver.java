@@ -30,8 +30,8 @@ import herddb.utils.SystemInstrumentation;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Receives data for a table on the full download from a 'replica' node
@@ -40,7 +40,7 @@ import java.util.logging.Logger;
  */
 public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
 
-    private static final Logger LOGGER = Logger.getLogger(ReplicaFullTableDataDumpReceiver.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReplicaFullTableDataDumpReceiver.class.getName());
 
     private TableManager currentTable;
     private final CompletableFuture<Object> latch;
@@ -74,31 +74,31 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
 
     @Override
     public void onError(Throwable error) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", onError ", error);
+        LOGGER.error("dumpReceiver " + tableSpaceName + ", onError ", error);
         this.error = error;
         latch.completeExceptionally(error);
     }
 
     @Override
     public void finish(LogSequenceNumber pos) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
+        LOGGER.info("dumpReceiver " + tableSpaceName + ", finish, at " + pos);
         latch.complete("");
     }
 
     @Override
     public void endTable() throws DataStorageManagerException {
         if (currentTable == null) {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable swallow data after leader side error");
+            LOGGER.error("dumpReceiver " + tableSpaceName + ", endTable swallow data after leader side error");
             return;
         }
-        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
+        LOGGER.info("dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
         currentTable = null;
     }
 
     @Override
     public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
         if (currentTable == null) {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", receiveTableDataChunk swallow data after leader side error");
+            LOGGER.error("dumpReceiver " + tableSpaceName + ", receiveTableDataChunk swallow data after leader side error");
             return;
         }
         currentTable.writeFromDump(record);
@@ -109,7 +109,7 @@ public class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
     @Override
     public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
         Table table = dumpedTable.table;
-        LOGGER.log(Level.INFO, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
+        LOGGER.info("dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats + ", dumped at " + dumpedTable.logSequenceNumber + " (general dump at " + logSequenceNumber + ")");
         currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber, false);
         for (Index index : dumpedTable.indexes) {
             tableSpaceManager.bootIndex(index, currentTable, false, 0, false, true);

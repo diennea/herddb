@@ -24,8 +24,8 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import herddb.model.ExecutionPlan;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * LRU Cache of Execution plans
@@ -34,7 +34,7 @@ import java.util.logging.Logger;
  */
 public class PlansCache {
 
-    private static final Logger LOG = Logger.getLogger(PlansCache.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(PlansCache.class.getName());
 
     private final Cache<String, ExecutionPlanContainer> cache;
 
@@ -53,7 +53,7 @@ public class PlansCache {
 
     public PlansCache(long maxBytes) {
 
-        LOG.log(Level.INFO, "Max query plan cache size: {0} bytes", maxBytes + "");
+        LOG.info("Max query plan cache size: {} bytes", maxBytes + "");
 
         this.cache = CacheBuilder
                 .newBuilder()
@@ -63,8 +63,8 @@ public class PlansCache {
                 })
                 .maximumWeight(maxBytes)
                 .removalListener((RemovalNotification<String, ExecutionPlanContainer> notification) -> {
-                    LOG.log(Level.FINE, "Removed query {0} -> {1} size {2} bytes", new Object[]{notification.getCause(),
-                            notification.getKey(), notification.getValue().weight});
+                    LOG.debug("Removed query {} -> {} size {} bytes", notification.getCause(),
+                            notification.getKey(), notification.getValue().weight);
                 })
                 .build();
 

@@ -35,8 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import javax.sql.DataSource;
@@ -49,13 +47,15 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Path("api")
 @Produces(MediaType.APPLICATION_JSON)
 @SuppressFBWarnings(value = "OBL_UNSATISFIED_OBLIGATION", justification = "This is a spotbugs bug")
 public class APIResource {
 
-    private static final Logger LOG = Logger.getLogger(APIResource.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(APIResource.class.getName());
 
     @Context
     private HttpServletRequest servletRequest;
@@ -129,7 +129,7 @@ public class APIResource {
             session.setAttribute("defaultts", defaultts);
             session.setAttribute("jdbcurl", ds);
         } catch (SQLException | IllegalArgumentException e) {
-            LOG.log(Level.SEVERE, "error", e);
+            LOG.error("error", e);
             res.put("ok", false);
             if (e.getMessage().contains(UnknownHostException.class.getName()) || e.getMessage().contains("invalid url")) {
                 res.put("errormessage", "JDBC URL is not correct. The host " + ds + " is unreachable.");

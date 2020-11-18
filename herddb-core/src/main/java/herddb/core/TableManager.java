@@ -115,12 +115,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.StatsLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles Data of a Table
@@ -130,7 +130,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public final class TableManager implements AbstractTableManager, Page.Owner {
 
-    private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(TableManager.class.getName());
 
     private static final long CHECKPOINT_LOCK_WRITE_TIMEOUT = SystemProperties.
             getIntSystemProperty("herddb.tablemanager.checkpoint.lock.write.timeout", 60);
@@ -275,14 +275,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final ConcurrentHashMap<String, String> parentForeignKeyQueries = new ConcurrentHashMap<>();
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
-        LOGGER.log(Level.INFO, "Table " + table.name + ", receiving dump,"
+        LOGGER.info("Table " + table.name + ", receiving dump,"
                 + "done at external logPosition " + dumpLogSequenceNumber);
         this.dumpLogSequenceNumber = dumpLogSequenceNumber;
     }
 
     void restoreFinished() {
         dumpLogSequenceNumber = null;
-        LOGGER.log(Level.INFO, "Table " + table.name + ", received dump");
+        LOGGER.info("Table " + table.name + ", received dump");
     }
 
     private final class TableManagerStatsImpl implements TableManagerStats {
@@ -526,13 +526,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 activePagesAtBoot.putAll(tableStatus.activePages);
             } else {
                 // non persistent primary key index, we need a full table scan
-                LOGGER.log(Level.INFO, "loading in memory all the keys for table {0}", new Object[]{table.name});
+                LOGGER.info("loading in memory all the keys for table {}", new Object[]{table.name});
                 dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
                         new FullTableScanConsumer() {
 
                     @Override
                     public void acceptTableStatus(TableStatus tableStatus) {
-                        LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
+                        LOGGER.info("recovery table at {}", tableStatus.sequenceNumber);
                         nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
                         nextPageId = tableStatus.nextPageId;
                         bootSequenceNumber = tableStatus.sequenceNumber;
@@ -553,10 +553,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 });
             }
         } else {
-            LOGGER.log(Level.INFO, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
+            LOGGER.info("loading table {}, uuid {}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
             if (!tableStatus.sequenceNumber.isStartOfTime()) {
-                LOGGER.log(Level.INFO, "recovery table at {0}", tableStatus.sequenceNumber);
+                LOGGER.info("recovery table at {}", tableStatus.sequenceNumber);
             }
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
@@ -571,7 +571,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         initNewPages();
         if (!created) {
-            LOGGER.log(Level.INFO, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
+            LOGGER.info("loaded {} keys for table {}, newPageId {}, nextPrimaryKeyValue {}, activePages {}",
                     new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
         }
         tableSpaceManager.rebuildForeignKeyReferences(table);
@@ -604,7 +604,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 TruncateTableStatement truncate = (TruncateTableStatement) statement;
                 res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
             } catch (StatementExecutionException err) {
-                LOGGER.log(Level.SEVERE, "Truncate table failed", err);
+                LOGGER.error("Truncate table failed", err);
                 res = Futures.exception(err);
             }
         } else if (statement instanceof TableConsistencyCheckStatement) {
@@ -735,7 +735,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private DataPage createMutablePage(long newId, int expectedSize, long initiaPageSize) {
 
-        LOGGER.log(Level.FINER, "creating mutable page table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.trace("creating mutable page table {}, pageId={} with {} records, {} logical page size",
                 new Object[]{table.name, newId, expectedSize, initiaPageSize});
 
         final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, initiaPageSize, new HashMap<Bytes, Record>(expectedSize), false);
@@ -758,8 +758,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pages.computeIfPresent(pageId, (k, remove) -> {
 
                     unloadedPagesCount.increment();
-                    if (LOGGER.isLoggable(Level.FINER)) {
-                        LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                    if (LOGGER.isTraceEnabled()) {
+                        LOGGER.trace("table {} removed page {}, {}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
                     }
 
                     boolean dataFlushed = false;
@@ -767,12 +767,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         dataFlushed = flushNewPageForUnload(remove);
                     }
 
-                    if (LOGGER.isLoggable(Level.FINER)) {
+                    if (LOGGER.isTraceEnabled()) {
                         if (dataFlushed) {
-                            LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
+                            LOGGER.trace("table {} remove and save 'new' page {}, {}",
                                     new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
                         } else {
-                            LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}",
+                            LOGGER.trace("table {} unload page {}, {}",
                                     new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
                         }
                     }
@@ -822,7 +822,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             case ALREADY_FLUSHED:
                 /* Already flushed (and possibly unloaded) by another thread */
-                LOGGER.log(Level.INFO, "New page {0} already flushed in a concurrent thread", page.pageId);
+                LOGGER.info("New page {} already flushed in a concurrent thread", page.pageId);
                 return;
 
             case EMPTY_FLUSH:
@@ -862,7 +862,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private FlushNewPageResult flushNewPage(DataPage page, DataPage spareDataPage) {
 
         if (page.immutable) {
-            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page {0} as it was mutable", page.pageId);
+            LOGGER.error("Attempt to flush an immutable page {} as it was mutable", page.pageId);
             throw new IllegalStateException("page " + page.pageId + " is not a new page!");
         }
 
@@ -870,7 +870,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
 
             if (!page.writable) {
-                LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
+                LOGGER.info("Mutable page {} already flushed in a concurrent thread", page.pageId);
                 return FlushNewPageResult.ALREADY_FLUSHED;
             }
 
@@ -886,7 +886,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         lock.lock();
         try {
             if (!page.writable) {
-                LOGGER.log(Level.INFO, "Mutable page {0} already flushed in a concurrent thread", page.pageId);
+                LOGGER.info("Mutable page {} already flushed in a concurrent thread", page.pageId);
                 return FlushNewPageResult.ALREADY_FLUSHED;
             }
 
@@ -913,7 +913,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Remove it from "new" pages */
             DataPage remove = newPages.remove(page.pageId);
             if (remove == null) {
-                LOGGER.log(Level.SEVERE, "Detected concurrent flush of page {0}, writable: {1}",
+                LOGGER.error("Detected concurrent flush of page {}, writable: {}",
                         new Object[]{page.pageId, page.writable});
                 throw new IllegalStateException("page " + page.pageId + " is not a new page!");
             }
@@ -921,7 +921,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             page.writable = false;
 
             if (drop) {
-                LOGGER.log(Level.INFO, "Deleted empty mutable page {0} instead of flushing it", page.pageId);
+                LOGGER.info("Deleted empty mutable page {} instead of flushing it", page.pageId);
                 return FlushNewPageResult.EMPTY_FLUSH;
             }
 
@@ -944,8 +944,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (add) {
                     boolean moved = keyToPage.put(record.key, page.pageId, spareDataPage.pageId);
                     if (!moved) {
-                        LOGGER.log(Level.SEVERE,
-                                "Detected a dirty page as spare data page while flushing new page. Flushing new page {0}. Spare data page {1}",
+                        LOGGER.error(
+                                "Detected a dirty page as spare data page while flushing new page. Flushing new page {}. Spare data page {}",
                                 new Object[]{page, spareDataPage});
                         throw new IllegalStateException(
                                 "Expected a clean page for stealing records, got a dirty record " + record.key
@@ -964,7 +964,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             spareDataPage.setUsedMemory(buildingPageMemory - spareUsedMemory);
         }
 
-        LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.trace("flushNewPage table {}, pageId={} with {} records, {} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.getRecordsForFlush());
 
@@ -983,11 +983,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private void flushMutablePage(DataPage page, boolean keepPageInMemory) {
 
-        LOGGER.log(Level.FINER, "flushing mutable page table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.trace("flushing mutable page table {}, pageId={} with {} records, {} logical page size",
                 new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
 
         if (page.immutable) {
-            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page " + page.pageId + " as it was mutable");
+            LOGGER.error("Attempt to flush an immutable page " + page.pageId + " as it was mutable");
             throw new IllegalStateException("page " + page.pageId + " is not an immutable page!");
         }
 
@@ -995,7 +995,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
 
             if (!page.writable) {
-                LOGGER.log(Level.SEVERE, "Attempt to flush a not writable mutable page " + page.pageId + " as it was writable");
+                LOGGER.error("Attempt to flush a not writable mutable page " + page.pageId + " as it was writable");
                 throw new IllegalStateException("page " + page.pageId + " is not a writable page!");
             }
 
@@ -1064,7 +1064,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private static LockHandle lockForWrite(Bytes key, Transaction transaction, String lockKey, ILocalLockManager locksManager) {
-//        LOGGER.log(Level.SEVERE, "lockForWrite for " + key + " tx " + transaction);
+//        LOGGER.error("lockForWrite for " + key + " tx " + transaction);
         try {
             if (transaction != null) {
                 LockHandle lock = transaction.lookupLock(lockKey, key);
@@ -1519,7 +1519,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private CompletableFuture<StatementExecutionResult> executeUpdateAsync(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
-//        LOGGER.log(Level.SEVERE, "executeUpdateAsync, " + update + ", transaction " + transaction);
+//        LOGGER.error("executeUpdateAsync, " + update + ", transaction " + transaction);
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
         Holder<byte[]> lastValue = new Holder<>();
@@ -1617,7 +1617,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
-            LOGGER.log(Level.SEVERE, "bad error during an update", err);
+            LOGGER.error("bad error during an update", err);
             return Futures.exception(err);
         }
 
@@ -1764,7 +1764,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }, transaction, true, true);
         } catch (HerdDBInternalException err) {
-            LOGGER.log(Level.SEVERE, "bad error during a delete", err);
+            LOGGER.error("bad error during a delete", err);
             return Futures.exception(err);
         }
         if (writes.isEmpty()) {
@@ -1829,14 +1829,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         try {
             long estimatedSize = keyToPage.size();
-            LOGGER.log(Level.INFO, "TRUNCATING TABLE {0} with approx {1} records", new Object[]{table.name, estimatedSize});
+            LOGGER.info("TRUNCATING TABLE {} with approx {} records", new Object[]{table.name, estimatedSize});
             LogEntry entry = LogEntryFactory.truncate(table, null);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(0, estimatedSize > Integer.MAX_VALUE
                     ? Integer.MAX_VALUE : (int) estimatedSize, null, null);
         } catch (LogNotAvailableException | DataStorageManagerException error) {
-            LOGGER.log(Level.SEVERE, "Error during TRUNCATE table " + table.tablespace + "." + table.name, error);
+            LOGGER.error("Error during TRUNCATE table " + table.tablespace + "." + table.name, error);
             throw new StatementExecutionException(error);
         }
     }
@@ -1907,8 +1907,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         if (!transaction.lastSequenceNumber.after(bootSequenceNumber)) {
             if (recovery) {
-                LOGGER.log(Level.FINER,
-                        "ignoring transaction {0} commit on recovery, {1}.{2} data is newer: transaction {3}, table {4}",
+                LOGGER.trace(
+                        "ignoring transaction {} commit on recovery, {}.{} data is newer: transaction {}, table {}",
                         new Object[]{transaction.transactionId, table.tablespace, table.name,
                                 transaction.lastSequenceNumber, bootSequenceNumber});
                 return;
@@ -1953,7 +1953,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
-            LOGGER.log(Level.FINE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
+            LOGGER.debug("forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(false);
         }
     }
@@ -1979,9 +1979,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
                 if (transaction != null) {
                     transaction.touch();
-                    LOGGER.log(Level.FINER, "{0}.{1} keep {2} at {3}, table restored from position {4}, it belongs to transaction {5} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
+                    LOGGER.trace("{}.{} keep {} at {}, table restored from position {}, it belongs to transaction {} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
                 } else {
-                    LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table restored from position {4}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
+                    LOGGER.trace("{}.{} skip {} at {}, table restored from position {}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
                     return;
                 }
             } else if (!position.after(bootSequenceNumber)) {
@@ -1992,9 +1992,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
                 if (transaction != null) {
                     transaction.touch();
-                    LOGGER.log(Level.FINER, "{0}.{1} keep {2} at {3}, table booted at {4}, it belongs to transaction {5} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
+                    LOGGER.trace("{}.{} keep {} at {}, table booted at {}, it belongs to transaction {} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
                 } else {
-                    LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table booted at {4}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
+                    LOGGER.trace("{}.{} skip {} at {}, table booted at {}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
                     return;
                 }
             }
@@ -2013,7 +2013,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         /* Ignore missing transaction only if during recovery and ignore property is active */
                         if (recovery && ignoreMissingTransactionsOnRecovery) {
-                            LOGGER.log(Level.WARNING, "Ignoring delete of {0} due to missing transaction {1}",
+                            LOGGER.warn("Ignoring delete of {} due to missing transaction {}",
                                     new Object[]{entry.key, entry.transactionId});
                         } else {
                             throw new DataStorageManagerException("no such transaction " + entry.transactionId);
@@ -2034,7 +2034,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         /* Ignore missing transaction only if during recovery and ignore property is active */
                         if (recovery && ignoreMissingTransactionsOnRecovery) {
-                            LOGGER.log(Level.WARNING, "Ignoring update of {0} due to missing transaction {1}",
+                            LOGGER.warn("Ignoring update of {} due to missing transaction {}",
                                     new Object[]{entry.key, entry.transactionId});
                         } else {
                             throw new DataStorageManagerException("no such transaction " + entry.transactionId);
@@ -2055,7 +2055,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         /* Ignore missing transaction only if during recovery and ignore property is active */
                         if (recovery && ignoreMissingTransactionsOnRecovery) {
-                            LOGGER.log(Level.WARNING, "Ignoring insert of {0} due to missing transaction {1}",
+                            LOGGER.warn("Ignoring insert of {} due to missing transaction {}",
                                     new Object[]{entry.key, entry.transactionId});
                         } else {
                             throw new DataStorageManagerException("no such transaction " + entry.transactionId);
@@ -2086,9 +2086,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     + table.tablespace + "." + table.name);
         }
 
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId + " from table " + table.tablespace
-                    + "." + table.name);
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Deleted key " + key + " from page " + pageId + " from table " + table.tablespace + "." + table.name);
         }
 
 
@@ -2280,8 +2279,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             keyToPage.put(key, insertionPageId);
         }
 
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId
                     + " on table " + table.tablespace + "." + table.name);
         }
 
@@ -2348,7 +2347,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "{0} received {1} records", new Object[]{table.name, record.size()});
+        LOGGER.info("{} received {} records", new Object[]{table.name, record.size()});
         checkpointLock.asReadLock().lock();
         try {
             for (Record r : record) {
@@ -2360,7 +2359,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private void rebuildNextPrimaryKeyValue() throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "rebuildNextPrimaryKeyValue");
+        LOGGER.info("rebuildNextPrimaryKeyValue");
         try {
             Stream<Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
@@ -2376,7 +2375,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
                 nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
             });
-            LOGGER.log(Level.INFO, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
+            LOGGER.info("rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
         } catch (StatementExecutionException impossible) {
             throw new DataStorageManagerException(impossible);
         }
@@ -2441,8 +2440,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             + table.tablespace + "." + table.name);
         }
 
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId + " into table "
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Inserted key " + key + " into page " + insertionPageId + " into table "
                     + table.tablespace + "." + table.name);
         }
 
@@ -2579,9 +2578,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         final DataPage result = buildImmutableDataPage(pageId, page);
 
-        if (LOGGER.isLoggable(Level.FINE)) {
+        if (LOGGER.isTraceEnabled()) {
             long stop = System.currentTimeMillis();
-            LOGGER.log(Level.FINE, "table {0}.{1}, temporary loaded {2} records from page {4} in {5} ms, ({6} ms read)",
+            LOGGER.trace("table {}.{}, temporary loaded {} records from page {} in {} ms, ({} ms read)",
                     new Object[] { table.tablespace, table.name, result.size(), pageId, (stop - start),
                             (ioStop - ioStart) });
         }
@@ -2640,12 +2639,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             throw new DataStorageManagerException(error);
         }
-        if (computed.value && LOGGER.isLoggable(Level.FINE)) {
+        if (LOGGER.isDebugEnabled() && computed.value) {
             long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.FINE,
-                    "table {0}.{1}, loaded {2} records from page {3} in {4} ms, ({5} ms read + plock, {6} ms unlock)",
-                    new Object[] { table.tablespace, table.name, result.size(), pageId, (_stop - _start),
-                            (_ioAndLock - _start), (_stop - _ioAndLock) });
+            LOGGER.debug(
+                    "table {}.{}, loaded {} records from page {} in {} ms, ({} ms read + plock, {} ms unlock)",
+                    table.tablespace, table.name, result.size(), pageId, (_stop - _start), (_ioAndLock - _start), (_stop - _ioAndLock));
         }
         return result;
     }
@@ -2814,7 +2812,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, page.pageId);
                     currentPageWasInMemory = false;
-                    LOGGER.log(Level.FINEST, "loaded dirty page {0} for table {1}.{2} on tmp buffer: {3} records",
+                    LOGGER.trace("loaded dirty page {} for table {}.{} on tmp buffer: {} records",
                             new Object[] { page.pageId, table.tablespace, table.name, records.size() });
                 } else {
                     records = dataPage.getRecordsForFlush();
@@ -2915,7 +2913,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                             + "inconsistency (failed to track dirty record on page metadata). "
                                             + "Page: " + page + ", Record: " + unshared + ", Table: " + table.tablespace
                                             + "." + table.name);
-                            LOGGER.log(Level.SEVERE, ex.getMessage());
+                            LOGGER.error(ex.getMessage());
                             throw ex;
                         }
 
@@ -2950,7 +2948,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                         final long end = System.nanoTime();
 
-                        LOGGER.log(Level.INFO, "Checked reloaded page during checkpoint deep equality in {0} ms",
+                        LOGGER.info("Checked reloaded page during checkpoint deep equality in {} ms",
                                 TimeUnit.NANOSECONDS.toMillis(end - start));
 
                         if (!deepEquals) {
@@ -2960,7 +2958,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                             + "the reloaded page doesn't match in memory one. " + "Expected page "
                                             + dataPage + ", found page " + removedDataPage + " on table "
                                             + table.tablespace + "." + table.name);
-                            LOGGER.log(Level.SEVERE, ex.getMessage());
+                            LOGGER.error(ex.getMessage());
                             throw ex;
                         }
                     }
@@ -3002,9 +3000,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             double dirtyThreshold, double fillThreshold,
             long checkpointTargetTime, long cleanupTargetTime, long compactionTargetTime, boolean pin
     ) throws DataStorageManagerException {
-        LOGGER.log(Level.FINE, "tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
+        LOGGER.debug("tableCheckpoint dirtyThreshold: " + dirtyThreshold + ", {}.{} (pin: {})", new Object[]{tableSpaceUUID, table.name, pin});
         if (createdInTransaction > 0) {
-            LOGGER.log(Level.FINE, "checkpoint for table " + table.name + " skipped,"
+            LOGGER.debug("checkpoint for table " + table.name + " skipped,"
                     + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return null;
         }
@@ -3231,13 +3229,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             newPagesFlush = System.currentTimeMillis();
 
             if (flushedDirtyPages > 0 || flushedSmallPages > 0 || flushedNewPages > 0 || flushedRecords > 0) {
-                LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} small pages, {4} new pages, {5} records",
+                LOGGER.info("checkpoint {}, logpos {}, flushed: {} dirty pages, {} small pages, {} new pages, {} records",
                     new Object[]{table.name, sequenceNumber, flushedDirtyPages, flushedSmallPages, flushedNewPages, flushedRecords});
 
             }
 
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed pages: {2}",
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("checkpoint {}, logpos {}, flushed pages: {}",
                         new Object[]{table.name, sequenceNumber, flushedPages.toString()});
             }
 
@@ -3280,14 +3278,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             end = System.currentTimeMillis();
             if (flushedRecords > 0) {
-                LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
-                        + "flushed {4} records, total time {5} ms",
+                LOGGER.info("checkpoint {} finished, logpos {}, {} active pages, {} dirty pages, "
+                        + "flushed {} records, total time {} ms",
                         new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
                             pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
             }
 
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("checkpoint {} finished, logpos {}, pageSet: {}",
                         new Object[]{table.name, sequenceNumber, pageSet.toString()});
             }
 
@@ -3308,7 +3306,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long delta_tablecheckpoint = tablecheckpoint - indexcheckpoint;
             long delta_unload = end - tablecheckpoint;
 
-            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name,
+            LOGGER.info("long checkpoint for {}, time {}", new Object[]{table.name,
                     delta + " ms (" + delta_lock
                             + "+" + delta_pageAnalysis
                             + "+" + delta_dirtyPagesFlush
@@ -3662,7 +3660,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
-//                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock + " for " + key);
+//                    LOGGER.error("CREATED LOCK " + lock + " for " + key);
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
@@ -3737,11 +3735,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             } catch (ExitLoop exitLoop) {
                 exit = !exitLoop.continueWithTransactionData;
-                if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace("exit loop during scan {}, started at {}: {}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
                 }
             } catch (final HerdDBInternalException error) {
-                LOGGER.log(Level.SEVERE, "error during scan", error);
+                LOGGER.error("error during scan", error);
                 if (error.getCause() instanceof StatementExecutionException) {
                     throw (StatementExecutionException) error.getCause();
                 } else if (error.getCause() instanceof DataStorageManagerException) {
@@ -3769,14 +3767,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         } catch (ExitLoop exitLoop) {
-            if (LOGGER.isLoggable(Level.FINEST)) {
-                LOGGER.log(Level.FINEST, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("exit loop during scan {}, started at {}: {}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
             }
         } catch (StatementExecutionException err) {
-            LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
+            LOGGER.error("error during scan {}, started at {}: {}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw err;
         } catch (HerdDBInternalException err) {
-            LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
+            LOGGER.error("error during scan {}, started at {}: {}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw new StatementExecutionException(err);
         }
     }
@@ -3958,11 +3956,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             Long relocatedPageId = keyToPage.get(key);
-            LOGGER.log(Level.FINE, table.name + " fetchRecord " + key + " failed,"
+            LOGGER.debug(table.name + " fetchRecord " + key + " failed,"
                     + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
             if (relocatedPageId == null) {
                 // deleted
-                LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
+                LOGGER.debug("table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
                 return null;
             }
             pageId = relocatedPageId;
@@ -4036,18 +4034,18 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             Column newColumnSpecs = table.getColumn(c.name);
             if (newColumnSpecs == null) {
                 // dropped column
-                LOGGER.log(Level.INFO, "Table {0}.{1} dropping column {2}", new Object[]{table.tablespace, table.name, c.name});
+                LOGGER.info("Table {}.{} dropping column {}", new Object[]{table.tablespace, table.name, c.name});
             } else if (newColumnSpecs.type == c.type) {
                 // no data type change
             } else if (ColumnTypes.isNotNullToNullConversion(c.type, newColumnSpecs.type)) {
-                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NULLABLE", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+                LOGGER.info("Table {}.{} making column {} NULLABLE", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
             } else if (ColumnTypes.isNullToNotNullConversion(c.type, newColumnSpecs.type)) {
-                LOGGER.log(Level.INFO, "Table {0}.{1} making column {2} NOT NULL", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
+                LOGGER.info("Table {}.{} making column {} NOT NULL", new Object[]{table.tablespace, table.name, newColumnSpecs.name});
                 columnsChangedFromNullToNotNull.add(c.name);
             }
         }
         for (final String column : columnsChangedFromNullToNotNull) {
-            LOGGER.log(Level.INFO, "Table {0}.{1} validating column {2}, check for NULL values", new Object[]{table.tablespace, table.name, column});
+            LOGGER.info("Table {}.{} validating column {}, check for NULL values", new Object[]{table.tablespace, table.name, column});
             ScanStatement scan = new ScanStatement(this.table.tablespace,
                     this.table, new Predicate() {
                 @Override

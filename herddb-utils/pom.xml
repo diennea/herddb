@@ -39,7 +39,12 @@
         <dependency>
             <groupId>net.jpountz.lz4</groupId>
             <artifactId>lz4</artifactId>
-        </dependency>        
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${libs.slf4j}</version>
+        </dependency>     
     </dependencies>
     <profiles>
         <profile>

@@ -50,7 +50,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class InsertOp implements PlannerOp {
 
@@ -193,7 +194,7 @@ public class InsertOp implements PlannerOp {
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(InsertOp.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(InsertOp.class.getName());
 
     @Override
     public <T> T unwrap(Class<T> clazz) {

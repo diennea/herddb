@@ -48,8 +48,8 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JDBC Connection
@@ -186,11 +186,11 @@ public class HerdDBConnection implements java.sql.Connection {
 
     private void ensureAllStatementClosed() throws SQLException {
         for (HerdDBStatement ps : openStatements.values()) {
-            LOGGER.log(Level.FINE, "closing abandoned statement {0}", ps);
+            LOGGER.debug("closing abandoned statement {}", ps);
             try {
                 ps.close();
             } catch (SQLException err) {
-                LOGGER.log(Level.SEVERE, "Cannot close an open statement", err);
+                LOGGER.error("Cannot close an open statement", err);
             }
         }
         openStatements.clear();
@@ -243,13 +243,12 @@ public class HerdDBConnection implements java.sql.Connection {
     public void setTransactionIsolation(int level) throws SQLException {
         if (level != Connection.TRANSACTION_READ_COMMITTED
                 && level != Connection.TRANSACTION_REPEATABLE_READ) {
-            LOGGER.log(Level.SEVERE,
-                    "Warning, ignoring setTransactionIsolation {0}, only TRANSACTION_READ_COMMITTED and TRANSACTION_REPEATABLE_READ are supported", level);
+            LOGGER.warn("Warning, ignoring setTransactionIsolation {}, only TRANSACTION_READ_COMMITTED and TRANSACTION_REPEATABLE_READ are supported", level);
         }
         transactionIsolation = level;
     }
 
-    private static final Logger LOGGER = Logger.getLogger(HerdDBConnection.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(HerdDBConnection.class.getName());
 
     @Override
     public int getTransactionIsolation() throws SQLException {

@@ -25,7 +25,8 @@ import herddb.core.DBManager;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Context for each statement evaluation. Statements are immutable and cachable
@@ -35,7 +36,7 @@ import java.util.logging.Logger;
  */
 public class StatementEvaluationContext {
 
-    private static final Logger LOGGER = Logger.getLogger(StatementEvaluationContext.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(StatementEvaluationContext.class.getName());
 
     private DBManager manager;
     private TransactionContext transactionContext;

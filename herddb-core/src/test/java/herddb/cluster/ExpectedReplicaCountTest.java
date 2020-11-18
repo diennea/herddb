@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.api.LedgerMetadata;
@@ -45,6 +44,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests about expectedreplicacount persistence guarantees
@@ -53,7 +54,7 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ExpectedReplicaCountTest {
 
-    private static final Logger LOG = Logger.getLogger(ExpectedReplicaCountTest.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ExpectedReplicaCountTest.class.getName());
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();

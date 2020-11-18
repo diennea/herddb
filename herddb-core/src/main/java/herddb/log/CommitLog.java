@@ -21,8 +21,8 @@
 package herddb.log;
 
 import java.util.function.BiConsumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This is the core write-ahead-log of the system. Every change to data is
@@ -104,13 +104,13 @@ public abstract class CommitLog implements AutoCloseable {
     protected synchronized void notifyListeners(LogSequenceNumber logPos, LogEntry edit) {
         if (listeners != null) {
             for (CommitLogListener l : listeners) {
-                LOG.log(Level.INFO, "notifyListeners {0}, {1}", new Object[]{logPos, edit});
+                LOG.info("notifyListeners {}, {}", new Object[]{logPos, edit});
                 l.logEntry(logPos, edit);
             }
         }
     }
 
-    private static final Logger LOG = Logger.getLogger(CommitLog.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(CommitLog.class.getName());
 
     public synchronized void attachCommitLogListener(CommitLogListener l) {
         if (listeners == null) {
