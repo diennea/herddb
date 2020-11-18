@@ -415,7 +415,7 @@ public interface SQLRecordPredicateFunctions {
                     builder.append("\\E.*\\Q");
                     break;
                 case '_':
-                    builder.append("\\E.{}\\Q");
+                    builder.append("\\E.{1}\\Q");
                     break;
                 default:
                     builder.append(ch);
