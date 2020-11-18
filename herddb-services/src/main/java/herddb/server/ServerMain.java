@@ -96,7 +96,6 @@ public class ServerMain implements AutoCloseable {
     }
 
     public static void main(String... args) {
-        final String julConfigFile = System.getProperty("java.util.logging.config.file", "");
         if (Boolean.parseBoolean(System.getenv("HERDDB_USE_ENV"))) {
             useEnv();
         }
