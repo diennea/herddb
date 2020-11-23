@@ -37,7 +37,7 @@
         <url>https://github.com/diennea/herddb.git</url>
         <connection>scm:git:https://github.com/diennea/herddb.git</connection>
         <developerConnection>scm:git:https://github.com/diennea/herddb.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>release/0.22</tag>
     </scm>
     <developers>
         <developer>
