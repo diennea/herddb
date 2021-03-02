@@ -93,7 +93,7 @@
         <libs.bouncycastle>1.65</libs.bouncycastle>
         <libs.calcite>1.24.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
-        <libs.jackson.mapper>2.10.3</libs.jackson.mapper>
+        <libs.jackson.mapper>2.12.1</libs.jackson.mapper>
         <libs.zookeeper>3.6.2</libs.zookeeper>
         <libs.jsqlparser>3.2</libs.jsqlparser>
         <libs.curator>5.1.0</libs.curator>
