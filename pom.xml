@@ -87,8 +87,8 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.50.Final</libs.netty4>
-        <libs.netty4ssl>2.0.28.Final</libs.netty4ssl>
+        <libs.netty4>4.1.59.Final</libs.netty4>
+        <libs.netty4ssl>2.0.36.Final</libs.netty4ssl>
         <!-- needed in tests for TLS certificate autogeneration on jdk-15+ -->
         <libs.bouncycastle>1.65</libs.bouncycastle>
         <libs.calcite>1.24.0</libs.calcite>
