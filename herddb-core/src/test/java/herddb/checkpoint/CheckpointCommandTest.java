@@ -19,18 +19,15 @@
  */
 package herddb.checkpoint;
 
+import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.Collections;
-
-import static herddb.core.TestUtils.execute;
-import static org.junit.Assert.assertTrue;
-
+import org.junit.Test;
 
 /**
  * Checkpoint command test
@@ -56,7 +53,7 @@ public class CheckpointCommandTest {
 
     @Test(expected = herddb.model.TableSpaceDoesNotExistException.class)
     public void checkpointCommandFailureTest() throws Exception {
-        final String WRONG_TABLE_SPACE = "THIS_TABLESPACE_DOES_NOT_EXISTS";
+        final String wrongTableSpace = "THIS_TABLESPACE_DOES_NOT_EXISTS";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -66,7 +63,7 @@ public class CheckpointCommandTest {
             for (int i = 0; i < 10; i++) {
                 execute(manager, "INSERT INTO consistence.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            execute(manager, "checkpoint " + WRONG_TABLE_SPACE, Collections.emptyList());
+            execute(manager, "checkpoint " + wrongTableSpace, Collections.emptyList());
         }
     }
 }
