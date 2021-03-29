@@ -36,8 +36,37 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.*;
-import herddb.model.commands.*;
+import herddb.model.DDLException;
+import herddb.model.DDLStatement;
+import herddb.model.DDLStatementExecutionResult;
+import herddb.model.DMLStatement;
+import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataConsistencyStatementResult;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
+import herddb.model.ExecutionPlan;
+import herddb.model.GetResult;
+import herddb.model.NodeMetadata;
+import herddb.model.NotLeaderException;
+import herddb.model.ScanResult;
+import herddb.model.Statement;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
+import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TableSpaceReplicaState;
+import herddb.model.TransactionContext;
+import herddb.model.commands.AlterTableSpaceStatement;
+import herddb.model.commands.CheckpointStatement;
+import herddb.model.commands.CheckpointStatementResult;
+import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.commands.DropTableSpaceStatement;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.proto.Pdu;
@@ -676,7 +705,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (transactionContext.transactionId > 0) {
                 return Futures.exception(new StatementExecutionException("CHECKPOINT cannot be issue inside a transaction"));
             }
-            return  CompletableFuture.completedFuture(forceCheckpoint((CheckpointStatement) statement));
+            return CompletableFuture.completedFuture(forceCheckpoint((CheckpointStatement) statement));
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {

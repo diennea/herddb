@@ -48,7 +48,27 @@ import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TupleComparator;
-import herddb.model.commands.*;
+import herddb.model.commands.AlterTableSpaceStatement;
+import herddb.model.commands.AlterTableStatement;
+import herddb.model.commands.BeginTransactionStatement;
+import herddb.model.commands.CheckpointStatement;
+import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateIndexStatement;
+import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.DropIndexStatement;
+import herddb.model.commands.DropTableSpaceStatement;
+import herddb.model.commands.DropTableStatement;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
+import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TableConsistencyCheckStatement;
+import herddb.model.commands.TableSpaceConsistencyCheckStatement;
+import herddb.model.commands.TruncateTableStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.FilterOp;
@@ -1165,9 +1185,6 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         }
     }
 
-    /**
-     * It forces a checkpoint operation on given tablespace
-     */
     public Statement forceTableSpaceCheckPoint(String query) {
         if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
             String tableSpace = query.substring(query.substring(0, 10).length()).replace("\'", "");

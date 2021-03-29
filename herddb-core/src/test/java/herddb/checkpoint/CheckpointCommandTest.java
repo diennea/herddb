@@ -34,6 +34,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Checkpoint command test
+ *
  * @author lorenzobalzani
  */
 public class CheckpointCommandTest {

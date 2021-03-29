@@ -24,6 +24,7 @@ import herddb.model.StatementExecutionResult;
 
 /**
  * Statement result for a checkpoint operation
+ *
  * @author lorenzobalzani
  */
 public class CheckpointStatementResult extends StatementExecutionResult {
