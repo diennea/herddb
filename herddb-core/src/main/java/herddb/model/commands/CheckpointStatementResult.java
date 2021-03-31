@@ -33,13 +33,13 @@ public class CheckpointStatementResult extends StatementExecutionResult {
     private final boolean ok;
 
     public CheckpointStatementResult(boolean ok) {
-        super(0);
+        super(ok ? 0 : -1);
         this.ok = ok;
         this.message = null;
     }
 
     public CheckpointStatementResult(boolean ok, String message) {
-        super(0);
+        super(ok ? 0 : -1);
         this.ok = ok;
         this.message = message;
     }

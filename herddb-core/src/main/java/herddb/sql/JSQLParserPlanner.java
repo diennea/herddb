@@ -311,7 +311,6 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
-
         /*
          * Strips out leading comments
          */
@@ -1187,12 +1186,14 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
 
     public Statement forceTableSpaceCheckPoint(String query) {
         if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
-            String tableSpace = query.substring(query.substring(0, 10).length()).replace("\'", "").trim();
+            String[] querySplitted = query.replace("\'", "").split(" ");
+            String tableSpace = querySplitted[1];
+            boolean notEnqueue = (querySplitted.length == 3) && querySplitted[2].equals("-notEnqueue");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
-            return new CheckpointStatement(tableSpace);
+            return new CheckpointStatement(tableSpace, notEnqueue);
         } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for checkpoint"));
         }

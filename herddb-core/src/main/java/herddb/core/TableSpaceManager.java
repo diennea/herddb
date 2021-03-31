@@ -134,6 +134,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiConsumer;
@@ -176,6 +177,7 @@ public class TableSpaceManager {
     private final boolean virtual;
 
     private volatile boolean recoveryInProgress;
+    private final AtomicBoolean checkpointInProgress = new AtomicBoolean(false);
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -2022,6 +2024,17 @@ public class TableSpaceManager {
         }
     }
 
+    public boolean checkpointNotEnqueue() {
+        if (checkpointInProgress.compareAndSet(false, true)) {
+            checkpoint(true, false, false);
+            checkpointInProgress.set(false);
+            return true;
+        } else {
+            LOGGER.log(Level.WARNING, "Checkpoint for tablespace {0} has not started. Checkpoint is still in progress", tableSpaceName);
+            return false;
+        }
+    }
+
     // visible for testing
     public TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
@@ -2045,6 +2058,7 @@ public class TableSpaceManager {
             if (!alreadLocked) {
                 lockStamp = acquireWriteLock("checkpoint");
             }
+            checkpointInProgress.set(true);
             try {
                 logSequenceNumber = log.getLastSequenceNumber();
 

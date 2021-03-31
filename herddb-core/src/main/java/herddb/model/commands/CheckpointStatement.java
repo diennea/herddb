@@ -29,7 +29,14 @@ import herddb.model.Statement;
  */
 public class CheckpointStatement extends Statement {
 
-    public CheckpointStatement(String tableSpace) {
+    private final boolean notEnqueue;
+
+    public CheckpointStatement(String tableSpace, boolean notEnqueue) {
         super(tableSpace);
+        this.notEnqueue = notEnqueue;
+    }
+
+    public boolean isNotEnqueue() {
+        return notEnqueue;
     }
 }

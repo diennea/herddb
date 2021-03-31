@@ -1047,8 +1047,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public CheckpointStatementResult forceCheckpoint(CheckpointStatement checkpointStatement) {
         TableSpaceManager manager = tablesSpaces.get(checkpointStatement.getTableSpace());
-        manager.checkpoint(true, false, false);
-        return new CheckpointStatementResult(true);
+        boolean checkpointHasPerformed = true;
+        if (checkpointStatement.isNotEnqueue()) {
+            checkpointHasPerformed = manager.checkpointNotEnqueue();
+        } else {
+            manager.checkpoint(true, false, false);
+        }
+        return new CheckpointStatementResult(checkpointHasPerformed);
     }
 
     private String makeVirtualTableSpaceManagerId(String nodeId) {
