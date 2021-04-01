@@ -20,14 +20,15 @@
 package herddb.checkpoint;
 
 import static herddb.core.TestUtils.execute;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.junit.Test;
@@ -46,13 +47,13 @@ public class CheckpointCommandTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
-            execute(manager, "CREATE TABLESPACE 'consistence'", Collections.emptyList());
+            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
-            execute(manager, "CREATE TABLE consistence.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             for (int i = 0; i < 10; i++) {
-                execute(manager, "INSERT INTO consistence.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            execute(manager, "checkpoint consistence", Collections.emptyList());
+            execute(manager, "checkpoint tblspace1", Collections.emptyList());
         }
     }
 
@@ -62,47 +63,58 @@ public class CheckpointCommandTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
-            execute(manager, "CREATE TABLESPACE 'consistence'", Collections.emptyList());
+            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
-            execute(manager, "CREATE TABLE consistence.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             for (int i = 0; i < 10; i++) {
-                execute(manager, "INSERT INTO consistence.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
             execute(manager, "checkpoint " + wrongTableSpace, Collections.emptyList());
         }
     }
 
-    @Test
-    public void checkpointCommandNotEnqueueSuccessTest() throws Exception {
-        final long[] returnedValues = new long[2];
+    @Test(expected = herddb.model.TableSpaceDoesNotExistException.class)
+    public void checkpointCommandCaseInsensitiveFailureTest() throws Exception {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
-            execute(manager, "CREATE TABLESPACE 'consistence'", Collections.emptyList());
+            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
-            execute(manager, "CREATE TABLE consistence.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             for (int i = 0; i < 10; i++) {
-                execute(manager, "INSERT INTO consistence.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+            }
+            execute(manager, "checkpoint TBLSPACE1 -noWait", Collections.emptyList());
+        }
+    }
+
+    @Test
+    public void checkpointCommandNoWaitSuccessTest() throws Exception {
+        List<Long> returnedValues = new ArrayList<>();
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
+            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            for (int i = 0; i < 10; i++) {
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
             Thread first = new Thread(() -> {
                 LOGGER.log(Level.INFO, "First thread has started!");
-                returnedValues[0] = execute(manager, "checkpoint consistence -notEnqueue", Collections.emptyList()).transactionId;
+                returnedValues.add(execute(manager, "checkpoint tblspace1 -noWait", Collections.emptyList()).transactionId);
                 LOGGER.log(Level.INFO, "First thread has finished!");
             });
             Thread second = new Thread(() -> {
                 LOGGER.log(Level.INFO, "Second thread has started!");
-                returnedValues[1] = execute(manager, "checkpoint consistence -notEnqueue", Collections.emptyList()).transactionId;
+                returnedValues.add(execute(manager, "checkpoint tblspace1 -noWait", Collections.emptyList()).transactionId);
                 LOGGER.log(Level.INFO, "Second thread has finished!");
             });
             first.start();
-            /*
-                Force second thread to start after the first in order to verify the simultaneous checkpoints
-             */
-            Thread.sleep(30);
             second.start();
             first.join();
             second.join();
-            assertArrayEquals(new long[]{0, -1}, returnedValues);
+            assertTrue("No checkpoint has finished", returnedValues.contains(0L));
         }
     }
 }

@@ -2024,7 +2024,7 @@ public class TableSpaceManager {
         }
     }
 
-    public boolean checkpointNotEnqueue() {
+    public boolean checkpointNoWait() {
         if (checkpointInProgress.compareAndSet(false, true)) {
             checkpoint(true, false, false);
             checkpointInProgress.set(false);
@@ -2113,6 +2113,7 @@ public class TableSpaceManager {
                 if (!alreadLocked) {
                     releaseWriteLock(lockStamp, "checkpoint");
                 }
+                checkpointInProgress.set(false);
             }
 
             for (PostCheckpointAction action : actions) {

@@ -23,20 +23,20 @@ package herddb.model.commands;
 import herddb.model.Statement;
 
 /**
- * TableSpace consistency check statement
+ * Tablespace checkpoint operation
  *
  * @author lorenzobalzani
  */
 public class CheckpointStatement extends Statement {
 
-    private final boolean notEnqueue;
+    private final boolean noWait;
 
-    public CheckpointStatement(String tableSpace, boolean notEnqueue) {
+    public CheckpointStatement(String tableSpace, boolean noWait) {
         super(tableSpace);
-        this.notEnqueue = notEnqueue;
+        this.noWait = noWait;
     }
 
-    public boolean isNotEnqueue() {
-        return notEnqueue;
+    public boolean isNoWait() {
+        return noWait;
     }
 }
