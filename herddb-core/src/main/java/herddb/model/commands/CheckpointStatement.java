@@ -30,13 +30,19 @@ import herddb.model.Statement;
 public class CheckpointStatement extends Statement {
 
     private final boolean noWait;
+    private final boolean isFull;
 
-    public CheckpointStatement(String tableSpace, boolean noWait) {
+    public CheckpointStatement(String tableSpace, boolean noWait, boolean isFull) {
         super(tableSpace);
         this.noWait = noWait;
+        this.isFull = isFull;
     }
 
     public boolean isNoWait() {
         return noWait;
+    }
+
+    public boolean isFull() {
+        return isFull;
     }
 }

@@ -1048,10 +1048,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public CheckpointStatementResult forceCheckpoint(CheckpointStatement checkpointStatement) {
         TableSpaceManager manager = tablesSpaces.get(checkpointStatement.getTableSpace());
         boolean checkpointHasPerformed = true;
+        boolean isFull = checkpointStatement.isFull();
         if (checkpointStatement.isNoWait()) {
-            checkpointHasPerformed = manager.checkpointNoWait();
+            checkpointHasPerformed = manager.checkpointNoWait(isFull);
         } else {
-            manager.checkpoint(true, false, false);
+            manager.checkpoint(isFull, false, false);
         }
         return new CheckpointStatementResult(checkpointHasPerformed);
     }

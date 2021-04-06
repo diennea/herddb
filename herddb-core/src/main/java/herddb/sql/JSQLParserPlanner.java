@@ -1187,13 +1187,14 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
     public Statement forceTableSpaceCheckPoint(String query) {
         if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
             List<String> querySplitted = Arrays.asList(query.replace("\'", "").split(" "));
-            String tableSpace = querySplitted.get(1);
-            boolean noWait = querySplitted.contains("-noWait");
+            String tableSpace = querySplitted.get(1).toLowerCase();
+            boolean noWait = querySplitted.contains("noWait");
+            boolean full = querySplitted.contains("full");
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
             if (tableSpaceManager == null) {
                 throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
             }
-            return new CheckpointStatement(tableSpace, noWait);
+            return new CheckpointStatement(tableSpace, noWait, full);
         } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for checkpoint"));
         }

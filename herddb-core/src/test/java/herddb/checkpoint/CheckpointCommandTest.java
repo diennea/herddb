@@ -20,16 +20,16 @@
 package herddb.checkpoint;
 
 import static herddb.core.TestUtils.execute;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
+import herddb.core.TableSpaceManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
-import java.util.logging.Level;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import org.junit.Test;
 
@@ -73,8 +73,8 @@ public class CheckpointCommandTest {
         }
     }
 
-    @Test(expected = herddb.model.TableSpaceDoesNotExistException.class)
-    public void checkpointCommandCaseInsensitiveFailureTest() throws Exception {
+    @Test
+    public void checkpointCommandCaseInsensitiveSuccessTest() throws Exception {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -84,13 +84,13 @@ public class CheckpointCommandTest {
             for (int i = 0; i < 10; i++) {
                 execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            execute(manager, "checkpoint TBLSPACE1 -noWait", Collections.emptyList());
+            execute(manager, "checkpoint TBLSPACE1 noWait", Collections.emptyList());
         }
     }
 
     @Test
     public void checkpointCommandNoWaitSuccessTest() throws Exception {
-        List<Long> returnedValues = new ArrayList<>();
+        AtomicInteger checkpointPerformed = new AtomicInteger(0);
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
             manager.start();
             assertTrue(manager.waitForBootOfLocalTablespaces(10000));
@@ -100,21 +100,49 @@ public class CheckpointCommandTest {
             for (int i = 0; i < 10; i++) {
                 execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
             }
-            Thread first = new Thread(() -> {
-                LOGGER.log(Level.INFO, "First thread has started!");
-                returnedValues.add(execute(manager, "checkpoint tblspace1 -noWait", Collections.emptyList()).transactionId);
-                LOGGER.log(Level.INFO, "First thread has finished!");
-            });
-            Thread second = new Thread(() -> {
-                LOGGER.log(Level.INFO, "Second thread has started!");
-                returnedValues.add(execute(manager, "checkpoint tblspace1 -noWait", Collections.emptyList()).transactionId);
-                LOGGER.log(Level.INFO, "Second thread has finished!");
-            });
+            Runnable runnable = () -> {
+                long returnedValue = execute(manager, "checkpoint tblspace1 noWait", Collections.emptyList()).transactionId;
+                if (returnedValue == 0L) {
+                    checkpointPerformed.set(checkpointPerformed.get() + 1);
+                }
+            };
+            Thread first = new Thread(runnable);
+            Thread second = new Thread(runnable);
+            TableSpaceManager myTableSpace = manager.getTableSpaceManager("tblspace1");
             first.start();
             second.start();
             first.join();
             second.join();
-            assertTrue("No checkpoint has finished", returnedValues.contains(0L));
+            assertEquals("Wrong number of checkpoints", myTableSpace.getCheckpointPerformed(), checkpointPerformed.get());
+        }
+    }
+
+    @Test
+    public void fullCheckpointCommandNoWaitSuccessTest() throws Exception {
+        AtomicInteger checkpointPerformed = new AtomicInteger(0);
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
+            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            for (int i = 0; i < 10; i++) {
+                execute(manager, "INSERT INTO tblspace1.tsql (k1,n1 ,s1) values (?,?,?)", Arrays.asList(i, 1, "b"));
+            }
+            Runnable runnable = () -> {
+                long returnedValue = execute(manager, "checkpoint tblspace1 noWait full", Collections.emptyList()).transactionId;
+                if (returnedValue == 0L) {
+                    checkpointPerformed.set(checkpointPerformed.get() + 1);
+                }
+            };
+            Thread first = new Thread(runnable);
+            Thread second = new Thread(runnable);
+            TableSpaceManager myTableSpace = manager.getTableSpaceManager("tblspace1");
+            first.start();
+            second.start();
+            first.join();
+            second.join();
+            assertEquals("Wrong number of checkpoints", myTableSpace.getCheckpointPerformed(), checkpointPerformed.get());
         }
     }
 }

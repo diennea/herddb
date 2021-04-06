@@ -152,6 +152,7 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class TableSpaceManager {
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
+    private static final long MIN_DURATION_BETWEEN_CHECKPOINTS = 120_000;
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -175,9 +176,11 @@ public class TableSpaceManager {
     private volatile FollowerThread followerThread;
     private final ExecutorService callbacksExecutor;
     private final boolean virtual;
+    private int checkpointPerformed = 0;
 
     private volatile boolean recoveryInProgress;
     private final AtomicBoolean checkpointInProgress = new AtomicBoolean(false);
+    private final AtomicLong lastTimeFinished = new AtomicLong(0L);
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -2024,15 +2027,26 @@ public class TableSpaceManager {
         }
     }
 
-    public boolean checkpointNoWait() {
-        if (checkpointInProgress.compareAndSet(false, true)) {
-            checkpoint(true, false, false);
-            checkpointInProgress.set(false);
-            return true;
+    public boolean checkpointNoWait(boolean full) {
+        if (checkpointInProgress.compareAndSet(false, true)
+                && System.currentTimeMillis() - lastTimeFinished.get() >= MIN_DURATION_BETWEEN_CHECKPOINTS) {
+            try {
+                checkpoint(full, false, false);
+            } catch (HerdDBInternalException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage());
+            } finally {
+                lastTimeFinished.set(System.currentTimeMillis());
+                checkpointInProgress.set(false);
+            }
         } else {
             LOGGER.log(Level.WARNING, "Checkpoint for tablespace {0} has not started. Checkpoint is still in progress", tableSpaceName);
             return false;
         }
+        return true;
+    }
+
+    public int getCheckpointPerformed() {
+        return checkpointPerformed;
     }
 
     // visible for testing
@@ -2100,7 +2114,7 @@ public class TableSpaceManager {
                     }
                 }
 
-                // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
+                // we are sure that all data has been flushed. upon recovery we will replay the log starting from this position
                 actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
 
                 /* Indexes checkpoint is handled by TableManagers */
@@ -2114,6 +2128,7 @@ public class TableSpaceManager {
                     releaseWriteLock(lockStamp, "checkpoint");
                 }
                 checkpointInProgress.set(false);
+                checkpointPerformed += 1;
             }
 
             for (PostCheckpointAction action : actions) {
