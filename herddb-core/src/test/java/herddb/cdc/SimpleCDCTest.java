@@ -20,28 +20,41 @@
 
 package herddb.cdc;
 
+import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import herddb.client.ClientConfiguration;
 import herddb.codec.RecordSerializer;
 import herddb.core.TestUtils;
 import herddb.log.LogSequenceNumber;
-import herddb.model.*;
-import herddb.model.commands.*;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.Table;
+import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
+import herddb.model.commands.AlterTableStatement;
+import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.InsertStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
-import static org.junit.Assert.*;
 
 /**
  * Tests around backup/restore
@@ -109,7 +122,7 @@ public class SimpleCDCTest {
                     new ChangeDataCapture.MutationListener() {
                         @Override
                         public void accept(ChangeDataCapture.Mutation mutation) {
-                            LOG.log(Level.INFO, "mutation "+mutation);
+                            LOG.log(Level.INFO, "mutation " + mutation);
                             assertTrue(mutation.getTimestamp() > 0);
                             assertNotNull(mutation.getLogSequenceNumber());
                             assertNotNull(mutation.getTable());
@@ -223,7 +236,7 @@ public class SimpleCDCTest {
                     new ChangeDataCapture.MutationListener() {
                         @Override
                         public void accept(ChangeDataCapture.Mutation mutation) {
-                            LOG.log(Level.INFO, "mutation "+mutation);
+                            LOG.log(Level.INFO, "mutation " + mutation);
                             assertTrue(mutation.getTimestamp() > 0);
                             assertNotNull(mutation.getLogSequenceNumber());
                             assertNotNull(mutation.getTable());

@@ -19,11 +19,12 @@
  */
 package herddb.cdc;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT;
+import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT;
 import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLog;
 import herddb.cluster.BookkeeperCommitLogManager;
@@ -37,13 +38,11 @@ import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.server.ServerConfiguration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.bookkeeper.stats.NullStatsLogger;
-
-import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS;
-import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT;
-import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH;
-import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT;
-import static herddb.client.ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT;
 
 /**
  * This utility provides a way to Change Data Capture with HerdDB.
@@ -104,13 +103,13 @@ public class ChangeDataCapture implements AutoCloseable {
 
         @Override
         public String toString() {
-            return "Mutation{" +
-                    "table=" + table +
-                    ", mutationType=" + mutationType +
-                    ", record=" + record +
-                    ", logSequenceNumber=" + logSequenceNumber +
-                    ", timestamp=" + timestamp +
-                    '}';
+            return "Mutation{"
+                    + "table=" + table
+                    + ", mutationType=" + mutationType
+                    + ", record=" + record
+                    + ", logSequenceNumber=" + logSequenceNumber
+                    + ", timestamp=" + timestamp
+                    + '}';
         }
     }
 
@@ -205,7 +204,6 @@ public class ChangeDataCapture implements AutoCloseable {
             transaction.mutations.add(mutation);
         } else {
             listener.accept(mutation);
-            ;
         }
     }
 
