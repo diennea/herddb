@@ -286,7 +286,7 @@ public class ChangeDataCapture implements AutoCloseable {
             }
             break;
             case LogEntryType.COMMITTRANSACTION: {
-                TransactionHolder transaction = transactions.get(entry.transactionId);
+                TransactionHolder transaction = transactions.remove(entry.transactionId);
                 transaction.tablesDefinitions.forEach((tableName, tableDef) -> {
                     if (tableDef == null) { // DROP TABLE
                         tablesDefinitions.remove(tableName);
