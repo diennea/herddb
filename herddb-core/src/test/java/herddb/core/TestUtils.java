@@ -74,6 +74,10 @@ public class TestUtils {
         execute(manager, "COMMIT TRANSACTION '" + tableSpace + "','" + tx + "'", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
     }
 
+    public static void roolbackTransaction(DBManager manager, String tableSpace, long tx) throws StatementExecutionException {
+        execute(manager, "ROLLBACK TRANSACTION '" + tableSpace + "','" + tx + "'", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
+    }
+
     public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         return execute(manager, query, parameters, TransactionContext.NO_TRANSACTION);
     }
