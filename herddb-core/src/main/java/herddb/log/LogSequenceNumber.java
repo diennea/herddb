@@ -27,7 +27,7 @@ import herddb.utils.Bytes;
  *
  * @author enrico.olivelli
  */
-public final class LogSequenceNumber {
+public final class LogSequenceNumber implements Comparable<LogSequenceNumber> {
 
     public final long ledgerId;
     public final long offset;
@@ -97,4 +97,13 @@ public final class LogSequenceNumber {
                 Bytes.toLong(array, 8));
     }
 
+    @Override
+    public int compareTo(LogSequenceNumber o) {
+        int compareLedgerId = Long.compare(this.ledgerId, o.ledgerId);
+        if (compareLedgerId != 0) {
+            return compareLedgerId;
+        }
+        // same ledger, compare by offset
+        return Long.compare(this.offset, o.offset);
+    }
 }
