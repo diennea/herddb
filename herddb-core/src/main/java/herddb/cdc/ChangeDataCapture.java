@@ -244,12 +244,12 @@ public class ChangeDataCapture implements AutoCloseable {
                 break;
             case LogEntryType.DROP_TABLE: {
                 Table table = lookupTable(lsn, entry);
-
                 if (entry.transactionId > 0) {
                     TransactionHolder transaction = transactions.get(entry.transactionId);
                     // set null to mark the table as DROPPED
                     transaction.tablesDefinitions.put(entry.tableName, null);
                 }
+                
                 fire(new Mutation(table, MutationType.DROP_TABLE, null, lsn, entry.timestamp), entry.transactionId);
             }
             break;
