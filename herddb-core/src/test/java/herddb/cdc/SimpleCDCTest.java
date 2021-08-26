@@ -47,6 +47,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.junit.After;
@@ -129,7 +133,8 @@ public class SimpleCDCTest {
                             mutations.add(mutation);
                         }
                     },
-                    LogSequenceNumber.START_OF_TIME);) {
+                    LogSequenceNumber.START_OF_TIME,
+                    new InMemoryTableHistoryStorage());) {
 
                 cdc.start();
 
@@ -243,7 +248,8 @@ public class SimpleCDCTest {
                             mutations.add(mutation);
                         }
                     },
-                    LogSequenceNumber.START_OF_TIME);) {
+                    LogSequenceNumber.START_OF_TIME,
+                    new InMemoryTableHistoryStorage());) {
                 cdc.start();
                 cdc.run();
 
@@ -271,4 +277,121 @@ public class SimpleCDCTest {
         }
     }
 
+    @Test
+    public void testBasicCaptureDataChangeWithRestart() throws Exception {
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+        ClientConfiguration client_configuration = new ClientConfiguration(folder.newFolder().toPath());
+        client_configuration.set(ClientConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        client_configuration.set(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .column("d", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4, "d", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            InMemoryTableHistoryStorage tableHistoryStorage = new InMemoryTableHistoryStorage();
+            LogSequenceNumber currentPosition = LogSequenceNumber.START_OF_TIME;
+
+            List<ChangeDataCapture.Mutation> mutations = new ArrayList<>();
+            currentPosition = performOneCDCStep(client_configuration, server_1, tableHistoryStorage, currentPosition, mutations);
+
+            // we are missing the last entry, because it is not confirmed yet on BookKeeper at this point
+            assertEquals(4, mutations.size());
+
+            server_1.getManager().executeUpdate(new UpdateStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4, "d", 2), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            currentPosition = performOneCDCStep(client_configuration, server_1, tableHistoryStorage, currentPosition, mutations);
+            assertEquals(5, mutations.size());
+
+            server_1.getManager().executeStatement(new AlterTableStatement(Arrays.asList(Column.column("e", ColumnTypes.INTEGER)), Collections.emptyList(), Collections.emptyList(), null, table.name, TableSpace.DEFAULT, null, Collections.emptyList(),
+                    Collections.emptyList()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            currentPosition = performOneCDCStep(client_configuration, server_1, tableHistoryStorage, currentPosition, mutations);
+            assertEquals(6, mutations.size());
+
+
+            server_1.getManager().executeUpdate(new DeleteStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            currentPosition = performOneCDCStep(client_configuration, server_1, tableHistoryStorage, currentPosition, mutations);
+            assertEquals(7, mutations.size());
+
+            // close the server...close the ledger, now we can read the last mutation
+            server_1.close();
+
+            currentPosition = performOneCDCStep(client_configuration, server_1, tableHistoryStorage, currentPosition, mutations);
+            assertEquals(8, mutations.size());
+
+            int i = 0;
+            assertEquals(ChangeDataCapture.MutationType.CREATE_TABLE, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.INSERT, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.INSERT, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.INSERT, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.INSERT, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.UPDATE, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.ALTER_TABLE, mutations.get(i++).getMutationType());
+            assertEquals(ChangeDataCapture.MutationType.DELETE, mutations.get(i++).getMutationType());
+        }
+    }
+
+    private LogSequenceNumber performOneCDCStep(ClientConfiguration client_configuration, Server server_1, InMemoryTableHistoryStorage tableHistoryStorage, LogSequenceNumber currentPosition, List<ChangeDataCapture.Mutation> mutations) throws Exception {
+        try (final ChangeDataCapture cdc = new ChangeDataCapture(
+                server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableSpaceUUID(),
+                client_configuration,
+                new ChangeDataCapture.MutationListener() {
+                    @Override
+                    public void accept(ChangeDataCapture.Mutation mutation) {
+                        LOG.log(Level.INFO, "mutation " + mutation);
+                        assertTrue(mutation.getTimestamp() > 0);
+                        assertNotNull(mutation.getLogSequenceNumber());
+                        assertNotNull(mutation.getTable());
+                        mutations.add(mutation);
+                    }
+                },
+                currentPosition,
+                tableHistoryStorage)) {
+            cdc.start();
+            currentPosition = cdc.run();
+        }
+        return currentPosition;
+    }
+
+    private static class InMemoryTableHistoryStorage implements ChangeDataCapture.TableSchemaHistoryStorage {
+
+        private Map<String, SortedMap<LogSequenceNumber, Table>> definitions = new ConcurrentHashMap<>();
+
+        @Override
+        public void storeSchema(LogSequenceNumber lsn, Table table) {
+            LOG.log(Level.INFO, "storeSchema {0} {1}", new Object[] {lsn, table.name});
+            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(table.name, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()));
+            tableHistory.put(lsn, table);
+        }
+
+        @Override
+        public Table fetchSchema(LogSequenceNumber lsn, String tableName) {
+            LOG.log(Level.INFO, "fetchSchema {0} {1}", new Object[] {lsn, tableName});
+            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(tableName, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()));
+            SortedMap<LogSequenceNumber, Table> after = tableHistory.headMap(lsn);
+            if (after.isEmpty()) {
+                return after.get(tableHistory.lastKey());
+            }
+            return after.values().iterator().next();
+        }
+    }
 }

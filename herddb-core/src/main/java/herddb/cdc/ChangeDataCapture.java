@@ -120,8 +120,25 @@ public class ChangeDataCapture implements AutoCloseable {
         void accept(Mutation mutation);
     }
 
+    public interface TableSchemaHistoryStorage {
+        /**
+         * Stores a schema change for a table
+         * @param lsn the lsn at which the change happened
+         * @param table the schema
+         */
+        void storeSchema(LogSequenceNumber lsn, Table table);
+
+        /**
+         * Return the schema at the given log sequence number
+         * @param lsn
+         * @return the schema
+         */
+        Table fetchSchema(LogSequenceNumber lsn, String tableName);
+    }
+
     private final ClientConfiguration configuration;
     private final MutationListener listener;
+    private final TableSchemaHistoryStorage tableSchemaHistoryStorage;
     private LogSequenceNumber lastPosition;
     private final String tableSpaceUUID;
     private volatile boolean closed = false;
@@ -129,7 +146,6 @@ public class ChangeDataCapture implements AutoCloseable {
 
     private ZookeeperMetadataStorageManager zookeeperMetadataStorageManager;
     private BookkeeperCommitLogManager manager;
-    private Map<String, Table> tablesDefinitions = new HashMap<>();
     private Map<Long, TransactionHolder> transactions = new HashMap<>();
 
     private static class TransactionHolder {
@@ -137,11 +153,12 @@ public class ChangeDataCapture implements AutoCloseable {
         private Map<String, Table> tablesDefinitions = new HashMap<>();
     }
 
-    public ChangeDataCapture(String tableSpaceUUID, ClientConfiguration configuration, MutationListener listener, LogSequenceNumber startingPosition) {
+    public ChangeDataCapture(String tableSpaceUUID, ClientConfiguration configuration, MutationListener listener, LogSequenceNumber startingPosition, TableSchemaHistoryStorage tableSchemaHistoryStorage) {
         this.configuration = configuration;
         this.listener = listener;
         this.lastPosition = startingPosition;
         this.tableSpaceUUID = tableSpaceUUID;
+        this.tableSchemaHistoryStorage = tableSchemaHistoryStorage;
     }
 
     /**
@@ -207,7 +224,7 @@ public class ChangeDataCapture implements AutoCloseable {
         }
     }
 
-    private Table lookupTable(LogEntry entry) {
+    private Table lookupTable(LogSequenceNumber lsn, LogEntry entry) {
         String tableName = entry.tableName;
         if (entry.transactionId > 0) {
             TransactionHolder transaction = transactions.get(entry.transactionId);
@@ -216,26 +233,23 @@ public class ChangeDataCapture implements AutoCloseable {
                 return table;
             }
         }
-        return tablesDefinitions.get(tableName);
+        return tableSchemaHistoryStorage.fetchSchema(lsn, tableName);
     }
 
     private void applyEntry(LogEntry entry, LogSequenceNumber lsn) throws Exception {
-
         switch (entry.type) {
             case LogEntryType.NOOP:
             case LogEntryType.CREATE_INDEX:
             case LogEntryType.DROP_INDEX:
                 break;
             case LogEntryType.DROP_TABLE: {
-                Table table = lookupTable(entry);
-
+                Table table = lookupTable(lsn, entry);
                 if (entry.transactionId > 0) {
                     TransactionHolder transaction = transactions.get(entry.transactionId);
                     // set null to mark the table as DROPPED
                     transaction.tablesDefinitions.put(entry.tableName, null);
-                } else {
-                    tablesDefinitions.remove(entry.tableName, table);
                 }
+
                 fire(new Mutation(table, MutationType.DROP_TABLE, null, lsn, entry.timestamp), entry.transactionId);
             }
             break;
@@ -245,7 +259,7 @@ public class ChangeDataCapture implements AutoCloseable {
                     TransactionHolder transaction = transactions.get(entry.transactionId);
                     transaction.tablesDefinitions.put(entry.tableName, table);
                 } else {
-                    tablesDefinitions.put(entry.tableName, table);
+                    tableSchemaHistoryStorage.storeSchema(lsn, table);
                 }
                 fire(new Mutation(table, MutationType.CREATE_TABLE, null, lsn, entry.timestamp), entry.transactionId);
             }
@@ -256,25 +270,25 @@ public class ChangeDataCapture implements AutoCloseable {
                     TransactionHolder transaction = transactions.get(entry.transactionId);
                     transaction.tablesDefinitions.put(entry.tableName, table);
                 } else {
-                    tablesDefinitions.put(entry.tableName, table);
+                    tableSchemaHistoryStorage.storeSchema(lsn, table);
                 }
                 fire(new Mutation(table, MutationType.ALTER_TABLE, null, lsn, entry.timestamp), entry.transactionId);
             }
             break;
             case LogEntryType.INSERT: {
-                Table table = lookupTable(entry);
+                Table table = lookupTable(lsn, entry);
                 DataAccessorForFullRecord record = new DataAccessorForFullRecord(table, new Record(entry.key, entry.value));
                 fire(new Mutation(table, MutationType.INSERT, record, lsn, entry.timestamp), entry.transactionId);
             }
             break;
             case LogEntryType.DELETE: {
-                Table table = lookupTable(entry);
+                Table table = lookupTable(lsn, entry);
                 DataAccessorForFullRecord record = new DataAccessorForFullRecord(table, new Record(entry.key, entry.value));
                 fire(new Mutation(table, MutationType.DELETE, record, lsn, entry.timestamp), entry.transactionId);
             }
             break;
             case LogEntryType.UPDATE: {
-                Table table = lookupTable(entry);
+                Table table = lookupTable(lsn, entry);
                 DataAccessorForFullRecord record = new DataAccessorForFullRecord(table, new Record(entry.key, entry.value));
                 fire(new Mutation(table, MutationType.UPDATE, record, lsn, entry.timestamp), entry.transactionId);
             }
@@ -287,9 +301,9 @@ public class ChangeDataCapture implements AutoCloseable {
                 TransactionHolder transaction = transactions.remove(entry.transactionId);
                 transaction.tablesDefinitions.forEach((tableName, tableDef) -> {
                     if (tableDef == null) { // DROP TABLE
-                        tablesDefinitions.remove(tableName);
+
                     } else { // CREATE/ALTER
-                        tablesDefinitions.put(tableName, tableDef);
+                        tableSchemaHistoryStorage.storeSchema(lsn, tableDef);
                     }
                 });
                 for (Mutation mutation : transaction.mutations) {
