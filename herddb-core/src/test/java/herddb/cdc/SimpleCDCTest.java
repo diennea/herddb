@@ -379,14 +379,14 @@ public class SimpleCDCTest {
         @Override
         public void storeSchema(LogSequenceNumber lsn, Table table) {
             LOG.log(Level.INFO, "storeSchema {0} {1}", new Object[] {lsn, table.name});
-            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(table.name, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()) );
+            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(table.name, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()));
             tableHistory.put(lsn, table);
         }
 
         @Override
         public Table fetchSchema(LogSequenceNumber lsn, String tableName) {
             LOG.log(Level.INFO, "fetchSchema {0} {1}", new Object[] {lsn, tableName});
-            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(tableName, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()) );
+            SortedMap<LogSequenceNumber, Table> tableHistory = definitions.computeIfAbsent(tableName, (n)-> Collections.synchronizedSortedMap(new TreeMap<>()));
             SortedMap<LogSequenceNumber, Table> after = tableHistory.headMap(lsn);
             if (after.isEmpty()) {
                 return after.get(tableHistory.lastKey());

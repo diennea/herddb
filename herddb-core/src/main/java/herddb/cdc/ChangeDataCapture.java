@@ -249,7 +249,7 @@ public class ChangeDataCapture implements AutoCloseable {
                     // set null to mark the table as DROPPED
                     transaction.tablesDefinitions.put(entry.tableName, null);
                 }
-                
+
                 fire(new Mutation(table, MutationType.DROP_TABLE, null, lsn, entry.timestamp), entry.transactionId);
             }
             break;
