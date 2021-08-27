@@ -45,7 +45,7 @@ public class BLinkKeyToPageIndexTest extends KeyToPageIndexTest {
     @Override
     KeyToPageIndex createIndex() {
 
-        MemoryManager mem = new MemoryManager(5 * (1L << 20), 10 * (128L << 10), (128L << 10));
+        MemoryManager mem = new MemoryManager(5 * (1L << 20), 10 * (128L << 10), 0, (128L << 10));
         MemoryDataStorageManager ds = new MemoryDataStorageManager();
         BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds);
 

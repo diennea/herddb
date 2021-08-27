@@ -103,11 +103,13 @@ public class ChangeRoleTest extends MultiServerBase {
                     new HashSet<>(Arrays.asList("server1", "server2")), "server1", 1, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             assertEquals(0, server2MemoryManager.getDataPageReplacementPolicy().size());
+            assertEquals(0, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getPKPageReplacementPolicy().size());
 
             server_2.waitForTableSpaceBoot(TableSpace.DEFAULT, false);
 
-            assertEquals(2, server2MemoryManager.getDataPageReplacementPolicy().size());
+            assertEquals(1, server2MemoryManager.getDataPageReplacementPolicy().size());
+            assertEquals(1, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(1, server2MemoryManager.getPKPageReplacementPolicy().size());
 
             // stop tablespace on server2
@@ -125,6 +127,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             // memory must have been totally released
             assertEquals(0, server2MemoryManager.getDataPageReplacementPolicy().size());
+            assertEquals(0, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getPKPageReplacementPolicy().size());
 
             // start tablespace on server2, as let it become leader
@@ -135,6 +138,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             assertTrue("unexpected value " + server2MemoryManager.getDataPageReplacementPolicy().size(),
                     server2MemoryManager.getDataPageReplacementPolicy().size() >= 1);
+            assertEquals(1, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(1, server2MemoryManager.getPKPageReplacementPolicy().size());
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
@@ -149,6 +153,7 @@ public class ChangeRoleTest extends MultiServerBase {
 
             // memory must have been totally released again
             assertEquals(0, server2MemoryManager.getDataPageReplacementPolicy().size());
+            assertEquals(0, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getPKPageReplacementPolicy().size());
 
         }

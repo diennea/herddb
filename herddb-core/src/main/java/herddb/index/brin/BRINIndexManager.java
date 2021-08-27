@@ -88,7 +88,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                                              writeLockTimeout, readLockTimeout);
         this.data = new BlockRangeIndex<>(
                 memoryManager.getMaxLogicalPageSize(),
-                memoryManager.getDataPageReplacementPolicy(),
+                memoryManager.getIndexPageReplacementPolicy(),
                 storageLayer);
     }
 
