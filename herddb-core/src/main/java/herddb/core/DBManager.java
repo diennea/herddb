@@ -155,6 +155,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
     private long maxDataUsedMemory = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT;
     private long maxPKUsedMemory = ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT;
+    private double maxDataUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_PERCENTAGE_DEFAULT;
+    private double maxPKUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_PK_MEMORY_PERCENTAGE_DEFAULT;
 
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR_DEAULT;
@@ -260,6 +262,22 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxPKUsedMemory = configuration.getLong(
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
                 ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
+
+        this.maxDataUsedMemoryPercentage = configuration.getDouble(
+                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_PERCENTAGE,
+                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_PERCENTAGE_DEFAULT);
+
+        if (maxDataUsedMemoryPercentage <= 0) {
+            maxDataUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_PERCENTAGE_DEFAULT;
+        }
+
+        this.maxPKUsedMemoryPercentage = configuration.getDouble(
+                ServerConfiguration.PROPERTY_MAX_PK_MEMORY_PERCENTAGE,
+                ServerConfiguration.PROPERTY_MAX_PK_MEMORY_PERCENTAGE_DEFAULT);
+
+        if (maxPKUsedMemoryPercentage <= 0) {
+            maxPKUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_PK_MEMORY_PERCENTAGE_DEFAULT;
+        }
 
     }
 
@@ -403,14 +421,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         LOGGER.log(Level.INFO, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE + "= {0} bytes", Long.toString(maxMemoryReference));
 
-        /* If max data memory for pages isn't configured or is too high default it to 0.3 maxMemoryReference */
+        /* If max data memory for pages isn't configured or is too high default it to a maxMemoryReference percentage */
         if (maxDataUsedMemory == 0 || maxDataUsedMemory > maxMemoryReference) {
-            maxDataUsedMemory = (long) (0.3F * maxMemoryReference);
+            maxDataUsedMemory = (long) (maxDataUsedMemoryPercentage * maxMemoryReference);
         }
 
-        /* If max index memory for pages isn't configured or is too high default it to 0.2 maxMemoryReference */
+        /* If max index memory for pages isn't configured or is too high default it to a maxMemoryReference percentage */
         if (maxPKUsedMemory == 0 || maxPKUsedMemory > maxMemoryReference) {
-            maxPKUsedMemory = (long) (0.2F * maxMemoryReference);
+            maxPKUsedMemory = (long) (maxPKUsedMemoryPercentage * maxMemoryReference);
         }
 
         /* If max used memory is too high lower index and data accordingly */

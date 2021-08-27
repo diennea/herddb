@@ -286,6 +286,19 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MAX_PK_MEMORY = "server.memory.pk.limit";
     public static final long PROPERTY_MAX_PK_MEMORY_DEFAULT = 0L;
 
+    /**
+     * Percentage of maximum memory used for data pages, will be used if {@link PROPERTY_MAX_PK_MEMORY} is not given
+     */
+    public static final String PROPERTY_MAX_DATA_MEMORY_PERCENTAGE = "server.memory.data.percentage";
+    public static final double PROPERTY_MAX_DATA_MEMORY_PERCENTAGE_DEFAULT = 0.50D;
+
+    /**
+     * Percentage of maximum memory used for primary index pages, will be used if {@link PROPERTY_MAX_DATA_MEMORY} is
+     * not given
+     */
+    public static final String PROPERTY_MAX_PK_MEMORY_PERCENTAGE = "server.memory.pk.percentage";
+    public static final double PROPERTY_MAX_PK_MEMORY_PERCENTAGE_DEFAULT = 0.20D;
+
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";
     public static final boolean PROPERTY_JMX_ENABLE_DEFAULT = true;
 
