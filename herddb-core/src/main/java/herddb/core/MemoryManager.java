@@ -75,7 +75,7 @@ public class MemoryManager {
 
         LOGGER.log(Level.INFO, "Maximum amount of memory for primary key indexes {0} ({1} pages)",
                 new Object[]{(maxPKUsedMemory / (1024 * 1024)) + " MB", pkPages});
-        
+
         if (indexPages > 0) {
             LOGGER.log(Level.INFO, "Maximum amount of memory for data {0} ({1} pages)",
                     new Object[]{(maxDataUsedMemory / (1024 * 1024)) + " MB", dataPages});
