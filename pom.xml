@@ -101,7 +101,7 @@
         <libs.slf4j>1.7.29</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
-        <libs.bookkeeper>4.14.0</libs.bookkeeper>
+        <libs.bookkeeper>4.14.2</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
@@ -903,15 +903,4 @@
             </modules>
         </profile>
     </profiles>
-    <repositories>
-        <repository>
-            <id>apache-bk-4140rc0</id>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <url>
-                https://repository.apache.org/content/repositories/orgapachebookkeeper-1052/
-            </url>
-        </repository>
-    </repositories>
 </project>
