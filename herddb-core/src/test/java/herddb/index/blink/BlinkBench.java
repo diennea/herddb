@@ -122,7 +122,7 @@ public class BlinkBench {
                 PrintStream eps = new PrintStream(eos);
                 System.setErr(eps);
 
-                MemoryManager mem = new MemoryManager(5 * (1L << 20), 10 * (128L << 10), (128L << 10));
+                MemoryManager mem = new MemoryManager(5 * (1L << 20), 10 * (128L << 10), 0, (128L << 10));
 
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
                      BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
