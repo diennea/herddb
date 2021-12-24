@@ -23,6 +23,7 @@ package herddb.sql;
 import static herddb.model.Column.column;
 import static herddb.sql.functions.ShowCreateTableCalculator.calculateShowCreateTable;
 import com.google.common.collect.ImmutableList;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
@@ -174,6 +175,7 @@ import org.apache.calcite.util.ImmutableBitSet;
  *
  * @author eolivelli
  */
+@SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
 public class CalcitePlanner extends AbstractSQLPlanner {
 
     /**
