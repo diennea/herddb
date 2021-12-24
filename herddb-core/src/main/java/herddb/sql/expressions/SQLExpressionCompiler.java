@@ -194,6 +194,9 @@ public class SQLExpressionCompiler {
             throw new StatementExecutionException("not implemented SEARCH with " + searchArgument);
         }
         Sarg<?> sarg = (Sarg) searchArgument.getValue();
+        if (sarg == null) {
+            throw new StatementExecutionException("not implemented SEARCH with " + searchArgument);
+        }
         RangeSet<?> rangeSet = sarg.rangeSet;
         // pick the ranges in order
         List<? extends Range<?>> ranges = new ArrayList<>(rangeSet.asDescendingSetOfRanges());
