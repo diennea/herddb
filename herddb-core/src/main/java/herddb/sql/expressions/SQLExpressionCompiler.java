@@ -266,7 +266,11 @@ public class SQLExpressionCompiler {
                 }
                 operands[index++] = result;
             }
-            rawResult = new CompiledMultiOrExpression(operands);
+            if (operands.length == 1) {
+                rawResult = operands[0];
+            } else {
+                rawResult = new CompiledMultiOrExpression(operands);
+            }
         }
 
         switch (sarg.nullAs) {
