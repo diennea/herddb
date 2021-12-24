@@ -20,7 +20,6 @@
 
 package herddb.sql.expressions;
 
-import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import herddb.model.ColumnTypes;
@@ -35,9 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-
-import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexCorrelVariable;
@@ -190,7 +186,7 @@ public class SQLExpressionCompiler {
         }
         CompiledSQLExpression left = compileExpression(p.operands.get(0));
         RexNode rexNode = p.operands.get(1);
-        if (! (rexNode instanceof RexLiteral)) {
+        if (!(rexNode instanceof RexLiteral)) {
             throw new StatementExecutionException("not implemented SEARCH with " + rexNode.getClass());
         }
         RexLiteral searchArgument = (RexLiteral) rexNode;
