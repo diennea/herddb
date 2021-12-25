@@ -89,7 +89,7 @@
     <image.server.image.registry />
     <image.server.image.name>${image.server.image.registry}herddb/herddb-server:${image.currentVersion}</image.server.image.name>
 
-    <log4j.version>2.13.3</log4j.version>
+    <log4j.version>2.17.0</log4j.version>
   </properties>
   <build>
     <plugins>
