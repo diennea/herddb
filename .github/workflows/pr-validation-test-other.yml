@@ -40,5 +40,7 @@ jobs:
         run: mvn -B install -DskipTests --file pom.xml -Pjenkins
       - name: 'Build with Maven'
         run: mvn -B verify -Dmaven.test.redirectTestOutputToFile=true -Dherddb.file.requirefsync=false --file pom.xml -Pjenkins -pl !herddb-core
+      - name: 'Build docker images'
+        run: mvn -B -pl herddb-docker --file pom.xml package jib:dockerBuild@build -Dimage.server.image.name=herddb/server:latest
       - name: 'Remove Snapshots Before Caching'
         run: find ~/.m2 -name '*SNAPSHOT' | xargs rm -Rf
