@@ -28,67 +28,15 @@
   <name>HerdDB Docker</name>
   <artifactId>herddb-docker</artifactId>
   <dependencies>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>herddb-services</artifactId>
-      <version>${project.version}</version>
-      <exclusions>
-        <exclusion> <!-- dont use shaded version -->
-          <groupId>${project.groupId}</groupId>
-          <artifactId>herddb-jdbc</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>herddb-cli</artifactId>
-        </exclusion>
-        <exclusion> <!-- we'll use log4j2 -->
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-jdk14</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>herddb-jdbc</artifactId>
-      <version>${project.version}</version>
-      <exclusions>
-        <exclusion> <!-- we'll use log4j2 -->
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-jdk14</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>herddb-ui</artifactId>
-      <version>${project.version}</version>
-      <classifier>classes</classifier>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-core</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-jul</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-slf4j-impl</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
   </dependencies>
   <properties>
     <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
     <image.port>7000</image.port>
     <image.port2>9845</image.port2>
     <image.workdir>/opt/herddb</image.workdir>
-    <image.currentVersion>${project.version}_${maven.build.timestamp}</image.currentVersion>
+    <image.currentVersion>${project.version}</image.currentVersion>
     <image.server.image.registry />
     <image.server.image.name>${image.server.image.registry}herddb/herddb-server:${image.currentVersion}</image.server.image.name>
-
     <log4j.version>2.17.1</log4j.version>
   </properties>
   <build>
@@ -110,12 +58,17 @@
               <artifactItems>
                 <artifactItem>
                   <groupId>${project.groupId}</groupId>
-                  <artifactId>herddb-ui</artifactId>
+                  <artifactId>herddb-services</artifactId>
                   <version>${project.version}</version>
-                  <type>war</type>
+                  <type>zip</type>
                   <overWrite>false</overWrite>
-                  <outputDirectory>${project.build.directory}/workdir/opt/herddb/web/ui</outputDirectory>
-                  <excludes>**/*.class,**/WEB-INF/lib/**,**/WEB-INF/classes/**,META-INF/**</excludes>
+                  <outputDirectory>${project.build.directory}/workdir/opt/herddb</outputDirectory>
+                  <fileMappers>
+                    <org.codehaus.plexus.components.io.filemappers.RegExpFileMapper>
+                      <pattern>herddb-services-${project.version}</pattern>
+                      <replacement>./</replacement>
+                    </org.codehaus.plexus.components.io.filemappers.RegExpFileMapper>
+                  </fileMappers>
                 </artifactItem>
               </artifactItems>
             </configuration>
@@ -140,6 +93,12 @@
                 <paths>
                   <path>${project.build.directory}/workdir</path>
                 </paths>
+                <permissions>
+                  <permission>
+                    <file>/opt/herddb/bin/*</file>
+                    <mode>755</mode> <!-- Read/write/execute for owner, read/execute for group/other -->
+                  </permission>
+                </permissions>
               </extraDirectories>
               <from>
                 <image>azul/zulu-openjdk:11.0.8-11.41.23</image>
@@ -149,8 +108,11 @@
               </to>
               <container>
                 <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
-                <extraClasspath>${image.workdir}/custom/*</extraClasspath>
-                <mainClass>herddb.server.ServerMain</mainClass>
+                <entrypoint>/opt/herddb/bin/service</entrypoint>
+                <args>
+                  <arg>server</arg>
+                  <arg>console</arg>
+                </args>
                 <appRoot>${image.workdir}</appRoot>
                 <workingDirectory>${image.workdir}</workingDirectory>
                 <environment>
@@ -162,10 +124,6 @@
                   <HERDDB_HOME>${image.workdir}</HERDDB_HOME>
                   <LANG>en_US.UTF-8</LANG>
                 </environment>
-                <jvmFlags>
-                  <jvmFlag>-Dherddb.docker=true</jvmFlag> <!-- just as info -->
-                  <jvmFlag>-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager</jvmFlag>
-                </jvmFlags>
                 <ports>
                   <port>${image.port}</port>
                   <port>${image.port2}</port>
