@@ -49,6 +49,8 @@ import org.eclipse.jetty.webapp.WebAppContext;
  */
 public class ServerMain implements AutoCloseable {
 
+    private static final Logger LOGGER = Logger.getLogger(ServerMain.class.getName());
+
     static {
         // see https://github.com/netty/netty/pull/7650
         if (System.getProperty("io.netty.tryReflectionSetAccessible") == null) {
@@ -152,7 +154,7 @@ public class ServerMain implements AutoCloseable {
 
                 @Override
                 public void run() {
-                    System.out.println("Ctrl-C trapped. Shutting down");
+                    LOGGER.info("Ctrl-C trapped. Shutting down");
                     ServerMain _brokerMain = runningInstance;
                     if (_brokerMain != null) {
                         _brokerMain.close();
@@ -239,19 +241,19 @@ public class ServerMain implements AutoCloseable {
                 WebAppContext webApp = new WebAppContext(new File("web/ui").getAbsolutePath(), "/ui");
                 contexts.addHandler(webApp);
             } else {
-                System.out.println("Cannot find " + webUi.getAbsolutePath() + " directory. Web UI will not be deployed");
+                LOGGER.info("Cannot find " + webUi.getAbsolutePath() + " directory. Web UI will not be deployed");
             }
 
             uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/login?url=" + server.getJdbcUrl();
             metricsUrl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/metrics";
-            System.out.println("Listening for client (http) connections on " + httphost + ":" + httpport);
+            LOGGER.info("Listening for client (http) connections on " + httphost + ":" + httpport);
             httpserver.start();
         }
 
-        System.out.println("HerdDB server starter. Node id " + server.getNodeId());
-        System.out.println("JDBC URL: " + server.getJdbcUrl());
-        System.out.println("Web Interface: " + uiurl);
-        System.out.println("Metrics: " + metricsUrl);
+        LOGGER.info("HerdDB server starter. Node id " + server.getNodeId());
+        LOGGER.info("JDBC URL: " + server.getJdbcUrl());
+        LOGGER.info("Web Interface: " + uiurl);
+        LOGGER.info("Metrics: " + metricsUrl);
         started = true;
     }
 

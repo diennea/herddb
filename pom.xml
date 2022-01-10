@@ -806,6 +806,7 @@
                 <module>herddb-site-skin</module>
                 <module>herddb-thirdparty</module>
                 <module>herddb-backward-compatibility</module>
+                <module>herddb-docker</module>
             </modules>
             <build>
                 <pluginManagement>
