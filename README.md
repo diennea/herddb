@@ -29,9 +29,9 @@ The system automatically replicates data between replicas and handles server fai
 
 ## Overview
 
-[Intoducing HerdDB - Pulsar Summit 2020](https://www.youtube.com/watch?v=K7xQZ9V9Ml0) - Enrico Olivelli
+[Introducing HerdDB - Pulsar Summit 2020](https://www.youtube.com/watch?v=K7xQZ9V9Ml0) - Enrico Olivelli
 
-[![Intoducing HerdDB - Youtube link](https://img.youtube.com/vi/K7xQZ9V9Ml0/0.jpg)](https://www.youtube.com/watch?v=K7xQZ9V9Ml0)
+[![Introducing HerdDB - Youtube link](https://img.youtube.com/vi/K7xQZ9V9Ml0/0.jpg)](https://www.youtube.com/watch?v=K7xQZ9V9Ml0)
 
 [Other talks and deep dives](https://github.com/diennea/herddb/wiki/Talks-&-Publications)
 
@@ -42,4 +42,3 @@ Join the [mailing list](http://lists.herddb.org/mailman/listinfo)
 ## License
 
 HerdDB is under [Apache 2 license](http://www.apache.org/licenses/LICENSE-2.0.html).
-
