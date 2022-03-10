@@ -91,7 +91,7 @@
         <libs.netty4ssl>2.0.46.Final</libs.netty4ssl>
         <!-- needed in tests for TLS certificate autogeneration on jdk-15+ -->
         <libs.bouncycastle>1.65</libs.bouncycastle>
-        <libs.calcite>1.28.0</libs.calcite>
+        <libs.calcite>1.30.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>2.12.3</libs.jackson.mapper>
         <libs.zookeeper>3.6.2</libs.zookeeper>
@@ -581,7 +581,13 @@
             </plugins>
         </pluginManagement>
     </build>
-
+    <repositories>
+       <repository>
+          <id>calcite-130-release</id>
+          <name>Test Repo</name>
+          <url>https://repository.apache.org/content/repositories/orgapachecalcite-1150</url>
+       </repository>
+    </repositories>
     <profiles>
         <profile>
             <id>default</id>
