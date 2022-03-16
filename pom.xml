@@ -585,7 +585,7 @@
        <repository>
           <id>calcite-130-release</id>
           <name>Test Repo</name>
-          <url>https://repository.apache.org/content/repositories/orgapachecalcite-1152</url>
+          <url>https://repository.apache.org/content/repositories/orgapachecalcite-1153</url>
        </repository>
     </repositories>
     <profiles>
