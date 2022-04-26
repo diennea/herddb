@@ -3975,21 +3975,21 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (dataPage != null) {
                     Collection<Bytes> keysForDebug = dataPage.getKeysForDebug(); // this may in an inconsistent state
                     throw new DataStorageManagerException("Inconsistency! Table " + table.name
-                    	    + " no record in memory for " + key
-                    	    + ", attempted pages " + Arrays.toString(trialPages)
-                    	    + ", next page " + pageId
-                    	    + ", activePages " + pageSet.getActivePages()
-                    	    + ", dataPage " + dataPage
-                    	    + ", dataPageKeys " + keysForDebug
-                    	    + " after many trials");
+                            + " no record in memory for " + key
+                            + ", attempted pages " + Arrays.toString(trialPages)
+                            + ", next page " + pageId
+                            + ", activePages " + pageSet.getActivePages()
+                            + ", dataPage " + dataPage
+                            + ", dataPageKeys " + keysForDebug
+                            + " after many trials");
                 } else {
                     throw new DataStorageManagerException("Inconsistency! Table " + table.name
-                    	    + " no record in memory for " + key
-                    	    + ", attempted pages " + Arrays.toString(trialPages)
-                    	    + ", next page " + pageId
-                    	    + ", activePages " + pageSet.getActivePages()
-                    	    + ", dataPage " + dataPage
-                    	    + " after many trials");
+                            + " no record in memory for " + key
+                            + ", attempted pages " + Arrays.toString(trialPages)
+                            + ", next page " + pageId
+                            + ", activePages " + pageSet.getActivePages()
+                            + ", dataPage " + dataPage
+                            + " after many trials");
                 }
             }
         }
