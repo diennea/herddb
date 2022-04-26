@@ -3988,7 +3988,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             + ", attempted pages " + Arrays.toString(trialPages)
                             + ", next page " + pageId
                             + ", activePages " + pageSet.getActivePages()
-                            + ", dataPage " + dataPage
                             + " after many trials");
                 }
             }
