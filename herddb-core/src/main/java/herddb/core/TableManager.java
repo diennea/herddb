@@ -3838,7 +3838,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             Predicate predicate, StatementEvaluationContext context,
             Transaction transaction, LocalScanPageCache lastPageRead, boolean primaryIndexSeek,
             boolean forWrite, boolean acquireLock
-    ) {
+    ) throws DataStorageManagerException {
 
         Bytes key = entry.getKey();
         boolean keep_lock = false;
@@ -3924,6 +3924,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {
         int maxTrials = 2;
+        long[] trialPages = null;
         while (true) {
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
             if (dataPage != null) {
@@ -3965,13 +3966,30 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LOGGER.log(Level.FINE, "table " + table.name + ", activePages " + pageSet.getActivePages() + ", record " + key + " deleted during data access");
                 return null;
             }
+            if (trialPages == null) {
+            	trialPages = new long[maxTrials];
+            }
+            trialPages[trialPages.length - maxTrials] = pageId;
             pageId = relocatedPageId;
             if (maxTrials-- == 0) {
                 if (dataPage != null) {
                     Collection<Bytes> keysForDebug = dataPage.getKeysForDebug(); // this may in an inconsistent state
-                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage " + dataPage + ", dataPageKeys =" + keysForDebug + " after many trials");
+                    throw new DataStorageManagerException("Inconsistency! Table " + table.name
+                    		+ " no record in memory for " + key
+                    		+ ", attempted pages " + Arrays.toString(trialPages)
+                    		+ ", next page " + pageId
+                    		+ ", activePages " + pageSet.getActivePages()
+                    		+ ", dataPage " + dataPage
+                    		+ ", dataPageKeys " + keysForDebug
+                    		+ " after many trials");
                 } else {
-                    throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + ", dataPage = null after many trials");
+                    throw new DataStorageManagerException("Inconsistency! Table " + table.name
+                    		+ " no record in memory for " + key
+                    		+ ", attempted pages " + Arrays.toString(trialPages)
+                    		+ ", next page " + pageId
+                    		+ ", activePages " + pageSet.getActivePages()
+                    		+ ", dataPage " + dataPage
+                    		+ " after many trials");
                 }
             }
         }
