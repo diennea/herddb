@@ -101,7 +101,7 @@
         <libs.slf4j>1.7.29</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
-        <libs.bookkeeper>4.15.0</libs.bookkeeper>
+        <libs.bookkeeper>4.14.5</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
@@ -908,7 +908,7 @@
         <repository>
            <id>apache-tmp-repo</id>
            <name>Test Repo</name>
-          <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1063/</url>
+          <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1064/</url>
         </repository>
      </repositories>
 </project>
