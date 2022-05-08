@@ -51,6 +51,7 @@ import herddb.model.TupleComparator;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
+import herddb.model.commands.CheckpointStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -166,6 +167,7 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
 
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
+    public static final String FORCE_CHECKPOINT_COMMAND = "checkpoint";
 
     public static String delimit(String name) {
         if (name == null) {
@@ -309,7 +311,6 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
-
         /*
          * Strips out leading comments
          */
@@ -390,6 +391,10 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             }
             if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
                 ExecutionPlan executionPlan = ExecutionPlan.simple(JSQLParserPlanner.this.queryConsistencyCheckStatement(query));
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
+            }
+            if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
+                ExecutionPlan executionPlan = ExecutionPlan.simple(JSQLParserPlanner.this.forceTableSpaceCheckPoint(query));
                 return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters, false, false));
             }
 
@@ -1176,6 +1181,22 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             return new TableSpaceConsistencyCheckStatement(tableSpace.trim());
         } else {
             throw new StatementExecutionException(String.format("Incorrect Syntax for tablespaceconsistencycheck"));
+        }
+    }
+
+    public Statement forceTableSpaceCheckPoint(String query) {
+        if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
+            List<String> querySplitted = Arrays.asList(query.replace("\'", "").split(" "));
+            String tableSpace = querySplitted.get(1).toLowerCase();
+            boolean noWait = querySplitted.contains("noWait");
+            boolean full = querySplitted.contains("full");
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+            if (tableSpaceManager == null) {
+                throw new TableSpaceDoesNotExistException(String.format("Tablespace %s does not exist.", tableSpace));
+            }
+            return new CheckpointStatement(tableSpace, noWait, full);
+        } else {
+            throw new StatementExecutionException(String.format("Incorrect Syntax for checkpoint"));
         }
     }
 

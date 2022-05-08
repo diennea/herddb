@@ -187,6 +187,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
     private final AbstractSQLPlanner fallback;
     public static final String TABLE_CONSISTENCY_COMMAND = "tableconsistencycheck";
     public static final String TABLESPACE_CONSISTENCY_COMMAND = "tablespaceconsistencycheck";
+    public static final String FORCE_CHECKPOINT_COMMAND = "checkpoint";
 
     private static final SqlTypeFactoryImpl SQL_TYPE_FACTORY_IMPL = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
     private static final RexBuilder REX_BUILDER  = new RexBuilder(SQL_TYPE_FACTORY_IMPL);
@@ -268,6 +269,10 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (query.startsWith(TABLESPACE_CONSISTENCY_COMMAND)) {
+            query = JSQLParserPlanner.rewriteExecuteSyntax(query);
+            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }
+        if (query.startsWith(FORCE_CHECKPOINT_COMMAND)) {
             query = JSQLParserPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
