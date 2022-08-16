@@ -581,13 +581,6 @@
             </plugins>
         </pluginManagement>
     </build>
-    <repositories>
-       <repository>
-          <id>calcite-131-release</id>
-          <name>Test Repo</name>
-          <url>https://repository.apache.org/content/repositories/orgapachecalcite-1172</url>
-       </repository>
-    </repositories>
     <profiles>
         <profile>
             <id>default</id>
