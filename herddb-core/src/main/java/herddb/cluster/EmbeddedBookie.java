@@ -33,12 +33,14 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.apache.bookkeeper.bookie.Bookie;
+import org.apache.bookkeeper.bookie.BookieImpl;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
+import org.apache.bookkeeper.server.EmbeddedServer;
+import org.apache.bookkeeper.server.conf.BookieConfiguration;
+import org.apache.bookkeeper.stats.NullStatsProvider;
+import org.apache.bookkeeper.stats.StatsProvider;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -52,19 +54,19 @@ public class EmbeddedBookie implements AutoCloseable {
     private final Path baseDirectory;
     private final ServerConfiguration configuration;
     private final ZookeeperMetadataStorageManager metadataManager;
-    private final StatsLogger statsLogger;
+    private final StatsProvider statsProvider;
 
-    private BookieServer bookieServer;
+    private EmbeddedServer embeddedServer;
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager) {
         this(baseDirectory, configuration, metadataManager, null);
     }
 
-    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager, StatsLogger statsLogger) {
+    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager, StatsProvider statsProvider) {
         this.baseDirectory = baseDirectory;
         this.configuration = configuration;
         this.metadataManager = metadataManager;
-        this.statsLogger = statsLogger != null ? statsLogger : new NullStatsLogger();
+        this.statsProvider =  statsProvider != null ? statsProvider : new NullStatsProvider();
     }
 
     public void start() throws Exception {
@@ -146,7 +148,7 @@ public class EmbeddedBookie implements AutoCloseable {
         boolean forceformat = configuration.getBoolean("bookie.forceformat", false);
         LOG.log(Level.CONFIG, "bookie.forceformat={0}", forceformat);
         if (forceformat) {
-            result = Bookie.format(conf, false, forceformat);
+            result = BookieImpl.format(conf, false, forceformat);
             if (result) {
                 LOG.info("Bookie.format: formatter applied to local bookie");
             } else {
@@ -154,10 +156,15 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
 
-        bookieServer = new BookieServer(conf, statsLogger, null);
-        bookieServer.start();
+        EmbeddedServer embeddedServer = EmbeddedServer
+                .builder(new BookieConfiguration(conf))
+                .statsProvider(statsProvider)
+                .build();
+        embeddedServer.getLifecycleComponentStack().start();
+
+        BookieServer bookieServer = embeddedServer.getBookieService().getServer();
         for (int i = 0; i < 100; i++) {
-            if (bookieServer.getBookie().isRunning()) {
+            if (bookieServer.isRunning()) {
                 LOG.info("Apache Bookkeeper started");
                 break;
             }
@@ -188,16 +195,12 @@ public class EmbeddedBookie implements AutoCloseable {
 
     @Override
     public void close() {
-        if (bookieServer != null) {
+        if (embeddedServer != null) {
             LOG.info("Apache Bookkeeper stopping");
             try {
-                bookieServer.shutdown();
-
-                bookieServer.join();
-            } catch (InterruptedException err) {
-                Thread.currentThread().interrupt();
+                embeddedServer.getLifecycleComponentStack().close();
             } finally {
-                bookieServer = null;
+                embeddedServer = null;
             }
         }
     }
@@ -244,6 +247,6 @@ public class EmbeddedBookie implements AutoCloseable {
     }
 
     public String getBookieId() throws Exception {
-        return bookieServer.getBookieId().toString();
+        return embeddedServer.getBookieService().getServer().getBookieId().toString();
     }
 }
