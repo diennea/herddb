@@ -32,6 +32,7 @@ import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import herddb.utils.TestUtils;
 import io.netty.buffer.ByteBuf;
+import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -66,25 +67,47 @@ public class LocalChannelTest {
             });
             acceptor.start();
             assertNotNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
+
             ExecutorService executor = Executors.newCachedThreadPool();
-            try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
+            try {
+                try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
 
-                @Override
-                public void channelClosed(Channel channel) {
-                    System.out.println("client channelClosed");
+                    @Override
+                    public void channelClosed(Channel channel) {
+                        System.out.println("client channelClosed");
 
-                }
-            }, executor, null)) {
-                for (int i = 0; i < 100; i++) {
-                    ByteBuf buffer = buildAckRequest(i);
-                    try (Pdu result = client.sendMessageWithPduReply(i, buffer, 10000)) {
-                        assertEquals(Pdu.TYPE_ACK, result.type);
+                    }
+                }, executor, null)) {
+                    for (int i = 0; i < 100; i++) {
+                        ByteBuf buffer = buildAckRequest(i);
+                        try (Pdu result = client.sendMessageWithPduReply(i, buffer, 10000)) {
+                            assertEquals(Pdu.TYPE_ACK, result.type);
+                        }
                     }
                 }
+
+                try (Channel client = NettyConnector.connect(addr.getHostName(), addr.getPort(), true, 0, 0, new ChannelEventListener() {
+
+                    @Override
+                    public void channelClosed(Channel channel) {
+                        System.out.println("client channelClosed");
+
+                    }
+                }, executor, null)) {
+                    for (int i = 0; i < 100; i++) {
+                        ByteBuf buffer = buildAckRequest(i);
+                        try (Pdu result = client.sendMessageWithPduReply(i, buffer, 10000)) {
+                            assertEquals(Pdu.TYPE_ACK, result.type);
+                        }
+                    }
+                }
+
+                LocalVMChannelAcceptor localAcceptor = LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort());
+                assertNotNull(localAcceptor);
+                assertTrue(localAcceptor.channels().isEmpty());
             } finally {
                 executor.shutdown();
             }
-
         }
         assertNull(LocalServerRegistry.getLocalServer(NetworkUtils.getAddress(addr), addr.getPort()));
     }
