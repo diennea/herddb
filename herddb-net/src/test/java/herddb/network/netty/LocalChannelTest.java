@@ -32,7 +32,6 @@ import herddb.network.ServerSideConnection;
 import herddb.proto.Pdu;
 import herddb.utils.TestUtils;
 import io.netty.buffer.ByteBuf;
-import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;

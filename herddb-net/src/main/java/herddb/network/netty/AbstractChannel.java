@@ -194,7 +194,7 @@ public abstract class AbstractChannel extends Channel {
 
     @Override
     public final void close() {
-        if (!closed.compareAndSet(false,true)) {
+        if (!closed.compareAndSet(false, true)) {
             // Already closed or in closing procedure
             return;
         }
