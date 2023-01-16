@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -186,17 +187,17 @@ public abstract class AbstractChannel extends Channel {
         });
     }
 
-    private volatile boolean closed = false;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     protected abstract String describeSocket();
     protected abstract void doClose();
 
     @Override
     public final void close() {
-        if (closed) {
+        if (!closed.compareAndSet(false, true)) {
+            // Already closed or in closing procedure
             return;
         }
-        closed = true;
         LOGGER.log(Level.FINE, "{0}: closing", this);
         String socketDescription = describeSocket();
         doClose();
@@ -205,7 +206,7 @@ public abstract class AbstractChannel extends Channel {
 
     @Override
     public final boolean isClosed() {
-        return closed;
+        return closed.get();
     }
     private void failPendingMessages(String socketDescription) {
 

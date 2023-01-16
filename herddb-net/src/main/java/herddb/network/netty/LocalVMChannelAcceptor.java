@@ -48,10 +48,19 @@ public class LocalVMChannelAcceptor {
     }
 
     public Channel connect(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
-        LocalVMChannel channel = new LocalVMChannel(name, clientSidePeer, executorService);
+        LocalVMChannel channel = new LocalVMChannel(name, clientSidePeer, executorService, this);
         acceptor.createConnection(channel.getServerSideChannel());
         channels.add(channel);
         return channel;
+    }
+
+    void deregister(LocalVMChannel channel) {
+        channels.remove(channel);
+    }
+
+    // Visible for testing
+    Set<LocalVMChannel> channels() {
+        return channels;
     }
 
 }
