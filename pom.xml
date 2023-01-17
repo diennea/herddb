@@ -703,6 +703,8 @@
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
                 <module>herddb-collections</module>
+                <module>herddb-cli-lite</module>
+                <module>herddb-cli</module>
             </modules>
             <distributionManagement>
                 <snapshotRepository>
