@@ -602,7 +602,6 @@
                 <module>herddb-collections</module>
                 <module>herddb-ui</module>
                 <module>herddb-services</module>
-                <module>herddb-cli-lite</module>
                 <module>herddb-cli</module>
                 <module>herddb-bench</module>
                 <module>herddb-website</module>
@@ -703,7 +702,6 @@
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
                 <module>herddb-collections</module>
-                <module>herddb-cli-lite</module>
                 <module>herddb-cli</module>
             </modules>
             <distributionManagement>
@@ -808,7 +806,6 @@
                 <module>herddb-jdbc</module>
                 <module>herddb-collections</module>
                 <module>herddb-services</module>
-                <module>herddb-cli-lite</module>
                 <module>herddb-cli</module>
                 <module>herddb-ui</module>
                 <module>herddb-website</module>
