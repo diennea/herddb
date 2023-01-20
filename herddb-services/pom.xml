@@ -52,17 +52,16 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>javax.activation</groupId>
-            <artifactId>javax.activation-api</artifactId>
-            <version>${libs.javaxactivation.api}</version>
-        </dependency>
-        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-cli</artifactId>
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
-
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>${libs.javaxactivation.api}</version>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>

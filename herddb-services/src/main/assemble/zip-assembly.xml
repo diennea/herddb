@@ -65,21 +65,10 @@
             <useStrictFiltering>true</useStrictFiltering>
             <unpack>false</unpack>                       
             <excludes>
-                <exclude>org.herddb:herddb-cli:*</exclude>                                
                 <exclude>org.herddb:herddb-jdbc:jar:uber</exclude>                                
             </excludes>
             <outputDirectory>lib</outputDirectory>
         </dependencySet>         
-        <dependencySet>
-            <useProjectArtifact>true</useProjectArtifact>
-            <useStrictFiltering>true</useStrictFiltering>
-            <unpack>false</unpack>           
-            <includes>                
-                <include>org.herddb:herddb-cli:*</include>
-            </includes>            
-            <outputDirectory>.</outputDirectory>
-            <outputFileNameMapping>herddb-cli.jar</outputFileNameMapping>
-        </dependencySet>        
         <dependencySet>
             <useProjectArtifact>true</useProjectArtifact>
             <useStrictFiltering>true</useStrictFiltering>
