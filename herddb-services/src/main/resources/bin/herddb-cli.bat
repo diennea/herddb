@@ -38,4 +38,6 @@ set JAVA="%JAVA_HOME%"\bin\java
 set BASE_DIR=%~dp0%..
 
 JAVA="%JAVA_HOME%/bin/java"
-call %JAVA% -jar %BASE_DIR%/herddb-cli.jar %*
+MAINCLASS="herddb.cli.HerdDBCLI"
+
+call %JAVA% -cp "%BASE_DIR%/lib/*" %MAINCLASS% %*

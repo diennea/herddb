@@ -615,12 +615,12 @@
                     <!-- temporary with are hosted at Majordodo house -->
                     <id>dev.majordodo.org</id>
                     <name>Majordodo Public Repository</name>
-                    <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
+                    <url>https://dev.majordodo.org/nexus/repository/releases/</url>
                 </repository>
                 <snapshotRepository>
                     <id>dev.majordodo.org.snapshots</id>
                     <name>Majordodo Public Repository</name>
-                    <url>https://dev.majordodo.org/nexus/content/repositories/snapshots/</url>
+                    <url>https://dev.majordodo.org/nexus/repository/snapshots/</url>
                 </snapshotRepository>
             </distributionManagement>
             <build>
@@ -702,6 +702,7 @@
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
                 <module>herddb-collections</module>
+                <module>herddb-cli</module>
             </modules>
             <distributionManagement>
                 <snapshotRepository>

@@ -27,4 +27,6 @@ BASE_DIR="`( cd \"$BASE_DIR\" && pwd )`"
 . $BASE_DIR/bin/setenv.sh
 
 JAVA="$JAVA_HOME/bin/java"
-$JAVA -jar $BASE_DIR/herddb-cli.jar "$@"
+MAINCLASS=herddb.cli.HerdDBCLI
+
+$JAVA -cp $BASE_DIR'/lib/*' $MAINCLASS "$@"
