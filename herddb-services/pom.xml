@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
-        <version>0.26.0-SNAPSHOT</version>
+        <version>0.27.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -52,17 +52,16 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>javax.activation</groupId>
-            <artifactId>javax.activation-api</artifactId>
-            <version>${libs.javaxactivation.api}</version>
-        </dependency>
-        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-cli</artifactId>
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
-
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>${libs.javaxactivation.api}</version>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>

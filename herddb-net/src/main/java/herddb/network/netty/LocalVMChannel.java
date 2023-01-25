@@ -39,11 +39,13 @@ import java.util.concurrent.ExecutorService;
 public class LocalVMChannel extends AbstractChannel implements Comparable<LocalVMChannel> {
 
     private final ServerSideLocalVMChannel serverSideChannel;
+    private final LocalVMChannelAcceptor parent;
 
-    LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService) {
+    LocalVMChannel(String name, ChannelEventListener clientSidePeer, ExecutorService executorService, LocalVMChannelAcceptor parent) {
         super(name, ADDRESS_JVM_LOCAL, executorService);
         setMessagesReceiver(clientSidePeer);
         serverSideChannel = new ServerSideLocalVMChannel(ADDRESS_JVM_LOCAL, ADDRESS_JVM_LOCAL, executorService);
+        this.parent = parent;
     }
 
     public Channel getServerSideChannel() {
@@ -75,6 +77,7 @@ public class LocalVMChannel extends AbstractChannel implements Comparable<LocalV
 
     @Override
     protected void doClose() {
+        parent.deregister(this);
         // emulate Netty on channel close
         channelClosed();
         serverSideChannel.close();

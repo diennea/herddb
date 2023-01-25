@@ -21,7 +21,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.26.0-SNAPSHOT</version>
+    <version>0.27.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>
     <url>http://herddb.org</url>
@@ -87,34 +87,34 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.72.Final</libs.netty4>
-        <libs.netty4ssl>2.0.46.Final</libs.netty4ssl>
+        <libs.netty4>4.1.85.Final</libs.netty4>
+        <libs.netty4ssl>2.0.54.Final</libs.netty4ssl>
         <!-- needed in tests for TLS certificate autogeneration on jdk-15+ -->
-        <libs.bouncycastle>1.65</libs.bouncycastle>
+        <libs.bouncycastle>1.70</libs.bouncycastle>
         <libs.calcite>1.32.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
-        <libs.jackson.mapper>2.12.3</libs.jackson.mapper>
-        <libs.zookeeper>3.6.2</libs.zookeeper>
+        <libs.jackson.mapper>2.14.1</libs.jackson.mapper>
+        <libs.zookeeper>3.8.0</libs.zookeeper>
         <libs.jsqlparser>3.2</libs.jsqlparser>
-        <libs.curator>5.1.0</libs.curator>
+        <libs.curator>5.4.0</libs.curator>
         <libs.guava>31.0.1-jre</libs.guava>
-        <libs.slf4j>1.7.29</libs.slf4j>
+        <libs.slf4j>2.0.4</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
         <libs.bookkeeper>4.14.3</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
-        <libs.spotbugsannotations>3.1.8</libs.spotbugsannotations>
+        <libs.spotbugsannotations>4.7.3</libs.spotbugsannotations>
         <libs.spotbugsmaven>4.0.4</libs.spotbugsmaven>
         <fbs.version>1.9.0</fbs.version>
-        <checkstyle.version>8.30</checkstyle.version>
+        <checkstyle.version>10.4</checkstyle.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.1</version>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -239,7 +239,7 @@
             <dependency>
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
-                <version>1.1.7</version>
+                <version>1.1.8.4</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.zookeeper</groupId>
@@ -297,6 +297,12 @@
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-test</artifactId>
                 <version>${libs.curator}</version>
+                    <exclusions>
+                        <exclusion>
+                            <groupId>org.junit.jupiter</groupId>
+                            <artifactId>*</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>commons-collections</groupId>
@@ -432,12 +438,12 @@
             <dependency>
                 <groupId>commons-cli</groupId>
                 <artifactId>commons-cli</artifactId>
-                <version>1.3.1</version>
+                <version>1.5.0</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-minikdc</artifactId>
-                <version>3.1.1</version>
+                <version>3.3.4</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
@@ -448,7 +454,7 @@
             <dependency>
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
-                <version>2.7</version>
+                <version>2.11.0</version>
             </dependency>
             <dependency>
                 <groupId>org.codehaus.groovy</groupId>
@@ -459,7 +465,7 @@
             <dependency>
                 <groupId>org.jline</groupId>
                 <artifactId>jline</artifactId>
-                <version>3.1.1</version>
+                <version>3.21.0</version>
             </dependency>
             <dependency>
                 <groupId>commons-dbcp</groupId>
@@ -469,7 +475,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-pool2</artifactId>
-                <version>2.6.1</version>
+                <version>2.11.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -609,12 +615,12 @@
                     <!-- temporary with are hosted at Majordodo house -->
                     <id>dev.majordodo.org</id>
                     <name>Majordodo Public Repository</name>
-                    <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
+                    <url>https://dev.majordodo.org/nexus/repository/releases/</url>
                 </repository>
                 <snapshotRepository>
                     <id>dev.majordodo.org.snapshots</id>
                     <name>Majordodo Public Repository</name>
-                    <url>https://dev.majordodo.org/nexus/content/repositories/snapshots/</url>
+                    <url>https://dev.majordodo.org/nexus/repository/snapshots/</url>
                 </snapshotRepository>
             </distributionManagement>
             <build>
@@ -696,6 +702,7 @@
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
                 <module>herddb-collections</module>
+                <module>herddb-cli</module>
             </modules>
             <distributionManagement>
                 <snapshotRepository>
