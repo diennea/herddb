@@ -64,8 +64,7 @@ public class PlainSaslServerProvider extends Provider {
 
         @Override
         public byte[] evaluateResponse(byte[] response) throws SaslException {
-            LOG.info("evaluaterResponse " + new String(response));
-
+            // see https://www.rfc-editor.org/rfc/rfc4616.html
             if (response.length == 0 || response[0] != 0) {
                 throw new AuthenticationException("Invalid auth");
             }
@@ -80,9 +79,7 @@ public class PlainSaslServerProvider extends Provider {
                 throw new AuthenticationException("Invalid auth");
             }
             this.username = new String(response, 1, endusername - 1);
-            LOG.info("Username " + username);
             String password = new String(response, endusername + 1, response.length - endusername - 1);
-            LOG.info("password " + password);
 
             errorMessage = null;
 
