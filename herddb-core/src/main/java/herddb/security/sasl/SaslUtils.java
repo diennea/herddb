@@ -33,11 +33,15 @@ import javax.security.sasl.Sasl;
 public class SaslUtils {
 
     public static final String AUTH_DIGEST_MD5 = "DIGEST-MD5";
+
+    public static final String AUTH_PLAIN = "PLAIN";
+
+
     public static final String DEFAULT_REALM = "default";
 
-    static Map<String, String> getSaslProps() {
+    static Map<String, String> getSaslProps(boolean allowPlain) {
         Map<String, String> props = new HashMap<String, String>();
-        props.put(Sasl.POLICY_NOPLAINTEXT, "true");
+        props.put(Sasl.POLICY_NOPLAINTEXT, !allowPlain + "");
         return props;
     }
 

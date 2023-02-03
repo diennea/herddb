@@ -1108,6 +1108,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 saslNettyServer = new SaslNettyServer(server, mech);
             }
             byte[] responseToken = saslNettyServer.response(token);
+            if (saslNettyServer.isComplete()) {
+                username = saslNettyServer.getUserName();
+                authenticated = true;
+                LOGGER.log(Level.INFO, "client {0} connected as {1}", new Object[]{this.channel.getRemoteAddress(), username});
+                saslNettyServer = null;
+            }
             ByteBuf tokenChallenge = PduCodec.SaslTokenServerResponse.write(message.messageId, responseToken);
             channel.sendReplyMessage(message.messageId, tokenChallenge);
         } catch (Exception err) {

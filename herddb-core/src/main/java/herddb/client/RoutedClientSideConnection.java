@@ -110,11 +110,12 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
         if (ClientConfiguration.PROPERTY_MODE_LOCAL.equals(mode) && channel.isLocalChannel()) {
             return;
         }
+        String mech = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_AUTH_MECH, SaslUtils.AUTH_DIGEST_MD5);
 
         SaslNettyClient saslNettyClient = new SaslNettyClient(
                 connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
                 connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
-                serverHostname
+                serverHostname, mech
         );
 
         byte[] firstToken = new byte[0];
@@ -124,13 +125,17 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
 
         long requestId = channel.generateRequestId();
         Pdu saslResponse = channel.sendMessageWithPduReply(requestId,
-                PduCodec.SaslTokenMessageRequest.write(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
+                PduCodec.SaslTokenMessageRequest.write(requestId, mech, firstToken), timeout);
         try {
             for (int i = 0; i < 100; i++) {
                 byte[] responseToSendToServer;
                 switch (saslResponse.type) {
                     case Pdu.TYPE_SASL_TOKEN_SERVER_RESPONSE:
                         byte[] token = PduCodec.SaslTokenServerResponse.readToken(saslResponse);
+                        if (saslNettyClient.isComplete()) {
+                            LOGGER.finest("SASL auth completed with success");
+                            return;
+                        }
                         responseToSendToServer = saslNettyClient.evaluateChallenge(token);
                         requestId = channel.generateRequestId();
                         saslResponse.close();

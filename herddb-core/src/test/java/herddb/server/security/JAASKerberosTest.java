@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
+import javax.security.auth.login.Configuration;
 import org.apache.hadoop.minikdc.MiniKdc;
 import org.junit.After;
 import org.junit.Assert;
@@ -162,6 +163,7 @@ public class JAASKerberosTest {
             }
         } finally {
             System.clearProperty("java.security.auth.login.config");
+            Configuration.getConfiguration().refresh();
         }
     }
 }

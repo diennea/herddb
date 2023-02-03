@@ -20,6 +20,9 @@
 
 package herddb.security;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /**
  * Abstract over user management
  *
@@ -28,4 +31,14 @@ package herddb.security;
 public abstract class UserManager {
 
     public abstract String getExpectedPassword(String username);
+
+    public void authenticate(String username, char[] pwd) throws IOException {
+        String password = new String(pwd);
+        String expectedPassword = getExpectedPassword(username);
+        if (expectedPassword == null
+                || password == null
+                || !Objects.equals(password, expectedPassword)) {
+            throw new IOException("Password doesn't match for user " + username);
+        }
+    }
 }

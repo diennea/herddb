@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.security.Security;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -77,11 +78,24 @@ public class SaslNettyServer {
 
     }
 
+    private CallbackHandler buildCallbackHandler(String mech) throws IOException {
+        switch (mech + "") {
+            case "MD5-DIGEST":
+                return new SaslDigestCallbackHandler();
+            case "PLAIN":
+                return new SaslPlainCallbackHandler();
+            default:
+                throw new IOException("Unsupported mechanism " + mech);
+        }
+
+    }
+
     private SaslServer createSaslServer(final String mech, final Subject subject) throws IOException {
         if (subject == null) {
-            SaslDigestCallbackHandler ch = new SaslNettyServer.SaslDigestCallbackHandler();
+            CallbackHandler ch = buildCallbackHandler(mech);
+            boolean allowPlain = SaslUtils.AUTH_PLAIN.equals(mech);
             return Sasl.createSaslServer(mech, null,
-                    SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(), ch);
+                    SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(allowPlain), ch);
         } else {
             SaslServerCallbackHandler callbackHandler = new SaslServerCallbackHandler(Configuration.getConfiguration());
             // server is using a JAAS-authenticated subject: determine service principal name and hostname from zk server's subject.
@@ -212,13 +226,43 @@ public class SaslNettyServer {
         return saslServer.getAuthorizationID();
     }
 
+    private class SaslPlainCallbackHandler implements CallbackHandler {
+        @Override
+        public void handle(Callback[] callbacks) throws IOException,
+                UnsupportedCallbackException {
+            NameCallback nc = null;
+            PasswordCallback pc = null;
+
+            for (Callback callback : callbacks) {
+                if (callback instanceof NameCallback) {
+                    nc = (NameCallback) callback;
+                } else if (callback instanceof PasswordCallback) {
+                    pc = (PasswordCallback) callback;
+                } else if (callback instanceof RealmCallback) {
+                    continue; // realm is ignored
+                } else {
+                    throw new UnsupportedCallbackException(callback,
+                            "handle: Unrecognized SASL PLAIN Callback");
+                }
+            }
+
+            if (nc == null || pc == null) {
+                throw new IOException("Missing either username or password");
+            }
+
+            try {
+                server.getUserManager().authenticate(nc.getName(), pc.getPassword());
+                LOG.log(Level.INFO, "Authenticated user {0} using PLAIN", nc.getName());
+            } catch (Exception err) {
+                throw new IOException("Failed authentication for username " + nc.getName());
+            }
+        }
+    }
+
     /**
      * CallbackHandler for SASL DIGEST-MD5 mechanism
      */
     private class SaslDigestCallbackHandler implements CallbackHandler {
-
-        public SaslDigestCallbackHandler() {
-        }
 
         @Override
         public void handle(Callback[] callbacks) throws IOException,
@@ -375,5 +419,15 @@ public class SaslNettyServer {
             }
         }
 
+    }
+
+
+    public static void initialize() {
+        Security.addProvider(new PlainSaslServerProvider());
+    }
+
+
+    static {
+        initialize();
     }
 }

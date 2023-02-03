@@ -67,6 +67,8 @@ public class ClientConfiguration {
 
     public static final String PROPERTY_MODE = "client.mode";
 
+    public static final String PROPERTY_AUTH_MECH = "client.auth.mech";
+
     public static final String PROPERTY_MODE_LOCAL = "local";
     public static final String PROPERTY_MODE_STANDALONE = "standalone";
     public static final String PROPERTY_MODE_CLUSTER = "cluster";

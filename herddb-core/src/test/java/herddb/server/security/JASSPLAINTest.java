@@ -22,40 +22,59 @@ package herddb.server.security;
 
 import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import herddb.security.sasl.SaslUtils;
 import herddb.server.Server;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
-import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import javax.security.auth.login.Configuration;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Demonstates the usage of the update "newvalue" facility to implement
- * atomic-counters
+ * Simple username/password authentication
  *
  * @author enrico.olivelli
  */
-public class JAASMD5Test {
+public class JASSPLAINTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
     public void test() throws Exception {
-        System.setProperty("java.security.auth.login.config", new File("src/test/resources/test_jaas_md5.conf").getAbsolutePath());
         try (Server server = new Server(newServerConfigurationWithAutoPort(folder.newFolder().toPath()))) {
             server.start();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
+
+
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath())
+                    .set(ClientConfiguration.PROPERTY_AUTH_MECH, SaslUtils.AUTH_PLAIN)
+                    .set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, "sa")
+                    .set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, "bad-password"));
+                 HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, true, Collections.emptyList());
+                fail();
+            } catch (HDBException error) {
+                assertTrue(error.getMessage().contains("Failed authentication for username"));
+            }
+
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath())
+                    .set(ClientConfiguration.PROPERTY_AUTH_MECH, SaslUtils.AUTH_PLAIN)
+                    .set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, "sa")
+                    .set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, "hdb"));
                  HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
@@ -68,9 +87,6 @@ public class JAASMD5Test {
                 assertEquals(Long.valueOf(2), newValue.get(RawString.of("n1")));
 
             }
-        } finally {
-            System.clearProperty("java.security.auth.login.config");
-            Configuration.getConfiguration().refresh();
         }
     }
 }
