@@ -36,7 +36,7 @@ public class SaslUtils {
     public static final String DEFAULT_REALM = "default";
 
     static Map<String, String> getSaslProps() {
-        Map<String, String> props = new HashMap<String, String>();
+        Map<String, String> props = new HashMap<>();
         props.put(Sasl.POLICY_NOPLAINTEXT, "true");
         return props;
     }

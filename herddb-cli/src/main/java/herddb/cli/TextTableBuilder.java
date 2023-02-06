@@ -28,7 +28,7 @@ import org.apache.commons.lang.StringUtils;
  * @author francesco.caliumi
  */
 public class TextTableBuilder {
-    private List<String[]> rows = new ArrayList<String[]>();
+    private List<String[]> rows = new ArrayList<>();
     private boolean hasResults = false;
 
     private void addRowInternal(List<String> values) {
