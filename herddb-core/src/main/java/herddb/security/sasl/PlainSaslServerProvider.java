@@ -97,7 +97,8 @@ public class PlainSaslServerProvider extends Provider {
             if (endusername < 0) {
                 throw new AuthenticationException("Invalid auth");
             }
-            this.username = new String(response, 1, endusername - 1);
+            this.username = new String(response, 1, endusername - 1,
+                    StandardCharsets.UTF_8);
             String password = new String(response, endusername + 1, response.length - endusername - 1,
                     StandardCharsets.UTF_8);
 
