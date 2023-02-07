@@ -166,6 +166,7 @@ public class PlainSaslServerProvider extends Provider {
         @Override
         public void dispose() {
             complete = false;
+            username = null;
         }
 
     }

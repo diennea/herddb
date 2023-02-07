@@ -80,9 +80,9 @@ public class SaslNettyServer {
 
     private CallbackHandler buildCallbackHandler(String mech) throws IOException {
         switch (mech + "") {
-            case "MD5-DIGEST":
+            case SaslUtils.AUTH_DIGEST_MD5:
                 return new SaslDigestCallbackHandler();
-            case "PLAIN":
+            case SaslUtils.AUTH_PLAIN:
                 return new SaslPlainCallbackHandler();
             default:
                 throw new IOException("Unsupported mechanism " + mech);
