@@ -21,6 +21,7 @@ package herddb.security.sasl;
 
 import herddb.client.ClientConfiguration;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.util.Arrays;
 import java.util.Map;
@@ -72,7 +73,6 @@ public class PlainSaslServerProvider extends Provider {
 
 
         private boolean complete;
-        private String errorMessage = null;
         private final CallbackHandler callbackHandler;
 
         private String username;
@@ -98,9 +98,8 @@ public class PlainSaslServerProvider extends Provider {
                 throw new AuthenticationException("Invalid auth");
             }
             this.username = new String(response, 1, endusername - 1);
-            String password = new String(response, endusername + 1, response.length - endusername - 1);
-
-            errorMessage = null;
+            String password = new String(response, endusername + 1, response.length - endusername - 1,
+                    StandardCharsets.UTF_8);
 
             NameCallback nameCallback = new NameCallback("username", ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
             nameCallback.setName(username);
