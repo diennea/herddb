@@ -20,12 +20,37 @@
 
 package herddb.security;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /**
- * Abstract over user management
+ * Abstract over user management.
  *
  * @author enrico.olivelli
  */
 public abstract class UserManager {
 
-    public abstract String getExpectedPassword(String username);
+    /**
+     * Return the expected password for a given user or null if the user doesn't exist.
+     * This method is needed only by the DIGEST-MD5 mechanism.
+     * @param username the username
+     * @return the password, or null if the user doesn't exist
+     */
+    public abstract String getExpectedPassword(String username) throws IOException;
+
+    /**
+     * Validate a username/password pair.
+     *
+     * @param username the username
+     * @param pwd the password
+     * @throws IOException in case of failure
+     */
+    public void authenticate(String username, char[] pwd) throws IOException {
+        String password = pwd != null ? new String(pwd) : null;
+        String expectedPassword = getExpectedPassword(username);
+        if (expectedPassword == null // user does not exist
+                || !Objects.equals(password, expectedPassword)) {
+            throw new IOException("Password doesn't match for user " + username + " (or user doesn't exist)");
+        }
+    }
 }

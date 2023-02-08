@@ -63,16 +63,26 @@ public class SaslNettyClient {
     /**
      * Create a SaslNettyClient for authentication with servers.
      */
-    public SaslNettyClient(String username, String password, String serverHostname) throws Exception {
+    public SaslNettyClient(String username, String password, String serverHostname, String mech) throws Exception {
         String serverPrincipal = "herddb/" + serverHostname;
         clientSubject = loginClient();
 
         if (clientSubject == null) {
-            LOG.log(Level.FINEST, "Using plain SASL/DIGEST-MD5 auth to connect to " + serverHostname);
-            saslClient = Sasl.createSaslClient(
-                    new String[]{SaslUtils.AUTH_DIGEST_MD5}, null, null,
-                    SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(),
-                    new SaslClientCallbackHandler(username, password.toCharArray()));
+            if (mech == null || mech.equals(SaslUtils.AUTH_DIGEST_MD5)) {
+                LOG.log(Level.FINEST, "Using plain SASL/DIGEST-MD5 auth to connect to " + serverHostname);
+                saslClient = Sasl.createSaslClient(
+                        new String[]{SaslUtils.AUTH_DIGEST_MD5}, null, null,
+                        SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(false),
+                        new SaslClientCallbackHandler(username, password.toCharArray()));
+            } else if (mech.equals(SaslUtils.AUTH_PLAIN)) {
+                    LOG.log(Level.FINEST, "Using plain SASL/PLAIN auth to connect to " + serverHostname);
+                    saslClient = Sasl.createSaslClient(
+                            new String[]{SaslUtils.AUTH_PLAIN}, null, null,
+                            SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(true),
+                            new SaslClientCallbackHandler(username, password.toCharArray()));
+            } else {
+                throw new IOException("Unsupported mechanism " + mech);
+            }
         } else if (clientSubject.getPrincipals().isEmpty()) {
             LOG.log(Level.FINEST, "Using JAAS/SASL/DIGEST-MD5 auth to connect to " + serverPrincipal);
             String[] mechs = {"DIGEST-MD5"};
