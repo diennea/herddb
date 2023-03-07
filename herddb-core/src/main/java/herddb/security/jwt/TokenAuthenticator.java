@@ -40,7 +40,7 @@ public class TokenAuthenticator extends UserManager {
 
     private static final Logger LOG = Logger.getLogger(TokenAuthenticator.class.getName());
     static final String CONF_TOKEN_SETTING_PREFIX = "server.tokenSettingPrefix";
-    static final String CONF_TOKEN_SETTING_PREFIX_DEFAULT = "server.jtw";
+    static final String CONF_TOKEN_SETTING_PREFIX_DEFAULT = "server.token.";
 
     // When symmetric key is configured
     static final String CONF_TOKEN_SECRET_KEY = "tokenSecretKey";
@@ -161,6 +161,8 @@ public class TokenAuthenticator extends UserManager {
      * Try to get the validation key for tokens from several possible config options.
      */
     private Key getValidationKey(ServerConfiguration conf) throws IOException {
+        LOG.log(Level.INFO, "Trying to get validation key for token authentication from {0} and {1}",
+                new Object[] {confTokenSecretKeySettingName, confTokenPublicKeySettingName});
         String tokenSecretKey = conf.getString(confTokenSecretKeySettingName, "");
         String tokenPublicKey = conf.getString(confTokenPublicKeySettingName, "");
         if (StringUtils.isNotBlank(tokenSecretKey)) {

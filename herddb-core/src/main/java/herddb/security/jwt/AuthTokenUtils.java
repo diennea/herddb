@@ -27,6 +27,7 @@ import io.jsonwebtoken.io.DecodingException;
 import io.jsonwebtoken.io.Encoders;
 import io.jsonwebtoken.security.Keys;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.Key;
@@ -103,7 +104,7 @@ public final class AuthTokenUtils {
         if (Files.exists(Paths.get(keyConfUrl))) {
             // Assume the key content was passed in a valid file path
             return Files.readAllBytes(Paths.get(keyConfUrl));
-        } else if (Base64.isBase64(keyConfUrl.getBytes())) {
+        } else if (Base64.isBase64(keyConfUrl.getBytes(StandardCharsets.UTF_8))) {
             // Assume the key content was passed in base64
             try {
                 return Decoders.BASE64.decode(keyConfUrl);
