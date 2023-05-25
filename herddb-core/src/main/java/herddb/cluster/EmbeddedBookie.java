@@ -164,6 +164,8 @@ public class EmbeddedBookie implements AutoCloseable {
         embeddedServer.getLifecycleComponentStack().start();
         if (waitForBookieServiceState(Lifecycle.State.STARTED)) {
             LOG.info("Apache Bookkeeper started");
+        } else {
+            LOG.warning("Apache Bookkeeper start request did not complete in time");
         }
 
         long _stop = System.currentTimeMillis();
@@ -196,6 +198,8 @@ public class EmbeddedBookie implements AutoCloseable {
                 embeddedServer.getLifecycleComponentStack().close();
                 if (waitForBookieServiceState(Lifecycle.State.CLOSED)) {
                     LOG.info("Apache Bookkeeper stopped");
+                } else {
+                    LOG.warning("Apache Bookkeeper stop request did not complete in time");
                 }
             } catch (InterruptedException err) {
                 Thread.currentThread().interrupt();
