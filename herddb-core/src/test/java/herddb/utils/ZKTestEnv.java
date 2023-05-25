@@ -21,6 +21,7 @@ package herddb.utils;
 
 import herddb.network.netty.NetworkUtils;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -46,7 +47,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     TestingServer zkServer;
-    List<EmbeddedServer> embeddedServers;
+    List<EmbeddedServer> embeddedServers = new ArrayList<>();
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
