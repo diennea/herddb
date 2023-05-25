@@ -131,7 +131,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
     }
 
     public synchronized void setStatsProvider(StatsProvider statsProvider) {
-        this.statsProvider = this.statsProvider;
+        this.statsProvider = statsProvider;
     }
 
 }
