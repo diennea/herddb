@@ -28,7 +28,6 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.common.component.Lifecycle;
 import org.apache.bookkeeper.conf.ServerConfiguration;
-import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.server.EmbeddedServer;
 import org.apache.bookkeeper.server.conf.BookieConfiguration;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;

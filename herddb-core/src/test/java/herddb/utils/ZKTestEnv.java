@@ -19,10 +19,8 @@
  */
 package herddb.utils;
 
-import herddb.cluster.EmbeddedBookie;
 import herddb.network.netty.NetworkUtils;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;

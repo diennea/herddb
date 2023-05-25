@@ -35,7 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider;
 import org.apache.bookkeeper.stats.prometheus.PrometheusServlet;
 import org.apache.commons.configuration.PropertiesConfiguration;
