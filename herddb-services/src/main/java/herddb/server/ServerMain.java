@@ -216,8 +216,7 @@ public class ServerMain implements AutoCloseable {
 
         ServerConfiguration config = new ServerConfiguration(this.configuration);
 
-        StatsLogger statsLogger = statsProvider.getStatsLogger("");
-        server = new Server(config, statsLogger);
+        server = new Server(config, statsProvider);
         server.start();
 
         boolean httpEnabled = config.getBoolean("http.enable", true);

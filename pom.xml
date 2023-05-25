@@ -85,23 +85,23 @@
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.85.Final</libs.netty4>
-        <libs.netty4ssl>2.0.54.Final</libs.netty4ssl>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <libs.netty4>4.1.92.Final</libs.netty4>
+        <libs.netty4ssl>2.0.60.Final</libs.netty4ssl>
         <!-- needed in tests for TLS certificate autogeneration on jdk-15+ -->
         <libs.bouncycastle>1.70</libs.bouncycastle>
         <libs.calcite>1.32.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>2.14.1</libs.jackson.mapper>
-        <libs.zookeeper>3.8.0</libs.zookeeper>
+        <libs.zookeeper>3.8.1</libs.zookeeper>
         <libs.jsqlparser>3.2</libs.jsqlparser>
         <libs.curator>5.4.0</libs.curator>
         <libs.guava>31.0.1-jre</libs.guava>
         <libs.slf4j>2.0.4</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
-        <libs.bookkeeper>4.14.3</libs.bookkeeper>
+        <libs.bookkeeper>4.16.1</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>4.7.3</libs.spotbugsannotations>

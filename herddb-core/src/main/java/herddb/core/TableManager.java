@@ -2889,7 +2889,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                              * The put failed, track this event, readers won't ever look for the record inside
                              * buildingPage
                              */
-                            checkpointProcessedDirtyRecords.add(1);
+                            checkpointProcessedDirtyRecords.inc();
                         }
 
                     } else {

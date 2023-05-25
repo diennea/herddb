@@ -239,7 +239,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             try {
                 server.getManager().executeStatement(new CommitTransactionStatement(TableSpace.DEFAULT, transactionId),
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                // this will fail alweays
+                // this will fail
                 fail();
             } catch (StatementExecutionException expected) {
                 System.out.println("Commit failed as expected:" + expected);

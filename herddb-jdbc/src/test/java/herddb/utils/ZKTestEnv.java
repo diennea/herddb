@@ -28,6 +28,8 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.server.EmbeddedServer;
+import org.apache.bookkeeper.server.conf.BookieConfiguration;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.CreateMode;
@@ -41,7 +43,7 @@ public class ZKTestEnv implements AutoCloseable {
     private static final Logger LOG = Logger.getLogger(ZKTestEnv.class.getName());
 
     TestingServer zkServer;
-    BookieServer bookie;
+    EmbeddedServer embeddedServer;
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
@@ -71,7 +73,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public void startBookie(boolean format) throws Exception {
-        if (bookie != null) {
+        if (embeddedServer != null) {
             throw new Exception("bookie already started");
         }
         ServerConfiguration conf = new ServerConfiguration();
@@ -112,8 +114,10 @@ public class ZKTestEnv implements AutoCloseable {
             BookKeeperAdmin.format(conf, false, true);
         }
 
-        this.bookie = new BookieServer(conf);
-        this.bookie.start();
+        BookieConfiguration bkConf = new BookieConfiguration(conf);
+        embeddedServer = EmbeddedServer.builder(bkConf).build();
+
+        embeddedServer.getLifecycleComponentStack().start();
     }
 
     public String getAddress() {
@@ -131,8 +135,8 @@ public class ZKTestEnv implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            if (bookie != null) {
-                bookie.shutdown();
+            if (embeddedServer != null) {
+                embeddedServer.getLifecycleComponentStack().close();
             }
         } catch (Throwable t) {
         }
