@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.common.component.Lifecycle;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.proto.BookieServer;
@@ -91,6 +92,7 @@ public class ZKTestEnv implements AutoCloseable {
         EmbeddedServer embeddedServer = EmbeddedServer.builder(bkConf).build();
 
         embeddedServer.getLifecycleComponentStack().start();
+        waitForBookieServiceState(embeddedServer, Lifecycle.State.STARTED);
         embeddedServers.add(embeddedServer);
         return embeddedServer.getBookieService().getServer().getBookieId();
     }
@@ -134,6 +136,7 @@ public class ZKTestEnv implements AutoCloseable {
                 BookieConfiguration bkConf = new BookieConfiguration(conf);
                 EmbeddedServer newEmbeddedServer = EmbeddedServer.builder(bkConf).build();
                 newEmbeddedServer.getLifecycleComponentStack().start();
+                waitForBookieServiceState(newEmbeddedServer, Lifecycle.State.STARTED);
                 embeddedServers.set(index, newEmbeddedServer);
                 return;
             }
@@ -183,6 +186,7 @@ public class ZKTestEnv implements AutoCloseable {
             BookieServer bookie = embeddedServer.getBookieService().getServer();
             if (bookie.getBookieId().equals(addr)) {
                 embeddedServer.getLifecycleComponentStack().close();
+                waitForBookieServiceState(embeddedServer, Lifecycle.State.CLOSED);
                 return;
             }
         }
@@ -206,6 +210,7 @@ public class ZKTestEnv implements AutoCloseable {
         for (EmbeddedServer embeddedServer : embeddedServers) {
             try {
                 embeddedServer.getLifecycleComponentStack().close();
+                waitForBookieServiceState(embeddedServer, Lifecycle.State.CLOSED);
             } catch (Throwable t) {
             }
         }
@@ -220,4 +225,14 @@ public class ZKTestEnv implements AutoCloseable {
         }
     }
 
+    private boolean waitForBookieServiceState(EmbeddedServer embeddedServer, Lifecycle.State expectedState) throws InterruptedException {
+        for (int i = 0; i < 100; i++) {
+            Lifecycle.State currentState = embeddedServer.getBookieService().lifecycleState();
+            if (currentState == expectedState) {
+                return true;
+            }
+            Thread.sleep(500);
+        }
+        return false;
+    }
 }

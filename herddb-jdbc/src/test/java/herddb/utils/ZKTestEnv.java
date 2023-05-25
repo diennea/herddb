@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.common.component.Lifecycle;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.server.EmbeddedServer;
@@ -118,6 +119,7 @@ public class ZKTestEnv implements AutoCloseable {
         embeddedServer = EmbeddedServer.builder(bkConf).build();
 
         embeddedServer.getLifecycleComponentStack().start();
+        waitForBookieServiceState(Lifecycle.State.STARTED);
     }
 
     public String getAddress() {
@@ -137,6 +139,7 @@ public class ZKTestEnv implements AutoCloseable {
         try {
             if (embeddedServer != null) {
                 embeddedServer.getLifecycleComponentStack().close();
+                waitForBookieServiceState(Lifecycle.State.CLOSED);
             }
         } catch (Throwable t) {
         }
@@ -148,4 +151,14 @@ public class ZKTestEnv implements AutoCloseable {
         }
     }
 
+    private boolean waitForBookieServiceState(Lifecycle.State expectedState) throws InterruptedException {
+        for (int i = 0; i < 100; i++) {
+            Lifecycle.State currentState = embeddedServer.getBookieService().lifecycleState();
+            if (currentState == expectedState) {
+                return true;
+            }
+            Thread.sleep(500);
+        }
+        return false;
+    }
 }
