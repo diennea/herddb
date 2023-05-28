@@ -213,7 +213,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,4 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
+                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
@@ -223,7 +223,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,5 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
+                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
@@ -233,7 +233,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,6 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
+                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
             }
 
             try {
