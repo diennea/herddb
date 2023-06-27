@@ -154,10 +154,12 @@ public class ZKTestEnv implements AutoCloseable {
         for (int i = 0; i < 100; i++) {
             Lifecycle.State currentState = embeddedServer.getBookieService().lifecycleState();
             if (currentState == expectedState) {
+                System.out.println("bookie is in state: " + expectedState.name());
                 return true;
             }
             Thread.sleep(500);
         }
+        System.out.println("timeout waiting for bookie state: " + expectedState.name());
         return false;
     }
 }
