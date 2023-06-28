@@ -41,6 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -246,8 +249,8 @@ public class BookkeeperCommitLog extends CommitLog {
             try {
                 LOGGER.log(Level.INFO, "{0} closing ledger {1}, with LastAddConfirmed={2}, LastAddPushed={3} length={4}, errorOccurred:{5}",
                         new Object[]{tableSpaceDescription(), out.getId(), out.getLastAddConfirmed(), out.getLastAddPushed(), out.getLength(), errorOccurredDuringWrite});
-                out.close();
-            } catch (InterruptedException | org.apache.bookkeeper.client.api.BKException err) {
+                out.closeAsync().get(60, TimeUnit.SECONDS);
+            } catch (InterruptedException | ExecutionException | TimeoutException err) {
                 throw new LogNotAvailableException(err);
             }
         }
