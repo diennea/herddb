@@ -35,7 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider;
 import org.apache.bookkeeper.stats.prometheus.PrometheusServlet;
 import org.apache.commons.configuration.PropertiesConfiguration;
@@ -216,8 +215,7 @@ public class ServerMain implements AutoCloseable {
 
         ServerConfiguration config = new ServerConfiguration(this.configuration);
 
-        StatsLogger statsLogger = statsProvider.getStatsLogger("");
-        server = new Server(config, statsLogger);
+        server = new Server(config, statsProvider);
         server.start();
 
         boolean httpEnabled = config.getBoolean("http.enable", true);
