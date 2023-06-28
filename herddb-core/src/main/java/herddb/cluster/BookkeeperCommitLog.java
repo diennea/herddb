@@ -77,6 +77,8 @@ public class BookkeeperCommitLog extends CommitLog {
     private static final int MAX_ENTRY_TO_TAIL = SystemProperties.getIntSystemProperty("herddb.commitlog.tailbatchsize", 10_000);
     // Max time to wait for an entry to arrive
     private static final int LONG_POLL_TIMEOUT = SystemProperties.getIntSystemProperty("herddb.commitlog.longpolltimeout", 1_000);
+    // Max time to wait on a ledger WriteHandle#close call
+    private static final int LEDGER_WRITER_CLOSE_TIMEOUT = SystemProperties.getIntSystemProperty("herddb.commitlog.writerclosetimeout", 60_000);
 
     static final String SHARED_SECRET = "herddb";
     private final BookKeeper bookKeeper;
@@ -249,9 +251,11 @@ public class BookkeeperCommitLog extends CommitLog {
             try {
                 LOGGER.log(Level.INFO, "{0} closing ledger {1}, with LastAddConfirmed={2}, LastAddPushed={3} length={4}, errorOccurred:{5}",
                         new Object[]{tableSpaceDescription(), out.getId(), out.getLastAddConfirmed(), out.getLastAddPushed(), out.getLength(), errorOccurredDuringWrite});
-                out.closeAsync().get(60, TimeUnit.SECONDS);
-            } catch (InterruptedException | ExecutionException | TimeoutException err) {
+                out.closeAsync().get(LEDGER_WRITER_CLOSE_TIMEOUT, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException | TimeoutException err) {
                 throw new LogNotAvailableException(err);
+            } catch (ExecutionException err) {
+                throw new LogNotAvailableException(err.getCause());
             }
         }
 
