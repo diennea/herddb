@@ -1,0 +1,66 @@
+## from https://raw.githubusercontent.com/apache/bookkeeper/master/deploy/kubernetes/gke/bookkeeper.yaml
+
+## BookKeeper servers need to access the local disks and the pods
+## cannot be moved across different nodes.
+## For this reason, we run BK as a daemon set, one for each node in the
+## cluster, unless restricted by label selectors
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: bookie
+  labels:
+    app: bookkeeper
+    component: bookie
+spec:
+  template:
+    metadata:
+      labels:
+        app: bookkeeper
+        component: bookie
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+
+    spec:
+      containers:
+        - name: bookie
+          image: apache/bookkeeper:latest
+          resources:
+            requests:
+              memory: "3Gi"
+              cpu: "1000m"
+            limits:
+              memory: "5Gi"
+              cpu: "2000m"
+          command: [ "/bin/bash", "/opt/bookkeeper/entrypoint.sh" ]
+          args: ["/opt/bookkeeper/bin/bookkeeper", "bookie"]
+          ports:
+            - name: client
+              containerPort: 3181
+              # we are using `status.hostIP` for the bookie's advertised address. export 3181 as the hostPort,
+              # so that the containers are able to access the host port
+              hostPort: 3181
+          envFrom:
+            - configMapRef:
+                name: bookie-config
+          env:
+            - name: BK_advertisedAddress
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+
+
+          volumeMounts:
+            - name: journal-disk
+              mountPath: /bookkeeper/data/journal
+            - name: ledgers-disk
+              mountPath: /bookkeeper/data/ledgers
+
+      volumes:
+        # Mount local disks
+        - name: journal-disk
+          hostPath:
+            path: /mnt/disks/ssd0
+        - name: ledgers-disk
+          hostPath:
+            path: /mnt/disks/ssd1
