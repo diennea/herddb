@@ -26,12 +26,9 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.common.component.Lifecycle;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.net.BookieId;
 import org.apache.bookkeeper.proto.BookieServer;
-import org.apache.bookkeeper.server.EmbeddedServer;
-import org.apache.bookkeeper.server.conf.BookieConfiguration;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.CreateMode;
@@ -47,7 +44,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     TestingServer zkServer;
-    List<EmbeddedServer> embeddedServers = new ArrayList<>();
+    List<BookieServer> bookies = new ArrayList<>();
     Path path;
 
     public ZKTestEnv(Path path) throws Exception {
@@ -77,7 +74,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     private BookieId startBookie(boolean format) throws Exception {
-        if (format && !embeddedServers.isEmpty()) {
+        if (format && !bookies.isEmpty()) {
             throw new Exception("cannot format, you aleady have bookies");
         }
         ServerConfiguration conf = createBookieConf(NetworkUtils.assignFirstFreePort());
@@ -87,13 +84,10 @@ public class ZKTestEnv implements AutoCloseable {
             BookKeeperAdmin.format(conf, false, true);
         }
 
-        BookieConfiguration bkConf = new BookieConfiguration(conf);
-        EmbeddedServer embeddedServer = EmbeddedServer.builder(bkConf).build();
-
-        embeddedServer.getLifecycleComponentStack().start();
-        waitForBookieServiceState(embeddedServer, Lifecycle.State.STARTED);
-        embeddedServers.add(embeddedServer);
-        return embeddedServer.getBookieService().getServer().getBookieId();
+        BookieServer bookie = new BookieServer(conf);
+        bookies.add(bookie);
+        bookie.start();
+        return bookie.getBookieId();
     }
 
     private ServerConfiguration createBookieConf(int port) {
@@ -125,18 +119,15 @@ public class ZKTestEnv implements AutoCloseable {
 
     public void startStoppedBookie(BookieId addr) throws Exception {
         int index = 0;
-        for (EmbeddedServer embeddedServer : embeddedServers) {
-            BookieServer bookie = embeddedServer.getBookieService().getServer();
+        for (BookieServer bookie : bookies) {
             if (bookie.getBookieId().equals(addr)) {
                 if (bookie.isRunning()) {
                     throw new Exception("you did not stop bookie " + addr);
                 }
                 ServerConfiguration conf = createBookieConf(bookie.getLocalAddress().getPort());
-                BookieConfiguration bkConf = new BookieConfiguration(conf);
-                EmbeddedServer newEmbeddedServer = EmbeddedServer.builder(bkConf).build();
-                newEmbeddedServer.getLifecycleComponentStack().start();
-                waitForBookieServiceState(newEmbeddedServer, Lifecycle.State.STARTED);
-                embeddedServers.set(index, newEmbeddedServer);
+                BookieServer newBookie = new BookieServer(conf);
+                bookies.set(index, newBookie);
+                newBookie.start();
                 return;
             }
             index++;
@@ -145,12 +136,11 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public void pauseBookie() throws Exception {
-        embeddedServers.get(0).getBookieService().getServer().suspendProcessing();
+        bookies.get(0).suspendProcessing();
     }
 
     public void pauseBookie(BookieId addr) throws Exception {
-        for (EmbeddedServer embeddedServer : embeddedServers) {
-            BookieServer bookie = embeddedServer.getBookieService().getServer();
+        for (BookieServer bookie : bookies) {
             if (bookie.getBookieId().equals(addr)) {
                 bookie.suspendProcessing();
                 return;
@@ -160,12 +150,11 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public void resumeBookie() throws Exception {
-        embeddedServers.get(0).getBookieService().getServer().resumeProcessing();
+        bookies.get(0).resumeProcessing();
     }
 
     public void resumeBookie(BookieId addr) throws Exception {
-        for (EmbeddedServer embeddedServer : embeddedServers) {
-            BookieServer bookie = embeddedServer.getBookieService().getServer();
+        for (BookieServer bookie : bookies) {
             if (bookie.getBookieId().equals(addr)) {
                 bookie.resumeProcessing();
                 return;
@@ -175,17 +164,16 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public BookieId stopBookie() throws Exception {
-        BookieId addr = embeddedServers.get(0).getBookieService().getServer().getBookieId();
+        BookieId addr = bookies.get(0).getBookieId();
         stopBookie(addr);
         return addr;
     }
 
     public void stopBookie(BookieId addr) throws Exception {
-        for (EmbeddedServer embeddedServer : embeddedServers) {
-            BookieServer bookie = embeddedServer.getBookieService().getServer();
+        for (BookieServer bookie : bookies) {
             if (bookie.getBookieId().equals(addr)) {
-                embeddedServer.getLifecycleComponentStack().close();
-                waitForBookieServiceState(embeddedServer, Lifecycle.State.CLOSED);
+                bookie.shutdown();
+                bookie.join();
                 return;
             }
         }
@@ -206,14 +194,13 @@ public class ZKTestEnv implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        for (EmbeddedServer embeddedServer : embeddedServers) {
+        for (BookieServer bookie : bookies) {
             try {
-                embeddedServer.getLifecycleComponentStack().close();
-                waitForBookieServiceState(embeddedServer, Lifecycle.State.CLOSED);
+                bookie.shutdown();
             } catch (Throwable t) {
             }
         }
-        embeddedServers.clear();
+        bookies.clear();
 
         try {
             if (zkServer != null) {
@@ -224,14 +211,4 @@ public class ZKTestEnv implements AutoCloseable {
         }
     }
 
-    private boolean waitForBookieServiceState(EmbeddedServer embeddedServer, Lifecycle.State expectedState) throws InterruptedException {
-        for (int i = 0; i < 100; i++) {
-            Lifecycle.State currentState = embeddedServer.getBookieService().lifecycleState();
-            if (currentState == expectedState) {
-                return true;
-            }
-            Thread.sleep(500);
-        }
-        return false;
-    }
 }

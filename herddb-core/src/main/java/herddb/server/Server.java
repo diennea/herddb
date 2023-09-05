@@ -62,7 +62,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-import org.apache.bookkeeper.stats.StatsProvider;
 
 /**
  * HerdDB Server
@@ -75,7 +74,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final DBManager manager;
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
-    private final StatsProvider statsProvider;
     private final StatsLogger statsLogger;
     private final Path baseDirectory;
     private final Path dataDirectory;
@@ -113,9 +111,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this(configuration, null);
     }
 
-    public Server(ServerConfiguration configuration, StatsProvider statsProvider) {
-        this.statsProvider = statsProvider;
-        this.statsLogger = statsProvider == null ? new NullStatsLogger() : statsProvider.getStatsLogger("");
+    public Server(ServerConfiguration configuration, StatsLogger statsLogger) {
+        this.statsLogger = statsLogger == null ? new NullStatsLogger() : statsLogger;
         this.configuration = configuration;
 
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
@@ -253,7 +250,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
             case ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER:
-                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, (ZookeeperMetadataStorageManager) this.metadataStorageManager, statsProvider);
+                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, (ZookeeperMetadataStorageManager) this.metadataStorageManager, statsLogger);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
                 break;

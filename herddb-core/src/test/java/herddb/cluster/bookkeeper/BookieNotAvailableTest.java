@@ -213,7 +213,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,4 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
+                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
@@ -223,7 +223,7 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,5 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
+                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
             }
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.
@@ -233,13 +233,13 @@ public class BookieNotAvailableTest extends BookkeeperFailuresBase {
             } catch (StatementExecutionException expected) {
                 System.out.println("Insert of c,6 failed " + expected);
                 // in can happen that the log gets closed
-                assertEquals(herddb.model.NotLeaderException.class, expected.getClass());
+                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
             }
 
             try {
                 server.getManager().executeStatement(new CommitTransactionStatement(TableSpace.DEFAULT, transactionId),
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                // this will fail
+                // this will fail alweays
                 fail();
             } catch (StatementExecutionException expected) {
                 System.out.println("Commit failed as expected:" + expected);

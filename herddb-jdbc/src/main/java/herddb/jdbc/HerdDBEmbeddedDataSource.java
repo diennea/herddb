@@ -27,7 +27,7 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.stats.StatsProvider;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Bootstrap for Embedded server
@@ -39,7 +39,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
     private static final Logger LOGGER = Logger.getLogger(HerdDBEmbeddedDataSource.class.getName());
 
     private Server server;
-    private StatsProvider statsProvider;
+    private StatsLogger statsLogger;
     private volatile boolean serverInitialized;
 
     private boolean startServer;
@@ -89,7 +89,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
                     || (ServerConfiguration.PROPERTY_MODE_CLUSTER.equals(mode) && startServer)
                     || (ServerConfiguration.PROPERTY_MODE_DISKLESSCLUSTER.equals(mode) && startServer)) {
                 LOGGER.log(Level.INFO, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
-                server = new Server(serverConfiguration, statsProvider);
+                server = new Server(serverConfiguration, statsLogger);
                 try {
                     server.start();
                     int waitForTableSpaceTimeout = getWaitForTableSpaceTimeout();
@@ -126,12 +126,12 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
         }
     }
 
-    public synchronized StatsProvider getStatsProvider() {
-        return statsProvider;
+    public synchronized StatsLogger getStatsLogger() {
+        return statsLogger;
     }
 
-    public synchronized void setStatsProvider(StatsProvider statsProvider) {
-        this.statsProvider = statsProvider;
+    public synchronized void setStatsLogger(StatsLogger statsLogger) {
+        this.statsLogger = statsLogger;
     }
 
 }

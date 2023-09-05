@@ -33,13 +33,12 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.apache.bookkeeper.bookie.BookieImpl;
+import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
-import org.apache.bookkeeper.common.component.Lifecycle;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
-import org.apache.bookkeeper.server.EmbeddedServer;
-import org.apache.bookkeeper.server.conf.BookieConfiguration;
-import org.apache.bookkeeper.stats.StatsProvider;
+import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -53,19 +52,19 @@ public class EmbeddedBookie implements AutoCloseable {
     private final Path baseDirectory;
     private final ServerConfiguration configuration;
     private final ZookeeperMetadataStorageManager metadataManager;
-    private final StatsProvider statsProvider;
+    private final StatsLogger statsLogger;
 
-    private EmbeddedServer embeddedServer;
+    private BookieServer bookieServer;
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager) {
         this(baseDirectory, configuration, metadataManager, null);
     }
 
-    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager, StatsProvider statsProvider) {
+    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, ZookeeperMetadataStorageManager metadataManager, StatsLogger statsLogger) {
         this.baseDirectory = baseDirectory;
         this.configuration = configuration;
         this.metadataManager = metadataManager;
-        this.statsProvider = statsProvider;
+        this.statsLogger = statsLogger != null ? statsLogger : new NullStatsLogger();
     }
 
     public void start() throws Exception {
@@ -97,7 +96,7 @@ public class EmbeddedBookie implements AutoCloseable {
             }
             LOG.log(Level.SEVERE, "As configuration parameter "
                     + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_BOOKIEID_ENABLED
-                    + " is {0},I have choosen to use the main server node id (" + ServerConfiguration.PROPERTY_NODEID + ") {1}", new Object[]{enableBookieId, bookieId});
+                    + " is {0},I have choosen to use the main server node id (" + ServerConfiguration.PROPERTY_NODEID + ") {1}", new Object[] {enableBookieId, bookieId});
             conf.setBookieId(bookieId);
         }
         conf.setBookiePort(port);
@@ -147,7 +146,7 @@ public class EmbeddedBookie implements AutoCloseable {
         boolean forceformat = configuration.getBoolean("bookie.forceformat", false);
         LOG.log(Level.CONFIG, "bookie.forceformat={0}", forceformat);
         if (forceformat) {
-            result = BookieImpl.format(conf, false, forceformat);
+            result = Bookie.format(conf, false, forceformat);
             if (result) {
                 LOG.info("Bookie.format: formatter applied to local bookie");
             } else {
@@ -155,21 +154,18 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
 
-        BookieConfiguration bkConf = new BookieConfiguration(conf);
-
-        this.embeddedServer = EmbeddedServer.builder(bkConf)
-                .statsProvider(statsProvider)
-                .build();
-
-        embeddedServer.getLifecycleComponentStack().start();
-        if (waitForBookieServiceState(Lifecycle.State.STARTED)) {
-            LOG.info("Apache Bookkeeper started");
-        } else {
-            LOG.warning("Apache Bookkeeper start request did not complete in time");
+        bookieServer = new BookieServer(conf, statsLogger, null);
+        bookieServer.start();
+        for (int i = 0; i < 100; i++) {
+            if (bookieServer.getBookie().isRunning()) {
+                LOG.info("Apache Bookkeeper started");
+                break;
+            }
+            Thread.sleep(500);
         }
-
         long _stop = System.currentTimeMillis();
         LOG.severe("Booting Apache Bookkeeper finished. Time " + (_stop - _start) + " ms");
+
     }
 
     private void dumpBookieConfiguration(Path bookie_dir, org.apache.bookkeeper.conf.ServerConfiguration conf) throws IOException {
@@ -192,19 +188,16 @@ public class EmbeddedBookie implements AutoCloseable {
 
     @Override
     public void close() {
-        if (embeddedServer != null) {
+        if (bookieServer != null) {
             LOG.info("Apache Bookkeeper stopping");
             try {
-                embeddedServer.getLifecycleComponentStack().close();
-                if (waitForBookieServiceState(Lifecycle.State.CLOSED)) {
-                    LOG.info("Apache Bookkeeper stopped");
-                } else {
-                    LOG.warning("Apache Bookkeeper stop request did not complete in time");
-                }
+                bookieServer.shutdown();
+
+                bookieServer.join();
             } catch (InterruptedException err) {
                 Thread.currentThread().interrupt();
             } finally {
-                embeddedServer = null;
+                bookieServer = null;
             }
         }
     }
@@ -251,17 +244,6 @@ public class EmbeddedBookie implements AutoCloseable {
     }
 
     public String getBookieId() throws Exception {
-        return embeddedServer.getBookieService().getServer().getBookieId().toString();
-    }
-
-    private boolean waitForBookieServiceState(Lifecycle.State expectedState) throws InterruptedException {
-        for (int i = 0; i < 100; i++) {
-            Lifecycle.State currentState = embeddedServer.getBookieService().lifecycleState();
-            if (currentState == expectedState) {
-                return true;
-            }
-            Thread.sleep(500);
-        }
-        return false;
+        return bookieServer.getBookieId().toString();
     }
 }
