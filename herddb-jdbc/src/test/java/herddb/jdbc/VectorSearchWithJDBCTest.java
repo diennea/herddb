@@ -42,10 +42,11 @@ import org.junit.rules.TemporaryFolder;
 public class VectorSearchWithJDBCTest {
 
     static final String CREATE_TABLE = "CREATE TABLE DOCUMENTS (\n"
-            + "  FILENAME string PRIMARY KEY,\n"
+            + "  FILENAME string,\n"
             + "  CHUNKID int,  \n"
             + "  TEXT string,  \n"
-            + "  EMBEDDINGSVECTOR floata\n"
+            + "  EMBEDDINGSVECTOR floata, \n"
+            + "  PRIMARY KEY(FILENAME, CHUNKID) \n"
             + ")";
 
     @Rule
