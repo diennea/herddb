@@ -1965,6 +1965,8 @@ public abstract class PduCodec {
                 result.add(v);
             } else if (v instanceof Byte) {
                 result.add(v);
+            } else if (v instanceof List) {
+                result.add(v);
             } else {
                 throw new IllegalArgumentException("bad data type " + v.getClass());
             }
