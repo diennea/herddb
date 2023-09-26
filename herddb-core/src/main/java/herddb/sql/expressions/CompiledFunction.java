@@ -20,6 +20,8 @@
 
 package herddb.sql.expressions;
 
+import herddb.codec.RecordSerializer;
+import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.functions.BuiltinFunctions;
@@ -89,9 +91,26 @@ public class CompiledFunction implements CompiledSQLExpression {
                 Object parValue = parameters.get(0).evaluate(bean, context);
                 if (parValue instanceof Double) {
                     return Math.abs((double) parValue);
-                } else {
+                } else if (parValue instanceof Long) {
                     return Math.abs((long) parValue);
+                } else {
+                    return Math.abs((int) parValue);
                 }
+            }
+            case BuiltinFunctions.COSINE_SIMILARITY: {
+                Object par1Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(0).evaluate(bean, context));
+                Object par2Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(1).evaluate(bean, context));
+                return cosineSimilarity((float[]) par1Value, (float[]) par2Value);
+            }
+            case BuiltinFunctions.DOT_PRODUCT: {
+                Object par1Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(0).evaluate(bean, context));
+                Object par2Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(1).evaluate(bean, context));
+                return dotProduct((float[]) par1Value, (float[]) par2Value);
+            }
+            case BuiltinFunctions.EUCLIDEAN_DISTANCE: {
+                Object par1Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(0).evaluate(bean, context));
+                Object par2Value = RecordSerializer.convert(ColumnTypes.FLOATARRAY, parameters.get(1).evaluate(bean, context));
+                return euclideanDistance((float[]) par1Value, (float[]) par2Value);
             }
             case BuiltinFunctions.CURRENT_TIMESTAMP:
                 return context.getCurrentTimestamp();
@@ -161,6 +180,54 @@ public class CompiledFunction implements CompiledSQLExpression {
             default:
                 throw new StatementExecutionException("unhandled function " + name + " operands " + parameters);
         }
+    }
+
+    private static float dotProduct(float[] arr1, float[] arr2) {
+        if (arr1.length != arr2.length) {
+            throw new IllegalArgumentException("Arrays must have the same length");
+        }
+
+        float result = 0.0f;
+        for (int i = 0; i < arr1.length; i++) {
+            result += arr1[i] * arr2[i];
+        }
+
+        return result;
+    }
+
+    private static float euclideanDistance(float[] arr1, float[] arr2) {
+        if (arr1.length != arr2.length) {
+            throw new IllegalArgumentException("Arrays must have the same length");
+        }
+
+        float sumOfSquares = 0.0f;
+        for (int i = 0; i < arr1.length; i++) {
+            float diff = arr1[i] - arr2[i];
+            sumOfSquares += diff * diff;
+        }
+
+        return (float) Math.sqrt(sumOfSquares);
+    }
+
+    private static float euclideanNorm(float[] arr) {
+        float sumOfSquares = 0.0f;
+        for (float value : arr) {
+            sumOfSquares += value * value;
+        }
+        return (float) Math.sqrt(sumOfSquares);
+    }
+
+    public static float cosineSimilarity(float[] arr1, float[] arr2) {
+        float norm1 = euclideanNorm(arr1);
+        if (norm1 == 0) {
+            return 0;
+        }
+        float norm2 = euclideanNorm(arr2);
+        if (norm2 == 0) {
+            return 0.0f;
+        }
+        float dotProduct = dotProduct(arr1, arr2);
+        return dotProduct / (norm1 * norm2);
     }
 
     @Override

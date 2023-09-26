@@ -113,6 +113,10 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
         writeVInt(-1);
     }
 
+    public void writeNullFloatArray() throws IOException {
+        writeVInt(-1);
+    }
+
     public void writeArray(byte[] data) throws IOException {
         if (data == null) {
             writeNullArray();
@@ -121,6 +125,18 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
             write(data);
         }
     }
+    public void writeFloatArray(float[] data) throws IOException {
+        if (data == null) {
+            writeNullFloatArray();
+        } else {
+            writeVInt(data.length);
+            for (float f : data) {
+                writeFloat(f);
+            }
+        }
+    }
+
+
 
     public void writeArray(byte[] data, int offset, int len) throws IOException {
         writeVInt(len);

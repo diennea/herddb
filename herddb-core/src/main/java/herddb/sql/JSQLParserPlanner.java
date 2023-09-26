@@ -780,6 +780,9 @@ public class JSQLParserPlanner extends AbstractSQLPlanner {
             case "image":
                 type = ColumnTypes.BYTEARRAY;
                 break;
+            case "floata":
+                type = ColumnTypes.FLOATARRAY;
+                break;
             case "timestamp":
             case "timestamptz":
             case "timestamp with time zone":

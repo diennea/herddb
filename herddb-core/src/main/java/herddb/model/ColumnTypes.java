@@ -37,6 +37,7 @@ public class ColumnTypes {
     public static final int NULL = 5;
     public static final int DOUBLE = 6;
     public static final int BOOLEAN = 7;
+    public static final int FLOATARRAY = 8;
     public static final int ANYTYPE = 10;
 
     public static final int NOTNULL_STRING = 11;
@@ -46,6 +47,8 @@ public class ColumnTypes {
     public static final int NOTNULL_TIMESTAMP = 15;
     public static final int NOTNULL_DOUBLE = 16;
     public static final int NOTNULL_BOOLEAN = 17;
+
+    public static final int NOTNULL_FLOATARRAY = 18;
 
 
     public static String typeToString(int type) {
@@ -58,6 +61,8 @@ public class ColumnTypes {
                 return "integer";
             case BYTEARRAY:
                 return "bytearray";
+            case FLOATARRAY:
+                return "floatarray";
             case TIMESTAMP:
                 return "timestamp";
             case NULL:
@@ -122,6 +127,9 @@ public class ColumnTypes {
             case BYTEARRAY:
             case NOTNULL_BYTEARRAY:
                 return NOTNULL_BYTEARRAY;
+            case FLOATARRAY:
+            case NOTNULL_FLOATARRAY:
+                return NOTNULL_FLOATARRAY;
             case TIMESTAMP:
             case NOTNULL_TIMESTAMP:
                 return NOTNULL_TIMESTAMP;
@@ -161,6 +169,9 @@ public class ColumnTypes {
             case BYTEARRAY:
             case NOTNULL_BYTEARRAY:
                 return "bytearray";
+            case FLOATARRAY:
+            case NOTNULL_FLOATARRAY:
+                return "floatarray";
             case TIMESTAMP:
             case NOTNULL_TIMESTAMP:
                 return "timestamp";

@@ -22,6 +22,7 @@ package herddb.utils;
 
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Utilities for write variable length values on {@link ByteBuf}.
@@ -33,6 +34,20 @@ public class ByteBufUtils {
     public static void writeArray(ByteBuf buffer, byte[] array) {
         writeVInt(buffer, array.length);
         buffer.writeBytes(array);
+    }
+
+    public static void writeFloatArray(ByteBuf buffer, float[] array) {
+        writeVInt(buffer, array.length);
+        for (float f : array) {
+            buffer.writeFloat(f);
+        }
+    }
+
+    public static void writeFloatArray(ByteBuf buffer, List<Number> array) {
+        writeVInt(buffer, array.size());
+        for (Number f : array) {
+            buffer.writeFloat(f.floatValue());
+        }
     }
 
     public static void writeArray(ByteBuf buffer, Bytes array) {
@@ -57,6 +72,15 @@ public class ByteBufUtils {
         final int len = readVInt(buffer);
         final byte[] array = new byte[len];
         buffer.readBytes(array);
+        return array;
+    }
+
+    public static float[] readFloatArray(ByteBuf buffer) {
+        final int len = readVInt(buffer);
+        final float[] array = new float[len];
+        for (int i = 0; i < len; i++) {
+            array[i] = buffer.readFloat();
+        }
         return array;
     }
 

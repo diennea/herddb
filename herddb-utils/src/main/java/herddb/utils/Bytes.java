@@ -22,6 +22,7 @@ package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.netty.util.internal.PlatformDependent;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
@@ -140,6 +141,32 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             System.arraycopy(buffer, offset, copy, 0, length);
             return copy;
         }
+    }
+
+    public float[] to_float_array() {
+        return to_float_array(buffer, offset, length);
+    }
+
+    public static float[] to_float_array(byte[] buffer, int offset, int length) {
+        if (length % 4 != 0) {
+            throw new IllegalArgumentException("Invalid byte array length");
+        }
+        int floatCount = length / 4;
+        ByteBuffer wrappedBuffer = ByteBuffer.wrap(buffer, offset, length);
+        float[] result = new float[floatCount];
+        for (int i = 0; i < floatCount; i++) {
+            result[i] = wrappedBuffer.getFloat();
+        }
+        return result;
+    }
+
+    public static Bytes from_float_array(float[] floatArray) {
+        int length = floatArray.length;
+        ByteBuffer buffer = ByteBuffer.allocate(length * 4); // Each float is 4 bytes
+        for (float f : floatArray) {
+            buffer.putFloat(f);
+        }
+        return new Bytes(buffer.array());
     }
 
     public static Bytes from_int(int value) {

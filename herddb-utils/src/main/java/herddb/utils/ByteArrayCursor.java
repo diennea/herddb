@@ -238,6 +238,7 @@ public class ByteArrayCursor implements Closeable {
     }
 
     private static final byte[] EMPTY_ARRAY = new byte[0];
+    private static final float[] EMPTY_FLOAT_ARRAY = new float[0];
 
     public int readArrayLen() throws IOException {
         return readVInt();
@@ -273,7 +274,15 @@ public class ByteArrayCursor implements Closeable {
             throw new EOFException();
         }
         return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
+    }
 
+    public float readFloat() throws IOException {
+        int asInt = readInt();
+        return Float.intBitsToFloat(asInt);
+    }
+
+    public void skipFloat() throws IOException {
+        skipInt();
     }
 
     public long readLong() throws IOException {
@@ -314,6 +323,21 @@ public class ByteArrayCursor implements Closeable {
         return res;
     }
 
+    public float[] readFloatArray() throws IOException {
+        int len = readVInt();
+        if (len == 0) {
+            return EMPTY_FLOAT_ARRAY;
+        } else if (len == -1) {
+            /* NULL array */
+            return null;
+        }
+        float[] result = new float[len];
+        for (int i = 0; i < len; i++) {
+            result[i] = readFloat();
+        }
+        return result;
+    }
+
     public Bytes readBytesNoCopy() throws IOException {
         int len = readVInt();
         if (len == 0) {
@@ -352,6 +376,15 @@ public class ByteArrayCursor implements Closeable {
             return;
         }
         skip(len);
+    }
+
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
+    public void skipFloatArray() throws IOException {
+        int len = readVInt();
+        if (len <= 0) {
+            return;
+        }
+        skip(len * 4);
     }
 
     @SuppressFBWarnings(value = "SR_NOT_CHECKED")
