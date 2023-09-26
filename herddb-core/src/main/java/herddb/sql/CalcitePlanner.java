@@ -458,9 +458,9 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             props.put(CalciteConnectionProperty.DEFAULT_NULL_COLLATION.camelName(), NullCollation.LAST.toString());
             final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
 
-            subSchema.add("COSINE_SIMILARITY", new CosineSimilarityFunction());
-            subSchema.add("DOT_PRODUCT", new DotProductSimilarityFunction());
-            subSchema.add("EUCLIDEAN_DISTANCE", new EuclideanSimilarityFunction());
+            subSchema.add("COSINE_SIMILARITY", CosineSimilarityFunction.INSTANCE);
+            subSchema.add("DOT_PRODUCT", DotProductSimilarityFunction.INSTANCE);
+            subSchema.add("EUCLIDEAN_DISTANCE", EuclideanSimilarityFunction.INSTANCE);
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
                     .parserConfig(SQL_PARSER_CONFIG)
@@ -1401,7 +1401,10 @@ public class CalcitePlanner extends AbstractSQLPlanner {
 
     }
 
-    public static class CosineSimilarityFunction implements Function, ScalarFunction {
+    private static class CosineSimilarityFunction implements Function, ScalarFunction {
+
+        static final CosineSimilarityFunction INSTANCE = new  CosineSimilarityFunction();
+
         @Override
         public List<FunctionParameter> getParameters() {
             return Arrays.asList(
@@ -1416,9 +1419,10 @@ public class CalcitePlanner extends AbstractSQLPlanner {
 
     }
 
+    private static class EuclideanSimilarityFunction implements Function, ScalarFunction {
 
+        static final EuclideanSimilarityFunction INSTANCE = new  EuclideanSimilarityFunction();
 
-    public static class EuclideanSimilarityFunction implements Function, ScalarFunction {
         @Override
         public List<FunctionParameter> getParameters() {
             return Arrays.asList(
@@ -1433,7 +1437,10 @@ public class CalcitePlanner extends AbstractSQLPlanner {
 
     }
 
-    public static class DotProductSimilarityFunction implements Function, ScalarFunction {
+    private static class DotProductSimilarityFunction implements Function, ScalarFunction {
+
+        static final DotProductSimilarityFunction INSTANCE = new  DotProductSimilarityFunction();
+
         @Override
         public List<FunctionParameter> getParameters() {
             return Arrays.asList(

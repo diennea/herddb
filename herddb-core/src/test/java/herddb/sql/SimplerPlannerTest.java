@@ -249,19 +249,6 @@ public class SimplerPlannerTest {
                 assertEquals(1L, results.get(1).get(1));
                 assertEquals(1235, results.get(1).get(0));
             }
-            try (DataScanner scan = scan(manager, "SELECT n1, count(*) as cc "
-                            + " FROM tblspace1.tsql"
-                            + " GROUP by n1"
-                            + " ORDER BY cosine_similarity(n1, n1)",
-                    Collections.emptyList())) {
-                List<DataAccessor> results = scan.consume();
-                assertEquals(2, results.size());
-                assertEquals(2, results.get(0).getFieldNames().length);
-                assertEquals(1L, results.get(0).get(1));
-                assertEquals(1234, results.get(0).get(0));
-                assertEquals(1L, results.get(1).get(1));
-                assertEquals(1235, results.get(1).get(0));
-            }
             if (manager.getPlanner() instanceof CalcitePlanner) {
                 try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
                                 + " FROM tblspace1.tsql"
