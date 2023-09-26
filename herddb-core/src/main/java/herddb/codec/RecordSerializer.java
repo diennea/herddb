@@ -49,6 +49,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -67,6 +68,9 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 return data.to_array();
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                return data.to_float_array();
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 return data.to_int();
@@ -97,6 +101,9 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 return data;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                 return Bytes.to_float_array(data, 0, data.length);
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 return Bytes.toInt(data, 0);
@@ -122,53 +129,15 @@ public final class RecordSerializer {
         }
     }
 
-    public static int deserializeCompare(byte[] data, int type, Object cvalue) {
-        switch (type) {
-            case ColumnTypes.BYTEARRAY:
-                return SQLRecordPredicateFunctions.compare(data, cvalue);
-            case ColumnTypes.INTEGER:
-            case ColumnTypes.NOTNULL_INTEGER:
-                if (cvalue instanceof Integer) {
-                    return Bytes.compareInt(data, 0, (int) cvalue);
-                } else if (cvalue instanceof Long) {
-                    return Bytes.compareInt(data, 0, (long) cvalue);
-                }
-                return SQLRecordPredicateFunctions.compare(Bytes.toInt(data, 0), cvalue);
-            case ColumnTypes.LONG:
-            case ColumnTypes.NOTNULL_LONG:
-                if (cvalue instanceof Integer) {
-                    return Bytes.compareLong(data, 0, (int) cvalue);
-                } else if (cvalue instanceof Long) {
-                    return Bytes.compareLong(data, 0, (long) cvalue);
-                }
-                return SQLRecordPredicateFunctions.compare(Bytes.toLong(data, 0), cvalue);
-            case ColumnTypes.STRING:
-            case ColumnTypes.NOTNULL_STRING:
-                if (cvalue instanceof RawString) {
-                    return RawString.compareRaw(data, 0, data.length, ((RawString) cvalue));
-                } else if (cvalue instanceof String) {
-                    return RawString.compareRaw(data, 0, data.length, ((String) cvalue));
-                }
-                return SQLRecordPredicateFunctions.compare(Bytes.to_rawstring(data), cvalue);
-            case ColumnTypes.TIMESTAMP:
-            case ColumnTypes.NOTNULL_TIMESTAMP:
-                return SQLRecordPredicateFunctions.compare(Bytes.toTimestamp(data, 0), cvalue);
-            case ColumnTypes.NULL:
-                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
-            case ColumnTypes.BOOLEAN:
-                return SQLRecordPredicateFunctions.compare(Bytes.toBoolean(data, 0), cvalue);
-            case ColumnTypes.DOUBLE:
-                return SQLRecordPredicateFunctions.compare(Bytes.toDouble(data, 0), cvalue);
-            default:
-                throw new IllegalArgumentException("bad column type " + type);
-        }
-    }
-
     public static SQLRecordPredicateFunctions.CompareResult deserializeCompare(Bytes data, int type, Object cvalue) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
+            case ColumnTypes.NOTNULL_BYTEARRAY:
                 //TODO: not perform copy
                 return SQLRecordPredicateFunctions.compareConsiderNull(data.to_array(), cvalue);
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                return SQLRecordPredicateFunctions.compareConsiderNull(data.to_float_array(), cvalue);
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER: {
                 int v = data.to_int();
@@ -218,6 +187,9 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 return dii.readArray();
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                return dii.readFloatArray();
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 return dii.readInt();
@@ -249,6 +221,11 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY: {
                 byte[] datum = dii.readArray();
+                return SQLRecordPredicateFunctions.compareConsiderNull(datum, cvalue);
+            }
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY: {
+                float[] datum = dii.readFloatArray();
                 return SQLRecordPredicateFunctions.compareConsiderNull(datum, cvalue);
             }
             case ColumnTypes.INTEGER:
@@ -294,6 +271,10 @@ public final class RecordSerializer {
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 dii.skipArray();
                 break;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                dii.skipFloatArray();
+                break;
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 dii.skipInt();
@@ -333,6 +314,9 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 return (byte[]) v;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                return Bytes.from_float_array((float[]) v).to_array();
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Integer) {
@@ -402,6 +386,10 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 out.writeArray((byte[]) v);
+                return;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                out.writeFloatArray((float[]) v);
                 return;
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -492,6 +480,12 @@ public final class RecordSerializer {
                     throw new IllegalArgumentException();
                 }
                 return;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                if (!(v instanceof float[])) {
+                    throw new IllegalArgumentException("Expecting a float[]");
+                }
+                return;
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
                 if (v instanceof Number) {
@@ -547,6 +541,21 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
             case ColumnTypes.NOTNULL_BYTEARRAY:
                 oo.writeArray((byte[]) v);
+                break;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                if (v instanceof float[]) {
+                    oo.writeFloatArray((float[]) v);
+                } else if (v instanceof List) {
+                    List<Number> l = (List<Number>) v;
+                    float[] array = new float[l.size()];
+                    for (int i = 0; i < array.length; i++) {
+                        array[i] = l.get(i).floatValue();
+                    }
+                    oo.writeFloatArray(array);
+                } else {
+                    throw new IOException("Cannot serialise a " + v.getClass() + " as a float array");
+                }
                 break;
             case ColumnTypes.INTEGER:
             case ColumnTypes.NOTNULL_INTEGER:
@@ -661,6 +670,20 @@ public final class RecordSerializer {
                 if (value instanceof RawString) {
                     // TODO: apply a real conversion from MySQL dump format
                     return ((RawString) value).toByteArray();
+                }
+                return value;
+            case ColumnTypes.FLOATARRAY:
+            case ColumnTypes.NOTNULL_FLOATARRAY:
+                if (value instanceof float[]) {
+                    return value;
+                }
+                if (value instanceof List) {
+                    List l = (List) value;
+                    float[] array = new float[l.size()];
+                    for (int i = 0; i < array.length; i++) {
+                        array[i] = ((Number) l.get(i)).floatValue();
+                    }
+                    return array;
                 }
                 return value;
             default:

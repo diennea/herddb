@@ -52,6 +52,11 @@ public class BuiltinFunctions {
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
     public static final String ABS = "abs";
+
+    public static final String COSINE_SIMILARITY = "cosine_similarity";
+    public static final String DOT_PRODUCT = "dot_product";
+    public static final String EUCLIDEAN_DISTANCE = "euclidean_distance";
+
     public static final String ROUND = "round";
     public static final String EXTRACT = "extract";
     public static final String FLOOR = "floor";
@@ -73,6 +78,10 @@ public class BuiltinFunctions {
     public static final String NAME_LOWERCASE = "LOWER";
     public static final String NAME_UPPER = "UPPER";
     public static final String NAME_ABS = "ABS";
+    public static final String NAME_COSINE_SIMILARITY = "COSINE_SIMILARITY";
+    public static final String NAME_DOT_PRODUCT = "DOT_PRODUCT";
+    public static final String NAME_EUCLIDEAN_DISTANCE = "EUCLIDEAN_DISTANCE";
+
     public static final String NAME_ROUND = "ROUND";
     public static final String NAME_EXTRACT = "EXTRACT";
     public static final String NAME_FLOOR = "FLOOR";

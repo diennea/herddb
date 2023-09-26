@@ -185,6 +185,8 @@ public final class Tuple extends AbstractDataAccessor {
                         columnType = ColumnTypes.BOOLEAN;
                     } else if (value instanceof byte[]) {
                         columnType = ColumnTypes.BYTEARRAY;
+                    } else if (value instanceof float[]) {
+                        columnType = ColumnTypes.FLOATARRAY;
                     } else {
                         throw new IOException("unsupported class " + value.getClass());
                     }

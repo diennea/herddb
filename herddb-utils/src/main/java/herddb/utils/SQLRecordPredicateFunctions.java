@@ -135,8 +135,25 @@ public interface SQLRecordPredicateFunctions {
         if (a instanceof byte[] && b instanceof byte[]) {
             return CompareResult.fromInt(Bytes.compare((byte[]) a, (byte[]) b));
         }
+        if (a instanceof float[] && b instanceof float[]) {
+            return CompareResult.fromInt(compareFloatArrays((float[]) a, (float[]) b));
+        }
         throw new IllegalArgumentException(
                 "uncomparable objects " + a.getClass() + " ('" + a + "') vs " + b.getClass() + " ('" + b + "')");
+    }
+
+    static int compareFloatArrays(float[] arr1, float[] arr2) {
+        int minLength = Math.min(arr1.length, arr2.length);
+
+        for (int i = 0; i < minLength; i++) {
+            int comparison = Float.compare(arr1[i], arr2[i]);
+            if (comparison != 0) {
+                return comparison; // Return the result if elements are not equal
+            }
+        }
+
+        // If the common elements are equal, check the lengths of the arrays
+        return Integer.compare(arr1.length, arr2.length);
     }
 
     /**

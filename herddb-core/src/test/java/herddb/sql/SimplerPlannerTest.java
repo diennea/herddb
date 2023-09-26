@@ -23,7 +23,9 @@ package herddb.sql;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -32,6 +34,7 @@ import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.sql.expressions.CompiledFunction;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import java.util.Arrays;
@@ -233,6 +236,19 @@ public class SimplerPlannerTest {
                 assertEquals(1L, results.get(1).get(1));
                 assertEquals(1235, results.get(1).get(0));
             }
+            try (DataScanner scan = scan(manager, "SELECT n1, count(*) as cc "
+                            + " FROM tblspace1.tsql"
+                            + " GROUP by n1"
+                            + " ORDER BY abs(n1)",
+                    Collections.emptyList())) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(2, results.get(0).getFieldNames().length);
+                assertEquals(1L, results.get(0).get(1));
+                assertEquals(1234, results.get(0).get(0));
+                assertEquals(1L, results.get(1).get(1));
+                assertEquals(1235, results.get(1).get(0));
+            }
             if (manager.getPlanner() instanceof CalcitePlanner) {
                 try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
                                 + " FROM tblspace1.tsql"
@@ -342,6 +358,88 @@ public class SimplerPlannerTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1114", Collections.emptyList())) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
+            }
+        }
+    }
+
+    @Test
+    public void basicVectorTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string, v1 floata)", Collections.emptyList());
+
+            List<Float> vector1AsList = Arrays.asList(0.2f, 0.8f);
+            float[] vector3raw = new float[]{0f, 1f};
+            float[] vector2raw = new float[]{0.1f, 0.9f};
+            float[] vector1raw = new float[]{0.2f, 0.8f};
+
+            float v3v3 = CompiledFunction.cosineSimilarity(vector3raw, vector3raw);
+            float v3v2 = CompiledFunction.cosineSimilarity(vector3raw, vector2raw);
+            float v3v1 = CompiledFunction.cosineSimilarity(vector3raw, vector1raw);
+            System.out.println("v3v3:" + v3v3);
+            System.out.println("v3v2:" + v3v2);
+            System.out.println("v3v1:" + v3v1);
+            assertTrue(v3v2 < v3v3);
+            assertTrue(v3v1 < v3v3);
+            assertTrue(v3v1 < v3v2);
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,v1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234),
+                    vector1AsList)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,v1) values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(1235),
+                    vector2raw)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,v1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(1236),
+                    vector3raw)).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1234", Collections.emptyList())) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(4, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+                assertEquals(RawString.of("mykey"), results.get(0).get("k1"));
+                assertEquals(1234, results.get(0).get(1));
+                assertEquals(1234, results.get(0).get("n1"));
+                assertEquals(null, results.get(0).get(2));
+                assertEquals(null, results.get(0).get("s1"));
+                assertArrayEquals(vector1raw, (float[]) results.get(0).get(3), 0);
+                assertArrayEquals(vector1raw, (float[]) results.get(0).get("v1"), 0);
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT n1, cosine_similarity(v1, cast(? as FLOAT ARRAY)) as distance, v1 "
+                            + " FROM tblspace1.tsql"
+                            + " ORDER BY cosine_similarity(v1, cast(? as FLOAT ARRAY)) DESC",
+                    Arrays.asList(vector3raw, vector3raw))) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(3, results.size());
+                assertEquals(1236, results.get(0).get(0));
+                assertEquals(1235, results.get(1).get(0));
+                assertEquals(1234, results.get(2).get(0));
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT n1, dot_product(v1, cast(? as FLOAT ARRAY)) as distance, v1 "
+                            + " FROM tblspace1.tsql"
+                            + " ORDER BY dot_product(v1, cast(? as FLOAT ARRAY)) DESC",
+                    Arrays.asList(vector3raw, vector3raw))) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(3, results.size());
+                assertEquals(1236, results.get(0).get(0));
+                assertEquals(1235, results.get(1).get(0));
+                assertEquals(1234, results.get(2).get(0));
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT n1, euclidean_distance(v1, cast(? as FLOAT ARRAY)) as distance, v1 "
+                            + " FROM tblspace1.tsql"
+                            + " ORDER BY euclidean_distance(v1, cast(? as FLOAT ARRAY))",
+                    Arrays.asList(vector3raw, vector3raw))) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(3, results.size());
+                assertEquals(1236, results.get(0).get(0));
+                assertEquals(1235, results.get(1).get(0));
+                assertEquals(1234, results.get(2).get(0));
             }
         }
     }

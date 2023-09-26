@@ -172,6 +172,8 @@ public class SQLParserExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.UPPER, operands);
                 case BuiltinFunctions.NAME_ABS:
                     return new CompiledFunction(BuiltinFunctions.ABS, operands);
+                case BuiltinFunctions.NAME_COSINE_SIMILARITY:
+                    return new CompiledFunction(BuiltinFunctions.COSINE_SIMILARITY, operands);
                 case BuiltinFunctions.NAME_AVG:
                     return new CompiledFunction(BuiltinFunctions.AVG, operands);
                 case BuiltinFunctions.NAME_ROUND:

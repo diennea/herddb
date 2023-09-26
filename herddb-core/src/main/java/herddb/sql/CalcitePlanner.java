@@ -75,6 +75,7 @@ import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.SQLUtils;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -140,8 +141,11 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.runtime.CalciteContextException;
 import org.apache.calcite.schema.ColumnStrategy;
+import org.apache.calcite.schema.Function;
+import org.apache.calcite.schema.FunctionParameter;
 import org.apache.calcite.schema.ModifiableTable;
 import org.apache.calcite.schema.ProjectableFilterableTable;
+import org.apache.calcite.schema.ScalarFunction;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Statistic;
@@ -453,6 +457,10 @@ public class CalcitePlanner extends AbstractSQLPlanner {
             props.put(CalciteConnectionProperty.LOCALE.camelName(), Locale.ROOT.toString());
             props.put(CalciteConnectionProperty.DEFAULT_NULL_COLLATION.camelName(), NullCollation.LAST.toString());
             final CalciteConnectionConfigImpl calciteRuntimeContextConfig = new CalciteConnectionConfigImpl(props);
+
+            subSchema.add("COSINE_SIMILARITY", CosineSimilarityFunction.INSTANCE);
+            subSchema.add("DOT_PRODUCT", DotProductSimilarityFunction.INSTANCE);
+            subSchema.add("EUCLIDEAN_DISTANCE", EuclideanSimilarityFunction.INSTANCE);
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
                     .parserConfig(SQL_PARSER_CONFIG)
@@ -1176,6 +1184,12 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 return ColumnTypes.LONG;
             case VARBINARY:
                 return ColumnTypes.BYTEARRAY;
+            case ARRAY:
+                if (type.getComponentType().getSqlTypeName() == SqlTypeName.FLOAT) {
+                    return ColumnTypes.FLOATARRAY;
+                } else {
+                    throw new StatementExecutionException("Only arrays of floats are supported");
+                }
             case NULL:
                 return ColumnTypes.NULL;
             case TIMESTAMP:
@@ -1183,6 +1197,7 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                 return ColumnTypes.TIMESTAMP;
             case DECIMAL:
             case DOUBLE:
+            case FLOAT:
                 return ColumnTypes.DOUBLE;
             case ANY:
             case SYMBOL:
@@ -1370,6 +1385,9 @@ public class CalcitePlanner extends AbstractSQLPlanner {
                     return typeFactory.createSqlType(SqlTypeName.VARCHAR);
                 case ColumnTypes.BYTEARRAY:
                     return typeFactory.createSqlType(SqlTypeName.VARBINARY);
+                case ColumnTypes.FLOATARRAY:
+                    return typeFactory
+                            .createArrayType(typeFactory.createSqlType(SqlTypeName.FLOAT), -1);
                 case ColumnTypes.LONG:
                 case ColumnTypes.NOTNULL_LONG:
                     return typeFactory.createSqlType(SqlTypeName.BIGINT);
@@ -1383,4 +1401,90 @@ public class CalcitePlanner extends AbstractSQLPlanner {
 
     }
 
+    private static class CosineSimilarityFunction implements Function, ScalarFunction {
+
+        static final CosineSimilarityFunction INSTANCE = new  CosineSimilarityFunction();
+
+        @Override
+        public List<FunctionParameter> getParameters() {
+            return Arrays.asList(
+                    new CalcitePlanner.SimpleArrayParameter(0, "op1", SqlTypeName.FLOAT),
+                    new CalcitePlanner.SimpleArrayParameter(1, "op2", SqlTypeName.FLOAT));
+        }
+
+        @Override
+        public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
+            return typeFactory.createSqlType(SqlTypeName.FLOAT);
+        }
+
+    }
+
+    private static class EuclideanSimilarityFunction implements Function, ScalarFunction {
+
+        static final EuclideanSimilarityFunction INSTANCE = new  EuclideanSimilarityFunction();
+
+        @Override
+        public List<FunctionParameter> getParameters() {
+            return Arrays.asList(
+                    new CalcitePlanner.SimpleArrayParameter(0, "op1", SqlTypeName.FLOAT),
+                    new CalcitePlanner.SimpleArrayParameter(1, "op2", SqlTypeName.FLOAT));
+        }
+
+        @Override
+        public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
+            return typeFactory.createSqlType(SqlTypeName.FLOAT);
+        }
+
+    }
+
+    private static class DotProductSimilarityFunction implements Function, ScalarFunction {
+
+        static final DotProductSimilarityFunction INSTANCE = new  DotProductSimilarityFunction();
+
+        @Override
+        public List<FunctionParameter> getParameters() {
+            return Arrays.asList(
+                    new CalcitePlanner.SimpleArrayParameter(0, "op1", SqlTypeName.FLOAT),
+                    new CalcitePlanner.SimpleArrayParameter(1, "op2", SqlTypeName.FLOAT));
+        }
+
+        @Override
+        public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
+            return typeFactory.createSqlType(SqlTypeName.FLOAT);
+        }
+
+    }
+
+    private static class SimpleArrayParameter implements FunctionParameter {
+        int ordinal;
+        String name;
+        SqlTypeName type;
+
+        public SimpleArrayParameter(int ordinal, String name, SqlTypeName type) {
+            this.ordinal = ordinal;
+            this.name = name;
+            this.type = type;
+        }
+
+        @Override
+        public int getOrdinal() {
+            return ordinal;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public RelDataType getType(RelDataTypeFactory typeFactory) {
+            return typeFactory.createTypeWithNullability(
+                    typeFactory.createArrayType(typeFactory.createSqlType(type), -1), true);
+        }
+
+        @Override
+        public boolean isOptional() {
+            return false;
+        }
+    }
 }

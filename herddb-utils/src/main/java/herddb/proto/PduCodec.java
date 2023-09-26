@@ -84,6 +84,8 @@ public abstract class PduCodec {
     public static final byte TYPE_SHORT = 8;
     public static final byte TYPE_BYTE = 9;
 
+    public static final byte TYPE_FLOATARRAY = 10;
+
     public abstract static class ExecuteStatementsResult {
 
         public static ByteBuf write(long replyId, List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
@@ -1879,6 +1881,12 @@ public abstract class PduCodec {
         } else if (v instanceof Byte) {
             byteBuf.writeByte(TYPE_BYTE);
             byteBuf.writeByte((Byte) v);
+        } else if (v instanceof float[]) {
+            byteBuf.writeByte(TYPE_FLOATARRAY);
+            ByteBufUtils.writeFloatArray(byteBuf, (float[]) v);
+        } else if (v instanceof List) {
+            byteBuf.writeByte(TYPE_FLOATARRAY);
+            ByteBufUtils.writeFloatArray(byteBuf, (List<Number>) v);
         } else {
             throw new IllegalArgumentException("bad data type " + v.getClass());
         }
@@ -1892,6 +1900,8 @@ public abstract class PduCodec {
         switch (type) {
             case TYPE_BYTEARRAY:
                 return ByteBufUtils.readArray(dii);
+            case TYPE_FLOATARRAY:
+                return ByteBufUtils.readFloatArray(dii);
             case TYPE_LONG:
                 return dii.readLong();
             case TYPE_INTEGER:

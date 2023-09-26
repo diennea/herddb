@@ -153,6 +153,12 @@ public class SQLExpressionCompiler {
                     return new CompiledFunction(BuiltinFunctions.UPPER, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_ABS:
                     return new CompiledFunction(BuiltinFunctions.ABS, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_COSINE_SIMILARITY:
+                    return new CompiledFunction(BuiltinFunctions.COSINE_SIMILARITY, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_DOT_PRODUCT:
+                    return new CompiledFunction(BuiltinFunctions.DOT_PRODUCT, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_EUCLIDEAN_DISTANCE:
+                    return new CompiledFunction(BuiltinFunctions.EUCLIDEAN_DISTANCE, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_ROUND:
                     return new CompiledFunction(BuiltinFunctions.ROUND, Arrays.asList(operands));
                 case BuiltinFunctions.NAME_EXTRACT:
