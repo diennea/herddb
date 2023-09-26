@@ -910,10 +910,13 @@
             </modules>
         </profile>
     </profiles>
+    <!--
+    Uncomment this repository in order to test upcoming BK releases
     <repositories>
        <repository> 
            <id>bookkeeper-staging</id>
-           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1089</url>
+           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-xxx</url>
        </repository>
     </repositories>
+    -->
 </project>
