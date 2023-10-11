@@ -78,7 +78,7 @@
       <plugin>
         <groupId>com.google.cloud.tools</groupId>
         <artifactId>jib-maven-plugin</artifactId>
-        <version>2.5.2</version>
+        <version>3.4.0</version>
         <!--
         mvn package jib:build@build [-Dimage.server.image.registry=...] -> will be pushed
         mvn package jib:dockerBuild@build -> local docker image
@@ -106,6 +106,10 @@
               <to>
                 <image>${image.server.image.name}</image>
               </to>
+              <platform>
+                <architecture>amd64</architecture>
+                <os>linux</os>
+              </platform>
               <container>
                 <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
                 <entrypoint>/opt/herddb/bin/service</entrypoint>
