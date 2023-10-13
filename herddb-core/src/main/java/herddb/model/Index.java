@@ -44,6 +44,7 @@ public class Index implements ColumnsList {
 
     public static final String TYPE_HASH = "hash";
     public static final String TYPE_BRIN = "brin";
+    public static final String TYPE_JVECTOR = "jvector";
 
     private static final int PROPERTY_UNIQUE = 0x01;
 
@@ -234,7 +235,9 @@ public class Index implements ColumnsList {
             if (table == null || table.isEmpty()) {
                 throw new IllegalArgumentException("table is not defined");
             }
-            if (!TYPE_HASH.equals(type) && !TYPE_BRIN.equals(type)) {
+            if (!TYPE_HASH.equals(type)
+                    && !TYPE_BRIN.equals(type)
+                    && !TYPE_JVECTOR.equals(type)) {
                 throw new IllegalArgumentException("only index type " + TYPE_HASH + "," + TYPE_BRIN + " are supported");
             }
             if (columns.isEmpty()) {
