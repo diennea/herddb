@@ -69,7 +69,7 @@ public class JVectorIndexManager extends AbstractIndexManager {
     private final AtomicLong newPageId = new AtomicLong(1);
 
 
-    private RandomAccessVectorValuesImpl nodeToVectorMapping = new RandomAccessVectorValuesImpl();
+    private final RandomAccessVectorValuesImpl nodeToVectorMapping = new RandomAccessVectorValuesImpl();
 
     public JVectorIndexManager(Index index, AbstractTableManager tableManager,
                                DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log,
@@ -194,7 +194,7 @@ public class JVectorIndexManager extends AbstractIndexManager {
         int nodeId = nodeToVectorMapping.registerRecord(key, indexKey);
         float[] floatArray = indexKey.to_float_array();
         LOGGER.log(Level.INFO, "Adding {0} as node id {1}", new Object[]{Arrays.toString(floatArray), nodeId});
-        currentGraphBuilder.addGraphNode(nodeId, floatArray);
+        currentGraphBuilder.addGraphNode(nodeId, nodeToVectorMapping);
     }
 
     @Override
