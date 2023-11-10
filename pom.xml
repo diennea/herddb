@@ -91,7 +91,7 @@
         <libs.netty4ssl>2.0.60.Final</libs.netty4ssl>
         <!-- needed in tests for TLS certificate autogeneration on jdk-15+ -->
         <libs.bouncycastle>1.70</libs.bouncycastle>
-        <libs.calcite>1.32.0</libs.calcite>
+        <libs.calcite>1.36.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>2.14.1</libs.jackson.mapper>
         <libs.zookeeper>3.8.3</libs.zookeeper>
