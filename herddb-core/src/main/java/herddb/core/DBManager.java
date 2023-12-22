@@ -282,7 +282,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_PERCENTAGE_DEFAULT);
 
         if (maxIndexUsedMemoryPercentage <= 0.0D) {
-            maxIndexUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_PERCENTAGE_DEFAULT;
+            maxIndexUsedMemoryPercentage = ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_PERCENTAGE_DEFAULT;
         }
 
         this.maxPKUsedMemoryPercentage = configuration.getDouble(
