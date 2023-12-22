@@ -471,7 +471,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     / ((double) (maxDataUsedMemory + maxIndexUsedMemory + maxPKUsedMemory)) * maxMemoryReference);
 
             maxDataUsedMemory = data;
-            maxIndexUsedMemory = data;
+            maxIndexUsedMemory = index;
             maxPKUsedMemory = pk;
         }
 
