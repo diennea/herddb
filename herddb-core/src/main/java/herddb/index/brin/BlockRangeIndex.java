@@ -20,6 +20,7 @@
 
 package herddb.index.brin;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
@@ -963,6 +964,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         mergeReferences.clear();
     }
 
+    @SuppressFBWarnings("UL_UNRELEASED_LOCK", "false positive, locks are released in this method or in mergeAndUnlock")
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
         final boolean fineEnabled = LOG.isLoggable(Level.FINE);
 
@@ -1000,6 +1002,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                          * MergeReferences could be empty if current block is the first too small and previous
                          * blocks were too big to be merged to.
                          */
+                        // Locks release
                         mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
 
                         // Set next merge target
@@ -1024,6 +1027,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 if (mergeTarget != null) {
 
                     // Handles current merge stream process
+                    // Locks release
                     mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
 
                     // Set next merge target (current block is too big to be merged)
@@ -1038,6 +1042,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 try {
                     blocksMetadata.add(block.checkpoint());
                 } finally {
+                    // Lock release
                     block.lock.unlock();
                 }
             }
@@ -1045,6 +1050,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         // We need to handle any remaining merges if exists
         if (mergeTarget != null) {
+            // Locks release
             mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
         }
 
