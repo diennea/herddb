@@ -834,7 +834,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
          * Data is provided in reverse order (smaller block is last) so we must iterate
          * in reverse order (to preserve "next" relationship)
          */
-        final ListIterator<Block<K, V>> iterator = merging.listIterator(merging.size());
+        final ListIterator<Block<K, V>> iterator = merging.listIterator();
 
         Page.Metadata unload = null;
         List<Page.Metadata> unloads = new ArrayList<>();
@@ -846,9 +846,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             /* We need block data to attempt merge */
             unload = first.ensureBlockLoadedWithoutUnload();
 
-            while (iterator.hasPrevious()) {
+            while (iterator.hasNext()) {
 
-                Block<K, V> other = iterator.previous();
+                Block<K, V> other = iterator.next();
 
                 other.lock.lock();
                 try {
@@ -971,7 +971,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
 
-        /* Reverse ordering! */
         Iterator<Block<K, V>> iterator = blocks.values().iterator();
 
         long mergeSize = 0;
@@ -1055,6 +1054,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
         }
 
+        // Historically blocks are stored in reverse order to be able to recover the index in a simpler way
+        Collections.reverse(blocksMetadata);
         return new BlockRangeIndexMetadata<>(blocksMetadata);
 
     }
