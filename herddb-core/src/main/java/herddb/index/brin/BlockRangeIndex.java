@@ -964,7 +964,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         mergeReferences.clear();
     }
 
-    @SuppressFBWarnings("UL_UNRELEASED_LOCK", "false positive, locks are released in this method or in mergeAndUnlock")
+    @SuppressFBWarnings(value = "UL_UNRELEASED_LOCK",
+            justification = "false positive, locks are released in this method or in mergeAndUnlock")
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
         final boolean fineEnabled = LOG.isLoggable(Level.FINE);
 
