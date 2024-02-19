@@ -29,6 +29,7 @@ import herddb.utils.SizeAwareObject;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -223,13 +224,14 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         final BlockStartKey<Key> key;
 
         NavigableMap<Key, List<Val>> values;
-        long size;
+        private long size;
         Block<Key, Val> next;
 
         private final ReentrantLock lock = new ReentrantLock(true);
 
         private volatile boolean loaded;
         private volatile boolean dirty;
+        private volatile boolean detached;
         private volatile long pageId;
 
         private final BRINPage<Key, Val> page;
@@ -246,6 +248,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             this.loaded = false;
             this.dirty = false;
+            this.detached = false;
             this.pageId = pageId;
 
             /* Immutable Block ID */
@@ -265,6 +268,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             this.loaded = true;
             this.dirty = true;
+            this.detached = false;
             this.pageId = IndexDataStorage.NEW_PAGE;
 
             /* Immutable Block ID */
@@ -272,7 +276,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         }
 
         /**
-         * Construtor for split operations
+         * Constructor for split operations
          */
         private Block(BlockRangeIndex<Key, Val> index, BlockStartKey<Key> key, NavigableMap<Key, List<Val>> values, long size, Block<Key, Val> next) {
             this.index = index;
@@ -284,6 +288,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             this.loaded = true;
             this.dirty = true;
+            this.detached = false;
             this.pageId = IndexDataStorage.NEW_PAGE;
 
             /* Immutable Block ID */
@@ -302,6 +307,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             return dirty;
         }
 
+        boolean isDetached() {
+            return detached;
+        }
+
         private void mergeAddValue(Key key1, Val value, Map<Key, List<Val>> values) {
             List<Val> valuesForKey = values.get(key1);
             if (valuesForKey == null) {
@@ -316,9 +325,25 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             /* Eventual new block from split. It must added to PageReplacementPolicy only after lock release */
             Block<Key, Val> newblock = null;
             lock.lock();
+
             Page.Metadata unload = null;
             try {
 
+                if (detached) {
+                    /*
+                     * If this block has been detached it means that current block has been merged by another
+                     * thread before beeing able to lock the block.
+                     * The should be now in the preceeding node and this shouldn't be used anymore.
+                     * Normally we scan the index using the next block reference and we cannot backtrack to previous
+                     * nodes so we need to start another search on the index itself to look for the current data node
+                     */
+                    final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+                    if (fineEnabled) {
+                        LOG.fine("Reached a block in detached state during add! Starting a new add search. Block " + this);
+                    }
+                    state.next = index.blocks.floorEntry(this.key).getValue();
+                    return;
+                }
                 Block<Key, Val> currentNext = this.next;
                 if (currentNext != null && currentNext.key.compareMinKey(key) <= 0) {
                     // unfortunately this occours during split
@@ -335,6 +360,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 unload = ensureBlockLoadedWithoutUnload();
 
                 mergeAddValue(key, value, values);
+
                 size += index.evaluateEntrySize(key, value);
                 dirty = true;
 
@@ -366,6 +392,21 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             Page.Metadata unload = null;
             try {
 
+                if (detached) {
+                    /*
+                     * If this block has been detached it means that current block has been merged by another
+                     * thread before beeing able to lock the block.
+                     * The should be now in the preceeding node and this shouldn't be used anymore.
+                     * Normally we scan the index using the next block reference and we cannot backtrack to previous
+                     * nodes so we need to start another search on the index itself to look for the current data node
+                     */
+                    final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+                    if (fineEnabled) {
+                        LOG.fine("Reached a block in detached state during delete! Starting a new delete search. Block " + this);
+                    }
+                    state.next = index.blocks.floorEntry(this.key).getValue();
+                    return;
+                }
                 final Block<Key, Val> currentNext = this.next;
 
                 /*
@@ -403,7 +444,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
 
                 /*
-                 * Propagate to next only if it exist AND next min key isn't greater than requested
+                 * Propagate to next only if it exists AND next min key isn't greater than requested
                  * key (ie: only if next could have any useful data)
                  */
                 if (currentNext != null && nextMinKeyCompare <= 0) {
@@ -606,7 +647,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
              * key the block id must be positive.
              *
              * Positive or negative means: negative: the new block must precede any other block with the same
-             * "new" min key that could exists positive: the new block must follow the current splitting bloc
+             * "new" min key that could exist positive: the new block must follow the current splitting block
              * (this case is done right because we add elements in the greater block possible: if we have more
              * blocks with the same min key we use the last one).
              */
@@ -660,7 +701,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.next = newblock;
             this.size = mySize;
             this.values = keepValues;
-
 
             /*
              * First publish the new block then reduce this block min/max keys. If done otherwise a
@@ -764,7 +804,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         @Override
         public String toString() {
-            return "Block{" + "key=" + key + ", minKey=" + key.minKey + ", size=" + size + ", next=" + (next == null ? null : next.key) + "}";
+            return System.identityHashCode(this) + "Block{" + "key=" + key + ", minKey=" + key.minKey
+                   + ", size=" + size + ", next=" + (next == null ? null : next.key) + ", pageId=" + pageId
+                   + ", loaded=" + loaded + ", dirty=" + dirty + ", detached=" + detached + "}";
         }
 
     }
@@ -794,10 +836,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         final ListIterator<Block<K, V>> iterator = merging.listIterator(merging.size());
 
         Page.Metadata unload = null;
+        List<Page.Metadata> unloads = new ArrayList<>();
 
         first.lock.lock();
         BlockRangeIndexMetadata.BlockMetadata<K> metadata;
-
         try {
 
             /* We need block data to attempt merge */
@@ -837,21 +879,26 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                         }
 
                         first.size += other.size;
+                        first.dirty = true;
                     }
 
-                    if (fineEnabled) {
+                    /*
+                     * Forcefully set the other block as empty and prepare for its flush.
+                     * Other processes could have this node in hand waiting to lock it for add/remove data,
+                     * after merge his data must be empty
+                     */
+                    other.size = 0;
+                    other.values = Collections.emptyNavigableMap();
+                    other.dirty = true;
+                    other.detached = true;
 
-                        if (other.size != 0) {
-                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from merged block "
-                                    + other.pageId + " (" + other.key + ")");
-                        } else {
-                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from deleted block "
-                                    + other.pageId + " (" + other.key + ")");
-                        }
+                    if (fineEnabled) {
+                        LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from deleted block "
+                                 + other.pageId + " (" + other.key + ")");
 
                         if (other.next != null) {
                             LOG.fine("linking block " + first.pageId + " (" + first.key + ") to real next block "
-                                    + other.next.pageId + " (" + other.next.key + ")");
+                                     + other.next.pageId + " (" + other.next.key + ")");
                         }
                     }
 
@@ -859,7 +906,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                     first.next = other.next;
 
                     /* Data not needed anymore, no checkpoint needed for discarded blocks */
-                    other.forcedUnload();
+                    pageReplacementPolicy.remove(other.page);
 
                     /* Remove the block from knowledge */
                     blocks.remove(other.key);
@@ -872,21 +919,48 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             metadata = first.checkpointNoLock();
 
+            if (fineEnabled) {
+                LOG.fine("merged block " + first.pageId + " (" + first.key + ") has " + first.size + " byte size at checkpoint");
+            }
+
         } finally {
+
             first.lock.unlock();
 
             /* Deferred unload */
             if (unload != null) {
                 unload.owner.unload(unload.pageId);
             }
-        }
 
-        if (fineEnabled) {
-            LOG.fine("merged block " + first.pageId + " (" + first.key + ") has " + first.size + " byte size at checkpoint");
+            for (Page.Metadata cunload : unloads) {
+                cunload.owner.unload(cunload.pageId);
+            }
         }
 
         return metadata;
 
+    }
+
+    private void mergeAndUnlock(Block<K, V> mergeTarget,
+                                List<Block<K, V>> mergeReferences,
+                                List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata) throws IOException {
+        try {
+
+            // Merge blocks, unloading merged ones and checkpointing next merge reference
+            BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(mergeTarget, mergeReferences);
+
+            blocksMetadata.add(merged);
+
+        } finally {
+            mergeTarget.lock.unlock();
+
+            for (Block<K, V> mergeReference : mergeReferences) {
+                mergeReference.lock.unlock();
+            }
+        }
+
+        // Remove handled merge references
+        mergeReferences.clear();
     }
 
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
@@ -895,115 +969,83 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
 
         /* Reverse ordering! */
-        Iterator<Block<K, V>> iterator = blocks.descendingMap().values().iterator();
+        Iterator<Block<K, V>> iterator = blocks.values().iterator();
 
         long mergeSize = 0;
 
-        Block<K, V> lastMergeReference = null;
+        Block<K, V> mergeTarget = null;
         List<Block<K, V>> mergeReferences = new ArrayList<>();
 
-        /* Inverse iteration! (Last block is HEAD block) */
         while (iterator.hasNext()) {
             Block<K, V> block = iterator.next();
 
             block.lock.lock();
 
-            try {
+            final long size = block.size;
+            if (size < minPageBlockSize) {
 
-                final long size = block.size;
+                if (mergeTarget == null) {
+                    // This now is the next merge target
+                    mergeTarget = block;
+                    mergeSize = size;
 
-                if (size < minPageBlockSize) {
+                } else {
 
-                    /* Attempt merges! */
-                    mergeSize += size;
-
-                    /* Do merges if overflowing */
-                    if (mergeSize > maxPageBlockSize) {
-
-                        /*
-                         * If mergeSize now is greater than mexPageBlockSize but size is lower than
-                         * minPageBlockSize means that there is at least lastMergeReference not null.
-                         */
+                    // Do merges if overflowing
+                    if (mergeSize + size > maxPageBlockSize) {
 
                         /*
-                         * This should be merged with merge stream but it would create a node too big,
+                         * This should be merged with merge stream, but it would create a node too big,
                          * we must merge remaining stream and create a new stream.
+                         * MergeReferences could be empty if current block is the first too small and previous
+                         * blocks were too big to be merged to.
                          */
+                        mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
 
-                        /* Merge blocks, unloading merged ones and checkpointing last merge reference */
-                        BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
+                        // Set next merge target
+                        mergeTarget = block;
 
-                        blocksMetadata.add(merged);
-
-                        /*
-                         * Remove handled merge references (but set lastMergeReference to current block,
-                         * it will be merged in next iterations)
-                         */
-                        lastMergeReference = block;
-                        mergeReferences.clear();
-
-                        /* Reset merge size to current block size */
+                        // Reset merge size to current block size
                         mergeSize = size;
 
                     } else {
 
-                        /* There is still space for merging */
-                        if (lastMergeReference != null) {
-                            mergeReferences.add(lastMergeReference);
-                        }
-                        lastMergeReference = block;
+                        // There is still space for merging
+                        mergeReferences.add(block);
+                        mergeSize += size;
                     }
-
-                } else {
-
-                    /* Do not attempt merges! */
-
-                    /* If we have pending merges we must merge them now */
-                    if (lastMergeReference != null) {
-
-                        /* Merge blocks, unloading merged ones and checkpointing last merge reference */
-                        BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
-
-                        blocksMetadata.add(merged);
-
-                        /* Remove handled merge references */
-                        lastMergeReference = null;
-                        mergeReferences.clear();
-
-                        /* Reset merge size to 0 */
-                        mergeSize = 0;
-
-                    }
-
-                    /* Now checkpointing current block (no merge) */
-
-                    if (fineEnabled) {
-                        LOG.fine("block " + block.pageId + " (" + block.key + ") has " + size + " byte size at checkpoint");
-                    }
-
-                    /* We already have the lock */
-                    blocksMetadata.add(block.checkpointNoLock());
 
                 }
 
-            } finally {
-                block.lock.unlock();
+            } else {
+
+                // This block is too big to be merged to other blocks
+
+                if (mergeTarget != null) {
+
+                    // Handles current merge stream process
+                    mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
+
+                    // Set next merge target (current block is too big to be merged)
+                    mergeTarget = null;
+                }
+
+                // Checkpoint current block
+                if (fineEnabled) {
+                    LOG.fine("block " + block.pageId + " (" + block.key + ") has " + block + " byte size at checkpoint");
+                }
+
+                try {
+                    blocksMetadata.add(block.checkpoint());
+                } finally {
+                    block.lock.unlock();
+                }
             }
         }
 
-        /*
-         * We need to handled any remaining merges if exists (lastMergeReference is the head now).
-         */
-        if (lastMergeReference != null) {
-
-            /* Merge blocks, unloading merged ones and checkpointing last merge reference */
-            BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
-
-            blocksMetadata.add(merged);
-
-            /* Remove handled merge references */
-            lastMergeReference = null;
-            mergeReferences.clear();
+        // We need to handle any remaining merges if exists
+        if (mergeTarget != null) {
+            mergeAndUnlock(mergeTarget, mergeReferences, blocksMetadata);
         }
 
         return new BlockRangeIndexMetadata<>(blocksMetadata);
@@ -1138,10 +1180,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                 if (blockData.nextBlockId != null) {
                     if (next == null) {
                         throw new DataStorageManagerException("Wrong next block, expected notingh but "
-                                + blockData.nextBlockId + " found");
+                                                              + blockData.nextBlockId + " found");
                     } else if (next.key.blockId != blockData.nextBlockId.longValue()) {
                         throw new DataStorageManagerException("Wrong next block, expected " + next.key.blockId + " but "
-                                + blockData.nextBlockId + " found");
+                                                              + blockData.nextBlockId + " found");
                     }
                 } else {
                     if (next != null) {
