@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
 
 /**
  * Simple in-memory index data storage manager
@@ -35,8 +34,6 @@ import java.util.logging.Logger;
  * @author enrico.olivelli
  */
 public class MemoryIndexDataStorage<K, V> implements IndexDataStorage<K, V> {
-
-    private static final Logger LOG = Logger.getLogger(MemoryIndexDataStorage.class.getName());
     AtomicLong newPageId = new AtomicLong();
 
     private final ConcurrentHashMap<Long, List<Map.Entry<K, V>>> pages = new ConcurrentHashMap<>();

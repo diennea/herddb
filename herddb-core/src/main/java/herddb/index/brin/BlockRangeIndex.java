@@ -334,7 +334,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                     /*
                      * If this block has been detached it means that current block has been merged by another
                      * thread before beeing able to lock the block.
-                     * The should be now in the preceeding node and this shouldn't be used anymore.
+                     * It should be now in the preceeding node and this shouldn't be used anymore.
                      * Normally we scan the index using the next block reference and we cannot backtrack to previous
                      * nodes so we need to start another search on the index itself to look for the current data node
                      */
@@ -397,7 +397,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                     /*
                      * If this block has been detached it means that current block has been merged by another
                      * thread before beeing able to lock the block.
-                     * The should be now in the preceeding node and this shouldn't be used anymore.
+                     * It should be now in the preceeding node and this shouldn't be used anymore.
                      * Normally we scan the index using the next block reference and we cannot backtrack to previous
                      * nodes so we need to start another search on the index itself to look for the current data node
                      */
@@ -805,7 +805,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         @Override
         public String toString() {
-            return System.identityHashCode(this) + "Block{" + "key=" + key + ", minKey=" + key.minKey
+            return "Block{" + "key=" + key + ", minKey=" + key.minKey
                    + ", size=" + size + ", next=" + (next == null ? null : next.key) + ", pageId=" + pageId
                    + ", loaded=" + loaded + ", dirty=" + dirty + ", detached=" + detached + "}";
         }
@@ -829,11 +829,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             return first.checkpoint();
         }
 
-
-        /*
-         * Data is provided in reverse order (smaller block is last) so we must iterate
-         * in reverse order (to preserve "next" relationship)
-         */
         final ListIterator<Block<K, V>> iterator = merging.listIterator();
 
         Page.Metadata unload = null;
@@ -871,7 +866,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                          * but we need to restore original list data from first value (due to overwrite)
                          */
                         if (potentialOverwrite != null) {
-                            /* Restore overwiritten data */
+                            /* Restore overwritten data */
                             first.values.merge(other.key.minKey, potentialOverwrite,
                                     (l1, l2) -> {
                                         l1.addAll(l2);
