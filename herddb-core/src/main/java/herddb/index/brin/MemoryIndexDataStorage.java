@@ -21,6 +21,7 @@
 package herddb.index.brin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author enrico.olivelli
  */
 public class MemoryIndexDataStorage<K, V> implements IndexDataStorage<K, V> {
-
     AtomicLong newPageId = new AtomicLong();
 
     private final ConcurrentHashMap<Long, List<Map.Entry<K, V>>> pages = new ConcurrentHashMap<>();
@@ -44,13 +44,14 @@ public class MemoryIndexDataStorage<K, V> implements IndexDataStorage<K, V> {
         if (page == null) {
             throw new IOException("Unknown pageId " + pageId);
         }
-        return page;
+        return new ArrayList<>(page);
     }
 
     @Override
     public long createDataPage(List<Map.Entry<K, V>> values) throws IOException {
         long newid = newPageId.incrementAndGet();
-        pages.put(newid, values);
+        List<Map.Entry<K, V>> copy = new ArrayList<>(values);
+        pages.put(newid, copy);
         return newid;
     }
 
