@@ -51,14 +51,15 @@ public class ChangeRoleTest extends MultiServerBase {
 
     @Test
     public void testChangeRoleAndReleaseMemory() throws Exception {
-        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
-        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
-        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+        ServerConfiguration serverconfig_1 = newServerConfigurationWithAutoPort(folder.newFolder().toPath())
+                .set(ServerConfiguration.PROPERTY_NODEID, "server1")
+                .set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER)
+                .set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress())
+                .set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath())
+                .set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout())
+                .set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false)
+                .set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0) // disabled
+                .set(ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_PERCENTAGE, 0.2);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()

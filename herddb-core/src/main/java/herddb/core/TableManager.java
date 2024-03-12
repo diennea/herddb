@@ -902,7 +902,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /*
              * NewPages removal technically could be done before current write lock but
              * doing it in lock permit to check safely if a page has been removed. Without
-             * lock we can't known if no page has been removed because already removed by a
+             * lock we can't know if no page has been removed because already removed by a
              * concurrent thread or because it wasn't present in the first place.
              */
             /* Set the new page as a fully active page */

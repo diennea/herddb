@@ -21,6 +21,7 @@
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.TableManagerStats;
 import herddb.mem.MemoryCommitLogManager;
@@ -80,7 +81,8 @@ public class BigTableScanTest {
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(2, stats.getLoadedpages());
+            // More than a page loaded
+            assertTrue(stats.getLoadedpages() >= 2);
 
             manager.checkpoint();
 
