@@ -241,6 +241,12 @@ public final class ServerConfiguration {
     public static final String PROPERTY_READLOCK_TIMEOUT = "server.tablemanager.readlocktimeout";
     public static final int PROPERTY_READLOCK_TIMEOUT_DEFAULT = 60 * 30;
 
+    public static final String PROPERTY_USERS_MANAGER = "server.users.manager";
+
+    public static final String PROPERTY_USERS_MANAGER_FILE = "file";
+    public static final String PROPERTY_USERS_MANAGER_TOKEN = "token";
+    public static final String PROPERTY_USERS_MANAGER_DEFAULT = PROPERTY_USERS_MANAGER_FILE;
+
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
 

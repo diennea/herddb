@@ -48,6 +48,7 @@ import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NetworkUtils;
 import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
+import herddb.security.jwt.TokenAuthenticator;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Version;
 import java.io.IOException;
@@ -131,18 +132,34 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
         this.dataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_DATADIR, ServerConfiguration.PROPERTY_DATADIR_DEFAULT));
         this.tmpDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_TMPDIR, ServerConfiguration.PROPERTY_TMPDIR_DEFAULT));
-        String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
-        if (usersfile.isEmpty()) {
-            this.userManager = new SimpleSingleUserManager(configuration);
-        } else {
-            try {
-                Path userDirectoryFile = baseDirectory.resolve(usersfile).toAbsolutePath();
-                LOGGER.log(Level.INFO, "Reading users from file " + userDirectoryFile);
-                this.userManager = new FileBasedUserManager(userDirectoryFile);
-            } catch (IOException error) {
-                throw new RuntimeException(error);
+
+        String userManagerType = configuration.getString(ServerConfiguration.PROPERTY_USERS_MANAGER, ServerConfiguration.PROPERTY_USERS_MANAGER_DEFAULT);
+        switch (userManagerType) {
+            case ServerConfiguration.PROPERTY_USERS_MANAGER_FILE: {
+                String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
+                if (usersfile.isEmpty()) {
+                    this.userManager = new SimpleSingleUserManager(configuration);
+                } else {
+                    try {
+                        Path userDirectoryFile = baseDirectory.resolve(usersfile).toAbsolutePath();
+                        LOGGER.log(Level.INFO, "Reading users from file " + userDirectoryFile);
+                        this.userManager = new FileBasedUserManager(userDirectoryFile);
+                    } catch (IOException error) {
+                        throw new RuntimeException(error);
+                    }
+                }
+                break;
+            }
+            case ServerConfiguration.PROPERTY_USERS_MANAGER_TOKEN: {
+                try {
+                    this.userManager  = new TokenAuthenticator(configuration);
+                } catch (Exception error) {
+                    throw new RuntimeException(error);
+                }
+                break;
             }
         }
+
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
