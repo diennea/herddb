@@ -94,7 +94,7 @@
         <libs.calcite>1.32.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>2.14.1</libs.jackson.mapper>
-        <libs.zookeeper>3.9.1</libs.zookeeper>
+        <libs.zookeeper>3.9.2</libs.zookeeper>
         <libs.jsqlparser>3.2</libs.jsqlparser>
         <libs.curator>5.4.0</libs.curator>
         <libs.guava>31.0.1-jre</libs.guava>
