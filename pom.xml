@@ -916,7 +916,7 @@
     <repositories>
        <repository> 
            <id>bookkeeper-staging</id>
-           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1097</url>
+           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1095</url>
        </repository>
     </repositories>
     <!-- -->
