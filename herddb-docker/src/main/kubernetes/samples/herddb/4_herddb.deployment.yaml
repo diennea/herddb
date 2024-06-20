@@ -1,0 +1,46 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: herddb
+spec:
+  selector:
+    matchLabels:
+      app: herddb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: herddb
+    spec:
+      containers:
+        - envFrom:
+            - configMapRef:
+                name: herddb-config
+          image: 'herddb/herddb-server:latest'
+          imagePullPolicy: IfNotPresent
+          name: herddb
+          ports:
+            - containerPort: 9485
+              name: http
+            - containerPort: 7000
+              name: database
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9485
+              initialDelaySeconds: 3
+              periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9485
+              initialDelaySeconds: 3
+              periodSeconds: 3
+          volumeMounts:
+            - mountPath: /data
+              name: herddb-data
+      restartPolicy: Always
+      volumes:
+        - name: herddb-data
+          persistentVolumeClaim:
+            claimName: herddb-pv-claim

@@ -1,0 +1,27 @@
+## from https://raw.githubusercontent.com/apache/bookkeeper/master/deploy/kubernetes/gke/bookkeeper.yaml
+
+##
+## Run BookKeeper auto-recovery from a different set of containers
+## Auto-Recovery makes sure to restore the replication factor when any bookie
+## crashes and it's not recovering on its own.
+##
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: bookie-autorecovery
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: bookkeeper
+        component: bookkeeper-replication
+    spec:
+      containers:
+        - name: replication-worker
+          image: apache/bookkeeper:latest
+          command: [ "/bin/bash", "/opt/bookkeeper/entrypoint.sh" ]
+          args: ["/opt/bookkeeper/bin/bookkeeper", "autorecovery"]
+          envFrom:
+            - configMapRef:
+                name: bookie-config

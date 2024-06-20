@@ -1,0 +1,22 @@
+## from https://raw.githubusercontent.com/apache/bookkeeper/master/deploy/kubernetes/gke/bookkeeper.yaml
+
+##
+## Define the Bookie headless service
+## In practice, in this case, it is only useful to have a view of
+## all the bookie pods that are present
+##
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookie
+  labels:
+    app: bookkeeper
+    component: bookie
+spec:
+  ports:
+    - port: 3181
+      name: server
+  clusterIP: None
+  selector:
+    app: bookkeeper
+    component: bookie
