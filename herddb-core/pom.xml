@@ -34,6 +34,16 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>io.github.jbellis</groupId>
+            <artifactId>jvector</artifactId>
+            <version>1.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.indeed</groupId>
+            <artifactId>util-mmap</artifactId>
+            <version>1.0.52-3042601</version>
+        </dependency>
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-utils</artifactId>
             <version>${project.version}</version>
@@ -188,6 +198,12 @@
                     <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.openjpa</groupId>
+            <artifactId>openjpa-kernel</artifactId>
+            <version>3.1.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>
