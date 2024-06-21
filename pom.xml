@@ -101,7 +101,7 @@
         <libs.slf4j>2.0.4</libs.slf4j>
         <libs.commonscollections>3.2.2</libs.commonscollections>
         <libs.lz4>1.3.0</libs.lz4>
-        <libs.bookkeeper>4.16.3</libs.bookkeeper>
+	<libs.bookkeeper>4.17.1</libs.bookkeeper>
         <libs.jersey>2.26</libs.jersey>
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations>
         <libs.spotbugsannotations>4.7.3</libs.spotbugsannotations>
@@ -911,12 +911,13 @@
         </profile>
     </profiles>
     <!--
-    Uncomment this repository in order to test upcoming BK releases
+	    Uncomment this repository in order to test upcoming BK releases
+    -->    
     <repositories>
        <repository> 
            <id>bookkeeper-staging</id>
-           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-xxx</url>
+           <url>https://repository.apache.org/content/repositories/orgapachebookkeeper-1098/</url>
        </repository>
     </repositories>
-    -->
+    <!-- -->
 </project>
