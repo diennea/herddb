@@ -30,7 +30,7 @@
     <packaging>jar</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
-        <jetty.version>9.4.51.v20230217</jetty.version>
+        <jetty.version>9.4.55.v20240627</jetty.version>
         <libs.jaxws.jaxb-api>2.3.0</libs.jaxws.jaxb-api>
         <libs.jaxws.jaxb-impl>2.3.0</libs.jaxws.jaxb-impl>
         <libs.javaxactivation.api>1.2.0</libs.javaxactivation.api>
