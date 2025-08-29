@@ -745,7 +745,7 @@
                         <configuration>
                             <publishingServerId>ossrh</publishingServerId>
                             <centralBaseUrl>https://central.sonatype.com</centralBaseUrl>
-                            <autoPublish>false</autoPublish>
+                            <autoPublish>true</autoPublish>
                         </configuration>
                     </plugin>
                     <plugin>
