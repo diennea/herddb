@@ -1294,6 +1294,31 @@ public abstract class PduCodec {
 
         }
 
+        /**
+         * The command of the message that tells the receiver of a dump that the dump will not be completed. The
+         * stream of a dump is one way, so this is the only thing that tells a receiver waiting for the next chunk
+         * from one that is waiting for a chunk nobody is going to send.
+         */
+        public static final String COMMAND_ERROR = "error";
+
+        /**
+         * Reports that a dump failed. Nothing is added to the message: the reason takes the place of the table
+         * definition, which a message that carries no table has no use for, so a reader that predates this is not
+         * asked to understand anything new.
+         */
+        public static ByteBuf writeError(long messageId, String tableSpace, String dumpId, String reason) {
+            return write(messageId, tableSpace, dumpId, COMMAND_ERROR,
+                    reason == null ? null : reason.getBytes(StandardCharsets.UTF_8),
+                    0, 0, 0, null, null);
+        }
+
+        /**
+         * @return why the dump failed, or an empty string when the sender did not say
+         */
+        public static String readErrorReason(Pdu pdu) {
+            return new String(readTableDefinition(pdu), StandardCharsets.UTF_8);
+        }
+
         public static long readLedgerId(Pdu pdu) {
             ByteBuf buffer = pdu.buffer;
             return buffer.getLong(VERSION_SIZE
@@ -1576,6 +1601,42 @@ public abstract class PduCodec {
                 res.add(ByteBufUtils.readArray(buffer));
             }
             return res;
+        }
+
+    }
+
+    /**
+     * Tells the leader of a tablespace that a restore is about to replace the whole content of that tablespace.
+     */
+    public static class RestoreStarted {
+
+        public static ByteBuf write(long messageId, String tableSpace) {
+            ByteBuf byteBuf = PooledByteBufAllocator.DEFAULT
+                    .directBuffer(
+                            VERSION_SIZE
+                                    + FLAGS_SIZE
+                                    + TYPE_SIZE
+                                    + MSGID_SIZE
+                                    + tableSpace.length());
+            byteBuf.writeByte(VERSION_3);
+            byteBuf.writeByte(Pdu.FLAGS_ISREQUEST);
+            byteBuf.writeByte(Pdu.TYPE_RESTORE_STARTED);
+            byteBuf.writeLong(messageId);
+
+            ByteBufUtils.writeString(byteBuf, tableSpace);
+
+            return byteBuf;
+
+        }
+
+        public static String readTablespace(Pdu pdu) {
+            ByteBuf buffer = pdu.buffer;
+            buffer.readerIndex(VERSION_SIZE
+                    + FLAGS_SIZE
+                    + TYPE_SIZE
+                    + MSGID_SIZE
+            );
+            return ByteBufUtils.readString(buffer);
         }
 
     }

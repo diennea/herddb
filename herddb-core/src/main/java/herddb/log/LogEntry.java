@@ -142,6 +142,11 @@ public class LogEntry {
             case LogEntryType.DROP_INDEX:
                 doo.writeArray(this.value);
                 break;
+            case LogEntryType.RESTORED_FROM_SNAPSHOT:
+                // the marker is about the whole tablespace, there is no table to name here
+                // value contains the description of the restore
+                doo.writeArray(this.value);
+                break;
             case LogEntryType.BEGINTRANSACTION:
             case LogEntryType.COMMITTRANSACTION:
             case LogEntryType.ROLLBACKTRANSACTION:
@@ -197,6 +202,10 @@ public class LogEntry {
                 case LogEntryType.DROP_INDEX:
                     value = dis.readBytes();
                     break;
+                case LogEntryType.RESTORED_FROM_SNAPSHOT:
+                    // value contains the description of the restore
+                    value = dis.readBytes();
+                    break;
                 case LogEntryType.CREATE_INDEX:
                     tableName = dis.readUTF();
                     value = dis.readBytes();
@@ -218,6 +227,11 @@ public class LogEntry {
                     value = dis.readBytes();
                     break;
                 default:
+                    // Deliberately strict, and left that way: an entry whose type this version does not understand
+                    // is an entry whose effect on the tablespace this version cannot reproduce, and replaying the
+                    // log around it would build a content that never existed. Refusing to read it stops the node
+                    // instead. See LogEntryType.RESTORED_FROM_SNAPSHOT for what that means when a version that
+                    // writes a new entry type meets a version that does not know it.
                     throw new IllegalArgumentException("unsupported type " + type);
             }
             return new LogEntry(timestamp, type, transactionId, tableName, key, value);

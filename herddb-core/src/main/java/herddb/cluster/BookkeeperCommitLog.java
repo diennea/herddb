@@ -701,6 +701,9 @@ public class BookkeeperCommitLog extends CommitLog {
                                     new Object[]{start, end, percent, (_stop - _start) + " ms", tableSpaceDescription});
                         }
                     }
+                } catch (FullRecoveryNeededException err) {
+                    // not an internal error: the caller knows how to boot the tablespace anyway
+                    throw err;
                 } catch (RuntimeException err) {
                     LOGGER.log(Level.SEVERE, "Internal error while recovering tablespace " + tableSpaceDescription() + ": " + err, err);
                     throw err;
@@ -715,6 +718,14 @@ public class BookkeeperCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription(), err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
+        } catch (FullRecoveryNeededException err) {
+            // The log itself is healthy, it just cannot be replayed from the requested position:
+            // the caller is expected to download the whole content of the tablespace from the leader
+            // and to run recovery again from the sequence number of that snapshot. Marking the log as
+            // failed here would make the tablespace manager fail right after the successful download.
+            LOGGER.log(Level.INFO, "Recovery of " + tableSpaceDescription()
+                    + " requires a full download of the data of the tablespace: " + err, err);
+            throw err;
         } catch (LogNotAvailableException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery of " + tableSpaceDescription(), err);
             signalLogFailed();
@@ -1023,7 +1034,14 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                     try (LedgerEntries entries = lh.read(startEntry, endEntry)) {
                         for (org.apache.bookkeeper.client.api.LedgerEntry ee : entries) {
-                            acceptEntryForFollower(ee, consumer);
+                            if (!acceptEntryForFollower(ee, consumer)) {
+                                // the answer of the acceptor means the same here as it does for the first entry
+                                // of the round: the reader does not want any more. Reading a batch is a way of
+                                // saving round trips to the bookies, not a licence to deliver entries that were
+                                // not asked for
+                                LOGGER.log(Level.INFO, "exit follower {0}", tableSpaceDescription());
+                                return;
+                            }
                         }
                     }
                 }

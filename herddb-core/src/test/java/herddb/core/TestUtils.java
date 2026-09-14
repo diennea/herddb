@@ -96,6 +96,15 @@ public class TestUtils {
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
     }
 
+    /**
+     * Runs a query using the given tablespace as the default one, for the cases in which the default tablespace of the
+     * cluster is not available on this node.
+     */
+    public static DataScanner scanWithDefaultTableSpace(DBManager manager, String tableSpace, String query, List<Object> parameters) throws StatementExecutionException {
+        TranslatedQuery translated = manager.getPlanner().translate(tableSpace, query, parameters, true, true, false, -1);
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
+    }
+
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
         TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true, false, -1);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;

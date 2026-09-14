@@ -173,6 +173,25 @@ public final class ServerConfiguration {
     public static final long PROPERTY_ABANDONED_TRANSACTIONS_TIMEOUT_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
 
     /**
+     * How long a restore from a snapshot may make no progress at all before the node gives up on it.
+     * <p>
+     * A restore is driven by a client, one request at a time, and it replaces the whole content of a tablespace: while
+     * it runs, that tablespace holds a fragment of the snapshot and takes no checkpoint, so its commit log is never
+     * trimmed. A client that goes away without saying so is noticed as soon as its connection closes; one that stays
+     * connected and simply stops is noticed by this timeout. It measures inactivity, not duration, so a restore of a
+     * large snapshot is never interrupted for taking its time.
+     * </p>
+     * <p>
+     * A node that only replicates the tablespace cannot checkpoint while the restore is open either, and it has no
+     * request of that restore to measure: for it this is how long it waits for the restore to be closed before it
+     * boots the tablespace again and reads the log afresh. Nothing of the restore depends on that node, so a
+     * restore that takes longer than this costs the replicas of the tablespace one boot each.
+     * </p>
+     */
+    public static final String PROPERTY_RESTORE_MAX_INACTIVITY_TIME = "server.restore.max.inactivity.time";
+    public static final long PROPERTY_RESTORE_MAX_INACTIVITY_TIME_DEFAULT = 1000L * 60 * 15; // 15 min, use 0 to disable
+
+    /**
      * Maximum dirty bytes percentage at which a pages will be considered for
      * rebuild during a checkpoint. This value must be between 0 and 1.0. By
      * default, the value is 0.25.

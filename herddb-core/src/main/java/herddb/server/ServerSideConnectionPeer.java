@@ -30,11 +30,13 @@ import herddb.client.DMLResult;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractTableManager;
 import herddb.core.HerdDBInternalException;
 import herddb.core.RunningStatementInfo;
 import herddb.core.RunningStatementsStats;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
+import herddb.core.TableSpaceRestoreRefusedException;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLStatementExecutionResult;
@@ -82,6 +84,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -113,6 +116,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
      * Scanner is bound to the socket (NettyChannel)
      */
     private final ConcurrentMap<Long, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
+    /**
+     * Tablespaces this connection has started a restore on and not finished yet. A restore replaces the whole content
+     * of a tablespace and is driven step by step by the client, so a connection that goes away in the middle of one
+     * leaves the tablespace holding a fragment of the snapshot with nobody able to complete it.
+     */
+    private final Set<String> tableSpacesBeingRestored = ConcurrentHashMap.newKeySet();
     private volatile boolean authenticated;
     private volatile SaslNettyServer saslNettyServer;
     private final String address;
@@ -247,6 +256,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     handleTableRestoreFinished(message, channel);
                 }
                 break;
+                case Pdu.TYPE_RESTORE_STARTED: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(channel, message);
+                        break;
+                    }
+                    handleRestoreStarted(message, channel);
+                }
+                break;
                 case Pdu.TYPE_RESTORE_FINISHED: {
                     if (!authenticated) {
                         sendAuthRequiredError(channel, message);
@@ -294,12 +311,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     .cloning(tableSchema)
                     .tablespace(tableSpace)
                     .build();
-            server.getManager()
-                    .getTableSpaceManager(tableSpace)
+            tableSpaceManagerForRestore(tableSpace)
                     .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -307,6 +323,28 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     private static ByteBuf composeErrorResponse(long messageId, Throwable err) {
         return PduCodec.ErrorResponse.write(messageId, err, err instanceof NotLeaderException, false);
+    }
+
+    /**
+     * Looks up the manager of a tablespace that is being restored on this node. Every step of a restore is a request
+     * the client is waiting an answer for, so a tablespace that is not here has to be reported as an error of that
+     * request: letting a NullPointerException escape the dispatcher would leave the client waiting for a reply that
+     * nobody is going to send.
+     * <p>
+     * It is also the one place every step of a restore goes through, which is what makes it the place to tell the
+     * tablespace that its restore is being driven: a restore is inhibiting the checkpoints of that tablespace for as
+     * long as it runs, and the difference between a restore of a large snapshot and one that has been abandoned by a
+     * client that never closed its connection is exactly whether these requests keep coming.
+     * </p>
+     */
+    private TableSpaceManager tableSpaceManagerForRestore(String tableSpace) {
+        TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("tablespace " + tableSpace + " is not available on node "
+                    + server.getNodeId());
+        }
+        tableSpaceManager.restoreInProgress();
+        return tableSpaceManager;
     }
 
     private void handleTableRestoreFinished(Pdu message, Channel channel) {
@@ -321,13 +359,49 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             LOGGER.log(Level.INFO, "tableRestoreFinished, table {0}, with {1} indexes", new Object[]{table, indexes.size()});
 
-            server.getManager()
-                    .getTableSpaceManager(tableSpace)
-                    .restoreTableFinished(table, indexes);
+            tableSpaceManagerForRestore(tableSpace).restoreTableFinished(table, indexes);
 
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
+            ByteBuf res = composeErrorResponse(message.messageId, err);
+            channel.sendReplyMessage(message.messageId, res);
+        }
+    }
+
+    private void handleRestoreStarted(Pdu message, Channel channel) {
+        try {
+            String tableSpace = PduCodec.RestoreStarted.readTablespace(message);
+            TableSpaceManager tableSpaceManager = tableSpaceManagerForRestore(tableSpace);
+            LOGGER.log(Level.INFO, "restoreStarted, tableSpace {0}", tableSpace);
+
+            // From now on this connection owns a restore that is not complete: if the connection goes away before the
+            // restore is over the tablespace is left holding a fragment of the snapshot and has to be taken out of
+            // service, see channelClosed(). This is registered before the restore is opened, not after: a failure of
+            // beginRestore() can still leave the marker on the log, in which case the tablespace really is in the
+            // middle of a restore, with its checkpoints inhibited, and nobody but this connection knows about it.
+            boolean firstRestoreOfThisTableSpace = tableSpacesBeingRestored.add(tableSpace);
+            try {
+                tableSpaceManager.beginRestore();
+            } catch (TableSpaceRestoreRefusedException refused) {
+                // The one failure that wrote nothing at all: no restore was opened and the tablespace is exactly as
+                // it was. Owning it would take a healthy tablespace, holding the data of whoever aimed this restore
+                // at it by mistake, out of service as soon as this connection closes.
+                //
+                // Unless this connection already owned a restore of that tablespace. What is owned is one restore
+                // per tablespace name, so a client that aims a second restore at a tablespace whose first one is
+                // still open, which is what a client retrying after a failure in the middle does, is refused
+                // precisely because the first attempt left tables behind. Forgetting the tablespace here would
+                // hand back the ownership of an attempt that really is open, and nothing would ever give up on it.
+                if (firstRestoreOfThisTableSpace) {
+                    tableSpacesBeingRestored.remove(tableSpace);
+                }
+                throw refused;
+            }
+
+            ByteBuf res = PduCodec.AckResponse.write(message.messageId);
+            channel.sendReplyMessage(message.messageId, res);
+        } catch (HerdDBInternalException err) {
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -337,13 +411,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         try {
             String tableSpace = PduCodec.TableRestoreFinished.readTablespace(message);
 
-            server.getManager()
-                    .getTableSpaceManager(tableSpace)
-                    .restoreFinished();
+            tableSpaceManagerForRestore(tableSpace).restoreFinished();
+            tableSpacesBeingRestored.remove(tableSpace);
 
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
+            // restoreFinished() writes a marker on the commit log and takes a checkpoint, so besides a
+            // StatementExecutionException it can report a LogNotAvailableException or a DataStorageManagerException.
+            // They are all HerdDBInternalException: catching less than that would let the exception escape the
+            // dispatcher of this connection, no reply would ever be sent, and the client would sit on the request
+            // until its own socket timeout, reporting a timeout instead of the real reason
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -363,15 +441,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             Bytes.from_array(value))));
 
             LOGGER.log(Level.INFO, "Received {0} records for restore of table {1} in tableSpace {2}", new Object[]{records.size(), table, tableSpace});
-            TableManager tableManager = (TableManager) server.getManager()
-                    .getTableSpaceManager(tableSpace)
-                    .getTableManager(table);
-            tableManager.writeFromDump(records);
+            AbstractTableManager tableManager = tableSpaceManagerForRestore(tableSpace).getTableManager(table);
+            if (!(tableManager instanceof TableManager)) {
+                throw new StatementExecutionException("table " + table + " of tablespace " + tableSpace
+                        + " is not being restored on node " + server.getNodeId());
+            }
+            ((TableManager) tableManager).writeFromDump(records);
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.INFO, "Time restore {0} records: data {1} ms", new Object[]{records.size(), _stop - _start});
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -390,12 +470,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             LOGGER.log(Level.INFO, "Received {0} records for restore of txlog in tableSpace {1}", new Object[]{entries.size(), tableSpace});
 
-            server.getManager().getTableSpaceManager(tableSpace)
-                    .restoreRawDumpedEntryLogs(entries);
+            tableSpaceManagerForRestore(tableSpace).restoreRawDumpedEntryLogs(entries);
 
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException | EOFException err) {
+        } catch (HerdDBInternalException | EOFException err) {
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -412,11 +491,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             LOGGER.log(Level.INFO, "Received " + entries.size() + " records for restore of transactions in tableSpace " + tableSpace);
 
-            server.getManager().getTableSpaceManager(tableSpace).restoreRawDumpedTransactions(entries);
+            tableSpaceManagerForRestore(tableSpace).restoreRawDumpedTransactions(entries);
 
             ByteBuf res = PduCodec.AckResponse.write(message.messageId);
             channel.sendReplyMessage(message.messageId, res);
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
             ByteBuf res = composeErrorResponse(message.messageId, err);
             channel.sendReplyMessage(message.messageId, res);
         }
@@ -1134,6 +1213,24 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private void freeResources() {
         scanners.values().forEach(ServerSideScannerPeer::close);
         scanners.clear();
+        abandonRestores();
+    }
+
+    /**
+     * Gives up on the restores this connection was running. Nobody else can complete them: the data of a restore comes
+     * from the client, one request at a time, and the client is gone.
+     */
+    private void abandonRestores() {
+        if (tableSpacesBeingRestored.isEmpty()) {
+            return;
+        }
+        for (String tableSpace : tableSpacesBeingRestored) {
+            TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(tableSpace);
+            if (tableSpaceManager != null) {
+                tableSpaceManager.abortRestore("the connection that was running it is gone (" + this + ")");
+            }
+        }
+        tableSpacesBeingRestored.clear();
     }
 
     ConnectionsInfo.ConnectionInfo toConnectionInfo() {

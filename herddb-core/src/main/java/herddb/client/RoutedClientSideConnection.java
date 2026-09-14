@@ -241,6 +241,14 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                                 receiver.receiveTransactionsAtDump(transactions);
                                 break;
                             }
+                            case PduCodec.TablespaceDumpData.COMMAND_ERROR: {
+                                // the dump will not be completed. Nothing else is coming down this stream, and a
+                                // receiver that is not told goes on waiting for the next chunk until a timeout of
+                                // its own expires, with nothing to say about what went wrong
+                                String reason = PduCodec.TablespaceDumpData.readErrorReason(message);
+                                throw new DataStorageManagerException("the dump was interrupted by the server"
+                                        + (reason.isEmpty() ? ", which did not say why" : ": " + reason));
+                            }
                             default:
                                 throw new DataStorageManagerException("invalid dump command:" + command);
                         }
@@ -802,6 +810,20 @@ public class RoutedClientSideConnection implements ChannelEventListener, ClientS
                 switch (entryType) {
 
                     case BackupFileConstants.ENTRY_TYPE_START: {
+                        // the server writes a marker on the commit log of the tablespace: the data that is
+                        // about to be streamed does not go through the log, so this marker is the only way
+                        // for any other node to know that replaying that log cannot rebuild the tablespace.
+                        //
+                        // DECLARED BREAKING CHANGE: this message is always sent, with no fallback and no
+                        // capability negotiation, so a client of this version cannot restore a tablespace on a
+                        // server that predates it: an older server answers "unsupported message type" and the
+                        // restore aborts here, before any data is written. This is deliberate. A restore that
+                        // silently skipped the marker would produce exactly the tablespace this marker exists to
+                        // prevent: one whose commit log claims to describe a content that it never saw.
+                        Channel channel = ensureOpen();
+                        long id = channel.generateRequestId();
+                        ByteBuf message_restore_started = PduCodec.RestoreStarted.write(id, tableSpace);
+                        sendMessageAndCheckNoError(channel, id, message_restore_started);
                         break;
                     }
 

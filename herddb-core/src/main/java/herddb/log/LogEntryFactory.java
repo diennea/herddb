@@ -89,6 +89,15 @@ public class LogEntryFactory {
                 transaction != null ? transaction.transactionId : 0, table.name, null, null);
     }
 
+    /**
+     * Builds the marker that tells that the content of the tablespace has been replaced by a snapshot. It is not
+     * bound to a table, and it is never part of a transaction: it describes the whole tablespace.
+     */
+    public static LogEntry restoredFromSnapshot(RestoredFromSnapshot restore) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.RESTORED_FROM_SNAPSHOT,
+                0, null, null, Bytes.from_array(restore.serialize()));
+    }
+
     public static LogEntry noop() {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.NOOP,
                 -1, null, null, null);
