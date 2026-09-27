@@ -89,20 +89,20 @@ public class MemoryManager {
         switch (PAGE_REPLACEMENT_POLICY) {
             case "random":
                 dataPageReplacementPolicy = new RandomPageReplacementPolicy(dataPages);
-                indexPageReplacementPolicy = indexPages > 0 ? new RandomPageReplacementPolicy(dataPages) : dataPageReplacementPolicy;
+                indexPageReplacementPolicy = indexPages > 0 ? new RandomPageReplacementPolicy(indexPages) : dataPageReplacementPolicy;
                 pkPageReplacementPolicy = new RandomPageReplacementPolicy(pkPages);
                 break;
 
             case "cp":
                 dataPageReplacementPolicy = new ClockProPolicy(dataPages);
-                indexPageReplacementPolicy = indexPages > 0 ? new ClockProPolicy(dataPages) : dataPageReplacementPolicy;
+                indexPageReplacementPolicy = indexPages > 0 ? new ClockProPolicy(indexPages) : dataPageReplacementPolicy;
                 pkPageReplacementPolicy = new ClockProPolicy(pkPages);
                 break;
 
             case "car":
             default:
                 dataPageReplacementPolicy = new ClockAdaptiveReplacement(dataPages);
-                indexPageReplacementPolicy = indexPages > 0 ? new ClockAdaptiveReplacement(dataPages) : dataPageReplacementPolicy;
+                indexPageReplacementPolicy = indexPages > 0 ? new ClockAdaptiveReplacement(indexPages) : dataPageReplacementPolicy;
                 pkPageReplacementPolicy = new ClockAdaptiveReplacement(pkPages);
         }
 
