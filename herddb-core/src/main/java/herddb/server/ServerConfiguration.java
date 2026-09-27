@@ -448,7 +448,7 @@ public final class ServerConfiguration {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
             set(PROPERTY_NODEID, "local");
             if (before.startsWith("jdbc:herddb:local:")) {
-                String databaseId = before.substring("jdbc:herddb:local:".length() + 1).trim().toLowerCase();
+                String databaseId = before.substring("jdbc:herddb:local:".length()).trim().toLowerCase();
                 if (!databaseId.isEmpty()) {
                     set(PROPERTY_HOST, databaseId);
                     set(PROPERTY_PORT, 0);
