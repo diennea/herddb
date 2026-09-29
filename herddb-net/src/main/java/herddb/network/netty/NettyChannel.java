@@ -23,6 +23,7 @@ import herddb.network.SendResultCallback;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import java.util.concurrent.ExecutorService;
@@ -59,6 +60,7 @@ public class NettyChannel extends AbstractChannel {
 
         io.netty.channel.Channel _socket = this.socket;
         if (_socket == null || !_socket.isOpen()) {
+            ReferenceCountUtil.safeRelease(message);
             callback.messageSent(new Exception(this + " connection is closed"));
             return;
         }

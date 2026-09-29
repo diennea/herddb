@@ -56,10 +56,34 @@ public abstract class Channel implements AutoCloseable {
         this.messagesReceiver = messagesReceiver;
     }
 
+    /**
+     * Sends a message, without expecting any answer. The channel takes ownership of the buffer: the caller must not
+     * release it, nor touch it after this call. A message that cannot be sent, because the channel is already gone, is
+     * released by the channel itself, so callers never have to check the state of the channel beforehand.
+     *
+     * @param message the message to send
+     * @param callback notified with the outcome of the send
+     */
     public abstract void sendOneWayMessage(ByteBuf message, SendResultCallback callback);
 
+    /**
+     * Sends an answer to a message received from the other side. The channel takes ownership of the buffer, with the
+     * same rules as {@link #sendOneWayMessage(ByteBuf, SendResultCallback)}.
+     *
+     * @param inAnswerTo the id of the message being answered
+     * @param message the message to send
+     */
     public abstract void sendReplyMessage(long inAnswerTo, ByteBuf message);
 
+    /**
+     * Sends a message and waits asynchronously for the answer of the other side. The channel takes ownership of the
+     * buffer, with the same rules as {@link #sendOneWayMessage(ByteBuf, SendResultCallback)}.
+     *
+     * @param id the id of the message, the answer will carry it back
+     * @param message the message to send
+     * @param timeout how long to wait for the answer, in milliseconds
+     * @param callback notified with the answer, or with the error that prevented it
+     */
     public abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback);
 
     public abstract void channelIdle();
