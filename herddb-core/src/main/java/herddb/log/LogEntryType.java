@@ -41,5 +41,29 @@ public class LogEntryType {
     public static final short TRUNCATE_TABLE = 12;
     public static final short NOOP = 13;
     public static final short TABLE_CONSISTENCY_CHECK = 14;
+    /**
+     * The content of the tablespace has been replaced by a snapshot, see {@link RestoredFromSnapshot}.
+     *
+     * <p>
+     * <b>DECLARED BREAKING CHANGE of the commit log format.</b> This is the first entry type added since the format
+     * was frozen, and {@code LogEntry.deserialize} answers a type it does not know with an exception, on purpose: an
+     * entry it cannot read is an entry whose effect it cannot reproduce, and carrying on would rebuild a content the
+     * tablespace never had. That guard is not being relaxed, so this type has consequences for a rolling upgrade
+     * that have to be planned for:
+     * </p>
+     * <ul>
+     * <li><b>Upgrade the replicas before the leader.</b> The first restore run on an upgraded leader puts this entry
+     * on the commit log of the tablespace, and every replica still running a version that predates this type dies
+     * while replaying it, with {@code unsupported type 15}.</li>
+     * <li><b>Once a restore has run on a tablespace, no node serving that tablespace can be rolled back</b> to a
+     * version that predates this type: the entry stays on the log until a checkpoint above it lets the ledgers below
+     * be dropped, and a downgraded node meets it as soon as it replays that far.</li>
+     * <li>A backup is unaffected and can still be restored on a version that predates this type. A backup does carry
+     * log entries, but never one of these: a dump holds the tablespace locked, for write and then for read, for the
+     * whole time its listener is attached to the commit log, and a restore needs that same write lock to open itself,
+     * so no marker can ever be written while a dump is being taken.</li>
+     * </ul>
+     */
+    public static final short RESTORED_FROM_SNAPSHOT = 15;
 
 }

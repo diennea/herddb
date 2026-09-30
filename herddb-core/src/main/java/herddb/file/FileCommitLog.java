@@ -22,6 +22,7 @@ package herddb.file;
 
 import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
+import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
@@ -681,6 +682,13 @@ public class FileCommitLog extends CommitLog {
             recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
 
             LOGGER.log(Level.INFO, "Tablespace {1}, max ledgerId is {0}", new Object[]{currentLedgerId, tableSpaceName});
+        } catch (FullRecoveryNeededException err) {
+            // The log itself is healthy, it just cannot be replayed from the requested position:
+            // the caller is expected to rebuild the content of the tablespace from another source.
+            // Marking the log as failed here, or wrapping the exception, would prevent that fallback.
+            LOGGER.log(Level.INFO, "Recovery of tablespace " + tableSpaceName
+                    + " requires a full download of the data of the tablespace: " + err, err);
+            throw err;
         } catch (IOException | RuntimeException err) {
             failed = true;
             throw new LogNotAvailableException(err);

@@ -15,6 +15,10 @@
 *.iml
 **/.DS_Store
 
+# Claude Code local settings, session data and guidance files, never committed
+.claude/
+CLAUDE.md
+
 # Release
 pom.xml.tag
 pom.xml.releaseBackup

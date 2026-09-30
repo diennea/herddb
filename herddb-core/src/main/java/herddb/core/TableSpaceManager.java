@@ -61,6 +61,8 @@ import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.log.RestoredFromSnapshot;
+import herddb.log.RestoredFromSnapshotException;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Column;
@@ -118,16 +120,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -153,6 +154,12 @@ public class TableSpaceManager {
     private static final boolean ENABLE_PENDING_TRANSACTION_CHECK = SystemProperties.getBooleanSystemProperty("herddb.tablespace.checkpendingtransactions", true);
 
     private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
+
+    /**
+     * How long the acknowledgement of the message that reports a failed dump is waited for. Nothing depends on that
+     * acknowledgement, this only bounds how long the message is remembered for.
+     */
+    private static final long DUMP_FAILED_TIMEOUT = 60000;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     final StatsLogger tablespaceStasLogger;
@@ -164,7 +171,6 @@ public class TableSpaceManager {
     private final String tableSpaceName;
     private final String tableSpaceUUID;
     private final String nodeId;
-    private final ConcurrentSkipListSet<String> tablesNeedingCheckPoint = new ConcurrentSkipListSet<>();
     private final ConcurrentHashMap<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AbstractIndexManager> indexes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
@@ -180,6 +186,73 @@ public class TableSpaceManager {
     private volatile boolean closed;
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
+
+    /**
+     * Position of the marker that opened the restore from a snapshot that is running on this tablespace, or
+     * {@code null} when no restore is open. Every marker that changes it goes through
+     * {@link #applyRestoredFromSnapshot}, whether the marker is being replayed at boot, applied by a follower tailing
+     * the leader or written by the restore itself. The other writes of the field read no marker at all and belong to
+     * the lifecycle of a boot: {@link #replayLog} clears it before every pass over the log, and
+     * {@link #writeRestoredFromSnapshotMarker} sets it by hand when the marker did reach the log but could not be
+     * applied.
+     * <p>
+     * A restore writes tables, records and indexes straight into the storage and nothing to the log, so the marker
+     * that opens it is the only thing that tells a node booting after a crash that the content it holds is
+     * incomplete. While this field is set the content of the tablespace is a fragment of that snapshot and no
+     * checkpoint may persist it: a checkpoint would both write that incomplete content and move the position the
+     * tablespace is aligned to past the marker, so the next boot would start above the marker, never meet it, and
+     * declare the tablespace healthy while it holds half a snapshot. On a leader the same checkpoint also drops the
+     * ledgers up to that position, so the marker can be gone for good.
+     * </p>
+     */
+    private volatile LogSequenceNumber restoreFromSnapshot;
+
+    /**
+     * Whether the restore that is open on this tablespace is the one this node is serving, as opposed to one it only
+     * learned about by reading a marker somebody else wrote.
+     * <p>
+     * This is local knowledge and it is kept locally: the marker on the log says that a restore happened, and nothing
+     * about who is driving it. The one thing that depends on the answer is how this node gives up on a restore that
+     * has stopped making progress, because a node that is driving one can say that it was abandoned while a node that
+     * is merely watching can only say that it has waited long enough.
+     * </p>
+     */
+    private volatile boolean restoreDrivenByThisNode;
+
+    /**
+     * Position of the restore marker met while replaying the log during this boot, or {@code null} if there was none.
+     * <p>
+     * It is not cleared between the passes over the log a single boot makes, because what it records is a property of
+     * the local content of this node and not of one pass: the content the tablespace holds here stops below a point
+     * where the whole content was replaced, and reading the log again from a higher position does not put it back.
+     * Only downloading the content from the leader does, which is why that is the one thing that clears it.
+     * </p>
+     */
+    private volatile LogSequenceNumber restoreMarkerMetWhileBooting;
+
+    /**
+     * Position the snapshot currently being restored was taken at, on the system it comes from. It is the most recent
+     * of the positions of the dumped tables, and it is only known while a restore is running.
+     */
+    private volatile LogSequenceNumber restoreSourceLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+
+    /**
+     * When the restore that is open last did anything at all. Every request a restore served here is made of goes
+     * through {@link #restoreInProgress()}, so on the node that is running the restore this is its age rather than
+     * its duration: a restore of a large snapshot keeps it fresh for as long as it takes, and only a restore nobody
+     * is driving any more lets it go stale. On a node that is only watching somebody else's restore there is nothing
+     * to keep it fresh, and it stays at the moment the marker that opened the restore was read.
+     * <p>
+     * It is set wherever {@link #restoreFromSnapshot} is set, so it always describes the restore that is open now and
+     * never a restore that is already over.
+     * </p>
+     */
+    private volatile long restoreLastActivity;
+
+    /**
+     * How long a restore may make no progress at all before this node concludes that nobody is driving it any more.
+     */
+    private final long restoreMaxInactivityTime;
 
     // only for tests
     private Runnable afterTableCheckPointAction;
@@ -217,6 +290,9 @@ public class TableSpaceManager {
         this.virtual = virtual;
         this.tablespaceStasLogger = this.dbmanager.getStatsLogger().scope(this.tableSpaceName);
         this.checkpointTimeStats = this.tablespaceStasLogger.getOpStatsLogger("checkpointTime");
+        this.restoreMaxInactivityTime = dbmanager.getServerConfiguration().getLong(
+                ServerConfiguration.PROPERTY_RESTORE_MAX_INACTIVITY_TIME,
+                ServerConfiguration.PROPERTY_RESTORE_MAX_INACTIVITY_TIME_DEFAULT);
         this.dataStorageManager.tableSpaceMetadataUpdated(tableSpaceUUID, expectedReplicaCount);
     }
 
@@ -273,71 +349,92 @@ public class TableSpaceManager {
             throw new HerdDBInternalException("Cannot run recovery twice");
         }
         recoveryInProgress = true;
-        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
-        actualLogSequenceNumber = logSequenceNumber;
-        LOGGER.log(Level.INFO, "{0} recover {1}, logSequenceNumber from DataStorage: {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
-        List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceUUID);
-        List<Index> indexesAtBoot = dataStorageManager.loadIndexes(logSequenceNumber, tableSpaceUUID);
-        String tableNames = tablesAtBoot.stream().map(t -> {
-            return t.name;
-        }).collect(Collectors.joining(","));
+        try {
+            LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
+            actualLogSequenceNumber = logSequenceNumber;
+            LOGGER.log(Level.INFO, "{0} recover {1}, logSequenceNumber from DataStorage: {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
+            List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceUUID);
+            List<Index> indexesAtBoot = dataStorageManager.loadIndexes(logSequenceNumber, tableSpaceUUID);
+            String tableNames = tablesAtBoot.stream().map(t -> {
+                return t.name;
+            }).collect(Collectors.joining(","));
 
-        String indexNames = indexesAtBoot.stream().map(t -> {
-            return t.name + " on table " + t.table;
-        }).collect(Collectors.joining(","));
+            String indexNames = indexesAtBoot.stream().map(t -> {
+                return t.name + " on table " + t.table;
+            }).collect(Collectors.joining(","));
 
-        if (!tableNames.isEmpty()) {
-            LOGGER.log(Level.INFO, "{0} {1} tablesAtBoot: {2}, indexesAtBoot: {3}", new Object[]{nodeId, tableSpaceName, tableNames, indexNames});
-        }
-
-        for (Table table : tablesAtBoot) {
-            TableManager tableManager = bootTable(table, 0, null, false);
-            for (Index index : indexesAtBoot) {
-                if (index.table.equals(table.name)) {
-                    bootIndex(index, tableManager, false, 0, false, false);
-                }
+            if (!tableNames.isEmpty()) {
+                LOGGER.log(Level.INFO, "{0} {1} tablesAtBoot: {2}, indexesAtBoot: {3}", new Object[]{nodeId, tableSpaceName, tableNames, indexNames});
             }
-        }
-        dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
-            transactions.put(t.transactionId, t);
-            LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot lsn {3}", new Object[]{nodeId, tableSpaceName, t.transactionId, t.lastSequenceNumber});
-            try {
-                if (t.newTables != null) {
-                    for (Table table : t.newTables.values()) {
-                        if (!tables.containsKey(table.name)) {
-                            bootTable(table, t.transactionId, null, false);
-                        }
+
+            for (Table table : tablesAtBoot) {
+                TableManager tableManager = bootTable(table, 0, null, false);
+                for (Index index : indexesAtBoot) {
+                    if (index.table.equals(table.name)) {
+                        bootIndex(index, tableManager, false, 0, false, false);
                     }
                 }
-                if (t.newIndexes != null) {
-                    for (Index index : t.newIndexes.values()) {
-                        if (!indexes.containsKey(index.name)) {
-                            AbstractTableManager tableManager = tables.get(index.table);
-                            bootIndex(index, tableManager, false, t.transactionId, false, false);
+            }
+            dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
+                transactions.put(t.transactionId, t);
+                LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot lsn {3}", new Object[]{nodeId, tableSpaceName, t.transactionId, t.lastSequenceNumber});
+                try {
+                    if (t.newTables != null) {
+                        for (Table table : t.newTables.values()) {
+                            if (!tables.containsKey(table.name)) {
+                                bootTable(table, t.transactionId, null, false);
+                            }
                         }
                     }
+                    if (t.newIndexes != null) {
+                        for (Index index : t.newIndexes.values()) {
+                            if (!indexes.containsKey(index.name)) {
+                                AbstractTableManager tableManager = tables.get(index.table);
+                                bootIndex(index, tableManager, false, t.transactionId, false, false);
+                            }
+                        }
+                    }
+                } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE, "error while booting tmp tables " + err, err);
+                    throw new RuntimeException(err);
                 }
-            } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error while booting tmp tables " + err, err);
-                throw new RuntimeException(err);
-            }
-        });
+            });
 
-        if (LogSequenceNumber.START_OF_TIME.equals(logSequenceNumber)
-                && dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
-            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
-            downloadTableSpaceData();
-            log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
-        } else {
-            try {
-                log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
-            } catch (FullRecoveryNeededException fullRecoveryNeeded) {
-                LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+            boolean thisNodeIsTheLeader = tableSpaceInfo != null && nodeId.equals(tableSpaceInfo.leaderId);
+            if (LogSequenceNumber.START_OF_TIME.equals(logSequenceNumber)
+                    && dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT, ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT_DEFAULT)) {
+                LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is forced (" + ServerConfiguration.PROPERTY_BOOT_FORCE_DOWNLOAD_SNAPSHOT + "=true) for tableSpace " + tableSpaceName);
                 downloadTableSpaceData();
-                log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
+                replayLog(actualLogSequenceNumber, false, thisNodeIsTheLeader);
+            } else {
+                try {
+                    replayLog(logSequenceNumber, false, thisNodeIsTheLeader);
+                } catch (FullRecoveryNeededException fullRecoveryNeeded) {
+                    // a restore marker met by the leader never gets here: replayLog refuses to boot the tablespace
+                    // instead, because the leader is the one node that has nowhere to download the data from
+                    LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+                    try {
+                        downloadTableSpaceData();
+                        replayLog(actualLogSequenceNumber, false, thisNodeIsTheLeader);
+                    } catch (FullRecoveryNeededException stillNotEnough) {
+                        // the data downloaded from the leader still does not allow us to replay the log:
+                        // downloading it again would not change anything, there is nothing else to try
+                        stillNotEnough.addSuppressed(fullRecoveryNeeded);
+                        throw new DataStorageManagerException("Tablespace " + tableSpaceName + " cannot be booted on node "
+                                + nodeId + ": the data downloaded from the leader is not enough to replay the log", stillNotEnough);
+                    } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException failure) {
+                        // keep track of why the download was attempted at all, the failure of the download alone
+                        // does not tell that the local data of this node cannot be used to boot the tablespace
+                        failure.addSuppressed(fullRecoveryNeeded);
+                        throw failure;
+                    }
+                }
             }
+        } finally {
+            recoveryInProgress = false;
         }
-        recoveryInProgress = false;
+        // the checkpoint that closes the recovery is outside it, and it has to be: a checkpoint taken while the
+        // recovery is still marked as running is skipped
         if (!LogSequenceNumber.START_OF_TIME.equals(actualLogSequenceNumber)) {
             LOGGER.log(Level.INFO, "Recovery finished for {0} seqNum {1}", new Object[]{tableSpaceName, actualLogSequenceNumber});
             checkpoint(false, false, false);
@@ -345,19 +442,97 @@ public class TableSpaceManager {
 
     }
 
+    /**
+     * Replays the log on top of the current content of the tablespace and then makes sure that this node can serve
+     * the content the log describes.
+     *
+     * @param from the position the local data of the tablespace is aligned to
+     * @param fencing whether the log has to be fenced while it is read, so that a previous leader that is still
+     * running cannot write to it any more. This is the split-brain guard of the promotion to leader and it is never
+     * enabled on an ordinary boot
+     * @param thisNodeIsTheLeader whether this node is the one that leads the tablespace, or is about to. It cannot be
+     * read from {@link #isLeader()} here, because the whole recovery runs before the tablespace manager declares
+     * itself leader or follower
+     */
+    private void replayLog(
+            LogSequenceNumber from, boolean fencing, boolean thisNodeIsTheLeader
+    ) throws DataStorageManagerException, LogNotAvailableException {
+        restoreFromSnapshot = null;
+        RestoredFromSnapshotException restoreMetOnThisPass = null;
+        try {
+            log.recovery(from, new ApplyEntryOnRecovery(), fencing);
+        } catch (RestoredFromSnapshotException restore) {
+            // the log says the content of the tablespace was replaced, and the local data of this node is below the
+            // marker: no checkpoint of the replaced content was ever taken here
+            restoreMetOnThisPass = restore;
+        }
+        if (thisNodeIsTheLeader && restoreMarkerMetWhileBooting != null) {
+            throw restoreOfATableSpaceThisNodeDoesNotHold(restoreMetOnThisPass);
+        }
+        if (restoreMetOnThisPass != null) {
+            throw restoreMetOnThisPass;
+        }
+    }
+
+    /**
+     * Refuses to boot a tablespace this node leads while the content of that tablespace is not here.
+     * <p>
+     * A restore marker met while replaying the log always means the same thing, whichever of the two markers it is
+     * and whoever wrote it: the log does not describe the content of the tablespace, and the local data of this node
+     * stops below the point where that content was replaced. Whatever the restore produced can only be downloaded
+     * from the node that leads the tablespace, because the data of a restore comes from a client one request at a
+     * time and never travels through the log. That is exactly what a replica does, and it is the one thing a leader
+     * cannot do: a leader has nobody to download from.
+     * </p>
+     * <p>
+     * So the tablespace does not boot here, and nothing else is touched: the content is intact wherever it is, and
+     * this node simply is not the node that holds it. Booting it empty would be worse than refusing, because an
+     * empty tablespace is indistinguishable from one that was just created and an application would build on a
+     * foundation that was supposed to hold the restored data. Both ways out are named in the message, because they
+     * are commands and the node has to stay alive to receive them.
+     * </p>
+     */
+    private TableSpaceCannotBeLedHereException restoreOfATableSpaceThisNodeDoesNotHold(Throwable cause) {
+        return new TableSpaceCannotBeLedHereException("Tablespace " + tableSpaceName + " cannot be booted on node "
+                + nodeId + ": the log holds the marker of a restore from a snapshot at " + restoreMarkerMetWhileBooting
+                + " and the local data of this node stops below it, so this node holds nothing of the content the"
+                + " restore produced. It cannot download it either, because it is the leader of the tablespace and a"
+                + " leader has nobody to download from. Either give the leadership to a node that holds the content,"
+                + " with ALTER TABLESPACE '" + tableSpaceName + "','leader:<node>', or, if no node holds it any more,"
+                + " throw the tablespace away with DROP TABLESPACE '" + tableSpaceName + "' and run the restore"
+                + " again", tableSpaceName, cause);
+    }
+
     void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
         if (recoveryInProgress) {
             throw new HerdDBInternalException("Cannot run recovery twice");
         }
         recoveryInProgress = true;
-        actualLogSequenceNumber = log.getLastSequenceNumber();
-        LOGGER.log(Level.INFO, "recovering tablespace {0} log from sequence number {1}, with fencing", new Object[]{tableSpaceName, actualLogSequenceNumber});
-        log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
-        LOGGER.log(Level.INFO, "Recovery (with fencing) finished for {0}", tableSpaceName);
-        recoveryInProgress = false;
+        try {
+            actualLogSequenceNumber = log.getLastSequenceNumber();
+            LOGGER.log(Level.INFO, "recovering tablespace {0} log from sequence number {1}, with fencing", new Object[]{tableSpaceName, actualLogSequenceNumber});
+            replayLog(actualLogSequenceNumber, true, true);
+            LOGGER.log(Level.INFO, "Recovery (with fencing) finished for {0}", tableSpaceName);
+        } finally {
+            recoveryInProgress = false;
+        }
     }
 
     void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
+        apply(position, entry, recovery, false);
+    }
+
+    /**
+     * @param recovery whether the entry is being replayed rather than produced by something happening now. Table
+     * managers use it to skip what they already hold
+     * @param fromRestoredDump whether the entry comes from the tail of the log a restore is streaming into this
+     * tablespace, instead of from the log of this tablespace. Both are replays, so both pass {@code recovery}, and
+     * they are told apart here because what an entry that cannot be applied means, and what can be done about it,
+     * is not the same on the two paths
+     */
+    private void apply(
+            CommitLogResult position, LogEntry entry, boolean recovery, boolean fromRestoredDump
+    ) throws DataStorageManagerException, DDLException {
         if (!position.deferred || position.sync) {
             // this will wait for the write to be acknowledged by the log
             // it can throw LogNotAvailableException
@@ -593,6 +768,10 @@ public class TableSpaceManager {
                 }
             }
             break;
+            case LogEntryType.RESTORED_FROM_SNAPSHOT: {
+                applyRestoredFromSnapshot(position, entry, recovery);
+            }
+            break;
             default:
                 // other entry types are not important for the tablespacemanager
                 break;
@@ -605,9 +784,145 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.DROP_TABLE
                 && entry.type != LogEntryType.TABLE_CONSISTENCY_CHECK) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
+            if (tableManager == null) {
+                // An entry that changes a table this node does not have. Which entries can be in that position, and
+                // what can be done about it, depends entirely on where the entry came from, so the three cases are
+                // reported as three different things. What they have in common is that none of them may go on and
+                // dereference the missing table manager: a NullPointerException here reaches no handler that knows
+                // what it is about, and on the restore path it reaches no handler at all, leaving the client of the
+                // restore waiting for a reply until its own socket timeout.
+                String message = "Tablespace " + tableSpaceName + ": log entry of type " + entry.type
+                        + " at " + describePosition(position) + " refers to table " + entry.tableName
+                        + ", which does not exist on this node";
+                if (fromRestoredDump) {
+                    // The entry comes from the log the dump carries, and the table it names is not among the tables
+                    // the dump carries either. Nothing about the local content of this node is wrong and there is
+                    // nothing to download: the dump itself does not describe a state that can be rebuilt. A table
+                    // created inside a transaction that was still open when the dump was taken is the ordinary way
+                    // of producing one, because such a table is not part of a checkpoint and is never streamed,
+                    // while the transaction that created it is.
+                    throw new DataStorageManagerException(message + ". The entry is part of the dump being"
+                            + " restored, and the dump does not carry that table: it is the dump that is"
+                            + " incomplete, and restoring it again changes nothing. Take a new backup of the"
+                            + " tablespace and restore that one");
+                }
+                if (recovery) {
+                    // The log of this tablespace does not contain the creation of the table: a tablespace created
+                    // by restoring a backup boots its tables directly from the dump, without writing any
+                    // CREATE_TABLE entry, so a node replaying that log from the beginning cannot rebuild them. The
+                    // local log alone is not enough to boot.
+                    throw new FullRecoveryNeededException(message
+                            + ", a full download of the data of the tablespace from the leader is needed");
+                }
+                // Outside recovery there is no caller able to fall back to a full download: the follower
+                // thread and the local write path can only fail. Report the problem instead of throwing a
+                // NullPointerException; the tablespace manager is then marked as failed and booted again,
+                // and it is that new boot, going through recovery, that asks for the full download.
+                throw new DataStorageManagerException(message);
+            }
             tableManager.apply(position, entry, recovery);
         }
 
+    }
+
+    /**
+     * Names the position of an entry for a message, without ever waiting for the log to say where it wrote it.
+     * Asking a deferred write for its position blocks the writer until the log acknowledges it and throws a
+     * {@link LogNotAvailableException} when that acknowledgement fails, so building a message would both stall the
+     * write path and replace the error the caller is trying to report with an unrelated one.
+     */
+    private static String describePosition(CommitLogResult position) {
+        if (position.deferred && !position.sync) {
+            return "a position the log has not acknowledged yet";
+        }
+        return String.valueOf(position.getLogSequenceNumber());
+    }
+
+    /**
+     * Handles the marker that tells that the content of this tablespace has been replaced by a snapshot. The restore
+     * writes the tables, the records and the indexes straight into the storage of the leader, so the log holds no
+     * trace of them: from the point of view of anybody replaying that log the tablespace is materialised out of
+     * nothing, and the only way to get the data is to download it.
+     * <p>
+     * This is the only place that derives {@link #restoreFromSnapshot} from a marker, and it runs on every path a
+     * marker can arrive from: the log being replayed at boot, a follower tailing the leader, and the restore itself,
+     * which goes through {@link #apply} like any other writer. Reading the marker here rather than at the call sites
+     * is what makes it impossible for the marker to be durable while the state that goes with it is not. The field
+     * is written elsewhere too, but never out of a marker: see its declaration for the other writes.
+     * </p>
+     * <p>
+     * The position of the marker is read here and the state of the tablespace is derived from it, so the marker has to
+     * be written synchronously and every path that produces one does write it that way. The alternative is not a
+     * position that arrives later, it is no position at all: asking a deferred write where it wrote blocks until the
+     * log acknowledges it and throws when that acknowledgement fails, which is why {@link #apply} guards that same
+     * call. A marker without a position would leave this tablespace unable to say where the restore began.
+     * </p>
+     */
+    private void applyRestoredFromSnapshot(CommitLogResult position, LogEntry entry, boolean recovery) {
+        RestoredFromSnapshot restore = RestoredFromSnapshot.deserialize(entry.value.to_array());
+        if (position.deferred && !position.sync) {
+            throw new HerdDBInternalException("Tablespace " + tableSpaceName + ": " + restore + " was written to the"
+                    + " log without waiting for the log to say where, at " + describePosition(position)
+                    + ". The markers of a restore have to be logged synchronously, the position of the marker is the"
+                    + " state of the restore");
+        }
+        LogSequenceNumber markerPosition = position.getLogSequenceNumber();
+        boolean started = restore.getPhase() == RestoredFromSnapshot.Phase.STARTED;
+        if (started) {
+            // the clock the give-up rule reads is set here, together with the state it describes, so that it always
+            // belongs to the restore that is open now. On the node that is running the restore it is about to be
+            // refreshed by every request the restore is made of; on a node that is only watching, this is the
+            // moment it learned that the restore exists and nothing is ever going to move it again
+            restoreLastActivity = System.currentTimeMillis();
+            restoreFromSnapshot = markerPosition;
+        } else {
+            restoreFromSnapshot = null;
+            restoreDrivenByThisNode = false;
+        }
+        if (recovery) {
+            // Both markers say the same thing to a node replaying the log: the content of the tablespace was replaced
+            // above the point the local data of this node stops at, and the log does not describe it. The whole
+            // content has to come from the leader, and it is remembered here because a later pass over the log,
+            // starting from a higher position, would not meet the marker again and would find nothing wrong.
+            restoreMarkerMetWhileBooting = markerPosition;
+            if (started) {
+                // the restore writes nothing to the log between the two markers, so there is nothing left to replay
+                // and nothing to skip: this node boots with the content it holds and downloads the new one as soon
+                // as the marker that closes the restore reaches it
+                LOGGER.log(Level.WARNING, "Tablespace {0} at {1}: {2}. The log ends inside the restore: the content"
+                        + " of the tablespace is being replaced and this node does not hold the result yet",
+                        new Object[]{tableSpaceName, markerPosition, restore});
+                return;
+            }
+            throw new RestoredFromSnapshotException("Tablespace " + tableSpaceName + " at " + markerPosition + ": "
+                    + restore + ". The log does not describe the content of the tablespace up to that point, so the"
+                    + " whole content of the tablespace has to be downloaded from the leader", markerPosition);
+        }
+        if (started || isLeader()) {
+            // Either this node is the one running the restore and it is writing the marker for the other nodes, or it
+            // is a follower that has just been told that the content of the tablespace is about to be replaced. The
+            // follower has nothing to do yet: the restore writes nothing to the log until it is over, and it is the
+            // marker that closes it that says the new content exists and can be downloaded. All that matters until
+            // then is that no checkpoint records the content this node holds as the state of the tablespace, and
+            // recording the open restore above has already taken care of that.
+            LOGGER.log(Level.INFO, "Tablespace {0} at {1}: {2}",
+                    new Object[]{tableSpaceName, markerPosition, restore});
+            return;
+        }
+        // A follower tailing the log of the leader, and the restore is over. The data this node holds is obsolete and
+        // there is nothing here that can download the new one: the follower thread only knows how to apply log
+        // entries, and going on would mean serving the pre-restore content until we happen to meet a change of a
+        // table that the restore created and that this node does not have.
+        // Marking the tablespace manager as failed is the way out the follower thread already takes on any other
+        // error: the activator takes this manager out of service and boots a new one, and it is that boot, going
+        // through recovery, that meets the marker again and downloads the whole content of the tablespace from the
+        // leader. A failed tablespace manager takes no checkpoint, so the obsolete content this node still holds
+        // cannot be recorded as the state of the tablespace in the meantime.
+        LOGGER.log(Level.WARNING, "Tablespace {0} at {1}: {2}. The content of the tablespace has been replaced"
+                + " on the leader, the data this node holds is obsolete: this tablespace is taken out of"
+                + " service and booted again, so that the whole content of the tablespace is downloaded"
+                + " from the leader", new Object[]{tableSpaceName, markerPosition, restore});
+        setFailed();
     }
 
     private void disposeTable(AbstractTableManager manager) throws DataStorageManagerException {
@@ -705,7 +1020,15 @@ public class TableSpaceManager {
         TableSpace tableSpaceData = metadataStorageManager.describeTableSpace(tableSpaceName);
         String leaderId = tableSpaceData.leaderId;
         if (this.nodeId.equals(leaderId)) {
-            throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from myself");
+            if (restoreMarkerMetWhileBooting != null) {
+                // The leadership moved onto this node while it was replaying the log, which takes as long as the log
+                // is: the boot began as a replica, which can download what it is missing, and reached this point as
+                // the leader, which cannot. The conclusion is the one every node reaching a restore marker it cannot
+                // act on draws, and it has to be reported as that one and not as a download that could not be made.
+                throw restoreOfATableSpaceThisNodeDoesNotHold(null);
+            }
+            throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName
+                    + " from myself: this node is the leader of the tablespace, so there is no other node to take the data from");
         }
         Optional<NodeMetadata> leaderAddress = metadataStorageManager.listNodes().stream().filter(n -> n.nodeId.equals(leaderId)).findAny();
         if (!leaderAddress.isPresent()) {
@@ -717,15 +1040,22 @@ public class TableSpaceManager {
         actualLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
         newTransactionId.set(0);
         LOGGER.log(Level.INFO, "tablespace " + tableSpaceName + " at downloadTableSpaceData " + tables + ", " + indexes + ", " + transactions);
-        for (AbstractTableManager manager : tables.values()) {
+        Iterator<AbstractTableManager> tableManagers = tables.values().iterator();
+        while (tableManagers.hasNext()) {
+            AbstractTableManager manager = tableManagers.next();
+            if (manager.isSystemTable()) {
+                // System tables hold no data and they are not part of the dump we are about to download:
+                // they are created once, by bootSystemTables(), and they must survive this reset. Dropping
+                // them here would leave this tablespace without SYSTABLES, SYSCOLUMNS, ... on this node
+                // until the whole process is restarted.
+                continue;
+            }
             // this is like a truncate table, and it releases all pages
             // and all indexes
-            if (!manager.isSystemTable()) {
-                manager.dropTableData();
-            }
+            manager.dropTableData();
             manager.close();
+            tableManagers.remove();
         }
-        tables.clear();
 
         // this map should be empty
         for (AbstractIndexManager manager : indexes.values()) {
@@ -733,6 +1063,9 @@ public class TableSpaceManager {
             manager.close();
         }
         indexes.clear();
+        // the very same index managers are indexed by table name as well, and that is the map read by
+        // getIndexesOnTable(): leaving it behind would expose closed index managers to the write path
+        indexesByTable.clear();
         transactions.clear();
 
         dataStorageManager.eraseTablespaceData(tableSpaceUUID);
@@ -761,6 +1094,10 @@ public class TableSpaceManager {
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
                 receiver.getLatch().get(1, TimeUnit.HOURS);
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
+                // The content of this tablespace is now the content the leader holds, taken at the position above.
+                // Whatever the log said below that position, a restore marker included, is about a content that is
+                // not here any more and must not keep this node from serving the tablespace.
+                this.restoreMarkerMetWhileBooting = null;
                 LOGGER.log(Level.INFO, tableSpaceName + " After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 
             } catch (ClientSideMetadataProviderException | HDBException | InterruptedException | ExecutionException | TimeoutException internalError) {
@@ -946,32 +1283,114 @@ public class TableSpaceManager {
         }
     }
 
-    void runLocalTableCheckPoints() {
-        Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
-        tablesNeedingCheckPoint.clear();
-        for (String table : tablesToDo) {
-            LOGGER.log(Level.INFO, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
-            AbstractTableManager tableManager = tables.get(table);
-            if (tableManager != null) {
-                try {
-                    tableManager.checkpoint(false);
-                } catch (DataStorageManagerException ex) {
-                    LOGGER.log(Level.SEVERE, "Bad error on table checkpoint", ex);
-                }
-            }
-        }
-    }
-
     public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException, EOFException {
         long lockStamp = acquireWriteLock("restoreRawDumpedEntryLogs");
         try {
             for (DumpedLogEntry ld : entries) {
+                // these entries are a replay, like the ones of a boot, but they come from the dump and not from the
+                // log of this tablespace: a dump that does not describe its own content cannot be answered with a
+                // download, so the two are told apart
                 apply(new CommitLogResult(ld.logSequenceNumber, false, false),
-                        LogEntry.deserialize(ld.entryData), true);
+                        LogEntry.deserialize(ld.entryData), true, true);
             }
         } finally {
             releaseWriteLock(lockStamp, "restoreRawDumpedEntryLogs");
         }
+    }
+
+    /**
+     * Declares on the commit log that the content of this tablespace is about to be replaced by a snapshot. The
+     * restore streams the data straight into the storage, without writing anything to the log, so this marker and the
+     * one written by {@link #restoreFinished()} are the only trace of it that a replica can read.
+     *
+     * @throws TableSpaceRestoreRefusedException if this tablespace holds tables of its own, in which case nothing at
+     * all is written: see {@link #checkTableSpaceCanBeRestoredInto}
+     */
+    public void beginRestore() throws DataStorageManagerException, LogNotAvailableException {
+        long lockStamp = acquireWriteLock("beginRestore");
+        try {
+            checkTableSpaceCanBeRestoredInto();
+            restoreSourceLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+            // opening the restore is the first thing it does, and it is what tells a restore this node is serving
+            // from one it is only watching the leader run
+            restoreDrivenByThisNode = true;
+            restoreInProgress();
+            // writing the marker is what puts this tablespace into "being restored": the state is set while the
+            // entry is applied, so the marker cannot become durable without it
+            writeRestoredFromSnapshotMarker(RestoredFromSnapshot.Phase.STARTED);
+        } finally {
+            releaseWriteLock(lockStamp, "beginRestore");
+        }
+    }
+
+    /**
+     * Refuses a restore aimed at a tablespace that holds tables of its own, before a single byte is written anywhere.
+     * <p>
+     * A restore replaces the whole content of a tablespace, and everything that is done with the markers it leaves on
+     * the log rests on the tablespace having had no content before it: a marker met while replaying the log is read as
+     * "the log does not describe what this tablespace holds", and the whole content is downloaded from the leader
+     * again. That reading is true of the restore that {@link herddb.backup.BackupUtils} drives, which creates the
+     * tablespace itself, and it is only true because of that {@code CREATE TABLESPACE}. Nothing forces a caller to go
+     * through it: {@code HDBConnection.restoreTableSpace} is public API and streams into whatever tablespace it is
+     * pointed at. A restore aimed at an existing, populated tablespace would open a restore on it, fail on the first
+     * table it tried to create, and leave behind a log whose marker now claims that the data of that tablespace never
+     * went through it, so that a node holding that data would throw it away and download it again from a leader that
+     * does not have it either.
+     * </p>
+     * <p>
+     * So the invariant is enforced here rather than assumed. The state that is asked for is the tables, and not the
+     * position the local data is aligned to: the tables are what a tablespace holds, they are already in memory, and
+     * the question is answered under the lock the restore is about to write under. The last checkpoint would answer a
+     * different question and answer it wrongly in both directions, because a tablespace that has been written to and
+     * has not checkpointed yet is still aligned to {@code START_OF_TIME} while holding every row it was given, and a
+     * tablespace that is genuinely empty is above {@code START_OF_TIME} as soon as one periodic checkpoint has run.
+     * </p>
+     */
+    private void checkTableSpaceCanBeRestoredInto() {
+        List<String> existingTables = new ArrayList<>();
+        for (AbstractTableManager tableManager : tables.values()) {
+            if (!tableManager.isSystemTable()) {
+                existingTables.add(tableManager.getTable().name);
+            }
+        }
+        if (existingTables.isEmpty()) {
+            return;
+        }
+        Collections.sort(existingTables);
+        throw new TableSpaceRestoreRefusedException("Tablespace " + tableSpaceName + " on node " + nodeId
+                + " already holds tables of its own " + existingTables + ", so it cannot be restored into: a restore"
+                + " replaces the whole content of a tablespace and the tablespace it replaces has to be empty."
+                + " Restore into a tablespace of its own, which is what a restore driven by BackupUtils creates for"
+                + " itself, or drop this one first");
+    }
+
+    /**
+     * Gives up on a restore nobody is driving any more, typically because the connection that was running it is gone.
+     * <p>
+     * This is called for every tablespace the connection had opened a restore on and not closed, which is exactly
+     * the set of restores that did not run to the end, so it checks nothing else. In particular it does not ask
+     * whether the marker that closes the restore was written: a last step that wrote that marker and then failed to
+     * take the checkpoint that makes the restored content usable leaves the tablespace in the very state this method
+     * is here to report, with a log that claims the restore is complete and a storage that knows nothing about it.
+     * </p>
+     * <p>
+     * The inhibition of the checkpoints is deliberately <b>not</b> lifted: the tablespace holds a fragment of a
+     * snapshot, and persisting it would move the checkpoint position above the marker that opened the restore, which
+     * is exactly what has to be avoided. The tablespace manager is marked as failed instead, so that the activator
+     * takes it out of service and boots it again: that boot replays the log from the last checkpoint and meets the
+     * marker, which is what keeps the fragment from ever being served as the content of the tablespace. Nothing stays
+     * inhibited behind: the state lives and dies with this tablespace manager, which is being thrown away.
+     * </p>
+     *
+     * @param reason what made us conclude that the restore will never be completed, for the logs
+     */
+    public void abortRestore(String reason) {
+        LOGGER.log(Level.SEVERE, "Restore of tablespace {0} on node {1} has been abandoned: {2}."
+                + " The tablespace holds only a fragment of the snapshot and it is taken out of service: it does not"
+                + " serve that fragment to anybody, and the restore can be run again",
+                new Object[]{tableSpaceName, nodeId, reason});
+        restoreDrivenByThisNode = false;
+        setFailed();
     }
 
     public void beginRestoreTable(byte[] tableDef, LogSequenceNumber dumpLogSequenceNumber) {
@@ -981,14 +1400,57 @@ public class TableSpaceManager {
             if (tables.containsKey(table.name)) {
                 throw new TableAlreadyExistsException(table.name);
             }
+            if (dumpLogSequenceNumber != null && dumpLogSequenceNumber.after(restoreSourceLogSequenceNumber)) {
+                // keep the most recent position among the dumped tables, it is the best description of
+                // the snapshot this tablespace is being restored from
+                restoreSourceLogSequenceNumber = dumpLogSequenceNumber;
+            }
             bootTable(table, 0, dumpLogSequenceNumber, true);
         } finally {
             releaseWriteLock(lockStamp, "beginRestoreTable " + table.name);
         }
     }
 
+    /**
+     * Writes one of the two markers of a restore on the log and applies it, which is what records on this tablespace
+     * manager that a restore is running or is over. Applying the marker is not a separate decision taken here, it is
+     * the same code every other reader of the log goes through, so the marker and the state cannot disagree.
+     */
+    private void writeRestoredFromSnapshotMarker(RestoredFromSnapshot.Phase phase) throws DataStorageManagerException, LogNotAvailableException {
+        RestoredFromSnapshot restore = new RestoredFromSnapshot(phase, tableSpaceName, tableSpaceUUID,
+                restoreSourceLogSequenceNumber);
+        LogEntry entry = LogEntryFactory.restoredFromSnapshot(restore);
+        CommitLogResult pos = log.log(entry, true);
+        try {
+            apply(pos, entry, false);
+        } catch (RuntimeException failure) {
+            if (phase == RestoredFromSnapshot.Phase.STARTED) {
+                // The marker may or may not be on the log. Most of the time it is not, and this is the write itself
+                // failing; but a write that reached the storage and whose acknowledgement was lost on the way back
+                // fails in exactly the same way, and from here the two are indistinguishable. The one that would hurt
+                // is the second: the marker is on the log, every reader of that log is going to meet it, and this
+                // tablespace manager would be the only one that does not know. So the restore is recorded as open,
+                // which is what inhibits the checkpoints, and a restore recorded here for a marker that never made it
+                // to the log costs this tablespace the boot it is about to be given anyway.
+                restoreLastActivity = System.currentTimeMillis();
+                restoreFromSnapshot = log.getLastSequenceNumber();
+            }
+            throw failure;
+        }
+    }
+
     public void restoreTableFinished(String table, List<Index> indexes) {
-        TableManager tableManager = (TableManager) tables.get(table);
+        // A step of a restore names a table the client chose, and the previous steps may well have failed: the
+        // request that was supposed to create this table can have been answered with an error and the client can
+        // have carried on anyway. Reporting it is what lets the connection peer answer the request the client is
+        // waiting for; a NullPointerException or a ClassCastException escaping from here reaches no handler at all
+        // and leaves the client waiting until its own socket timeout.
+        AbstractTableManager manager = tables.get(table);
+        if (!(manager instanceof TableManager)) {
+            throw new StatementExecutionException("table " + table + " of tablespace " + tableSpaceName
+                    + " is not being restored on node " + nodeId);
+        }
+        TableManager tableManager = (TableManager) manager;
         tableManager.restoreFinished();
 
         for (Index index : indexes) {
@@ -1003,12 +1465,9 @@ public class TableSpaceManager {
         }
     }
 
-    @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
     void dumpTableSpace(String dumpId, Channel channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
         LOGGER.log(Level.INFO, "dumpTableSpace dumpId:{0} channel {1} fetchSize:{2}, includeLog:{3}", new Object[]{dumpId, channel, fetchSize, includeLog});
-
-        TableSpaceCheckpoint checkpoint;
 
         List<DumpedLogEntry> txlogentries = new CopyOnWriteArrayList<>();
         CommitLogListener logDumpReceiver = new CommitLogListener() {
@@ -1021,24 +1480,62 @@ public class TableSpaceManager {
             }
         };
 
+        // Everything below runs while the tablespace is locked and, when the log is part of the dump, while a
+        // listener is attached to the commit log. Both have to be given back on every way out of this method, the
+        // ones that are not the happy path included: a lock stamp that is never released blocks every later write,
+        // DDL, checkpoint and follower of this tablespace for as long as the process lives, and a listener that is
+        // never detached keeps a copy of every entry that goes through the log.
         long lockStamp = acquireWriteLock(null);
-
-        if (includeLog) {
-            log.attachCommitLogListener(logDumpReceiver);
+        boolean downgradedToReadLock = false;
+        try {
+            if (includeLog) {
+                log.attachCommitLogListener(logDumpReceiver);
+            }
+            try {
+                TableSpaceCheckpoint checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
+                LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
+                if (checkpoint == null) {
+                    // a checkpoint is skipped rather than taken for a few legitimate reasons, a restore that is
+                    // replacing the content of this very tablespace being one of them
+                    throw new DataStorageManagerException("failed to create a checkpoint, check logs for the reason");
+                }
+                try {
+                    /* Downgrade lock */
+                    long readLockStamp = generalLock.tryConvertToReadLock(lockStamp);
+                    if (readLockStamp == 0) {
+                        // the write lock is still held and the stamp is still the one we have to release
+                        throw new DataStorageManagerException("unable to downgrade lock");
+                    }
+                    lockStamp = readLockStamp;
+                    downgradedToReadLock = true;
+                    sendDump(dumpId, channel, fetchSize, includeLog, checkpoint, txlogentries);
+                } finally {
+                    unPinCheckpointOfDumpedTables(checkpoint);
+                }
+            } finally {
+                if (includeLog) {
+                    log.removeCommitLogListener(logDumpReceiver);
+                }
+            }
+        } finally {
+            if (downgradedToReadLock) {
+                releaseReadLock(lockStamp, "senddump");
+            } else {
+                releaseWriteLock(lockStamp, "senddump");
+            }
         }
 
-        checkpoint = checkpoint(true /* compact records*/, true, true /* already locked */);
-        LOGGER.log(Level.INFO, "Created checkpoint at {}", checkpoint);
-        if (checkpoint == null) {
-            throw new DataStorageManagerException("failed to create a checkpoint, check logs for the reason");
-        }
+    }
 
-        /* Downgrade lock */
-//        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
-        lockStamp = generalLock.tryConvertToReadLock(lockStamp);
-        if (lockStamp == 0) {
-            throw new DataStorageManagerException("unable to downgrade lock");
-        }
+    /**
+     * Streams the content of a checkpoint of this tablespace to a client. It runs with the tablespace locked for read
+     * and, when the log is part of the dump, with a listener attached to the commit log by the caller.
+     */
+    @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
+    private void sendDump(
+            String dumpId, Channel channel, int fetchSize, boolean includeLog,
+            TableSpaceCheckpoint checkpoint, List<DumpedLogEntry> txlogentries
+    ) throws DataStorageManagerException, LogNotAvailableException {
         try {
             final int timeout = 60000;
             LogSequenceNumber checkpointSequenceNumber = checkpoint.sequenceNumber;
@@ -1078,13 +1575,7 @@ public class TableSpaceManager {
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
-                    long errorid = channel.generateRequestId();
-                    try (Pdu response = channel.sendMessageWithPduReply(errorid, PduCodec.TablespaceDumpData.write(
-                            id, tableSpaceName, dumpId, "error", null, 0,
-                            0, 0,
-                            null, null),
-                            timeout)) {
-                    }
+                    sendDumpFailed(tableSpaceName, dumpId, channel, err);
                     return;
                 }
             }
@@ -1105,25 +1596,66 @@ public class TableSpaceManager {
                             LOGGER.log(Level.INFO, "Sent last dump msg for " + dumpId);
                         }
             });
-        } catch (InterruptedException | TimeoutException error) {
-            LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
-        } finally {
-            releaseReadLock(lockStamp, "senddump");
-
-            if (includeLog) {
-                log.removeCommitLogListener(logDumpReceiver);
-            }
-
-            for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
-                String tableName = entry.getKey();
-                AbstractTableManager tableManager = tables.get(tableName);
-                String tableUUID = tableManager.getTable().uuid;
-                LogSequenceNumber seqNumber = entry.getValue();
-                LOGGER.log(Level.INFO, "unPinTableCheckpoint {0}.{1} ({2}) {3}", new Object[]{tableSpaceUUID, tableName, tableUUID, seqNumber});
-                dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, tableUUID, seqNumber);
-            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new DataStorageManagerException("interrupted while sending dump id " + dumpId, error);
+        } catch (TimeoutException error) {
+            // The receiver of a dump is told nothing by a stream that simply stops: it goes on waiting for the next
+            // chunk of a dump nobody is sending any more. The caller answers for that, this only has to report.
+            throw new DataStorageManagerException("timed out while sending dump id " + dumpId, error);
         }
+    }
 
+    /**
+     * Tells the receiver of a dump that the dump will not be completed, so that it stops waiting for the rest of it.
+     * The stream of a dump only ever goes one way and the request that started it was acknowledged long before, so
+     * this message is the only thing that can reach the receiver.
+     * <p>
+     * The answer to it is waited for asynchronously and dropped. Nothing here has any use for it, the caller is on
+     * its way out of a dump that failed and has no time to give to this; but a receiver does answer this message, and
+     * a reply nobody is expecting is a reply nobody releases either.
+     * </p>
+     * <p>
+     * A channel that is already gone is checked for first, and it is the commonest case of all: the receiver having
+     * disappeared is the ordinary reason a dump dies. The check saves building a message for a peer that is known
+     * not to be there, and puts the reason in the log, where a send that simply failed would leave it to be guessed.
+     * It cannot do more than that: the channel can go away between the check and the call, so sending has to be
+     * safe on its own in any case.
+     * </p>
+     */
+    static void sendDumpFailed(String tableSpaceName, String dumpId, Channel channel, Throwable error) {
+        if (!channel.isValid()) {
+            LOGGER.log(Level.INFO, "Not telling the receiver of dump {0} of tablespace {1} that the dump failed: the"
+                    + " channel is gone, which is very likely why it failed", new Object[]{dumpId, tableSpaceName});
+            return;
+        }
+        long id = channel.generateRequestId();
+        channel.sendRequestWithAsyncReply(id, PduCodec.TablespaceDumpData.writeError(
+                id, tableSpaceName, dumpId, String.valueOf(error)), DUMP_FAILED_TIMEOUT,
+                (Pdu reply, Throwable sendFailure) -> {
+                    if (sendFailure != null) {
+                        LOGGER.log(Level.SEVERE, "Cannot tell the receiver of dump " + dumpId + " that the dump"
+                                + " failed, it is left waiting for data that is not coming", sendFailure);
+                        return;
+                    }
+                    reply.close();
+                });
+    }
+
+    /**
+     * Releases the pins the checkpoint taken for a dump put on the files of the dumped tables. The dump asks for a
+     * pinned checkpoint so that nothing deletes those files while they are being sent, so the pins have to be
+     * released whatever happens to the dump.
+     */
+    private void unPinCheckpointOfDumpedTables(TableSpaceCheckpoint checkpoint) {
+        for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
+            String tableName = entry.getKey();
+            AbstractTableManager tableManager = tables.get(tableName);
+            String tableUUID = tableManager.getTable().uuid;
+            LogSequenceNumber seqNumber = entry.getValue();
+            LOGGER.log(Level.INFO, "unPinTableCheckpoint {0}.{1} ({2}) {3}", new Object[]{tableSpaceUUID, tableName, tableUUID, seqNumber});
+            dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, tableUUID, seqNumber);
+        }
     }
 
     private void sendTransactionsDump(List<Transaction> batch, Channel channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
@@ -1167,10 +1699,30 @@ public class TableSpaceManager {
 
     }
 
-    public void restoreFinished() throws DataStorageManagerException {
+    public void restoreFinished() throws DataStorageManagerException, LogNotAvailableException {
         LOGGER.log(Level.INFO, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
         transactions.clear();
-        checkpoint(false, false, false);
+        // The marker goes on the log before the checkpoint: the checkpoint is what makes the restored data usable, so
+        // a log that ends between the two describes a restore that did not complete. Writing the marker is also what
+        // lifts the inhibition of the checkpoints, so the checkpoint below, the one that makes the restored content
+        // usable, is the first one that can run since the restore began.
+        long lockStamp = acquireWriteLock("restoreFinished");
+        try {
+            writeRestoredFromSnapshotMarker(RestoredFromSnapshot.Phase.FINISHED);
+        } finally {
+            releaseWriteLock(lockStamp, "restoreFinished");
+        }
+        restoreSourceLogSequenceNumber = LogSequenceNumber.START_OF_TIME;
+        if (checkpoint(false, false, false) == null) {
+            // The checkpoint is what makes the restored content usable: it is the only thing that writes the tables
+            // and the records the restore streamed into memory, and it is what moves the position the tablespace is
+            // aligned to above the marker that was just written. A checkpoint that did not run leaves a log that
+            // claims the restore is complete and a storage that knows nothing about it, which is exactly the state
+            // the next boot refuses. The client must not be told that the restore succeeded.
+            throw new DataStorageManagerException("Restore of tablespace " + tableSpaceName + " on node " + nodeId
+                    + " declared itself complete on the log, but the checkpoint that persists the restored content"
+                    + " was skipped, so nothing of the restored data reached the storage");
+        }
     }
 
     public boolean isVirtual() {
@@ -1189,16 +1741,31 @@ public class TableSpaceManager {
         @Override
         public void run() {
             try (CommitLog.FollowerContext context = log.startFollowing(actualLogSequenceNumber)) {
-                while (!isLeader() && !closed) {
+                // isFailed() is part of the question, in the loop as much as in the acceptor: an entry can take the
+                // tablespace manager out of service without throwing anything, the marker that says the leader has
+                // replaced the content of the tablespace being the one that does. Everything that comes after it
+                // describes a content this node does not hold, and when the restored tablespace has the same schema
+                // as the one it replaced every table name still resolves, so those entries apply cleanly on top of
+                // obsolete rows and whoever reads this replica sees a mix of the two. Leaving the loop out of the
+                // check would only postpone that by one round: the acceptor stops the batch it is in and the loop
+                // immediately asks for the next one.
+                while (!isLeader() && !closed && !isFailed()) {
                     long readLock = acquireReadLock("follow");
                     try {
                         log.followTheLeader(actualLogSequenceNumber, (LogSequenceNumber num, LogEntry u) -> {
+                            if (isLeader() || closed || isFailed()) {
+                                // asked before applying and not only afterwards: the answer this acceptor gives
+                                // stops the log from handing over more entries, but a log that has already read a
+                                // batch of them may well deliver the rest of that batch anyway. Refusing to apply
+                                // is the only thing that holds in every case
+                                return false;
+                            }
                             try {
                                 apply(new CommitLogResult(num, false, true), u, false);
                             } catch (Throwable t) {
                                 throw new RuntimeException(t);
                             }
-                            return !isLeader() && !closed;
+                            return !isLeader() && !closed && !isFailed();
                         }, context);
                     } finally {
                         releaseReadLock(readLock, "follow");
@@ -1550,7 +2117,6 @@ public class TableSpaceManager {
                     }
                 }
             }
-
 
             Table newTable;
             try {
@@ -2022,6 +2588,112 @@ public class TableSpaceManager {
         }
     }
 
+    /**
+     * Says why a checkpoint was not taken while a restore from a snapshot is running, and gives up on a restore that
+     * has stopped making progress.
+     * <p>
+     * The tablespace holds a fragment of that snapshot. Writing it to the storage would persist that fragment and
+     * would move the position the tablespace is aligned to above the marker that opened the restore, so a node
+     * booting after a crash would replay the log from after the marker, would never meet it, and would declare the
+     * tablespace healthy while it holds half a snapshot. On a leader the same checkpoint also drops the ledgers up to
+     * that position, so the marker can be gone for good.
+     * </p>
+     * <p>
+     * The checkpoint is skipped, not deferred: {@link #restoreFinished()} takes the checkpoint that makes the
+     * restored content usable as soon as the restore is over, and until then the activator comes back at every
+     * checkpoint period anyway.
+     * </p>
+     * <p>
+     * That is also why the way out of a restore that is standing still lives here. A client that dies is noticed
+     * when its connection closes, but a client that keeps the connection open and simply stops, a connection pool or a
+     * long lived application, leaves the restore open for good: no checkpoint of this tablespace ever runs again, its
+     * commit log is never trimmed and its ledgers grow without bound. This is the one thing that comes back to the
+     * question at a known period, so it is the one that can ask how long the restore has been standing still.
+     * </p>
+     * <p>
+     * A node that is only watching somebody else's restore is in the same trap for a reason of its own. It has no
+     * request of the restore to refresh the clock with, so what it measures is how long ago it read the marker, and
+     * what it is waiting for is the marker that closes the restore. That marker never comes when the restore is
+     * abandoned on the node that is running it: nothing is written to the log to say so. A node that keeps its
+     * restore open without ever rebooting therefore leaves every replica of that tablespace unable to checkpoint, for
+     * good. So the watcher gives up as well, and the two give-ups are different: see {@link #abortRestore} and
+     * {@link #stopWatchingTheRestoreOfAnotherNode}.
+     * </p>
+     *
+     * @return {@code true} if the restore was given up on, which takes the tablespace manager out of service
+     */
+    private boolean skipCheckpointBecauseOfRestore(LogSequenceNumber openRestore) {
+        // Whether this node is driving the restore is local knowledge and it is read from local state: the marker on
+        // the log says that a restore is open and nothing about who is running it, and it could not say anything
+        // useful either, because a node reading it cannot tell a restore that is still going on from one that
+        // completed elsewhere.
+        boolean runHere = restoreDrivenByThisNode;
+        long standingStillFor = System.currentTimeMillis() - restoreLastActivity;
+        if (restoreMaxInactivityTime > 0 && standingStillFor > restoreMaxInactivityTime) {
+            String reason = "it has not made any progress for " + standingStillFor + " ms, more than the "
+                    + restoreMaxInactivityTime + " ms allowed by "
+                    + ServerConfiguration.PROPERTY_RESTORE_MAX_INACTIVITY_TIME;
+            if (runHere) {
+                abortRestore(reason);
+            } else {
+                stopWatchingTheRestoreOfAnotherNode(openRestore, reason);
+            }
+            return true;
+        }
+        // a restore that is being driven is an ordinary state of a tablespace and says nothing worth a warning; one
+        // that has been standing still long enough to be noticed is on its way to being given up on
+        Level level = restoreMaxInactivityTime > 0 && standingStillFor > restoreMaxInactivityTime / 2
+                ? Level.WARNING : Level.INFO;
+        if (runHere) {
+            LOGGER.log(level, "Checkpoint for tablespace {0} skipped. The restore from a snapshot opened at {1} is"
+                    + " still running, the content of the tablespace is not complete yet. The restore last made"
+                    + " progress {2} ms ago", new Object[]{tableSpaceName, openRestore, standingStillFor});
+        } else {
+            LOGGER.log(level, "Checkpoint for tablespace {0} skipped. The restore from a snapshot opened at {1} has"
+                    + " not been closed yet, so the content this node holds is not the content of the tablespace any"
+                    + " more. This node read the marker that opened it {2} ms ago",
+                    new Object[]{tableSpaceName, openRestore, standingStillFor});
+        }
+        return false;
+    }
+
+    /**
+     * Stops waiting for a restore another node opened and never closed, and takes the tablespace out of service so
+     * that it is booted again.
+     * <p>
+     * This is not the conclusion {@link #abortRestore} draws, and it must not be: this node does not know whether that
+     * restore is still going on somewhere, and the boot that follows changes nothing outside this node. What the boot
+     * does is read the log again from the same place, which is the only thing that can end the wait: if the restore
+     * was closed in the meantime the marker is there and the content is downloaded, and if the restore really is
+     * still open this node goes back to waiting for another period. A wait that is bounded, logged and re-evaluated
+     * is the point, against a tablespace that silently stops checkpointing for the rest of the life of the process.
+     * </p>
+     * <p>
+     * Nothing is lost when the wait ends too early, which is why this is reported one level below
+     * {@link #abortRestore}. A watching node has no request of the restore to keep its clock fresh, so what it
+     * measures is not how long the restore has been standing still but how long ago it read the marker: a restore
+     * that legitimately takes longer than the allowance makes every node watching it boot the tablespace once more,
+     * which costs a tablespace that holds nothing a boot and a pass over the tail of its log.
+     * </p>
+     */
+    private void stopWatchingTheRestoreOfAnotherNode(LogSequenceNumber openRestore, String reason) {
+        LOGGER.log(Level.WARNING, "Tablespace {0} on node {1} has been waiting for the restore from a snapshot opened"
+                + " at {2} to be closed: {3}. This node holds none of the content that restore is producing and it"
+                + " cannot checkpoint while it waits, so the tablespace is taken out of service and booted again,"
+                + " which reads the log from the same place and asks the question again",
+                new Object[]{tableSpaceName, nodeId, openRestore, reason});
+        setFailed();
+    }
+
+    /**
+     * Records that the restore this node is serving is being driven. Every request a restore is made of goes through
+     * here, so that a restore of a large snapshot, which takes as long as it takes, is told from one that nobody is
+     * driving any more.
+     */
+    public void restoreInProgress() {
+        restoreLastActivity = System.currentTimeMillis();
+    }
+
     // visible for testing
     public TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
@@ -2030,6 +2702,24 @@ public class TableSpaceManager {
 
         if (recoveryInProgress) {
             LOGGER.log(Level.INFO, "Checkpoint for tablespace {0} skipped. Recovery is still in progress", tableSpaceName);
+            return null;
+        }
+
+        if (isFailed()) {
+            // A failed tablespace manager is on its way out of service: the activator is about to stop it and boot a
+            // new one. Whatever it holds in memory is by definition not to be trusted, and a checkpoint would record
+            // it as the state the tablespace is aligned to, which is exactly what the new boot is supposed to fix.
+            // A manager whose log is what failed is failed in the same way and for the same reasons, which is the
+            // question isFailed() answers and the raw field does not: its last sequence number is stale, and on a
+            // leader the end of a checkpoint asks that very log to drop the ledgers below it.
+            LOGGER.log(Level.INFO, "Checkpoint for tablespace {0} skipped. The tablespace manager is failed and it is"
+                    + " going to be booted again", tableSpaceName);
+            return null;
+        }
+
+        LogSequenceNumber openRestore = restoreFromSnapshot;
+        if (openRestore != null) {
+            skipCheckpointBecauseOfRestore(openRestore);
             return null;
         }
 
@@ -2046,6 +2736,15 @@ public class TableSpaceManager {
                 lockStamp = acquireWriteLock("checkpoint");
             }
             try {
+                openRestore = restoreFromSnapshot;
+                if (openRestore != null) {
+                    // Asked again now that the write lock is held. beginRestore() writes the marker under this very
+                    // lock, so a restore that started between the check above and this point would be checkpointed
+                    // exactly like the one that check exists to prevent: the position read below is the position of
+                    // the marker itself.
+                    skipCheckpointBecauseOfRestore(openRestore);
+                    return null;
+                }
                 logSequenceNumber = log.getLastSequenceNumber();
 
                 if (logSequenceNumber.isStartOfTime()) {

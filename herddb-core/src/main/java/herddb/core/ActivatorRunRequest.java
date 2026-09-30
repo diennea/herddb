@@ -26,14 +26,9 @@ package herddb.core;
  * @author enrico.olivelli
  */
 public enum ActivatorRunRequest {
-    TABLECHECKPOINTS,
     TABLESPACEMANAGEMENT,
     FULL,
     NOOP;
-
-    public boolean enableTableCheckPoints() {
-        return this == FULL || this == TABLECHECKPOINTS;
-    }
 
     public boolean enableAbandonedTransactionsMaintenaince() {
         return this == FULL;

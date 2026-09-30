@@ -30,8 +30,10 @@ import herddb.jmx.DBManagerStatsMXBean;
 import herddb.jmx.JMXUtils;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
+import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.log.RestoredFromSnapshotException;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
@@ -87,6 +89,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -167,6 +170,37 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private final RunningStatementsStats runningStatements;
     private final ExecutorService followersThreadPool;
+
+    /**
+     * How long the first retry of a tablespace this node refused to serve, or of a leadership this node could not
+     * take, waits. It is the cadence of the activator itself, so the attempt that follows a refusal by one pass is
+     * made exactly as it used to be: it is the one most likely to find that something has changed.
+     */
+    private static final long REFUSAL_FIRST_RETRY_DELAY = 1000L;
+
+    /**
+     * The longest a refusal that keeps repeating pushes the next attempt to. Every attempt reads the part of the
+     * commit log of the tablespace that follows the last checkpoint of this node, which is worth doing only as long as
+     * the answer can change, and none of the repairs that change it are ever waited out: they all change either the
+     * metadata of the tablespace or the state of this node, and both drop the wait at once.
+     */
+    private static final long REFUSAL_MAX_RETRY_DELAY = 60_000L;
+
+    /**
+     * Paces the boots of the tablespaces this node cannot serve, keyed by the uuid of the tablespace. A tablespace
+     * whose content is not here is not going to be bootable on the next pass of the activator either, and every
+     * attempt at it reads the tail of the commit log of the tablespace in full.
+     */
+    private final PacedRetries refusedTableSpaceBoots =
+            new PacedRetries(REFUSAL_FIRST_RETRY_DELAY, REFUSAL_MAX_RETRY_DELAY);
+
+    /**
+     * Paces the question of whether this node could take the leadership of a tablespace whose leader has gone silent,
+     * keyed by the uuid of the tablespace. It is asked on every pass for as long as the leader stays silent, and
+     * answering it reads the tail of the commit log of the tablespace in full.
+     */
+    private final PacedRetries refusedLeadershipTakeovers =
+            new PacedRetries(REFUSAL_FIRST_RETRY_DELAY, REFUSAL_MAX_RETRY_DELAY);
 
     public DBManager(
             String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
@@ -628,6 +662,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         if (tableSpace.isNodeAssignedToTableSpace(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
+            PacedRetries.Attempt bootAttempt = refusedTableSpaceBoots.due(tableSpace.uuid, howTheTableSpaceWouldBoot(tableSpace));
+            if (bootAttempt == null) {
+                // this node has already refused to serve this tablespace and nothing has changed since. Booting it
+                // again would read the whole tail of its commit log to reach the very same conclusion
+                return;
+            }
             LOGGER.log(Level.INFO, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
             long _start = System.currentTimeMillis();
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);
@@ -636,19 +676,21 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 manager.start();
                 LOGGER.log(Level.INFO, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms leader:{4}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + "", manager.isLeader()});
                 tablesSpaces.put(tableSpaceName, manager);
+                refusedTableSpaceBoots.succeeded(tableSpace.uuid);
                 if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
                     JMXUtils.registerTableSpaceManagerStatsMXBean(tableSpaceName, manager.getStats());
                 }
+            } catch (TableSpaceCannotBeLedHereException contentIsNotHere) {
+                tablesSpaces.remove(tableSpaceName);
+                closeAfterFailedBoot(manager, tableSpaceName, contentIsNotHere);
+                reportRefusedTableSpace(tableSpaceName, bootAttempt, contentIsNotHere);
+                refusedTableSpaceBoots.refused(bootAttempt);
+                throw contentIsNotHere;
             } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
                 LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
                 LOGGER.log(Level.SEVERE, "Error", t);
                 tablesSpaces.remove(tableSpaceName);
-                try {
-                    manager.close();
-                } catch (Throwable t2) {
-                    LOGGER.log(Level.SEVERE, "Other Error", t2);
-                    t.addSuppressed(t2);
-                }
+                closeAfterFailedBoot(manager, tableSpaceName, t);
                 throw t;
             }
             return;
@@ -694,6 +736,61 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             actual_manager.metadataUpdated(tableSpace);
         }
 
+    }
+
+    /**
+     * Everything that decides how this node would boot a tablespace, and therefore everything that can turn a
+     * tablespace this node cannot serve into one it can. Who leads the tablespace decides whether this node boots it
+     * as the leader, which has nowhere to download a content it does not hold from, or as a replica, which downloads
+     * it from the leader; the replica list decides whether this node boots it at all.
+     * <p>
+     * Both are what an operator moves to repair a tablespace that is not served here, so a change to either of them
+     * is acted upon at the next pass of the activator rather than at the end of the current wait.
+     * </p>
+     */
+    private static Object howTheTableSpaceWouldBoot(TableSpace tableSpace) {
+        return Arrays.asList(tableSpace.leaderId, new HashSet<>(tableSpace.replicas));
+    }
+
+    /**
+     * Reports a tablespace this node refuses to serve, as often as there is something to add and no more than that.
+     * <p>
+     * The refusal repeats for as long as the tablespace is not repaired, and the reason and the way out do not change
+     * between one attempt and the next: printing all of it every time buries the logs of everything else this node is
+     * doing, and an operator cannot see whether anything moved. So the whole story, stack trace included, is told the
+     * first time and whenever this node starts waiting longer than it did before, and the attempts in between are one
+     * line that says that the tablespace is still down and what to do about it.
+     * </p>
+     */
+    private void reportRefusedTableSpace(
+            String tableSpaceName, PacedRetries.Attempt bootAttempt, TableSpaceCannotBeLedHereException contentIsNotHere
+    ) {
+        if (bootAttempt.reportInFull()) {
+            LOGGER.log(Level.SEVERE, "Tablespace " + tableSpaceName + " cannot be served on node " + nodeId
+                    + ". The rest of this node keeps running and the tablespace is booted again in "
+                    + bootAttempt.retryIn() + " ms", contentIsNotHere);
+        } else {
+            LOGGER.log(Level.WARNING, "Tablespace " + tableSpaceName + " is still not served on node " + nodeId
+                    + ": the content of the tablespace is not here and this node, as its leader, has nobody to"
+                    + " download it from. The tablespace is booted again in " + bootAttempt.retryIn() + " ms."
+                    + " Either give the leadership to a node that holds the content, with ALTER TABLESPACE '"
+                    + tableSpaceName + "','leader:<node>', or, if no node holds it any more, throw the tablespace"
+                    + " away with DROP TABLESPACE '" + tableSpaceName + "' and run the restore again");
+        }
+    }
+
+    /**
+     * Releases a tablespace manager whose boot did not succeed. Whatever goes wrong while closing it belongs to the
+     * failure that is being handled, never the other way round.
+     */
+    private void closeAfterFailedBoot(TableSpaceManager manager, String tableSpaceName, Throwable bootFailure) {
+        try {
+            manager.close();
+        } catch (Throwable closeFailure) {
+            LOGGER.log(Level.SEVERE, "cannot close the tablespace manager of " + tableSpaceName
+                    + " after a failed boot", closeFailure);
+            bootFailure.addSuppressed(closeFailure);
+        }
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -989,6 +1086,29 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
+    /**
+     * Applies an {@code ALTER TABLESPACE}, which is also the one way the leadership of a tablespace is moved by hand.
+     * <p>
+     * Naming a leader here is an override and it is treated as one: the statement is not refused because the node it
+     * names may not be able to serve the tablespace. That is not a policy of tolerance, it is that this node is in no
+     * position to answer the question. Whether a node can lead a tablespace depends on what that node holds locally,
+     * its last checkpoint against the tail of the commit log, and only that node can read it; the node running this
+     * statement is very often neither the old leader nor the new one. The statement has never checked that the node
+     * it names exists, is alive, or is even a replica, and a check that covered one condition out of those would
+     * promise a validation that is not there.
+     * </p>
+     * <p>
+     * Refusing would also take away the way out of the mistake. A node that is made the leader of a tablespace whose
+     * content it does not hold refuses to boot it, and the fix is to run this same statement again and give the
+     * leadership back: a guard that refused to move the leadership of a tablespace in that state would refuse
+     * exactly the command that repairs it.
+     * </p>
+     * <p>
+     * What a mistake here costs is availability and nothing else. The node that is given a tablespace it holds
+     * nothing of says so and boots nothing; it changes nothing about the tablespace, and the node that does hold the
+     * content keeps every byte of it. So the move is logged, loudly enough to be found afterwards, and allowed.
+     * </p>
+     */
     private StatementExecutionResult alterTableSpace(AlterTableSpaceStatement alterTableSpaceStatement) throws StatementExecutionException {
         TableSpace tableSpace;
 
@@ -1008,6 +1128,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         .build();
             } catch (IllegalArgumentException invalid) {
                 throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
+            }
+            if (!previous.leaderId.equals(tableSpace.leaderId)) {
+                LOGGER.log(Level.WARNING, "Tablespace {0}: the leadership is being moved by hand from node {1} to"
+                        + " node {2}. The new leader serves the tablespace out of the data it holds locally, and it"
+                        + " refuses to boot the tablespace if that data does not describe its content, which is the"
+                        + " case for a node that has not downloaded a content the tablespace received without going"
+                        + " through the commit log",
+                        new Object[]{tableSpace.name, previous.leaderId, tableSpace.leaderId});
             }
             metadataStorageManager.updateTableSpace(tableSpace, previous);
             triggerActivator(ActivatorRunRequest.FULL);
@@ -1045,7 +1173,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try {
             manager.dumpTableSpace(dumpId, channel, fetchSize, includeLog);
         } catch (Exception error) {
-            LOGGER.log(Level.SEVERE, "error on dump", error);
+            LOGGER.log(Level.SEVERE, "error on dump " + dumpId + " of tablespace " + tableSpace, error);
+            // The reply to the request was sent before the dump began, because a dump takes as long as it takes and
+            // the client cannot be left holding the request open for that. From then on the only thing that ever
+            // reaches the other end is the stream, so a dump that dies in silence leaves its receiver waiting for a
+            // chunk nobody is going to send: a replica rebooting on a full download has already erased its own copy
+            // of the tablespace by the time it asks for this one, and it waits an hour before giving up.
+            TableSpaceManager.sendDumpFailed(tableSpace, dumpId, channel, error);
         }
     }
 
@@ -1091,21 +1225,181 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
 
+    /**
+     * Tells whether this node could boot the tablespace as its leader out of what it holds locally, that is the last
+     * checkpoint of its data plus the part of the commit log that follows it.
+     * <p>
+     * There are two ways of failing that. The log may not be readable from the position the local data is aligned to,
+     * which is what {@link CommitLog#isRecoveryAvailable} answers, and the log may be perfectly readable and still not
+     * describe the content of the tablespace, which is what a restore from a snapshot leaves behind: see
+     * {@link #scanLogForARestoreThisNodeNeverGot}.
+     * </p>
+     * <p>
+     * The answer is read afresh every time it is asked for, and the second half of it costs a pass over the part of
+     * the log this node has not replayed yet. That is the price of an answer that is true: both facts are properties
+     * of the log, which anybody leading the tablespace keeps writing to, while the position the local data sits at,
+     * the only thing that could key a remembered answer, stands still precisely when it matters, because a node
+     * waiting for a restore to be closed takes no checkpoint. How often the question is worth asking is decided by the
+     * caller, in {@link #tryBecomeLeaderFor}: the leader of a tablespace can stay silent for as long as it likes, and
+     * a node that cannot take over would otherwise read the tail of that log once a second for as long as that lasts.
+     * </p>
+     */
     // visible for testing
     public boolean isTableSpaceLocallyRecoverable(TableSpace tableSpace) {
+        return isTableSpaceLocallyRecoverable(tableSpace, true);
+    }
+
+    /**
+     * @param reportInFull whether a negative answer is worth reporting with everything that led to it, or whether it
+     * repeats something an operator has already been told
+     */
+    private boolean isTableSpaceLocallyRecoverable(TableSpace tableSpace, boolean reportInFull) {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpace.uuid);
         try (CommitLog tmpCommitLog = commitLogManager.createCommitLog(tableSpace.uuid, tableSpace.name, nodeId);) {
-            return tmpCommitLog.isRecoveryAvailable(logSequenceNumber);
+            if (!tmpCommitLog.isRecoveryAvailable(logSequenceNumber)) {
+                return false;
+            }
+            return scanLogForARestoreThisNodeNeverGot(tmpCommitLog, tableSpace, logSequenceNumber, reportInFull)
+                    == RestoreMarkerScanResult.NO_MARKER;
         }
     }
 
-    private boolean tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
-        if (!isTableSpaceLocallyRecoverable(tableSpace)) {
-            LOGGER.log(Level.INFO, "local node {0} cannot become leader of {1} (current is {2})."
-                    + "Cannot boot tablespace locally (not enough data, last checkpoint + log)",
-                    new Object[]{nodeId, tableSpace.name, tableSpace.leaderId});
+    /**
+     * What the part of the log a node would replay says about a restore from a snapshot.
+     */
+    private enum RestoreMarkerScanResult {
+        /**
+         * No restore marker, so the log describes the content of the tablespace as it always did.
+         */
+        NO_MARKER,
+        /**
+         * A restore replaced the content of the tablespace above the point the local data of this node stops at.
+         */
+        MARKER_FOUND,
+        /**
+         * The log could not be read at all, so the question was not answered.
+         */
+        LOG_UNREADABLE
+    }
+
+    /**
+     * Reads the part of the commit log this node would replay, from the position its local data is aligned to, and
+     * looks for the marker of a restore from a snapshot.
+     * <p>
+     * Finding one means that the log does not describe the content of the tablespace and that the local data of this
+     * node stops below the point where the content was replaced: whatever the restore wrote is not here and cannot be
+     * rebuilt out of the log, because a restore streams its data straight into the storage of the leader and puts
+     * nothing but these markers on the log. A node in that state can only get the content by downloading it from the
+     * leader, which is exactly what it does as long as it stays a replica, and which nobody can do for it once it
+     * becomes the leader itself.
+     * </p>
+     * <p>
+     * Taking leadership from here is useless, and it takes a tablespace that is merely leaderless and makes it a
+     * tablespace that refuses to boot: a node that leads a tablespace and meets a restore marker somebody else wrote
+     * cannot wait for the rest of the restore, because it is the leader and nothing else writes to that log, and
+     * cannot download it, because a leader has nobody to download from. So the promotion is refused here, before it
+     * happens, and the tablespace stays where it is until the leader comes back or an operator steps in.
+     * </p>
+     * <p>
+     * The marker is not read any further than its type, and that is on purpose: this decision is about what this node
+     * holds, which the position of the marker alone settles.
+     * </p>
+     * <p>
+     * The check is a pass over the log rather than a flag because there is nothing else to read: a node that has to
+     * decide this has no tablespace manager running, its local checkpoint says nothing about restores, and the
+     * markers are the only trace a restore leaves anywhere. A positive answer costs nothing beyond the promotion it
+     * allows, which replays the very same entries again; a negative one is the one that repeats, because the node
+     * stays exactly where it was and is asked again as soon as the leader is still silent, so the caller is the one
+     * that decides how often it is worth paying for.
+     * </p>
+     *
+     * @param log a commit log of the tablespace this node can read from, but does not write to
+     * @param from the position the local data of this node is aligned to, the same position a boot would replay the
+     * log from, so that a marker this node has already gone past is not read at all
+     * @param reportInFull whether what is found is worth reporting with everything that led to it, or whether it
+     * repeats something an operator has already been told
+     */
+    private RestoreMarkerScanResult scanLogForARestoreThisNodeNeverGot(
+            CommitLog log, TableSpace tableSpace, LogSequenceNumber from, boolean reportInFull
+    ) {
+        try {
+            log.recovery(from, (position, entry) -> {
+                if (entry.type == LogEntryType.RESTORED_FROM_SNAPSHOT) {
+                    // the rest of the log has nothing to add: one marker is enough to know that the content of the
+                    // tablespace was replaced above the point this node stopped at
+                    throw new RestoredFromSnapshotException("Tablespace " + tableSpace.name + " holds the marker of a"
+                            + " restore from a snapshot at " + position, position);
+                }
+            }, false);
+            return RestoreMarkerScanResult.NO_MARKER;
+        } catch (RestoredFromSnapshotException restore) {
+            if (reportInFull) {
+                LOGGER.log(Level.SEVERE, "Tablespace {0}: node {1} cannot take leadership. Its data stops at {2} and"
+                        + " the log holds the marker of a restore from a snapshot at {3}: the content of the"
+                        + " tablespace was replaced above the point this node holds and the log does not describe it,"
+                        + " so this node has nothing of the tablespace and, as its leader, would have nobody left to"
+                        + " download it from",
+                        new Object[]{tableSpace.name, nodeId, from, restore.getMarkerPosition()});
+            } else {
+                LOGGER.log(Level.WARNING, "Tablespace {0}: node {1} still cannot take leadership, the log holds the"
+                        + " marker of a restore from a snapshot at {2}",
+                        new Object[]{tableSpace.name, nodeId, restore.getMarkerPosition()});
+            }
+            return RestoreMarkerScanResult.MARKER_FOUND;
+        } catch (RuntimeException error) {
+            // Reading the log is how this question is answered, so a log that cannot be read leaves it unanswered.
+            // The node stays where it is and the activator asks again later: a leader that cannot even read its own
+            // log would not get through the recovery its boot begins with anyway.
+            // This is not the answer above and must not be reported as one: every failure of a read is a
+            // RuntimeException, an unavailable ledger included, and telling an operator who has just lost one that
+            // the tablespace was restored from a snapshot sends them looking for a restore that never happened.
+            if (reportInFull) {
+                LOGGER.log(Level.SEVERE, "Tablespace " + tableSpace.name + ": node " + nodeId + " cannot read its"
+                        + " commit log from " + from + ", so it does not take leadership. Whether the tablespace was"
+                        + " restored from a snapshot is not known, the log did not get as far as saying", error);
+            } else {
+                LOGGER.log(Level.WARNING, "Tablespace {0}: node {1} still cannot read its commit log from {2}, so it"
+                        + " does not take leadership: {3}",
+                        new Object[]{tableSpace.name, nodeId, from, error});
+            }
+            return RestoreMarkerScanResult.LOG_UNREADABLE;
+        }
+    }
+
+    /**
+     * Takes the leadership of a tablespace this node replicates and whose leader has gone silent, if this node holds
+     * enough of it to serve it.
+     * <p>
+     * The question is asked on every pass of the activator for as long as the leader stays silent, and it is not a
+     * cheap one: it reads the part of the commit log of the tablespace that this node has not replayed yet. A node
+     * that cannot take over is in a state that nothing about this pass, or the next one, is going to change, so the
+     * answer is not asked for again immediately. It is asked for again once the wait is over, whatever happened in
+     * the meantime, and straight away when either the metadata of the tablespace or the tablespace manager running
+     * here changes, because those are the two things that can turn the answer around: an operator moving the
+     * leadership or the replicas, and this node booting the tablespace again, which is what downloads a content it is
+     * missing from the leader.
+     * </p>
+     *
+     * @param localManager the tablespace manager this node is running for the tablespace, the state of this node that
+     * a new answer depends on
+     */
+    private boolean tryBecomeLeaderFor(
+            TableSpace tableSpace, TableSpaceManager localManager
+    ) throws DDLException, MetadataStorageManagerException {
+        PacedRetries.Attempt attempt = refusedLeadershipTakeovers.due(tableSpace.uuid,
+                Arrays.asList(howTheTableSpaceWouldBoot(tableSpace), localManager));
+        if (attempt == null) {
             return false;
         }
+        if (!isTableSpaceLocallyRecoverable(tableSpace, attempt.reportInFull())) {
+            LOGGER.log(Level.INFO, "local node {0} cannot become leader of {1} (current is {2})."
+                    + "Cannot boot tablespace locally (not enough data, last checkpoint + log)."
+                    + " Asked again in {3} ms",
+                    new Object[]{nodeId, tableSpace.name, tableSpace.leaderId, attempt.retryIn()});
+            refusedLeadershipTakeovers.refused(attempt);
+            return false;
+        }
+        refusedLeadershipTakeovers.succeeded(tableSpace.uuid);
         LOGGER.log(Level.INFO, "node {0}, try to become leader of {1} (prev was {2})", new Object[]{nodeId, tableSpace.name, tableSpace.leaderId});
         TableSpace.Builder newTableSpaceBuilder =
                 TableSpace
@@ -1280,11 +1574,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     }
                 }
             }
-            if (!checkpointDone && type.enableTableCheckPoints()) {
-                for (TableSpaceManager man : tablesSpaces.values()) {
-                    man.runLocalTableCheckPoints();
-                }
-            }
             if (!checkpointDone && type.enableAbandonedTransactionsMaintenaince()) {
                 for (TableSpaceManager man : tablesSpaces.values()) {
                     man.processAbandonedTransactions();
@@ -1317,6 +1606,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 currentTableSpaceMetadata.put(tableSpaceMetadata.uuid, tableSpaceMetadata);
                 try {
                     handleTableSpace(tableSpaceMetadata);
+                } catch (TableSpaceCannotBeLedHereException contentIsNotHere) {
+                    // This node stays up. Stopping the process is meant for a tablespace whose state is unknown and
+                    // that a restart may well find healthy; this one is known, permanent and repairable only by an
+                    // operator, and both repairs are commands that need a node alive to receive them. A node that
+                    // stopped itself here would stop again at every start, taking down every other tablespace it
+                    // serves and leaving nobody to give the command to.
+                    // It is already reported, by the boot that refused it and that decides how much of the story is
+                    // worth telling this time: the refusal repeats for as long as nobody repairs the tablespace.
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "cannot handle tablespace " + tableSpace, err);
                     if (haltOnTableSpaceBootError && haltProcedure != null) {
@@ -1331,6 +1628,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } finally {
             generalLock.writeLock().unlock();
         }
+        // a tablespace that does not exist any more has nothing left to be held back
+        refusedTableSpaceBoots.forgetAllExcept(currentTableSpaceMetadata.keySet());
+        refusedLeadershipTakeovers.forgetAllExcept(currentTableSpaceMetadata.keySet());
         List<TableSpaceManager> followingActiveTableSpaces = new ArrayList<>();
         Set<String> failedTableSpaces = new HashSet<>();
         for (Map.Entry<String, TableSpaceManager> entry : tablesSpaces.entrySet()) {
@@ -1413,7 +1713,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         } else {
                             LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + tableSpaceInfo.leaderId
                                     + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed.");
-                            if (tryBecomeLeaderFor(tableSpaceInfo)) {
+                            if (tryBecomeLeaderFor(tableSpaceInfo, tableSpaceManager)) {
                                 // only one change at a time
                                 break;
                             }

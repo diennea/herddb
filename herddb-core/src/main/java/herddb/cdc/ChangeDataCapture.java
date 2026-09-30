@@ -33,7 +33,9 @@ import herddb.codec.DataAccessorForFullRecord;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryType;
+import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.log.RestoredFromSnapshot;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -120,6 +122,55 @@ public class ChangeDataCapture implements AutoCloseable {
         void accept(Mutation mutation);
     }
 
+    /**
+     * The whole content of the tablespace has been replaced by a snapshot, see {@link RestoredFromSnapshot}. A
+     * restore streams tables and records straight into the storage of the leader and writes nothing but these markers
+     * to the log, so from this point on the log stops describing the content of the tablespace: no sequence of
+     * mutations can bring a mirror built out of it in line with what the tablespace now holds.
+     * <p>
+     * This is reported as a failure of the capture, and not as one more kind of {@link Mutation}, on purpose. A new
+     * {@link MutationType} would land in the {@code default} branch of every listener written before it existed and
+     * be dropped there, which is precisely the failure mode this is about: a mirror that keeps looking healthy while
+     * it drifts further and further from the tablespace it mirrors. An exception cannot be ignored by accident.
+     * </p>
+     * <p>
+     * There is no way to carry on from here: whoever owns the mirror has to build it again from a fresh dump of the
+     * tablespace, taken after the restore is over, and then start the capture again from a position past
+     * {@link #getLogSequenceNumber()}. Starting it again from where it stopped meets this same marker and fails the
+     * same way, which is the intended behaviour: it never degrades into silently mirroring stale content.
+     * </p>
+     */
+    public static class TableSpaceRestoredFromSnapshotException extends Exception {
+
+        private final LogSequenceNumber logSequenceNumber;
+
+        private final RestoredFromSnapshot.Phase phase;
+
+        public TableSpaceRestoredFromSnapshotException(
+                String message, LogSequenceNumber logSequenceNumber, RestoredFromSnapshot.Phase phase
+        ) {
+            super(message);
+            this.logSequenceNumber = logSequenceNumber;
+            this.phase = phase;
+        }
+
+        /**
+         * @return the position of the marker the capture stopped at
+         */
+        public LogSequenceNumber getLogSequenceNumber() {
+            return logSequenceNumber;
+        }
+
+        /**
+         * @return whether the restore was starting or was already complete at this position. A capture that stops at
+         * {@link RestoredFromSnapshot.Phase#STARTED} has to wait for the restore to be over before dumping the
+         * tablespace again, because until then the tablespace holds only a fragment of the snapshot
+         */
+        public RestoredFromSnapshot.Phase getPhase() {
+            return phase;
+        }
+    }
+
     public interface TableSchemaHistoryStorage {
         /**
          * Stores a schema change for a table
@@ -184,18 +235,39 @@ public class ChangeDataCapture implements AutoCloseable {
         try (BookkeeperCommitLog cdc = manager.createCommitLog(tableSpaceUUID, tableSpaceUUID, "cdc");) {
             running = true;
             CommitLog.FollowerContext context = cdc.startFollowing(lastPosition);
-            cdc.followTheLeader(lastPosition, new CommitLog.EntryAcceptor() {
-                @Override
-                public boolean accept(LogSequenceNumber lsn, LogEntry entry) throws Exception {
-                    applyEntry(entry, lsn);
-                    lastPosition = lsn;
-                    return !closed;
-                }
-            }, context);
+            try {
+                cdc.followTheLeader(lastPosition, new CommitLog.EntryAcceptor() {
+                    @Override
+                    public boolean accept(LogSequenceNumber lsn, LogEntry entry) throws Exception {
+                        applyEntry(entry, lsn);
+                        lastPosition = lsn;
+                        return !closed;
+                    }
+                }, context);
+            } catch (LogNotAvailableException reportedByTheLog) {
+                throw restoreOfTheTableSpaceOrTheProblemOfTheLog(reportedByTheLog);
+            }
             return lastPosition;
         } finally {
             running = false;
         }
+    }
+
+    /**
+     * Tells apart the two things a {@link LogNotAvailableException} out of the reading of the log can mean. The log
+     * reports anything the acceptor throws as a problem of its own, so the tablespace having been restored from a
+     * snapshot arrives here disguised as a log that is temporarily unavailable. That disguise is the worst possible
+     * one: a caller that retries on an unavailable log, which is the natural thing to do because that is what a
+     * passing BookKeeper problem looks like, reads the same marker again and again and never gets anywhere, while
+     * its copy of the tablespace drifts further and further from the real content.
+     */
+    private static Exception restoreOfTheTableSpaceOrTheProblemOfTheLog(LogNotAvailableException reportedByTheLog) {
+        for (Throwable cursor = reportedByTheLog.getCause(); cursor != null; cursor = cursor.getCause()) {
+            if (cursor instanceof TableSpaceRestoredFromSnapshotException) {
+                return (TableSpaceRestoredFromSnapshotException) cursor;
+            }
+        }
+        return reportedByTheLog;
     }
 
     @Override
@@ -242,6 +314,14 @@ public class ChangeDataCapture implements AutoCloseable {
             case LogEntryType.CREATE_INDEX:
             case LogEntryType.DROP_INDEX:
                 break;
+            case LogEntryType.RESTORED_FROM_SNAPSHOT: {
+                RestoredFromSnapshot restore = RestoredFromSnapshot.deserialize(entry.value.to_array());
+                throw new TableSpaceRestoredFromSnapshotException("Change data capture of tablespace "
+                        + tableSpaceUUID + " stops at " + lsn + ": " + restore + ". The content of the tablespace"
+                        + " does not come from this log any more, so no further mutation can describe it: the target"
+                        + " has to be rebuilt from a dump of the tablespace taken after the restore, and the capture"
+                        + " started again from a position after this one", lsn, restore.getPhase());
+            }
             case LogEntryType.DROP_TABLE: {
                 Table table = lookupTable(lsn, entry);
                 if (entry.transactionId > 0) {

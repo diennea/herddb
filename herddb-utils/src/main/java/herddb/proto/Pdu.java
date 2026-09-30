@@ -49,6 +49,7 @@ public class Pdu implements AutoCloseable {
     public static final byte TYPE_EXECUTE_STATEMENTS = 15;
     public static final byte TYPE_EXECUTE_STATEMENTS_RESULT = 16;
     public static final byte TYPE_PUSH_TXLOGCHUNK = 17;
+    public static final byte TYPE_RESTORE_STARTED = 18;
     public static final byte TYPE_TABLE_RESTORE_FINISHED = 19;
     public static final byte TYPE_PUSH_TRANSACTIONSBLOCK = 20;
     public static final byte TYPE_RESTORE_FINISHED = 23;
