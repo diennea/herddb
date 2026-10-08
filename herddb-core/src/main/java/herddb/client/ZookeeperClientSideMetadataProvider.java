@@ -84,7 +84,8 @@ public final class ZookeeperClientSideMetadataProvider implements ClientSideMeta
         private ZookKeeperHolder(String zkAddress, int zkSessionTimeout) {
             this.zkAddress = zkAddress;
             this.zkSessionTimeout = zkSessionTimeout;
-            makeZooKeeper();
+            // a null value is legal here, get() creates a new handle on demand
+            this.zk.set(makeZooKeeper());
         }
 
         private ZooKeeper get() throws InterruptedException {

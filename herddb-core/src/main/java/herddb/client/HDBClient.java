@@ -139,6 +139,13 @@ public class HDBClient implements AutoCloseable {
         return clientSideMetadataProvider;
     }
 
+    /**
+     * Installs the metadata provider to be used by this client. The client takes ownership of the
+     * given provider and closes it when the client itself is closed. The provider installed before
+     * this call is not closed, releasing it is up to the caller.
+     *
+     * @param clientSideMetadataProvider the provider to use from now on
+     */
     public void setClientSideMetadataProvider(ClientSideMetadataProvider clientSideMetadataProvider) {
         this.clientSideMetadataProvider = clientSideMetadataProvider;
     }
@@ -166,6 +173,9 @@ public class HDBClient implements AutoCloseable {
         }
         if (thredpool != null) {
             thredpool.shutdown();
+        }
+        if (clientSideMetadataProvider != null) {
+            clientSideMetadataProvider.close();
         }
     }
 
