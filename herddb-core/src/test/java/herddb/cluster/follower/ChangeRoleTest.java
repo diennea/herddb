@@ -22,6 +22,7 @@ package herddb.cluster.follower;
 import static herddb.core.TestUtils.newServerConfigurationWithAutoPort;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import herddb.cluster.BookkeeperCommitLog;
 import herddb.codec.RecordSerializer;
 import herddb.core.ActivatorRunRequest;
 import herddb.core.MemoryManager;
@@ -130,6 +131,17 @@ public class ChangeRoleTest extends MultiServerBase {
             assertEquals(0, server2MemoryManager.getDataPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getIndexPageReplacementPolicy().size());
             assertEquals(0, server2MemoryManager.getPKPageReplacementPolicy().size());
+
+            // The last insert is acknowledged, but with idle no-op writes disabled no later write has
+            // published a LastAddConfirmed that covers it, so a reader that does not fence the ledger
+            // cannot see it yet. To boot as leader, server2 first recovers without fencing and takes a
+            // checkpoint, then fences the old ledgers and replays the rest of the log. The last insert
+            // is part of that checkpoint, and its page is counted below, only if server1 has already
+            // closed its ledger when server2 starts recovering: the two activators race on that.
+            // Rolling to a new ledger closes the current one now, which makes every entry readable,
+            // so server2 always recovers all the data before its checkpoint.
+            BookkeeperCommitLog server1Log = (BookkeeperCommitLog) server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog();
+            server1Log.rollNewLedger();
 
             // start tablespace on server2, as let it become leader
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,

@@ -60,7 +60,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private final StatsLogger statsLogger;
     private final ClientConfiguration config;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
-    private long maxLedgerSizeBytes = 100 * 1024 * 1024 * 1024;
+    private long maxLedgerSizeBytes = ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE_DEFAULT;
     private long maxIdleTime = 0;
     private long bookkeeperClusterReadyWaitTime = 60_000;
 

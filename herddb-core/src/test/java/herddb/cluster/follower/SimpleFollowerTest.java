@@ -426,7 +426,13 @@ public class SimpleFollowerTest extends MultiServerBase {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
         serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
-        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
+        // The BEGIN and the INSERT of the transaction below are written to the log without waiting
+        // for the bookie acknowledgement, so the INSERT may carry a LastAddConfirmed that does not
+        // cover the BEGIN yet. A follower can read an entry only once a later write has published a
+        // LastAddConfirmed that covers it, and nothing else is written while the transaction is open.
+        // The leader's idle no-op writes keep LastAddConfirmed moving, so the follower is guaranteed
+        // to see the BEGIN. No-op entries do not touch the transaction.
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 100);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
