@@ -335,6 +335,30 @@ public class BookKeeperCommitLogTest {
     }
 
     @Test
+    public void testDefaultMaxLedgerSizeKeepsEntriesInOneLedger() throws Exception {
+        final String tableSpaceUUID = UUID.randomUUID().toString();
+        final String name = TableSpace.DEFAULT;
+        final String nodeid = "nodeid";
+        ServerConfiguration serverConfiguration = newServerConfigurationWithAutoPort();
+        try (ZookeeperMetadataStorageManager man = new ZookeeperMetadataStorageManager(testEnv.getAddress(),
+                testEnv.getTimeout(), testEnv.getPath());
+                BookkeeperCommitLogManager logManager = new BookkeeperCommitLogManager(man, serverConfiguration, NullStatsLogger.INSTANCE)) {
+            // a manager built without an explicit size must use the documented server default
+            assertEquals(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_MAX_SIZE_DEFAULT, logManager.getMaxLedgerSizeBytes());
+            man.start();
+            logManager.start();
+            try (BookkeeperCommitLog writer = logManager.createCommitLog(tableSpaceUUID, name, nodeid);) {
+                writer.startWriting(1);
+                for (int i = 0; i < 10; i++) {
+                    writer.log(LogEntryFactory.beginTransaction(i + 1), true).getLogSequenceNumber();
+                }
+                // a few small entries are far below the default size, so no new ledger is needed
+                assertEquals(1, writer.getActualLedgersList().getActiveLedgers().size());
+            }
+        }
+    }
+
+    @Test
     public void testMaxLedgerSize() throws Exception {
         final String tableSpaceUUID = UUID.randomUUID().toString();
         final String name = TableSpace.DEFAULT;
