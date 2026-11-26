@@ -463,7 +463,17 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     /* ******************** */
     @Override
     public void unload(long pageId) {
-        nodes.get(pageId).unload(true, false);
+        final Node<K, V> node = nodes.get(pageId);
+
+        /*
+         * The policy can choose a node as eviction victim and leave its unload to a thread that performs it only
+         * later, once it has released its own locks. In the meantime the node could have been dropped from nodes
+         * knowledge (an empty node dropped by checkpoint, or every node on close and truncate): whoever dropped it
+         * has already unloaded it, so there is nothing left to do.
+         */
+        if (node != null) {
+            node.unload(true, false);
+        }
     }
 
     /**
@@ -483,8 +493,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
              * the page later after releasing his load lock
              */
 
+            final Node<K, V> node = nodes.get(unload.pageId);
+
+            /* Node already dropped from nodes knowledge, and unloaded by whoever dropped it */
+            if (node == null) {
+                return true;
+            }
+
             /* Attempt to unload metadata if a lock can be acquired */
-            return nodes.get(unload.pageId).unload(true, true);
+            return node.unload(true, true);
 
         } else {
 
@@ -524,10 +541,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                  */
                 if (node.empty()) {
 
-                    /* If the node existed in policy remove it and unload */
-                    if (policy.remove(node)) {
-                        node.unload(false, false);
-                    }
+                    /*
+                     * Remove the node from the policy and unload it. Unload it even if the policy didn't know it
+                     * anymore: the policy could have already chosen it as an eviction victim, leaving its unload to
+                     * a thread that hasn't performed it yet. Such a thread looks the node up by id, and won't find
+                     * it once removed from nodes below, so the node must be unloaded here or its memory would stay
+                     * accounted forever. Unloading a node not loaded is a no-op.
+                     */
+                    policy.remove(node);
+                    node.unload(false, false);
 
                     /*
                      * Remove the node from nodes knowledge: it is a safe operation, if a node is empty it will not be

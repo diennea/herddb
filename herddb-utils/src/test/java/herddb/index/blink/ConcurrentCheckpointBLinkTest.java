@@ -21,9 +21,15 @@
 package herddb.index.blink;
 
 import herddb.core.ClockProPolicy;
+import herddb.core.Page;
+import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLink.SizeEvaluator;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
@@ -533,6 +539,138 @@ public class ConcurrentCheckpointBLinkTest {
             return checkpoints;
         }
 
+    }
+
+    /**
+     * A page replacement policy that lets a test simulate evictions whose unload has been decided but not yet
+     * performed: {@link #evictAll()} removes every known page from the policy, exactly as the policy does when it
+     * picks a victim, and keeps the victims' metadata instead of unloading them. The test then performs those
+     * unloads later, the same way a thread that received the victims would.
+     */
+    private static final class DeferredEvictionPolicy implements PageReplacementPolicy {
+
+        private final PageReplacementPolicy delegate;
+        private final Map<Long, Page<?>> pages = new LinkedHashMap<>();
+
+        DeferredEvictionPolicy(PageReplacementPolicy delegate) {
+            this.delegate = delegate;
+        }
+
+        List<Page.Metadata> evictAll() {
+            List<Page.Metadata> victims = new ArrayList<>();
+            for (Page<?> page : pages.values()) {
+                if (delegate.remove(page)) {
+                    victims.add(new Page.Metadata(page.owner, page.pageId));
+                }
+            }
+            return victims;
+        }
+
+        @Override
+        public void pageHit(Page<?> page) {
+            delegate.pageHit(page);
+        }
+
+        @Override
+        public Page.Metadata add(Page<?> page) {
+            pages.put(page.pageId, page);
+            return delegate.add(page);
+        }
+
+        @Override
+        public boolean remove(Page<?> page) {
+            return delegate.remove(page);
+        }
+
+        @Override
+        public <P extends Page<?>> void remove(Collection<P> toRemove) {
+            delegate.remove(toRemove);
+        }
+
+        @Override
+        public int size() {
+            return delegate.size();
+        }
+
+        @Override
+        public int capacity() {
+            return delegate.capacity();
+        }
+
+        @Override
+        public void clear() {
+            delegate.clear();
+        }
+    }
+
+    /**
+     * A node chosen as eviction victim can become empty, and then be dropped by a checkpoint, before the thread
+     * that received it as a victim gets to unload it: that late unload must not fail and the node memory must
+     * still be released.
+     */
+    @Test
+    public void unloadOfEvictedNodeDroppedByCheckpoint() throws Exception {
+
+        /*
+         * Compare against the same operations without pending unloads rather than against zero: memory accounting
+         * is only checked to be unaffected by the late unloads.
+         */
+        long expectedUsedMemory = runDeleteAndCheckpoint(false);
+        long usedMemory = runDeleteAndCheckpoint(true);
+
+        Assert.assertEquals(expectedUsedMemory, usedMemory);
+    }
+
+    /**
+     * Fills a tree, deletes most of its keys so that leaves merge leaving empty nodes behind, checkpoints and
+     * closes it.
+     *
+     * @param pendingUnloads if {@code true} every node is turned into an eviction victim right after the
+     *                       inserts, and the victims are unloaded only after the checkpoint
+     * @return the memory still accounted as used once the tree is closed
+     */
+    private static long runDeleteAndCheckpoint(boolean pendingUnloads) throws Exception {
+
+        BLinkTest.DummyBLinkIndexDataStorage<Long, Long> storage = new BLinkTest.DummyBLinkIndexDataStorage<>();
+        DeferredEvictionPolicy policy = new DeferredEvictionPolicy(new ClockProPolicy(10_000));
+
+        BLink<Long, Long> blink = new BLink<>(2048L, LongSizeEvaluator.INSTANCE, policy, storage);
+        try {
+
+            long keys = 2000;
+            long kept = 100;
+            for (long key = 0; key < keys; ++key) {
+                blink.insert(key, key);
+            }
+
+            /* Every node becomes an eviction victim whose unload has not been performed yet */
+            List<Page.Metadata> victims = pendingUnloads ? policy.evictAll() : Collections.emptyList();
+            Assert.assertEquals(pendingUnloads, !victims.isEmpty());
+
+            for (long key = 0; key < keys - kept; ++key) {
+                Assert.assertEquals(Long.valueOf(key), blink.delete(key));
+            }
+
+            /* The checkpoint drops the empty nodes */
+            int nodesBeforeCheckpoint = blink.nodes();
+            blink.checkpoint();
+            Assert.assertTrue(blink.nodes() < nodesBeforeCheckpoint);
+
+            /* The threads that received the victims finally unload them */
+            for (Page.Metadata victim : victims) {
+                victim.owner.unload(victim.pageId);
+            }
+
+            for (long key = 0; key < keys; ++key) {
+                Long expected = key < keys - kept ? null : key;
+                Assert.assertEquals(expected, blink.search(key));
+            }
+
+        } finally {
+            blink.close();
+        }
+
+        return blink.getUsedMemory();
     }
 
     /**
