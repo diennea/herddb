@@ -23,6 +23,7 @@ import herddb.network.Channel;
 import herddb.network.SendResultCallback;
 import herddb.proto.Pdu;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -128,6 +129,7 @@ public abstract class AbstractChannel extends Channel {
 
         if (!isValid()) {
             LOGGER.log(Level.SEVERE, this + " channel not active, discarding reply message " + message);
+            ReferenceCountUtil.safeRelease(message);
             return;
         }
 
@@ -170,6 +172,7 @@ public abstract class AbstractChannel extends Channel {
     public final void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, PduCallback callback) {
 
         if (!isValid()) {
+            ReferenceCountUtil.safeRelease(message);
             callback.responseReceived(null, new Exception(this + " connection is not active"));
             return;
         }
