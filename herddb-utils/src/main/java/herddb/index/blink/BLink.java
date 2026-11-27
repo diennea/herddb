@@ -1452,6 +1452,13 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     private Node<K, V> allocate_node(boolean leaf) {
         final Long nodeID = nextID.getAndIncrement();
         final Node<K, V> node = new Node<>(nodeID, leaf, this, positiveInfinity);
+
+        /*
+         * A new node is born loaded, so its size (just the node constant size, it has no entries yet) must be
+         * accounted as used memory right away: unloading the node will release its whole size.
+         */
+        usedMemory.add(node.size);
+
         nodes.put(nodeID, node);
 
         return node;
@@ -2125,11 +2132,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             right.keys = keys - count;
             keys = count;
 
+            /*
+             * Entries are just moved between the two nodes: used memory doesn't change. The right node constant
+             * size has already been accounted when the right node was allocated.
+             */
             right.size = size - keeping;
             size = keeping + NODE_CONSTANT_SIZE;
-
-            /* We need to count the added node constant size into used memory */
-            owner.usedMemory.add(NODE_CONSTANT_SIZE);
 
             // if n and new are leaves, their separators are set equal to the largest keys in them
             right.rightsep = rightsep;

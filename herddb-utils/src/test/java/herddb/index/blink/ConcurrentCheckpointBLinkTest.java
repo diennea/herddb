@@ -611,14 +611,9 @@ public class ConcurrentCheckpointBLinkTest {
     @Test
     public void unloadOfEvictedNodeDroppedByCheckpoint() throws Exception {
 
-        /*
-         * Compare against the same operations without pending unloads rather than against zero: memory accounting
-         * is only checked to be unaffected by the late unloads.
-         */
-        long expectedUsedMemory = runDeleteAndCheckpoint(false);
-        long usedMemory = runDeleteAndCheckpoint(true);
-
-        Assert.assertEquals(expectedUsedMemory, usedMemory);
+        /* Once the tree is closed no memory must remain accounted, with or without the late unloads */
+        Assert.assertEquals(0, runDeleteAndCheckpoint(false));
+        Assert.assertEquals(0, runDeleteAndCheckpoint(true));
     }
 
     /**

@@ -701,4 +701,160 @@ public class BLinkTest {
 
     }
 
+    /**
+     * Sums the size of every node in given checkpoint metadata. When every node of the tree is loaded it must be
+     * equal to the memory accounted as used by the tree.
+     */
+    private static long sumNodeBytes(BLinkMetadata<?> metadata) {
+        return metadata.nodes.stream().mapToLong(n -> n.bytes).sum();
+    }
+
+    @Test
+    public void testUsedMemoryOfEmptyTree() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(100), storage);
+        try {
+
+            /* Just the root node */
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+            assertEquals(1, metadata.nodes.size());
+            assertTrue(blink.getUsedMemory() > 0);
+            assertEquals(sumNodeBytes(metadata), blink.getUsedMemory());
+
+        } finally {
+            blink.close();
+        }
+
+        assertEquals(0, blink.getUsedMemory());
+    }
+
+    @Test
+    public void testUsedMemoryAfterRootSplits() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10_000), storage);
+        try {
+
+            for (long l = 0; l < 2000; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            /* The root split more than once, and with a policy big enough no node was ever unloaded */
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+            assertTrue(metadata.topheight >= 3);
+            assertEquals(sumNodeBytes(metadata), blink.getUsedMemory());
+
+        } finally {
+            blink.close();
+        }
+
+        assertEquals(0, blink.getUsedMemory());
+    }
+
+    @Test
+    public void testUsedMemoryAfterRootSplitsWithUnloads() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        /* A tiny policy keeps unloading nodes, roots included */
+        BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(3), storage);
+        try {
+
+            for (long l = 0; l < 2000; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            for (long l = 0; l < 2000; l++) {
+                assertEquals(l, (long) blink.search(Sized.valueOf(l)));
+            }
+
+            assertTrue(blink.checkpoint().topheight >= 3);
+
+        } finally {
+            blink.close();
+        }
+
+        assertEquals(0, blink.getUsedMemory());
+    }
+
+    @Test
+    public void testUsedMemoryAfterTruncate() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10_000), storage);
+        try {
+
+            for (long l = 0; l < 2000; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            blink.truncate();
+
+            /* Just the new root node */
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+            assertEquals(1, metadata.nodes.size());
+            assertTrue(blink.getUsedMemory() > 0);
+            assertEquals(sumNodeBytes(metadata), blink.getUsedMemory());
+
+            for (long l = 0; l < 2000; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            metadata = blink.checkpoint();
+            assertEquals(sumNodeBytes(metadata), blink.getUsedMemory());
+
+        } finally {
+            blink.close();
+        }
+
+        assertEquals(0, blink.getUsedMemory());
+    }
+
+    @Test
+    public void testUsedMemoryAfterRestore() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        BLinkMetadata<Sized<Long>> metadata;
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10_000), storage)) {
+            for (long l = 0; l < 1000; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+            metadata = blink.checkpoint();
+        }
+
+        BLink<Sized<Long>, Long> blink = new BLink<>(1024L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10_000), storage, metadata);
+        try {
+
+            /* Restored nodes are loaded only on demand */
+            assertEquals(0, blink.getUsedMemory());
+
+            for (long l = 0; l < 1000; l++) {
+                assertEquals(l, (long) blink.search(Sized.valueOf(l)));
+            }
+
+            /* Every node is loaded now */
+            assertEquals(sumNodeBytes(metadata), blink.getUsedMemory());
+
+            /* Grow the restored tree until its root splits again */
+            long l = 1000;
+            while (blink.checkpoint().topheight == metadata.topheight) {
+                for (long end = l + 1000; l < end; l++) {
+                    blink.insert(Sized.valueOf(l), l);
+                }
+            }
+
+            assertEquals(sumNodeBytes(blink.checkpoint()), blink.getUsedMemory());
+
+        } finally {
+            blink.close();
+        }
+
+        assertEquals(0, blink.getUsedMemory());
+    }
+
 }

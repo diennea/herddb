@@ -54,28 +54,30 @@ public abstract class KeyToPageIndexTest {
 
             index.start(LogSequenceNumber.START_OF_TIME, true);
 
-            Assert.assertEquals(0, index.getUsedMemory());
+            /* An empty index could still use some memory for its own structure (like an empty tree root) */
+            final long emptyUsedMemory = index.getUsedMemory();
+            Assert.assertTrue(emptyUsedMemory >= 0);
 
             /* Test put */
             index.put(key, 1L);
 
-            Assert.assertTrue(index.getUsedMemory() > 0);
+            Assert.assertTrue(index.getUsedMemory() > emptyUsedMemory);
 
             /* Test remove after put */
             index.remove(key);
 
-            Assert.assertEquals(0, index.getUsedMemory());
+            Assert.assertEquals(emptyUsedMemory, index.getUsedMemory());
 
 
             /* Test put if */
             index.put(key, 1L, null);
 
-            Assert.assertTrue(index.getUsedMemory() > 0);
+            Assert.assertTrue(index.getUsedMemory() > emptyUsedMemory);
 
             /* Test remove after put if */
             index.remove(key);
 
-            Assert.assertEquals(0, index.getUsedMemory());
+            Assert.assertEquals(emptyUsedMemory, index.getUsedMemory());
 
         }
 
